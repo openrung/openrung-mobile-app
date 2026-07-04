@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="vpn_notification_channel">OpenRung VPN</string>
+    <string name="vpn_notification_title">OpenRung VPN</string>
+    <string name="vpn_notification_preparing">در حال آماده‌سازی OpenRung VPN</string>
+    <string name="vpn_notification_connected">از طریق %1$s متصل شد</string>
+    <string name="relay_location_unknown">موقعیت نامشخص</string>
+    <string name="status_disconnected">قطع شده</string>
+    <string name="status_preparing">در حال آماده‌سازی VPN</string>
+    <string name="status_connecting">در حال اتصال</string>
+    <string name="status_connected">متصل</string>
+    <string name="status_disconnecting">در حال قطع اتصال</string>
+    <string name="status_failed">ناموفق</string>
+    <string name="log_fetching_relays">در حال دریافت رله‌ها از %1$s</string>
+    <string name="log_broker_returned">broker تعداد %1$d رله برگرداند؛ %2$d قابل استفاده است</string>
+    <string name="log_trying_relay">در حال امتحان رله %1$s در %2$s:%3$d</string>
+    <string name="log_checking_relay_reachability">در حال بررسی دسترسی TCP رله</string>
+    <string name="log_relay_failed">رله %1$s ناموفق بود: %2$s</string>
+    <string name="log_error_prefix">خطا: %1$s</string>
+    <string name="error_no_usable_relay">هیچ رله خروج مستقیم VLESS Reality Vision قابل استفاده‌ای موجود نیست.</string>
+    <string name="error_vpn_connection_failed">اتصال VPN ناموفق بود</string>
+    <string name="error_relay_unreachable">رله %1$s:%2$d از این دستگاه Android قابل دسترسی نیست. اگر این شبیه‌ساز است، از یک نقطه پایانی داوطلب IPv4/دوپشته یا شبکه شبیه‌ساز دارای IPv6 استفاده کنید.</string>
+    <string name="error_all_relays_failed">همه تلاش‌های اتصال به رله ناموفق بود. آخرین خطا: %1$s</string>
+    <string name="error_unknown">نامشخص</string>
+</resources>

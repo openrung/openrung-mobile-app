@@ -1,0 +1,122 @@
+# XcodeGen spec — the source of truth for ios/OpenRung.xcodeproj (contract §7).
+# Replicates the React Native 0.86 template app target as it existed in the checked-in
+# pbxproj (Bundle React Native code and images phase, folly flags, -ObjC/-lc++, etc.),
+# plus the PacketTunnel network-extension target ported from the production app.
+# Regenerate with scripts/generate-project.sh (xcodegen generate + pod install).
+name: OpenRung
+options:
+  deploymentTarget:
+    iOS: "16.0"
+  defaultConfig: Release
+
+settings:
+  base:
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: 9VLV9A7KS9
+    CODE_SIGN_STYLE: Automatic
+    # The RN bundle phase writes outside the sandbox; Xcode 15+ would block it otherwise.
+    ENABLE_USER_SCRIPT_SANDBOXING: "NO"
+    CLANG_CXX_LANGUAGE_STANDARD: "c++20"
+    CLANG_CXX_LIBRARY: "libc++"
+    CLANG_ENABLE_MODULES: "YES"
+    GCC_C_LANGUAGE_STANDARD: gnu99
+    SWIFT_VERSION: "5.0"
+    LD_RUNPATH_SEARCH_PATHS:
+      - /usr/lib/swift
+      - "$(inherited)"
+    LIBRARY_SEARCH_PATHS:
+      - "\"$(SDKROOT)/usr/lib/swift\""
+      - "\"$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)\""
+      - "\"$(inherited)\""
+    OTHER_CPLUSPLUSFLAGS:
+      - "$(OTHER_CFLAGS)"
+      - "-DFOLLY_NO_CONFIG"
+      - "-DFOLLY_MOBILE=1"
+      - "-DFOLLY_USE_LIBCPP=1"
+      - "-DFOLLY_CFG_NO_COROUTINES=1"
+      - "-DFOLLY_HAVE_CLOCK_GETTIME=1"
+  configs:
+    Debug:
+      ENABLE_BITCODE: "NO"
+      GCC_DYNAMIC_NO_PIC: "NO"
+      GCC_OPTIMIZATION_LEVEL: "0"
+      MTL_ENABLE_DEBUG_INFO: "YES"
+    Release:
+      MTL_ENABLE_DEBUG_INFO: "NO"
+      VALIDATE_PRODUCT: "YES"
+
+targets:
+  OpenRung:
+    type: application
+    platform: iOS
+    sources:
+      # App sources incl. the OpenRungVpn native module, LaunchScreen, assets, privacy manifest.
+      - path: OpenRung
+      # Shared layer is compiled into BOTH targets (the module reads SharedConnectionState etc.).
+      - path: Shared
+    dependencies:
+      # Embeds the PacketTunnel appex into PlugIns/.
+      - target: PacketTunnel
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.openrung.mobile
+        PRODUCT_NAME: OpenRung
+        INFOPLIST_FILE: OpenRung/Info.plist
+        CODE_SIGN_ENTITLEMENTS: OpenRung/OpenRung.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1,2"
+        VERSIONING_SYSTEM: apple-generic
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@executable_path/Frameworks"
+        OTHER_LDFLAGS:
+          - "$(inherited)"
+          - "-ObjC"
+          - "-lc++"
+    postBuildScripts:
+      # Verbatim from the RN template pbxproj. CocoaPods appends its own [CP] phases on
+      # pod install, matching the template's phase set.
+      - name: Bundle React Native code and images
+        shell: /bin/sh
+        script: |
+          set -e
+
+          WITH_ENVIRONMENT="$REACT_NATIVE_PATH/scripts/xcode/with-environment.sh"
+          REACT_NATIVE_XCODE="$REACT_NATIVE_PATH/scripts/react-native-xcode.sh"
+
+          /bin/sh -c "\"$WITH_ENVIRONMENT\" \"$REACT_NATIVE_XCODE\""
+        inputFiles:
+          - "$(SRCROOT)/.xcode.env.local"
+          - "$(SRCROOT)/.xcode.env"
+
+  PacketTunnel:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: PacketTunnel
+      - path: Shared
+    dependencies:
+      # Static archive (ar) → linked, never embedded. Present locally at ios/ThirdParty/.
+      - framework: ThirdParty/Libbox.xcframework
+        embed: false
+      - sdk: UIKit.framework
+      - sdk: libresolv.tbd
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.openrung.mobile.PacketTunnel
+        INFOPLIST_FILE: PacketTunnel/Info.plist
+        CODE_SIGN_ENTITLEMENTS: PacketTunnel/PacketTunnel.entitlements
+        APPLICATION_EXTENSION_API_ONLY: "YES"
+
+schemes:
+  # Explicit so the scheme name stays `OpenRung` for the Podfile target + xcodebuild -scheme.
+  OpenRung:
+    build:
+      targets:
+        OpenRung: all
+    run:
+      config: Debug
+    archive:
+      config: Release

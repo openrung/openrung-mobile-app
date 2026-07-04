@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="vpn_notification_channel">OpenRung VPN</string>
+    <string name="vpn_notification_title">OpenRung VPN</string>
+    <string name="vpn_notification_preparing">جار تجهيز OpenRung VPN</string>
+    <string name="vpn_notification_connected">تم الاتصال عبر %1$s</string>
+    <string name="relay_location_unknown">موقع غير معروف</string>
+    <string name="status_disconnected">غير متصل</string>
+    <string name="status_preparing">جار تجهيز VPN</string>
+    <string name="status_connecting">جار الاتصال</string>
+    <string name="status_connected">متصل</string>
+    <string name="status_disconnecting">جار قطع الاتصال</string>
+    <string name="status_failed">فشل</string>
+    <string name="log_fetching_relays">جار جلب المرحلات من %1$s</string>
+    <string name="log_broker_returned">أعاد broker عدد %1$d مرحلات؛ %2$d صالحة للاستخدام</string>
+    <string name="log_trying_relay">تجربة المرحل %1$s عند %2$s:%3$d</string>
+    <string name="log_checking_relay_reachability">فحص إمكانية الوصول إلى TCP للمرحل</string>
+    <string name="log_relay_failed">فشل المرحل %1$s: %2$s</string>
+    <string name="log_error_prefix">خطأ: %1$s</string>
+    <string name="error_no_usable_relay">لا يوجد مرحل خروج مباشر VLESS Reality Vision صالح للاستخدام.</string>
+    <string name="error_vpn_connection_failed">فشل اتصال VPN</string>
+    <string name="error_relay_unreachable">لا يمكن الوصول إلى المرحل %1$s:%2$d من جهاز Android هذا. إذا كان هذا محاكيا، فاستخدم نقطة نهاية متطوع IPv4/مزدوجة المكدس أو شبكة محاكي تدعم IPv6.</string>
+    <string name="error_all_relays_failed">فشلت كل محاولات الاتصال بالمرحلات. آخر خطأ: %1$s</string>
+    <string name="error_unknown">غير معروف</string>
+</resources>

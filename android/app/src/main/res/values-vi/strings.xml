@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="vpn_notification_channel">OpenRung VPN</string>
+    <string name="vpn_notification_title">OpenRung VPN</string>
+    <string name="vpn_notification_preparing">Đang chuẩn bị OpenRung VPN</string>
+    <string name="vpn_notification_connected">Đã kết nối qua %1$s</string>
+    <string name="relay_location_unknown">Vị trí không xác định</string>
+    <string name="status_disconnected">Đã ngắt kết nối</string>
+    <string name="status_preparing">Đang chuẩn bị VPN</string>
+    <string name="status_connecting">Đang kết nối</string>
+    <string name="status_connected">Đã kết nối</string>
+    <string name="status_disconnecting">Đang ngắt kết nối</string>
+    <string name="status_failed">Thất bại</string>
+    <string name="log_fetching_relays">đang lấy relay từ %1$s</string>
+    <string name="log_broker_returned">broker trả về %1$d relay; %2$d dùng được</string>
+    <string name="log_trying_relay">đang thử relay %1$s tại %2$s:%3$d</string>
+    <string name="log_checking_relay_reachability">đang kiểm tra khả năng truy cập TCP của relay</string>
+    <string name="log_relay_failed">relay %1$s thất bại: %2$s</string>
+    <string name="log_error_prefix">lỗi: %1$s</string>
+    <string name="error_no_usable_relay">Không có relay thoát trực tiếp VLESS Reality Vision nào dùng được.</string>
+    <string name="error_vpn_connection_failed">Kết nối VPN thất bại</string>
+    <string name="error_relay_unreachable">Không thể truy cập relay %1$s:%2$d từ thiết bị Android này. Nếu đây là trình giả lập, hãy dùng endpoint tình nguyện IPv4/dual-stack hoặc mạng giả lập hỗ trợ IPv6.</string>
+    <string name="error_all_relays_failed">Tất cả lần thử kết nối relay đều thất bại. Lỗi cuối: %1$s</string>
+    <string name="error_unknown">không xác định</string>
+</resources>

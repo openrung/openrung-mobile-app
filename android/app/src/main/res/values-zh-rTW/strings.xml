@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="vpn_notification_channel">OpenRung VPN</string>
+    <string name="vpn_notification_title">OpenRung VPN</string>
+    <string name="vpn_notification_preparing">正在準備 OpenRung VPN</string>
+    <string name="vpn_notification_connected">已透過 %1$s 連線</string>
+    <string name="relay_location_unknown">未知位置</string>
+    <string name="status_disconnected">已中斷</string>
+    <string name="status_preparing">正在準備 VPN</string>
+    <string name="status_connecting">正在連線</string>
+    <string name="status_connected">已連線</string>
+    <string name="status_disconnecting">正在中斷</string>
+    <string name="status_failed">失敗</string>
+    <string name="log_fetching_relays">正在從 %1$s 取得中繼</string>
+    <string name="log_broker_returned">broker 回傳了 %1$d 個中繼；%2$d 個可用</string>
+    <string name="log_trying_relay">正在嘗試中繼 %1$s，位址 %2$s:%3$d</string>
+    <string name="log_checking_relay_reachability">正在檢查中繼 TCP 可達性</string>
+    <string name="log_relay_failed">中繼 %1$s 失敗：%2$s</string>
+    <string name="log_error_prefix">錯誤：%1$s</string>
+    <string name="error_no_usable_relay">沒有可用的 VLESS Reality Vision 直連出口中繼。</string>
+    <string name="error_vpn_connection_failed">VPN 連線失敗</string>
+    <string name="error_relay_unreachable">此 Android 裝置無法連到中繼 %1$s:%2$d。如果這是模擬器，請使用 IPv4/雙棧志願者端點，或支援 IPv6 的模擬器網路。</string>
+    <string name="error_all_relays_failed">所有中繼連線嘗試均失敗。最後錯誤：%1$s</string>
+    <string name="error_unknown">未知</string>
+</resources>

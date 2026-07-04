@@ -1,0 +1,50 @@
+import type { Strings } from './en';
+
+/** Ported from `res/values-my/strings.xml`; missing keys fall back to English. */
+export const my: Partial<Strings> = {
+  appName: 'OpenRung',
+  mainTitle: 'openrung://mobile-client',
+  statusFormat: (status: string) => `အခြေအနေ = ${status}`,
+  relayFormat: (relay: string) => `relay = ${relay}`,
+  relayLocationUnknown: 'မသိသော တည်နေရာ',
+  actionConnect: 'ချိတ်ဆက်မည်',
+  actionDisconnect: 'ချိတ်ဆက်မှု ဖြုတ်မည်',
+  readyLog:
+    'အသင့်ဖြစ်ပါပြီ။ စေတနာ့ဝန်ထမ်း ရီလေးမှတစ်ဆင့် ချိတ်ဆက်ရန် ချိတ်ဆက်မည် ကိုနှိပ်ပါ။',
+  logLineFormat: (line: string) => `> ${line}`,
+  errorLineFormat: (error: string) => `! ${error}`,
+  trafficRouteConnected: 'traffic route: device -> OpenRung VPN -> volunteer relay',
+  trafficRouteDisconnected: 'vpn သည် fail-closed ဖြစ်သည်: relay မရှိလျှင် ချိတ်ဆက်မှု မရှိပါ။',
+  settingsContentDescription: 'ဆက်တင်များ ဖွင့်ရန်',
+  settingsTitle: 'ဆက်တင်များ',
+  backContentDescription: 'နောက်သို့',
+  languageSettingTitle: 'ဘာသာစကား',
+  languageSettingSubtitle:
+    'စနစ်ဘာသာစကားကို သုံးပါ၊ သို့မဟုတ် OpenRung အတွက် ဘာသာစကားရွေးပါ။',
+  versionSettingTitle: 'ဗားရှင်း',
+  languageSystem: 'စနစ် မူလတန်ဖိုး',
+  languageEnglish: 'English',
+  languageSimplifiedChinese: '简体中文',
+  languageTraditionalChinese: '繁體中文',
+  languagePersian: 'فارسی',
+  languageRussian: 'Русский',
+  languageArabic: 'العربية',
+  languageTurkish: 'Türkçe',
+  languageVietnamese: 'Tiếng Việt',
+  languageBurmese: 'မြန်မာ',
+  statusDisconnected: 'ချိတ်ဆက်မှု ပြတ်နေသည်',
+  statusPreparing: 'VPN ကို ပြင်ဆင်နေသည်',
+  statusConnecting: 'ချိတ်ဆက်နေသည်',
+  statusConnected: 'ချိတ်ဆက်ပြီး',
+  statusDisconnecting: 'ချိတ်ဆက်မှု ဖြုတ်နေသည်',
+  statusFailed: 'မအောင်မြင်ပါ',
+
+  // Redesigned shell (tabs / about / section headers).
+  tabHome: 'ပင်မ',
+  tabSettings: 'ဆက်တင်များ',
+  tabAbout: 'ကျွန်ုပ်တို့အကြောင်း',
+  aboutTitle: 'ကျွန်ုပ်တို့အကြောင်း',
+  relayAuto: 'အလိုအလျောက် relay',
+  settingsGeneralHeader: 'အထွေထွေ',
+  settingsDiagnosticsHeader: 'စစ်ဆေးခြင်း',
+};
