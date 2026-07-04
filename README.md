@@ -1,7 +1,7 @@
 <div align="center">
 
 <a href="https://openrung.org">
-  <img src="assets/icon/openrung-ladder.svg" alt="OpenRung logo" width="120">
+  <img src="assets/icon/openrung-mark.svg" alt="OpenRung logo" width="120">
 </a>
 
 # OpenRung Mobile App
