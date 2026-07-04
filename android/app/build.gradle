@@ -95,15 +95,26 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        // Play upload key. The keystore is git-ignored; credentials live in
+        // ~/.gradle/gradle.properties (OPENRUNG_UPLOAD_*). Checkouts without
+        // them fall back to the debug key so local release builds still work.
+        if (project.hasProperty('OPENRUNG_UPLOAD_STORE_FILE')) {
+            release {
+                storeFile file(OPENRUNG_UPLOAD_STORE_FILE)
+                storePassword OPENRUNG_UPLOAD_STORE_PASSWORD
+                keyAlias OPENRUNG_UPLOAD_KEY_ALIAS
+                keyPassword OPENRUNG_UPLOAD_KEY_PASSWORD
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            signingConfig project.hasProperty('OPENRUNG_UPLOAD_STORE_FILE')
+                    ? signingConfigs.release
+                    : signingConfigs.debug
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
