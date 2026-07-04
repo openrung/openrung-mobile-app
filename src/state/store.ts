@@ -4,7 +4,6 @@ import { AppConfig } from '../config';
 import type { DirectoryStatus, ExitNodeRegion } from '../model/exitNode';
 import { firstReachable } from '../net/brokerClient';
 import { loadExitNodeDirectory } from '../net/exitNodeDirectory';
-import { lookup } from '../net/geoIpClient';
 import type { NativeVpnState } from '../native/types';
 
 /**
@@ -99,13 +98,6 @@ export function refreshDirectory(force: boolean = false): Promise<void> {
   return loadExitNodeDirectory({
     fetchRelays: async () =>
       (await firstReachable(brokerEndpoints, { limit: AppConfig.DIRECTORY_RELAY_LIMIT })).response,
-    lookupGeo: async host => {
-      try {
-        return await lookup(host);
-      } catch {
-        return null;
-      }
-    },
   })
     .then(regions => {
       if (generation !== directoryGeneration) {

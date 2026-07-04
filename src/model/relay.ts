@@ -26,6 +26,15 @@ export interface RelayDescriptor {
   registered_at: string; // ISO instant
   last_heartbeat_at: string;
   expires_at: string;
+  // Broker-served exit location (docs/api.md "List Relays"), city-level accurate at best.
+  // All five are absent until the broker's geo lookup succeeds — older brokers never send
+  // them. For tunnel (CGNAT) relays this is where traffic actually exits, which is NOT
+  // public_host (the relay hub) — never geolocate public_host client-side.
+  city?: string;
+  country?: string;
+  country_code?: string; // ISO 3166-1 alpha-2, uppercase
+  latitude?: number; // WGS84
+  longitude?: number;
 }
 
 export interface RelayListResponse {

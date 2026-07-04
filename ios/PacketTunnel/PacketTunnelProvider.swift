@@ -101,7 +101,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 let countryName = CountryGeo.displayName(targetCountry) ?? targetCountry
                 SharedConnectionState.appendLog("connecting to a volunteer in \(countryName)")
                 failureStage = "relay_geo_filter"
-                targetedCandidates = await filterByCountry(candidates, countryCode: targetCountry)
+                targetedCandidates = filterByCountry(candidates, countryCode: targetCountry)
                 guard targetedCandidates.isEmpty == false else {
                     throw PacketTunnelError.noRelayInCountry(countryName)
                 }
@@ -115,7 +115,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             activeRelayID = relay.id
             TelemetryManager.markConnected(relayId: relay.id)
             SharedConnectionState.setStatus(.connected, clearRelayLabel: true, clearError: true)
-            resolveRelayLocation(relay)
+            applyRelayLocation(relay)
             TelemetryManager.record(
                 "connection_succeeded",
                 relayId: relay.id,
@@ -199,62 +199,41 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     }
 
     /**
-     Resolves each candidate relay's country via GeoIP (concurrently, deduped by host) and keeps only
-     those in `countryCode`. Relays whose geo cannot be resolved are excluded so a targeted connect
-     never silently lands in the wrong country.
+     Keeps only candidates whose broker-served country matches `countryCode`. Relays the broker
+     hasn't geolocated yet are excluded so a targeted connect never silently lands in the wrong
+     country. The broker geolocates each relay's real exit — the app never geolocates relay IPs
+     itself (a tunnel relay's `publicHost` would give the hub's location, not the exit's).
      */
-    private func filterByCountry(_ candidates: [RelayDescriptor], countryCode: String) async -> [RelayDescriptor] {
+    private func filterByCountry(_ candidates: [RelayDescriptor], countryCode: String) -> [RelayDescriptor] {
         let target = countryCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        var countryByHost: [String: String] = [:]
-        let hosts = Array(Set(candidates.map(\.publicHost)))
-
-        await withTaskGroup(of: (String, String?).self) { group in
-            for host in hosts {
-                group.addTask {
-                    let geo = try? await GeoIpClient().lookup(ip: host)
-                    let code = geo?.countryCode
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                        .uppercased()
-                    return (host, code)
-                }
-            }
-
-            for await (host, code) in group {
-                if let code, code.isEmpty == false {
-                    countryByHost[host] = code
-                }
-            }
-        }
-
-        return candidates.filter { countryByHost[$0.publicHost] == target }
-    }
-
-    /// Resolves the relay's geographic location off the connection path and publishes only that
-    /// label (never the raw IP). Guarded by `activeRelayID` so a late result can't survive a stop.
-    private func resolveRelayLocation(_ relay: RelayDescriptor) {
-        Task {
-            let geo = try? await GeoIpClient().lookup(ip: relay.publicHost)
-            let resolved = geo?.locationLabel()
-            let label = (resolved?.isEmpty == false ? resolved : nil) ?? "Unknown location"
-            guard activeRelayID == relay.id else { return }
-            SharedConnectionState.setRelayLabel(label)
-            if let geo {
-                recordRecentNode(geo)
-            }
+        return candidates.filter { relay in
+            let code = (relay.countryCode ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .uppercased()
+            return code == target
         }
     }
 
-    /** Adds the connected relay's country to the main-screen "Recents" row (best-effort). */
-    private func recordRecentNode(_ geo: ClientGeoInfo) {
-        let code = geo.countryCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+    /// Publishes the relay's broker-served location and shows only that label (never the raw IP),
+    /// falling back to a generic label while the broker hasn't resolved the relay's geo yet.
+    private func applyRelayLocation(_ relay: RelayDescriptor) {
+        let resolved = relay.locationLabel()
+        SharedConnectionState.setRelayLabel(resolved.isEmpty ? "Unknown location" : resolved)
+        recordRecentNode(relay)
+    }
+
+    /** Adds the connected relay's broker-served country to the "Recents" row (best-effort). */
+    private func recordRecentNode(_ relay: RelayDescriptor) {
+        let code = (relay.countryCode ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         if code.isEmpty { return }
         let centroid = CountryGeo.centroid(code)
+        let label = relay.locationLabel()
         SharedConnectionState.recordRecent(
             RecentNode(
                 countryCode: code,
-                label: geo.locationLabel().isEmpty ? (centroid?.name ?? code) : geo.locationLabel(),
-                latitude: centroid?.latitude ?? geo.latitude,
-                longitude: centroid?.longitude ?? geo.longitude
+                label: label.isEmpty ? (centroid?.name ?? code) : label,
+                latitude: centroid?.latitude ?? relay.latitude ?? 0,
+                longitude: centroid?.longitude ?? relay.longitude ?? 0
             )
         )
     }

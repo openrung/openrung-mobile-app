@@ -18,7 +18,8 @@ heartbeat telemetry, VPN permission + background lifecycle, recents recording,
 status/log persistence.
 
 **TypeScript (RN shell)** owns everything the production *app processes* own:
-all UI, navigation, exit-node map directory (broker fetch + GeoIP grouping),
+all UI, navigation, exit-node map directory (broker fetch, grouped by the
+broker-served relay locations — relay IPs are never geolocated client-side),
 speed test, language selection, licenses screens.
 
 ## 2. Identifiers
@@ -108,13 +109,13 @@ src/
     strings/en.ts …    # ported from android res/values*/strings.xml (9 locales;
                        #   picker shows 10 options: System default + 9 languages)
   model/
-    relay.ts           # RelayDescriptor (snake_case JSON), isUsable(), RelayListResponse
+    relay.ts           # RelayDescriptor (snake_case JSON, optional broker-served
+                       #   city/country/country_code/latitude/longitude), isUsable()
     countryGeo.ts      # 51-entry centroid table, verbatim from CountryGeo.kt
-    exitNode.ts        # ExitNodeRegion, DirectoryStatus
+    exitNode.ts        # ExitNodeRegion (country+city marker), DirectoryStatus
   net/
     brokerClient.ts    # GET /api/v1/relays?limit=N, candidates(), firstReachable()
-    exitNodeDirectory.ts
-    geoIpClient.ts     # https://ipwho.is/ (4s timeout)
+    exitNodeDirectory.ts # groups relays by broker-served geo (no client-side GeoIP)
     speedTestClient.ts # warmup 1MB + measure 10MB via /api/v1/speed-test
     telemetryClient.ts # POST /api/v1/telemetry/events (speed-test events only)
   state/

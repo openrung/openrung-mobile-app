@@ -21,8 +21,9 @@ lifecycle, recents recording, and status/log persistence. If the RN process
 dies, the tunnel keeps running.
 
 **TypeScript owns everything the production app processes own**: all screens
-and navigation, the exit-node map directory (its own broker fetch + GeoIP
-grouping), the speed test, language selection, and the licenses screens.
+and navigation, the exit-node map directory (its own broker fetch, grouped by
+the broker-served relay locations — the app never geolocates relay IPs), the
+speed test, language selection, and the licenses screens.
 
 Note that the broker is queried from *both* sides, matching production: the
 native service fetches relays to connect, and the TS shell independently
@@ -43,7 +44,7 @@ fetches relays to draw the map directory.
   |     |   DIRECTORY PATH (TS-owned)        |                          |
   |     |   store.refreshDirectory()         |                          |
   |     |     -> src/net/brokerClient.ts  GET /api/v1/relays?limit=N    |
-  |     |     -> src/net/geoIpClient.ts   https://ipwho.is/ (4s)        |
+  |     |        (relays carry broker-served city/country/coords)       |
   |     |     -> group into ExitNodeRegion[] -> map pins                |
   |     v                                    |                          |
   |  src/native/OpenRungVpn.ts        NativeEventEmitter                |

@@ -37,6 +37,12 @@ const RELAY_LIST = {
       id: 'tokyo-volunteer-1',
       public_host: '203.0.113.10',
       public_port: 443,
+      // Broker-served exit location — the app never geolocates relay IPs itself.
+      city: 'Tokyo',
+      country: 'Japan',
+      country_code: 'JP',
+      latitude: 35.6895,
+      longitude: 139.6917,
       protocol: 'vless-reality-vision',
       client_id: 'e6b1a1de-9f0f-4c1a-8bb1-1f2b3c4d5e6f',
       reality_public_key: 'pubkey',
@@ -54,32 +60,16 @@ const RELAY_LIST = {
   ],
 };
 
-const GEO = {
-  ip: '203.0.113.10',
-  success: true,
-  country: 'Japan',
-  country_code: 'JP',
-  city: 'Tokyo',
-  latitude: 35.68,
-  longitude: 139.69,
-  connection: { asn: 2516, org: 'Example Org', isp: 'Example ISP' },
-};
-
 let relayFetches: number;
-let geoFetches: number;
 
 function installFetch(relayPayload: unknown = RELAY_LIST): void {
   relayFetches = 0;
-  geoFetches = 0;
   (globalThis as Record<string, unknown>).fetch = jest.fn(async (url: string) => {
     if (url.includes('/api/v1/relays')) {
       relayFetches++;
       return jsonResponse(relayPayload);
     }
-    if (url.includes('ipwho.is')) {
-      geoFetches++;
-      return jsonResponse(GEO);
-    }
+    // Anything else — notably ipwho.is — must never be contacted for relays.
     throw new Error(`unexpected fetch: ${url}`);
   });
 }
@@ -90,7 +80,7 @@ beforeEach(() => {
 });
 
 describe('refreshDirectory', () => {
-  it('loads the directory: usable relays grouped by GeoIP country at the curated centroid', async () => {
+  it('loads the directory: usable relays grouped by broker-served location at broker coordinates', async () => {
     await refreshDirectory();
     const state = getSnapshot();
     expect(state.directoryStatus).toBe('loaded');
@@ -98,13 +88,13 @@ describe('refreshDirectory', () => {
       {
         countryCode: 'JP',
         countryName: 'Japan',
-        latitude: 36.2, // curated centroid, not the GeoIP coordinate
-        longitude: 138.25,
+        city: 'Tokyo',
+        latitude: 35.6895, // the broker's coordinate, no client-side geo lookup
+        longitude: 139.6917,
         nodeCount: 1,
       },
     ]);
     expect(relayFetches).toBe(1);
-    expect(geoFetches).toBe(1);
   });
 
   it('is a no-op after a successful non-empty load', async () => {
