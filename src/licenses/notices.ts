@@ -1,8 +1,9 @@
-// GENERATED FILE — do not edit by hand.
-// Regenerated from this repository's LICENSE (full GNU GPL-3.0 text, identical to the production
-// OpenRung LICENSE) and THIRD_PARTY_NOTICES.md (production notices + the React Native layer:
-// react-native, @maplibre/maplibre-react-native, @react-native-async-storage/async-storage,
-// react-native-safe-area-context — all MIT).
+// In-app copy of the license texts shown on the Open Source Licenses screen.
+// Mirrors this repository's LICENSE (full GNU GPL-3.0 text) and
+// THIRD_PARTY_NOTICES.md — keep the two in sync when either changes. Covers the
+// GPL sing-box/libbox core plus the React Native layer (react-native,
+// @maplibre/maplibre-react-native, @react-native-async-storage/async-storage,
+// react-native-safe-area-context, react-native-svg — all MIT).
 
 /** One bundled/linked third-party component shown on the licenses screen. */
 export interface LicenseComponent {
@@ -12,8 +13,8 @@ export interface LicenseComponent {
 }
 
 /**
- * Components listed on the in-app licenses screen: the production Android list (mirroring the
- * distributed components in THIRD_PARTY_NOTICES.md) plus the new RN-prototype dependencies.
+ * Components listed on the in-app licenses screen, mirroring the distributed
+ * components in THIRD_PARTY_NOTICES.md (GPL core + the React Native layer).
  */
 export const components: LicenseComponent[] = [
   { name: "sing-box (libbox)", license: "GPL-3.0-or-later", url: "https://github.com/SagerNet/sing-box" },
@@ -713,7 +714,7 @@ Public License instead of this License.  But first, please read
 /** Third-party notices (THIRD_PARTY_NOTICES.md), rendered on the full-license-text screen. */
 export const THIRD_PARTY_TEXT = `# Third-Party Notices
 
-The OpenRung RN prototype is distributed with, links against, or bundles the
+The OpenRung mobile app is distributed with, links against, or bundles the
 third-party components listed below. This file reproduces the copyright notices
 and license information those components require us to carry when we distribute
 the apps.
@@ -751,7 +752,7 @@ live in the production OpenRung repository and carry their own notices there.
 sing-box is **statically linked** into the OpenRung Android APK and iOS app.
 Under GPL-3.0 §5, the resulting combined work — including OpenRung's own
 first-party code in those apps — is licensed to recipients under
-**GPL-3.0-or-later**. This prototype as a whole is licensed under
+**GPL-3.0-or-later**. This app as a whole is licensed under
 GPL-3.0-or-later (see \`LICENSE\`), same as the production OpenRung project.
 
 OpenRung is **not affiliated with or endorsed by** sing-box or SagerNet; the
@@ -812,6 +813,14 @@ Appendix A.
 - **License:** MIT — Copyright (c) 2019 Th3rd Wave.
 - **Upstream:** https://github.com/AppAndFlow/react-native-safe-area-context
 
+### react-native-svg
+
+- **Component:** \`react-native-svg\` 15.x (SVG rendering for the tab-bar and
+  connect-button icons and the home-screen map edge vignette; ships a native
+  module in both apps — \`RNSVG\` pod on iOS, \`com.horcrux.svg\` on Android).
+- **License:** MIT — Copyright (c) 2015 Software Mansion.
+- **Upstream:** https://github.com/software-mansion/react-native-svg
+
 ---
 
 ## 3. MapLibre Native SDKs (BSD-2-Clause)
@@ -865,16 +874,18 @@ self-hosted/licensed source before scaling).
 
 ## Corresponding source (GPL-3.0 §6)
 
-The complete corresponding source for any distributed OpenRung RN prototype
+The complete corresponding source for any distributed OpenRung mobile app
 binary — this repository's source, the pinned sing-box revision, and the build
-scripts — is available from the OpenRung public repository:
-**<add public repo URL>**.
+scripts — is available from the app's source repository:
+**https://github.com/openrung/openrung-mobile-app**.
 
-The apps are built against a specific sing-box commit. Record that commit SHA
-per release (see the production repo's \`android/ThirdParty/README.md\` and
-\`ios/ThirdParty/README.md\`) so the corresponding source is reproducible.
-OpenRung will provide the corresponding source for at least three (3) years on
-request.
+The apps statically link a specific sing-box commit. That commit is pinned in
+this repository at \`SINGBOX_VERSION\` and consumed by the libbox build scripts
+(\`android/build-libbox-release.sh\` and \`ios/ThirdParty/README.md\`); the
+per-release procedure is documented in \`RELEASE.md\`. Record/verify that the
+pin matches the shipped binary at each release so the corresponding source is
+reproducible. OpenRung will provide the corresponding source for at least
+three (3) years on request.
 
 ---
 

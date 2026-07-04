@@ -57,7 +57,7 @@ export const AppConfig = {
    * Public source repository. Surfaced in the in-app open-source licenses screen and used as the
    * GPL-3.0 corresponding-source offer for the (GPL-licensed) app.
    */
-  SOURCE_URL: 'https://github.com/openrung/openrung',
+  SOURCE_URL: 'https://github.com/openrung/openrung-mobile-app',
 
   /**
    * Vector tiles + glyphs for the exit-node map. We build our own flat style around these MapLibre

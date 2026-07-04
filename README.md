@@ -85,15 +85,11 @@ android/app/libs/libbox.aar
 ```
 
 The AAR is intentionally ignored by Git because it is generated and large.
-Build it per the production repo's `android/ThirdParty/README.md`: install
-JDK 17, the Android SDK + NDK `29.0.14206865`, and SagerNet's gomobile
-(`go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.12` and
-`.../cmd/gobind@v0.1.12`, then `gomobile init`); clone
-`github.com/SagerNet/sing-box`, run
-`go run ./cmd/internal/build_libbox -target android -platform android/arm64`
-inside it, and copy the resulting `libbox.aar` into `android/app/libs/`.
-Pin and record the exact sing-box commit SHA per released build (GPL §6
-corresponding source).
+Build it from the pinned sing-box revision (in `SINGBOX_VERSION`) with
+[`android/build-libbox-release.sh`](android/build-libbox-release.sh) — it needs
+JDK 17, the Android SDK + NDK `29.0.14206865`, and Go on `PATH`. The sing-box
+revision is the GPL §6 corresponding source for the shipped engine; the
+per-release pin procedure is in [`RELEASE.md`](RELEASE.md).
 
 Without the AAR the app still compiles; the connect path fails at engine
 start with a clear "engine not linked" error.
@@ -124,10 +120,9 @@ The tunnel extension expects a local generated framework at:
 ios/ThirdParty/Libbox.xcframework
 ```
 
-Also git-ignored. Build it per the production repo's
-`ios/ThirdParty/README.md` (same sing-box clone,
-`go run ./cmd/internal/build_libbox -target apple -platform ios,iossimulator`)
-and copy it into `ios/ThirdParty/`. The extension compiles without it via a
+Also git-ignored. Build it from the same pinned sing-box revision per
+[`ios/ThirdParty/README.md`](ios/ThirdParty/README.md) and copy it into
+`ios/ThirdParty/`. The extension compiles without it via a
 `#if canImport(Libbox)` stub, but cannot carry traffic.
 
 Signing: both targets need a development team (production uses `9VLV9A7KS9`)
