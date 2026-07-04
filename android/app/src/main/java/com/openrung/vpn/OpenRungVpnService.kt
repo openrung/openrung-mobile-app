@@ -18,7 +18,6 @@ import com.openrung.model.RecentNode
 import com.openrung.model.RelayDescriptor
 import com.openrung.model.RelaySelector
 import com.openrung.net.BrokerClient
-import com.openrung.net.ClientGeoInfo
 import com.openrung.net.GeoIpClient
 import com.openrung.net.InternetProbe
 import com.openrung.net.RelayReachability
@@ -32,7 +31,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -155,7 +153,7 @@ class OpenRungVpnService : VpnService() {
                 lastError = null,
             )
             updateNotification(getString(R.string.status_connected))
-            resolveRelayLocation(relay)
+            applyRelayLocation(relay)
             TelemetryManager.record(
                 event = "connection_succeeded",
                 relayId = relay.id,
@@ -256,24 +254,17 @@ class OpenRungVpnService : VpnService() {
     }
 
     /**
-     * Resolves each candidate relay's country via GeoIP (concurrently, deduped by host) and keeps
-     * only those in [countryCode]. Relays whose geo can't be resolved are excluded so a targeted
-     * connect never silently lands in the wrong country.
+     * Keeps only candidates whose broker-served country matches [countryCode]. Relays the broker
+     * hasn't geolocated yet are excluded so a targeted connect never silently lands in the wrong
+     * country. The broker geolocates each relay's real exit — the app never geolocates relay IPs
+     * itself (a tunnel relay's publicHost would give the hub's location, not the exit's).
      */
-    private suspend fun filterByCountry(
+    private fun filterByCountry(
         candidates: List<RelayDescriptor>,
         countryCode: String,
-    ): List<RelayDescriptor> = coroutineScope {
+    ): List<RelayDescriptor> {
         val target = countryCode.trim().uppercase()
-        val countryByHost = candidates.map { it.publicHost }.distinct()
-            .map { host ->
-                async {
-                    host to runCatching { GeoIpClient().lookup(host).countryCode.trim().uppercase() }.getOrNull()
-                }
-            }
-            .awaitAll()
-            .toMap()
-        candidates.filter { countryByHost[it.publicHost] == target }
+        return candidates.filter { it.countryCode.trim().uppercase() == target }
     }
 
     private fun disconnect() {
@@ -296,33 +287,27 @@ class OpenRungVpnService : VpnService() {
     }
 
     /**
-     * Resolves the relay's geographic location off the main path and shows only that location
-     * (never the raw IP). The relay line stays hidden until resolved; on failure it falls back to
-     * a generic label. Guarded by [activeRelayId] so a late result can't overwrite a disconnect.
+     * Publishes the relay's broker-served location and shows only that location (never the raw
+     * IP). Falls back to a generic label while the broker hasn't resolved the relay's geo yet.
      */
-    private fun resolveRelayLocation(relay: RelayDescriptor) {
-        serviceScope.launch {
-            val geo = runCatching { GeoIpClient().lookup(relay.publicHost) }.getOrNull()
-            val location = geo?.locationLabel()?.takeIf { it.isNotBlank() }
-                ?: getString(R.string.relay_location_unknown)
-            if (activeRelayId != relay.id) return@launch
-            OpenRungStatusStore.setRelayLabel(location)
-            updateNotification(getString(R.string.vpn_notification_connected, location))
-            geo?.let(::recordRecentNode)
-        }
+    private fun applyRelayLocation(relay: RelayDescriptor) {
+        val location = relay.locationLabel().ifBlank { getString(R.string.relay_location_unknown) }
+        OpenRungStatusStore.setRelayLabel(location)
+        updateNotification(getString(R.string.vpn_notification_connected, location))
+        recordRecentNode(relay)
     }
 
-    /** Adds the connected relay's country to the main-screen "Recents" row (best-effort). */
-    private fun recordRecentNode(geo: ClientGeoInfo) {
-        val code = geo.countryCode.trim().uppercase()
+    /** Adds the connected relay's broker-served country to the "Recents" row (best-effort). */
+    private fun recordRecentNode(relay: RelayDescriptor) {
+        val code = relay.countryCode.trim().uppercase()
         if (code.isBlank()) return
         val centroid = CountryGeo.centroid(code)
         OpenRungStatusStore.recordRecent(
             RecentNode(
                 countryCode = code,
-                label = geo.locationLabel().ifBlank { centroid?.name ?: code },
-                latitude = centroid?.latitude ?: geo.latitude,
-                longitude = centroid?.longitude ?: geo.longitude,
+                label = relay.locationLabel().ifBlank { centroid?.name ?: code },
+                latitude = centroid?.latitude ?: relay.latitude ?: 0.0,
+                longitude = centroid?.longitude ?: relay.longitude ?: 0.0,
             ),
         )
     }

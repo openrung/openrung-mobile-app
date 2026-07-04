@@ -8,10 +8,12 @@
  *  - opens on the Asia-Pacific overview (center [116, 18], zoom 2.2); pan and
  *    pinch-zoom (1.2..4.8) are enabled so the full-screen map feels alive,
  *    rotate/tilt stay disabled to keep the HUD framing;
- *  - one GeoJSON feature per region (props code/name/count) rendered as halo
- *    circle (r18 @ 0.18), core circle (r6, 2px #04140A stroke) and a count
+ *  - one GeoJSON feature per region — a broker-served exit location, so
+ *    markers are city-level where the broker knows the city — rendered as
+ *    halo circle (r18 @ 0.18), core circle (r6, 2px #04140A stroke), a count
  *    symbol layer (11pt "Open Sans Semibold", green with dark halo, offset
- *    [0, -1.6]);
+ *    [0, -1.6]) and a "City, Country" label below the dot (10pt, hidden on
+ *    collision so dense clusters stay readable);
  *  - tapping a marker (28px-padded hitbox) reports the region's ISO country
  *    code so the caller can connect to a volunteer there.
  */
@@ -34,6 +36,7 @@ const NODE_SOURCE = 'openrung-exit-nodes';
 const NODE_HALO_LAYER = 'openrung-exit-nodes-halo';
 const NODE_CORE_LAYER = 'openrung-exit-nodes-core';
 const NODE_COUNT_LAYER = 'openrung-exit-nodes-count';
+const NODE_LABEL_LAYER = 'openrung-exit-nodes-label';
 
 const NODE_GREEN = '#65F58A';
 const NODE_STROKE = '#04140A';
@@ -91,7 +94,8 @@ export function ExitNodeMap({ regions, onRegionPress }: ExitNodeMapProps): React
     [],
   );
 
-  // One GeoJSON feature per region; code/name/count mirror the production props.
+  // One GeoJSON feature per region; code/name/count mirror the production props, label is the
+  // broker-served "City, Country" (country alone when the broker only knows the country).
   const nodeCollection = useMemo(
     () => ({
       type: 'FeatureCollection' as const,
@@ -105,6 +109,7 @@ export function ExitNodeMap({ regions, onRegionPress }: ExitNodeMapProps): React
           code: region.countryCode,
           name: region.countryName,
           count: region.nodeCount,
+          label: region.city ? `${region.city}, ${region.countryName}` : region.countryName,
         },
       })),
     }),
@@ -196,6 +201,24 @@ export function ExitNodeMap({ regions, onRegionPress }: ExitNodeMapProps): React
             'text-color': NODE_GREEN,
             'text-halo-color': NODE_STROKE,
             'text-halo-width': 1.4,
+          }}
+        />
+        <Layer
+          id={NODE_LABEL_LAYER}
+          type="symbol"
+          layout={{
+            'text-field': '{label}',
+            'text-font': ['Open Sans Semibold'],
+            'text-size': 10,
+            'text-offset': [0, 1.4],
+            'text-anchor': 'top',
+            // Unlike the count, labels yield on collision so dense clusters stay readable.
+          }}
+          paint={{
+            'text-color': NODE_GREEN,
+            'text-halo-color': NODE_STROKE,
+            'text-halo-width': 1.2,
+            'text-opacity': 0.9,
           }}
         />
       </GeoJSONSource>

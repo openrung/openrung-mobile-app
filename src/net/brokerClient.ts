@@ -122,10 +122,20 @@ function asNumber(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
+function asOptionalString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function asOptionalNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
 /**
  * Decodes a relay-list body with unknown-keys tolerance (production uses
  * `Json { ignoreUnknownKeys = true }`); missing relay fields normalise to ''/0, which the
- * `isUsable` predicate then rejects.
+ * `isUsable` predicate then rejects. The broker-served geo fields are genuinely optional on
+ * the wire (omitted until the broker's lookup succeeds), so they stay `undefined` when absent
+ * or malformed instead of being normalised.
  */
 export function decodeRelayListResponse(body: string): RelayListResponse {
   const parsed: unknown = JSON.parse(body);
@@ -155,6 +165,11 @@ export function decodeRelayListResponse(body: string): RelayListResponse {
       registered_at: asString(item.registered_at),
       last_heartbeat_at: asString(item.last_heartbeat_at),
       expires_at: asString(item.expires_at),
+      city: asOptionalString(item.city),
+      country: asOptionalString(item.country),
+      country_code: asOptionalString(item.country_code),
+      latitude: asOptionalNumber(item.latitude),
+      longitude: asOptionalNumber(item.longitude),
     };
   });
   return {

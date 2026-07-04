@@ -23,6 +23,14 @@ public struct RelayDescriptor: Codable, Equatable, Identifiable, Sendable {
     public let registeredAt: Date
     public let lastHeartbeatAt: Date
     public let expiresAt: Date
+    /// Broker-served exit location, absent until the broker's geo lookup succeeds (older brokers
+    /// never send it). For tunnel (CGNAT) relays this is where traffic actually exits, which is
+    /// NOT `publicHost` (the relay hub) — never geolocate `publicHost` client-side.
+    public let city: String?
+    public let country: String?
+    public let countryCode: String?
+    public let latitude: Double?
+    public let longitude: Double?
 
     public init(
         id: String,
@@ -40,7 +48,12 @@ public struct RelayDescriptor: Codable, Equatable, Identifiable, Sendable {
         volunteerVersion: String,
         registeredAt: Date,
         lastHeartbeatAt: Date,
-        expiresAt: Date
+        expiresAt: Date,
+        city: String? = nil,
+        country: String? = nil,
+        countryCode: String? = nil,
+        latitude: Double? = nil,
+        longitude: Double? = nil
     ) {
         self.id = id
         self.publicHost = publicHost
@@ -58,6 +71,11 @@ public struct RelayDescriptor: Codable, Equatable, Identifiable, Sendable {
         self.registeredAt = registeredAt
         self.lastHeartbeatAt = lastHeartbeatAt
         self.expiresAt = expiresAt
+        self.city = city
+        self.country = country
+        self.countryCode = countryCode
+        self.latitude = latitude
+        self.longitude = longitude
     }
 
     enum CodingKeys: String, CodingKey {
@@ -77,6 +95,11 @@ public struct RelayDescriptor: Codable, Equatable, Identifiable, Sendable {
         case registeredAt = "registered_at"
         case lastHeartbeatAt = "last_heartbeat_at"
         case expiresAt = "expires_at"
+        case city
+        case country
+        case countryCode = "country_code"
+        case latitude
+        case longitude
     }
 }
 
@@ -104,5 +127,10 @@ public extension RelayDescriptor {
             realityPublicKey.isEmpty == false &&
             shortID.isEmpty == false &&
             serverName.isEmpty == false
+    }
+
+    /// Human-readable exit location such as "Tokyo, Japan", or "" while the broker has no geo.
+    func locationLabel() -> String {
+        [city, country].compactMap { $0 }.filter { $0.isEmpty == false }.joined(separator: ", ")
     }
 }

@@ -74,8 +74,9 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
     const code = targetCountry ? targetCountry.trim().toUpperCase() : 'JP';
     const countryName = displayName(code) ?? code;
     const geo = centroid(code);
-    // Production shows geo.locationLabel() ("City, Country"); the mock knows a city only for the
-    // default Tokyo relay and falls back to the country name otherwise, like production does.
+    // Production shows the broker-served relay.locationLabel() ("City, Country"); the mock knows
+    // a city only for the default Tokyo relay and falls back to the country name otherwise, like
+    // production does when the broker hasn't sent a city.
     const relayLabel = code === 'JP' ? 'Tokyo, Japan' : countryName;
     const relayId = `${code.toLowerCase()}-volunteer-1`;
 
@@ -120,8 +121,9 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
       {
         delayMs: 2600,
         run: () => {
-          // Production resolves the relay location asynchronously after CONNECTED, then records
-          // the recent node at the curated centroid when the country is known.
+          // Production applies the broker-served relay location right after CONNECTED, then
+          // records the recent node at the curated centroid when the country is known; the mock
+          // keeps a small delay so the label visibly follows the status change.
           this.state = { ...this.state, relayLabel };
           this.recordRecent({
             countryCode: code,

@@ -42,6 +42,15 @@ data class RelayDescriptor(
     val lastHeartbeatAt: String,
     @SerialName("expires_at")
     val expiresAt: String,
+    // Broker-served exit location, absent until the broker's geo lookup succeeds (older brokers
+    // never send it). For tunnel (CGNAT) relays this is where traffic actually exits, which is
+    // NOT publicHost (the relay hub) — never geolocate publicHost client-side.
+    val city: String = "",
+    val country: String = "",
+    @SerialName("country_code")
+    val countryCode: String = "",
+    val latitude: Double? = null,
+    val longitude: Double? = null,
 ) {
     fun isUsable(now: Instant): Boolean {
         val expires = runCatching { Instant.parse(expiresAt) }.getOrNull() ?: return false
@@ -56,6 +65,9 @@ data class RelayDescriptor(
             shortId.isNotBlank() &&
             serverName.isNotBlank()
     }
+
+    /** Human-readable exit location such as "Tokyo, Japan", or "" while the broker has no geo. */
+    fun locationLabel(): String = listOf(city, country).filter { it.isNotBlank() }.joinToString(", ")
 }
 
 @Serializable

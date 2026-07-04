@@ -1,21 +1,36 @@
-import { centroid } from '../model/countryGeo';
+import { displayName } from '../model/countryGeo';
 import type { ExitNodeRegion } from '../model/exitNode';
 import { orderedCandidates, serverTimeMs } from '../model/relay';
-import type { RelayListResponse } from '../model/relay';
-import type { ClientGeoInfo } from './geoIpClient';
+import type { RelayDescriptor, RelayListResponse } from '../model/relay';
 
 /**
- * Builds the exit-node map directory, ported from the production `net/ExitNodeDirectory.kt`:
- * fetches the broker's relay list, resolves each usable relay's country via GeoIP, and groups
- * them into one `ExitNodeRegion` per country (placed at a curated centroid, falling back to the
- * GeoIP coordinate when the country is not in the curated table).
+ * Builds the exit-node map directory from the broker's relay list. The broker serves each
+ * relay's exit location (city/country/coordinates, resolved server-side — docs/api.md "List
+ * Relays"); the app never geolocates relay IPs itself, both because the broker is the source
+ * of truth and because a tunnel (CGNAT) relay's public_host is the relay hub, not where its
+ * traffic exits.
  *
- * Both the relay fetch and the geo lookup are injected so this stays free of network dependencies
- * and is unit-testable.
+ * Usable relays that carry a location are grouped into one `ExitNodeRegion` per distinct
+ * country + city, placed at the broker's coordinates (relays in the same city share the
+ * broker's city-level coordinate). Relays the broker has not geolocated yet — an older broker,
+ * or a lookup that hasn't resolved — simply stay off the map; no position is invented for them.
+ *
+ * The relay fetch is injected so this stays free of network dependencies and is unit-testable.
  */
 export interface ExitNodeDirectoryOptions {
   fetchRelays: () => Promise<RelayListResponse>;
-  lookupGeo: (host: string) => Promise<ClientGeoInfo | null>;
+}
+
+type LocatedRelay = RelayDescriptor & { country_code: string; latitude: number; longitude: number };
+
+/** A relay the broker has geolocated: coordinates plus the country code tap-to-connect needs. */
+function isLocated(relay: RelayDescriptor): relay is LocatedRelay {
+  return (
+    typeof relay.latitude === 'number' &&
+    typeof relay.longitude === 'number' &&
+    typeof relay.country_code === 'string' &&
+    relay.country_code.trim().length > 0
+  );
 }
 
 export async function loadExitNodeDirectory(
@@ -24,55 +39,43 @@ export async function loadExitNodeDirectory(
   const response = await options.fetchRelays();
   // Freshness is judged against BROKER server time, never the device clock.
   const usable = orderedCandidates(response.relays, serverTimeMs(response));
-  if (usable.length === 0) {
-    return [];
-  }
 
-  // Resolve each distinct host once, concurrently.
-  const distinctHosts = [...new Set(usable.map(relay => relay.public_host))];
-  const resolved = await Promise.all(
-    distinctHosts.map(async host => [host, await options.lookupGeo(host)] as const),
-  );
-  const geoByHost = new Map<string, ClientGeoInfo | null>(resolved);
-
-  // Drop relays whose geo could not be resolved or whose country code is blank; group by country.
-  const geosByCode = new Map<string, ClientGeoInfo[]>();
+  const regionsByKey = new Map<string, ExitNodeRegion>();
   for (const relay of usable) {
-    const geo = geoByHost.get(relay.public_host);
-    if (!geo) {
+    if (!isLocated(relay)) {
       continue;
     }
-    const code = geo.countryCode.trim().toUpperCase();
-    if (code.length === 0) {
+    const code = relay.country_code.trim().toUpperCase();
+    const city = (relay.city ?? '').trim();
+    const key = `${code}|${city}`;
+    const existing = regionsByKey.get(key);
+    if (existing) {
+      existing.nodeCount += 1;
       continue;
     }
-    const group = geosByCode.get(code);
-    if (group) {
-      group.push(geo);
-    } else {
-      geosByCode.set(code, [geo]);
-    }
-  }
-
-  const regions: ExitNodeRegion[] = [];
-  for (const [code, geos] of geosByCode) {
-    const curated = centroid(code);
-    const first = geos[0];
-    regions.push({
+    const country = (relay.country ?? '').trim();
+    regionsByKey.set(key, {
       countryCode: code,
-      countryName: curated?.name ?? (first.country.trim().length > 0 ? first.country : code),
-      latitude: curated?.latitude ?? first.latitude,
-      longitude: curated?.longitude ?? first.longitude,
-      nodeCount: geos.length,
+      countryName: country.length > 0 ? country : (displayName(code) ?? code),
+      city: city.length > 0 ? city : null,
+      latitude: relay.latitude,
+      longitude: relay.longitude,
+      nodeCount: 1,
     });
   }
 
-  // Sort by node count desc, then country name asc (plain code-unit compare, like Kotlin's thenBy).
+  // Sort by node count desc, then country/city asc (plain code-unit compare, like Kotlin's thenBy).
+  const regions = [...regionsByKey.values()];
   regions.sort((a, b) => {
     if (a.nodeCount !== b.nodeCount) {
       return b.nodeCount - a.nodeCount;
     }
-    return a.countryName < b.countryName ? -1 : a.countryName > b.countryName ? 1 : 0;
+    if (a.countryName !== b.countryName) {
+      return a.countryName < b.countryName ? -1 : 1;
+    }
+    const cityA = a.city ?? '';
+    const cityB = b.city ?? '';
+    return cityA < cityB ? -1 : cityA > cityB ? 1 : 0;
   });
   return regions;
 }
