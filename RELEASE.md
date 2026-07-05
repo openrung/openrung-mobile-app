@@ -64,3 +64,35 @@ engine out-of-process. Google Play does not have the equivalent conflict.
 OpenRung provides the corresponding source for at least **three (3) years**
 after distribution. Keep the tagged commit + the matching `SINGBOX_VERSION`
 reachable for that long.
+
+## 6. Bumping the app version
+
+The version **string** lives in exactly one place — `version` in
+[`package.json`](package.json). Everything else derives from it, so never edit
+the version in the other files by hand:
+
+- **Android** `versionName` — read from `package.json` by
+  [`android/app/build.gradle`](android/app/build.gradle) at build time.
+- **iOS** `MARKETING_VERSION` — injected as `${APP_VERSION}` when
+  [`ios/scripts/generate-project.sh`](ios/scripts/generate-project.sh)
+  regenerates the Xcode project.
+- **In-app** `APP_VERSION` — imported from `package.json` in
+  [`src/config.ts`](src/config.ts).
+
+To cut a new version:
+
+```sh
+npm version <new-version> --no-git-tag-version   # or edit package.json's "version"
+./ios/scripts/generate-project.sh                # re-bake iOS MARKETING_VERSION
+npm run version:check                            # verify everything is in sync
+```
+
+`npm run version:check` ([`scripts/check-versions.mjs`](scripts/check-versions.mjs))
+is also run in CI ([`.github/workflows/version-check.yml`](.github/workflows/version-check.yml))
+and fails the build if any source drifts from `package.json` — in practice the
+only thing that can drift is a stale committed `project.pbxproj` (fix by
+re-running `generate-project.sh`).
+
+The Android `versionCode` and iOS `CURRENT_PROJECT_VERSION` are **build
+numbers**, a separate monotonic integer from the version string; bump those by
+hand per store upload.

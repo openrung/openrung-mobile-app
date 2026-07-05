@@ -73,6 +73,11 @@ def enableProguardInReleaseBuilds = false
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+// Single source of truth for the app version string: package.json at the repo root.
+// versionName derives from it so it can't drift (scripts/check-versions.mjs enforces this).
+// versionCode stays a manually-bumped build number — it's a separate, monotonic integer.
+def appVersionName = new groovy.json.JsonSlurper().parse(file("$rootDir/../package.json")).version
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
@@ -86,7 +91,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 3
-        versionName "0.2.1"
+        versionName appVersionName
     }
     signingConfigs {
         debug {

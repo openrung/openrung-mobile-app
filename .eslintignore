@@ -1,0 +1,3 @@
+# Node build tooling — linted by neither the app's React Native ESLint config nor its parser
+# (these are standalone ESM scripts run with `node`, not app source).
+scripts/
