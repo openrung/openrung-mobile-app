@@ -18,8 +18,46 @@ export const isMock = nativeModule == null;
 
 const mock: MockOpenRungVpn | null = isMock ? new MockOpenRungVpn() : null;
 
-/** The active VPN module: the native bridge when built in, otherwise the mock simulator. */
-export const OpenRungVpn: OpenRungVpnModule = nativeModule ?? (mock as MockOpenRungVpn);
+/**
+ * Promise-returning methods added after the initial bridge shipped. A native binary OLDER than
+ * the JS bundle (e.g. Metro reloaded new JS but the app was never rebuilt) won't implement these;
+ * calling a missing one throws "undefined is not a function" SYNCHRONOUSLY — before any `.catch()`
+ * runs — which white-screens the app on mount. Wrapping the native module fills any absent method
+ * with a rejecting stub, so version skew surfaces as a caught rejection instead of a crash.
+ */
+const OPTIONAL_METHODS: ReadonlyArray<keyof OpenRungVpnModule> = [
+  'getTrafficStats',
+  'measureLatency',
+  'getInstalledApps',
+  'getSplitTunnelConfig',
+  'setSplitTunnelConfig',
+  'getPersistedLog',
+  'clearPersistedLog',
+];
+
+function guardOptionalMethods(mod: OpenRungVpnModule): OpenRungVpnModule {
+  const optional = new Set<string>(OPTIONAL_METHODS as readonly string[]);
+  return new Proxy(mod, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver);
+      if (value === undefined && typeof prop === 'string' && optional.has(prop)) {
+        return () =>
+          Promise.reject(
+            new Error(
+              `OpenRungVpn.${prop} is unavailable — the native app is out of date. ` +
+                'Rebuild it (a JS reload is not enough when native code changed).',
+            ),
+          );
+      }
+      return value;
+    },
+  });
+}
+
+/** The active VPN module: the native bridge (guarded for version skew) or the mock simulator. */
+export const OpenRungVpn: OpenRungVpnModule = nativeModule
+  ? guardOptionalMethods(nativeModule)
+  : (mock as MockOpenRungVpn);
 
 /**
  * Subscribes to `openrungStateChanged` (payload: `NativeVpnState`, emitted on every
@@ -44,7 +82,13 @@ export function subscribeTrafficStats(callback: (stats: TrafficStats) => void): 
   if (mock) {
     return mock.subscribeTraffic(callback);
   }
-  const emitter = new NativeEventEmitter(NativeModules.OpenRungVpn);
-  const subscription = emitter.addListener('openrungTrafficChanged', callback);
-  return () => subscription.remove();
+  try {
+    const emitter = new NativeEventEmitter(NativeModules.OpenRungVpn);
+    const subscription = emitter.addListener('openrungTrafficChanged', callback);
+    return () => subscription.remove();
+  } catch {
+    // Older native binary that doesn't declare `openrungTrafficChanged` as a supported event:
+    // no live traffic stats, but the app must not crash. No-op subscription.
+    return () => {};
+  }
 }
