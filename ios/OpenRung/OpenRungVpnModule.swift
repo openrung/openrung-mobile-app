@@ -10,6 +10,7 @@ import React
 @objc(OpenRungVpn)
 final class OpenRungVpnModule: RCTEventEmitter {
     private static let stateChangedEvent = "openrungStateChanged"
+    private static let trafficChangedEvent = "openrungTrafficChanged"
 
     private var manager: NETunnelProviderManager?
     private var vpnStatus: NEVPNStatus = .invalid
@@ -20,6 +21,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
     private var recentRegions: [RecentNode] = []
     private var hasListeners = false
     private var vpnStatusObserver: NSObjectProtocol?
+    private var hadTraffic = false
 
     override init() {
         super.init()
@@ -28,6 +30,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
         apply(SharedConnectionState.sanitizedForColdStart(), emit: false)
         observeVPNStatus()
         observeSharedState()
+        observeTrafficState()
         Task { @MainActor in
             await self.loadExistingManager()
         }
@@ -47,7 +50,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
 
     override static func requiresMainQueueSetup() -> Bool { true }
 
-    override func supportedEvents() -> [String]! { [Self.stateChangedEvent] }
+    override func supportedEvents() -> [String]! { [Self.stateChangedEvent, Self.trafficChangedEvent] }
 
     override func startObserving() {
         hasListeners = true
@@ -151,6 +154,88 @@ final class OpenRungVpnModule: RCTEventEmitter {
         }
     }
 
+    @objc(getTrafficStats:rejecter:)
+    func getTrafficStats(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+        Task { @MainActor in
+            if let snapshot = SharedTrafficState.snapshot() {
+                resolve(Self.trafficPayload(snapshot))
+            } else {
+                resolve(NSNull())
+            }
+        }
+    }
+
+    @objc(measureLatency:timeoutMs:resolver:rejecter:)
+    func measureLatency(
+        _ targets: NSArray,
+        timeoutMs: NSNumber,
+        resolver resolve: @escaping RCTPromiseResolveBlock,
+        rejecter reject: @escaping RCTPromiseRejectBlock
+    ) {
+        let parsed: [LatencyProbeTarget] = targets.compactMap { entry in
+            guard let dict = entry as? [String: Any],
+                  let id = dict["id"] as? String,
+                  let host = dict["host"] as? String,
+                  let port = dict["port"] as? Int
+            else { return nil }
+            return LatencyProbeTarget(id: id, host: host, port: port)
+        }
+        // Probes ride the tunnel whenever it's up (no app-side protect() on iOS).
+        let viaTunnel = status.isConnected || status.isWorking
+        Task {
+            let measurement = await LatencyProber.measure(
+                targets: parsed,
+                timeoutMillis: timeoutMs.intValue,
+                viaTunnel: viaTunnel
+            )
+            let results = measurement.results.map { result -> [String: Any] in
+                [
+                    "id": result.id,
+                    "latencyMs": result.latencyMs.map { NSNumber(value: $0) } ?? NSNull(),
+                    "reachable": result.reachable,
+                ]
+            }
+            resolve(["viaTunnel": measurement.viaTunnel, "results": results] as [String: Any])
+        }
+    }
+
+    // Per-app split tunneling is Android-only (iOS per-app VPN is MDM-managed). These inert
+    // implementations keep the JS contract uniform so the TS side can gate on Platform.OS.
+
+    @objc(getInstalledApps:rejecter:)
+    func getInstalledApps(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+        resolve([])
+    }
+
+    @objc(getSplitTunnelConfig:rejecter:)
+    func getSplitTunnelConfig(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+        resolve(["mode": "off", "packages": []] as [String: Any])
+    }
+
+    @objc(setSplitTunnelConfig:resolver:rejecter:)
+    func setSplitTunnelConfig(
+        _ config: NSDictionary,
+        resolver resolve: @escaping RCTPromiseResolveBlock,
+        rejecter reject: @escaping RCTPromiseRejectBlock
+    ) {
+        resolve(["needsReconnect": false])
+    }
+
+    @objc(getPersistedLog:rejecter:)
+    func getPersistedLog(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+        DispatchQueue.global(qos: .utility).async {
+            resolve(RuntimeLogStore.readLines())
+        }
+    }
+
+    @objc(clearPersistedLog:rejecter:)
+    func clearPersistedLog(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
+        DispatchQueue.global(qos: .utility).async {
+            RuntimeLogStore.clear()
+            resolve(nil)
+        }
+    }
+
     // MARK: - Manager plumbing (port of AppViewModel)
 
     @MainActor
@@ -218,9 +303,59 @@ final class OpenRungVpnModule: RCTEventEmitter {
         )
     }
 
+    private func observeTrafficState() {
+        let observer = Unmanaged.passUnretained(self).toOpaque()
+        CFNotificationCenterAddObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            observer,
+            { _, observer, _, _, _ in
+                guard let observer else { return }
+                let module = Unmanaged<OpenRungVpnModule>.fromOpaque(observer).takeUnretainedValue()
+                Task { @MainActor in module.reloadTrafficState() }
+            },
+            AppConfig.trafficDarwinNotificationName as CFString,
+            nil,
+            .deliverImmediately
+        )
+    }
+
     @MainActor
     private func reloadSharedState() {
         apply(SharedConnectionState.snapshot())
+    }
+
+    /// Contract: samples while connected + ONE zeroed emission when the extension clears the
+    /// shared sample, so the JS side resets without special-casing.
+    @MainActor
+    private func reloadTrafficState() {
+        guard hasListeners else { return }
+        if let snapshot = SharedTrafficState.snapshot() {
+            hadTraffic = true
+            sendEvent(withName: Self.trafficChangedEvent, body: Self.trafficPayload(snapshot))
+        } else if hadTraffic {
+            hadTraffic = false
+            sendEvent(withName: Self.trafficChangedEvent, body: Self.zeroTrafficPayload())
+        }
+    }
+
+    private static func trafficPayload(_ snapshot: TrafficSnapshot) -> [String: Any] {
+        [
+            "upBps": snapshot.upBps,
+            "downBps": snapshot.downBps,
+            "upTotalBytes": snapshot.upTotalBytes,
+            "downTotalBytes": snapshot.downTotalBytes,
+            "updatedAtMs": snapshot.updatedAtMs,
+        ]
+    }
+
+    private static func zeroTrafficPayload() -> [String: Any] {
+        [
+            "upBps": 0,
+            "downBps": 0,
+            "upTotalBytes": 0,
+            "downTotalBytes": 0,
+            "updatedAtMs": Int64(Date().timeIntervalSince1970 * 1000),
+        ]
     }
 
     @MainActor

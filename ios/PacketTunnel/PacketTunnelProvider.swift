@@ -36,6 +36,8 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
 
         engine?.stop()
         engine = nil
+        // Belt-and-braces for engine-less failure paths: the engine's own stop() already clears.
+        SharedTrafficState.clear()
         SharedConnectionState.setStatus(.disconnected, clearRelayLabel: true, clearError: true)
 
         let telemetryURLString = AppConfig.telemetryBrokerURL.absoluteString
@@ -48,6 +50,8 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     // MARK: - Connection flow
 
     private func connect(completionHandler: @escaping (Error?) -> Void) async {
+        // Compact the persisted runtime log here so the hot append path stays append-only.
+        RuntimeLogStore.compactIfNeeded()
         TunnelDiagnostics.clear()
         let brokerURL = resolveBrokerURL()
         let targetCountry = resolveTargetCountry()

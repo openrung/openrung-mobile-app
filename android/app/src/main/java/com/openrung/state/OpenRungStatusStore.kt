@@ -28,9 +28,24 @@ object OpenRungStatusStore {
 
     val uiState: StateFlow<OpenRungUiState> = state.asStateFlow()
 
+    // Live traffic samples ride a separate flow: they tick every ~2s while connected and are
+    // deliberately NOT part of OpenRungUiState (whose every change is persisted to
+    // SharedPreferences and re-emitted with the full log + recents payload).
+    private val traffic = MutableStateFlow<TrafficStats?>(null)
+    val trafficState: StateFlow<TrafficStats?> = traffic.asStateFlow()
+
+    fun setTraffic(stats: TrafficStats) {
+        traffic.value = stats
+    }
+
+    fun clearTraffic() {
+        traffic.value = null
+    }
+
     fun initialize(context: Context) {
         if (appContext != null) return
         appContext = context.applicationContext
+        RuntimeLogStore.initialize(context.applicationContext)
         val prefs = context.getSharedPreferences(AppConfig.STATUS_PREFS, Context.MODE_PRIVATE)
         val restoredStatus = runCatching {
             ConnectionStatus.valueOf(prefs.getString(KEY_STATUS, ConnectionStatus.DISCONNECTED.name)!!)
@@ -80,12 +95,16 @@ object OpenRungStatusStore {
         state.update {
             it.copy(logLines = (it.logLines + "[$timestamp] $message").takeLast(MAX_LOG_LINES))
         }
+        // Every live line is also scrubbed into the persisted runtime log (contract §3);
+        // this captures libbox debug output routed through appendLog too.
+        RuntimeLogStore.append(message)
         persist()
     }
 
     fun fail(message: String) {
         val context = appContext
         val logMessage = context?.getString(com.openrung.R.string.log_error_prefix, message) ?: "error: $message"
+        RuntimeLogStore.append(logMessage)
         state.update {
             it.copy(
                 status = ConnectionStatus.FAILED,

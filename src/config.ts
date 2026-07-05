@@ -66,7 +66,41 @@ export const AppConfig = {
    */
   MAP_TILES_URL: 'https://demotiles.maplibre.org/tiles/tiles.json',
   MAP_GLYPHS_URL: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+
+  /**
+   * Exit IP info endpoint for the Settings "Exit IP check". Third-party: the request necessarily
+   * reveals the exit IP (that is its purpose) plus a request fingerprint to the endpoint, so the
+   * UI only ever calls it on an explicit user tap AND only while connected — running it
+   * disconnected would hand the user's REAL IP to the third party. Operators can point this at a
+   * self-hosted echo endpoint (e.g. on the broker) to keep the check first-party.
+   */
+  EXIT_IP_INFO_URL: 'https://ipinfo.io/json',
+
+  /**
+   * Upload speed-test target. The broker has no upload endpoint yet, so this uses Cloudflare's
+   * anonymous speed-test sink (the body is discarded). Candidate to move to
+   * `{broker}/api/v1/speed-test` (upload variant) later so all measurement traffic stays
+   * first-party like the download test.
+   */
+  SPEEDTEST_UPLOAD_URL: 'https://speed.cloudflare.com/__up',
+
+  /**
+   * Curated diagnostic links for the Settings "Network toolbox" section. All third-party sites
+   * opened in the system browser (outside the app) on explicit tap; ids map to i18n titles.
+   */
+  TOOLBOX_LINKS: [
+    { id: 'ipCheck', url: 'https://ipleak.net' },
+    { id: 'dnsLeak', url: 'https://dnsleaktest.com' },
+    { id: 'webrtcLeak', url: 'https://browserleaks.com/webrtc' },
+    { id: 'speedTest', url: 'https://speed.cloudflare.com' },
+  ] as ReadonlyArray<{ id: 'ipCheck' | 'dnsLeak' | 'webrtcLeak' | 'speedTest'; url: string }>,
+
+  /** Latency probe tuning (exit-location "TEST LATENCY" + connect-to-fastest). */
+  LATENCY_PROBE_TIMEOUT_MS: 3_000,
+  LATENCY_PROBES_PER_REGION: 2,
+  /** Probe results older than this are treated as stale and hidden. */
+  LATENCY_RESULT_TTL_MS: 5 * 60_000,
 } as const;
 
 /** App version reported in X-OpenRung-App-Version (production uses BuildConfig.VERSION_NAME). */
-export const APP_VERSION = '0.2.0';
+export const APP_VERSION = '0.2.1';

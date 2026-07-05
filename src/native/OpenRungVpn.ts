@@ -1,6 +1,6 @@
 import { NativeEventEmitter, NativeModules } from 'react-native';
 import { MockOpenRungVpn } from './mock';
-import type { NativeVpnState, OpenRungVpnModule } from './types';
+import type { NativeVpnState, OpenRungVpnModule, TrafficStats } from './types';
 
 /**
  * Typed wrapper over the `OpenRungVpn` native module (contract §3). When the native module is
@@ -31,5 +31,20 @@ export function subscribeVpnState(callback: (state: NativeVpnState) => void): ()
   }
   const emitter = new NativeEventEmitter(NativeModules.OpenRungVpn);
   const subscription = emitter.addListener('openrungStateChanged', callback);
+  return () => subscription.remove();
+}
+
+/**
+ * Subscribes to `openrungTrafficChanged` (payload: `TrafficStats`, ~2 s cadence while
+ * connected, one zeroed emission on disconnect). Kept separate from
+ * `openrungStateChanged` so the frequent traffic samples don't re-ship the 80-line
+ * log + recents across the bridge. Returns an unsubscribe function.
+ */
+export function subscribeTrafficStats(callback: (stats: TrafficStats) => void): () => void {
+  if (mock) {
+    return mock.subscribeTraffic(callback);
+  }
+  const emitter = new NativeEventEmitter(NativeModules.OpenRungVpn);
+  const subscription = emitter.addListener('openrungTrafficChanged', callback);
   return () => subscription.remove();
 }

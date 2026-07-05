@@ -97,3 +97,61 @@ export async function runSpeedTest(
   await download(endpoint, warmupBytes);
   return download(endpoint, measurementBytes);
 }
+
+export interface UploadTestResult {
+  bytesUploaded: number;
+  durationMs: number;
+  uploadMbps: number;
+}
+
+/**
+ * Upload body: a constant-character string, the one body type RN's fetch reliably
+ * supports at this size. Request bodies are never transparently compressed, so the
+ * repeated character doesn't shrink on the wire; the sink discards it either way.
+ */
+function uploadBody(bytes: number): string {
+  return 'x'.repeat(bytes);
+}
+
+async function upload(endpoint: string, bytes: number): Promise<UploadTestResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const startedMs = Date.now();
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: uploadBody(bytes),
+      signal: controller.signal,
+    });
+    const finishedMs = Date.now();
+    if (response.status < 200 || response.status > 299) {
+      throw new Error(`upload test HTTP ${response.status}`);
+    }
+    // Same RN limitation as the download side, mirrored: fetch can't observe
+    // request-body streaming, so durationMs is the full round trip until response
+    // headers — a slight overestimate of pure upload time.
+    const durationMs = Math.max(finishedMs - startedMs, 1);
+    return {
+      bytesUploaded: bytes,
+      durationMs,
+      uploadMbps: calculateMbps(bytes, durationMs),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Two-phase upload test mirroring `runSpeedTest`: a 1 MB warmup POST followed by the
+ * measured 10 MB POST (the second result is returned). Target is an anonymous
+ * discard sink (see AppConfig.SPEEDTEST_UPLOAD_URL).
+ */
+export async function runUploadTest(
+  uploadUrl: string,
+  warmupBytes: number = DEFAULT_WARMUP_BYTES,
+  measurementBytes: number = DEFAULT_MEASUREMENT_BYTES,
+): Promise<UploadTestResult> {
+  await upload(uploadUrl, warmupBytes);
+  return upload(uploadUrl, measurementBytes);
+}

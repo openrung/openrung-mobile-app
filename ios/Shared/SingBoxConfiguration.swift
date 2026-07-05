@@ -113,6 +113,12 @@ public struct SingBoxConfiguration: Equatable, Sendable {
                     ]
                 ],
                 "final": "proxy"
+            ],
+            // An (empty) clash_api block attaches sing-box's traffic manager so the
+            // CommandStatus stream reports uplink/downlink (StatusMessage.trafficAvailable).
+            // No external_controller -> no HTTP listener is opened.
+            "experimental": [
+                "clash_api": [String: Any]()
             ]
         ]
     }

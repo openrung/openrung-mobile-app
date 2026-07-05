@@ -16,4 +16,20 @@ RCT_EXTERN_METHOD(getState : (RCTPromiseResolveBlock)resolve rejecter : (RCTProm
 
 RCT_EXTERN_METHOD(getIdentity : (RCTPromiseResolveBlock)resolve rejecter : (RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(getTrafficStats : (RCTPromiseResolveBlock)resolve rejecter : (RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(measureLatency : (NSArray *)targets timeoutMs : (nonnull NSNumber *)timeoutMs
+                      resolver : (RCTPromiseResolveBlock)resolve rejecter : (RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(getInstalledApps : (RCTPromiseResolveBlock)resolve rejecter : (RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(getSplitTunnelConfig : (RCTPromiseResolveBlock)resolve rejecter : (RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(setSplitTunnelConfig : (NSDictionary *)config
+                      resolver : (RCTPromiseResolveBlock)resolve rejecter : (RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(getPersistedLog : (RCTPromiseResolveBlock)resolve rejecter : (RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(clearPersistedLog : (RCTPromiseResolveBlock)resolve rejecter : (RCTPromiseRejectBlock)reject)
+
 @end

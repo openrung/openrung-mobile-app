@@ -4,32 +4,32 @@
  * over the map. Hidden entirely while there is no history, so a fresh install
  * keeps the map uncluttered.
  *
- * Pills are deliberately NOT tappable: recents are recorded from past
- * connections (the broker picks the relay), not a connect affordance.
+ * Pills are tappable: tapping reconnects to that location (the broker still
+ * picks the concrete relay there), and the trailing star adds/removes it from
+ * the Favorites strip. (Earlier versions were display-only; that decision was
+ * reversed when favorites landed.)
  */
 import React from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 
 import { useStrings } from '../i18n';
 import type { RecentNode } from '../native/types';
-import { monoFont, palette, tokens } from '../theme';
+import { monoFont, palette } from '../theme';
+import { LocationPill } from './LocationPill';
 
 export interface RecentsSectionProps {
   recents: RecentNode[];
+  favorites: string[];
+  onSelect: (countryCode: string) => void;
+  onToggleFavorite: (countryCode: string) => void;
 }
 
-/** ISO 3166-1 alpha-2 -> flag emoji via regional indicators; neutral flag if invalid. */
-function countryFlag(code: string): string {
-  const upper = code.trim().toUpperCase();
-  if (!/^[A-Z]{2}$/.test(upper)) {
-    return '🏳';
-  }
-  const first = 0x1f1e6 + (upper.charCodeAt(0) - 65);
-  const second = 0x1f1e6 + (upper.charCodeAt(1) - 65);
-  return String.fromCodePoint(first) + String.fromCodePoint(second);
-}
-
-export function RecentsSection({ recents }: RecentsSectionProps): React.JSX.Element | null {
+export function RecentsSection({
+  recents,
+  favorites,
+  onSelect,
+  onToggleFavorite,
+}: RecentsSectionProps): React.JSX.Element | null {
   const s = useStrings();
 
   if (recents.length === 0) {
@@ -44,12 +44,13 @@ export function RecentsSection({ recents }: RecentsSectionProps): React.JSX.Elem
         data={recents}
         keyExtractor={item => item.countryCode}
         renderItem={({ item }) => (
-          <View style={styles.pill}>
-            <Text style={styles.flag}>{countryFlag(item.countryCode)}</Text>
-            <Text style={styles.pillLabel} numberOfLines={1}>
-              {item.label}
-            </Text>
-          </View>
+          <LocationPill
+            countryCode={item.countryCode}
+            label={item.label}
+            onPress={() => onSelect(item.countryCode)}
+            starred={favorites.includes(item.countryCode)}
+            onToggleStar={() => onToggleFavorite(item.countryCode)}
+          />
         )}
         ItemSeparatorComponent={PillGap}
         showsHorizontalScrollIndicator={false}
@@ -72,27 +73,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 10,
     letterSpacing: 1.5,
-  },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    maxWidth: 200,
-    borderRadius: tokens.radiusSm,
-    backgroundColor: tokens.glass,
-    borderWidth: 1,
-    borderColor: tokens.glassBorder,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  pillLabel: {
-    flexShrink: 1,
-    color: palette.bodyText,
-    fontFamily: monoFont,
-    fontSize: 12,
-  },
-  flag: {
-    fontSize: 16,
   },
   gap: {
     width: 8,

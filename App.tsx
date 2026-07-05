@@ -15,16 +15,19 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { TabBar, type AppTab } from './src/components/TabBar';
 import { LanguageProvider } from './src/i18n';
+import { hydratePreferences } from './src/state/store';
+import { useAutoConnect } from './src/state/useAutoConnect';
 import { AboutScreen } from './src/screens/AboutScreen';
 import { DebugScreen } from './src/screens/DebugScreen';
 import { LicenseTextScreen } from './src/screens/LicenseTextScreen';
 import { LicensesScreen } from './src/screens/LicensesScreen';
 import { MainScreen } from './src/screens/MainScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
+import { SplitTunnelScreen } from './src/screens/SplitTunnelScreen';
 import { palette } from './src/theme';
 
 /** Screens pushed over the tabs (each has its own back arrow). */
-type SubRoute = 'DEBUG' | 'LICENSES' | 'LICENSE_TEXT' | null;
+type SubRoute = 'DEBUG' | 'LICENSES' | 'LICENSE_TEXT' | 'SPLIT_TUNNEL' | null;
 
 function App(): React.JSX.Element {
   return (
@@ -40,6 +43,12 @@ function App(): React.JSX.Element {
 function AppRoutes(): React.JSX.Element {
   const [tab, setTab] = useState<AppTab>('home');
   const [subRoute, setSubRoute] = useState<SubRoute>(null);
+
+  // Load persisted favorites + connection prefs once; auto-connect decides after hydration.
+  useEffect(() => {
+    hydratePreferences();
+  }, []);
+  useAutoConnect();
 
   const goBack = useCallback((): boolean => {
     if (subRoute === 'LICENSE_TEXT') {
@@ -72,6 +81,9 @@ function AppRoutes(): React.JSX.Element {
     case 'DEBUG':
       subScreen = <DebugScreen onBack={() => setSubRoute(null)} />;
       break;
+    case 'SPLIT_TUNNEL':
+      subScreen = <SplitTunnelScreen onBack={() => setSubRoute(null)} />;
+      break;
     case 'LICENSES':
       subScreen = (
         <LicensesScreen
@@ -93,7 +105,10 @@ function AppRoutes(): React.JSX.Element {
       <MainScreen />
       {tab === 'settings' ? (
         <View style={styles.tabOverlay}>
-          <SettingsScreen onOpenDebug={() => setSubRoute('DEBUG')} />
+          <SettingsScreen
+            onOpenDebug={() => setSubRoute('DEBUG')}
+            onOpenSplitTunnel={() => setSubRoute('SPLIT_TUNNEL')}
+          />
         </View>
       ) : null}
       {tab === 'about' ? (

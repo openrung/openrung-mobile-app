@@ -14,11 +14,37 @@ jest.mock('@react-native-async-storage/async-storage', () => {
       removeItem: jest.fn(async (key: string) => {
         storage.delete(key);
       }),
+      clear: jest.fn(async () => {
+        storage.clear();
+      }),
     },
   };
 });
 
-import { getSnapshot, refreshDirectory, resetStoreForTests } from '../../src/state/store';
+jest.mock('../../src/native/OpenRungVpn', () => ({
+  OpenRungVpn: { measureLatency: jest.fn() },
+}));
+
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { OpenRungVpn } from '../../src/native/OpenRungVpn';
+import {
+  FAVORITES_STORAGE_KEY,
+  fastestCountry,
+  getSnapshot,
+  hydratePreferences,
+  recordLastExit,
+  refreshDirectory,
+  resetStoreForTests,
+  runLatencyTest,
+  setAutoConnectEnabled,
+  setRememberExitEnabled,
+  toggleFavorite,
+} from '../../src/state/store';
+import type { LatencyMeasurement } from '../../src/native/types';
+
+const measureLatencyMock = OpenRungVpn.measureLatency as jest.MockedFunction<
+  typeof OpenRungVpn.measureLatency
+>;
 
 interface MockResponse {
   status: number;
@@ -74,9 +100,11 @@ function installFetch(relayPayload: unknown = RELAY_LIST): void {
   });
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   resetStoreForTests();
   installFetch();
+  measureLatencyMock.mockReset();
+  await AsyncStorage.clear();
 });
 
 describe('refreshDirectory', () => {
@@ -92,6 +120,7 @@ describe('refreshDirectory', () => {
         latitude: 35.6895, // the broker's coordinate, no client-side geo lookup
         longitude: 139.6917,
         nodeCount: 1,
+        probeTargets: [{ host: '203.0.113.10', port: 443 }],
       },
     ]);
     expect(relayFetches).toBe(1);
@@ -141,5 +170,152 @@ describe('refreshDirectory', () => {
     await refreshDirectory(); // FAILED does not latch either
     expect(getSnapshot().directoryStatus).toBe('loaded');
     expect(getSnapshot().availableRegions).toHaveLength(1);
+  });
+});
+
+describe('favorites', () => {
+  it('toggles a country in and out, normalizing to uppercase', () => {
+    toggleFavorite('jp');
+    expect(getSnapshot().favorites).toEqual(['JP']);
+    toggleFavorite('DE');
+    expect(getSnapshot().favorites).toEqual(['JP', 'DE']);
+    toggleFavorite('JP');
+    expect(getSnapshot().favorites).toEqual(['DE']);
+  });
+
+  it('ignores blank codes', () => {
+    toggleFavorite('  ');
+    expect(getSnapshot().favorites).toEqual([]);
+  });
+
+  it('round-trips through AsyncStorage via hydratePreferences', async () => {
+    toggleFavorite('JP');
+    toggleFavorite('DE');
+    resetStoreForTests();
+    expect(getSnapshot().favorites).toEqual([]);
+    await hydratePreferences();
+    expect(getSnapshot().favorites).toEqual(['JP', 'DE']);
+    expect(getSnapshot().prefsHydrated).toBe(true);
+  });
+
+  it('keeps the default on a malformed persisted payload but still completes hydration', async () => {
+    await AsyncStorage.setItem(FAVORITES_STORAGE_KEY, 'not json');
+    await hydratePreferences();
+    expect(getSnapshot().favorites).toEqual([]);
+    expect(getSnapshot().prefsHydrated).toBe(true);
+  });
+});
+
+describe('connection preferences', () => {
+  it('persists auto-connect and remember-exit toggles across hydration', async () => {
+    setAutoConnectEnabled(true);
+    setRememberExitEnabled(false);
+    resetStoreForTests();
+    await hydratePreferences();
+    expect(getSnapshot().autoConnectEnabled).toBe(true);
+    expect(getSnapshot().rememberExitEnabled).toBe(false);
+  });
+
+  it('records the last requested exit only while remember-exit is on', async () => {
+    recordLastExit('jp');
+    expect(getSnapshot().lastExitCountry).toBe('JP'); // default: remember on
+
+    setRememberExitEnabled(false);
+    recordLastExit('DE');
+    expect(getSnapshot().lastExitCountry).toBe('JP'); // unchanged while off
+  });
+
+  it("round-trips the broker-picks case (null) as ''", async () => {
+    recordLastExit('JP');
+    recordLastExit(null);
+    expect(getSnapshot().lastExitCountry).toBeNull();
+    resetStoreForTests();
+    await hydratePreferences();
+    expect(getSnapshot().lastExitCountry).toBeNull();
+  });
+});
+
+describe('latency test + fastest', () => {
+  // A relay list with two located countries (JP faster than DE) for the fastest picker.
+  const TWO_COUNTRY_LIST = {
+    count: 2,
+    server_time: '2026-01-01T00:00:00Z',
+    relays: [
+      { ...RELAY_LIST.relays[0], id: 'jp', public_host: '203.0.113.10' },
+      {
+        ...RELAY_LIST.relays[0],
+        id: 'de',
+        public_host: '203.0.113.20',
+        city: 'Berlin',
+        country: 'Germany',
+        country_code: 'DE',
+        latitude: 52.52,
+        longitude: 13.4,
+      },
+    ],
+  };
+
+  it('runs the probe, stores results, and picks the lowest-RTT country', async () => {
+    installFetch(TWO_COUNTRY_LIST);
+    await refreshDirectory();
+
+    measureLatencyMock.mockImplementation(
+      async (targets): Promise<LatencyMeasurement> => ({
+        viaTunnel: false,
+        results: targets.map(target => ({
+          id: target.id,
+          latencyMs: target.id.startsWith('JP') ? 60 : 200,
+          reachable: true,
+        })),
+      }),
+    );
+
+    await runLatencyTest();
+    const snap = getSnapshot();
+    expect(snap.latency.status).toBe('done');
+    expect(snap.latency.results['JP|Tokyo'].rttMs).toBe(60);
+    expect(snap.latency.results['DE|Berlin'].rttMs).toBe(200);
+    expect(fastestCountry(snap)).toEqual({ countryCode: 'JP', rttMs: 60 });
+  });
+
+  it('ignores unreachable regions when picking the fastest', async () => {
+    installFetch(TWO_COUNTRY_LIST);
+    await refreshDirectory();
+    measureLatencyMock.mockImplementation(
+      async (targets): Promise<LatencyMeasurement> => ({
+        viaTunnel: false,
+        results: targets.map(target => ({
+          id: target.id,
+          latencyMs: target.id.startsWith('JP') ? null : 200,
+          reachable: !target.id.startsWith('JP'),
+        })),
+      }),
+    );
+    await runLatencyTest();
+    expect(fastestCountry(getSnapshot())).toEqual({ countryCode: 'DE', rttMs: 200 });
+  });
+
+  it('marks the test failed when the native probe throws', async () => {
+    installFetch(TWO_COUNTRY_LIST);
+    await refreshDirectory();
+    measureLatencyMock.mockRejectedValue(new Error('probe boom'));
+    await runLatencyTest();
+    expect(getSnapshot().latency.status).toBe('failed');
+    expect(fastestCountry(getSnapshot())).toBeNull();
+  });
+
+  it('resets latency results when the directory is refreshed', async () => {
+    installFetch(TWO_COUNTRY_LIST);
+    await refreshDirectory();
+    measureLatencyMock.mockResolvedValue({
+      viaTunnel: false,
+      results: [{ id: 'JP|Tokyo#0', latencyMs: 60, reachable: true }],
+    });
+    await runLatencyTest();
+    expect(getSnapshot().latency.status).toBe('done');
+
+    await refreshDirectory(true);
+    expect(getSnapshot().latency.status).toBe('idle');
+    expect(getSnapshot().latency.results).toEqual({});
   });
 });

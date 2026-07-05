@@ -72,6 +72,26 @@ export interface NativeIdentity {
   sessionId: string | null;    // active telemetry session id, null when idle
 }
 
+export interface TrafficStats {
+  upBps: number;               // instantaneous upload, bytes/sec
+  downBps: number;             // instantaneous download, bytes/sec
+  upTotalBytes: number;        // cumulative bytes this session
+  downTotalBytes: number;
+  updatedAtMs: number;         // epoch ms of the sample
+}
+
+export interface LatencyTarget { id: string; host: string; port: number }
+export interface LatencyResult { id: string; latencyMs: number | null; reachable: boolean }
+export interface LatencyMeasurement {
+  viaTunnel: boolean;          // probes rode the active tunnel (iOS while connected)
+  results: LatencyResult[];
+}
+
+// 'proxyOnly' = only listed apps use the VPN; 'bypass' = listed apps skip it.
+export type SplitTunnelMode = 'off' | 'proxyOnly' | 'bypass';
+export interface SplitTunnelConfig { mode: SplitTunnelMode; packages: string[] }
+export interface InstalledApp { packageName: string; label: string; isSystem: boolean }
+
 export interface OpenRungVpnModule {
   /** Ask for OS VPN consent (Android: VpnService.prepare dialog; also requests
    *  POST_NOTIFICATIONS on API 33+. iOS: load-or-create the
@@ -84,12 +104,42 @@ export interface OpenRungVpnModule {
   disconnect(): Promise<void>;
   getState(): Promise<NativeVpnState>;
   getIdentity(): Promise<NativeIdentity>;
+  /** Latest sample or null when not connected. */
+  getTrafficStats(): Promise<TrafficStats | null>;
+  /** Concurrent TCP-connect timing (native caps in-flight sockets at 8).
+   *  Android probes bypass an active tunnel via a non-VPN Network's
+   *  socketFactory; iOS probes ride the tunnel while connected (viaTunnel). */
+  measureLatency(targets: LatencyTarget[], timeoutMs: number): Promise<LatencyMeasurement>;
+  /** Android: apps that can use the network. iOS: resolves []. */
+  getInstalledApps(): Promise<InstalledApp[]>;
+  /** Config is persisted NATIVELY (own SharedPreferences file) because the
+   *  VpnService reads it synchronously at establish time. iOS: inert defaults. */
+  getSplitTunnelConfig(): Promise<SplitTunnelConfig>;
+  /** needsReconnect = config changed while the tunnel is up; the TS side applies
+   *  it by re-calling connect() (clean teardown + re-establish). */
+  setSplitTunnelConfig(config: SplitTunnelConfig): Promise<{ needsReconnect: boolean }>;
+  /** Scrubbed persisted runtime log (survives restarts), oldest first, cap ~1000
+   *  lines. The in-memory logLines (cap 80) is a live tail of the same stream.
+   *  Lines are scrubbed BEFORE hitting disk: proxy URIs, URLs, IPs (v4+v6),
+   *  UUIDs, credential-shaped key=value pairs and bare domains become
+   *  placeholder tokens. */
+  getPersistedLog(): Promise<string[]>;
+  clearPersistedLog(): Promise<void>;
 }
 ```
 
 Event: name **`openrungStateChanged`**, payload `NativeVpnState`. Emitted on every
 status/log/relay/recents change. TS subscribes via `NativeEventEmitter`.
 Android also honors `addListener`/`removeListeners` no-op methods (RN interop).
+
+Event: name **`openrungTrafficChanged`**, payload `TrafficStats`. Emitted every
+~2 s while connected, plus one final zeroed sample on disconnect (so the UI
+clears without special-casing). Deliberately a separate event so the frequent
+samples don't re-serialize the 80-line log + recents that ride in
+`openrungStateChanged`. Totals are per-session and reset on connect.
+iOS transport: the PacketTunnel extension writes samples to app-group
+UserDefaults key `traffic_state` and posts Darwin notification
+`com.openrung.mobile.traffic-changed`; the host module re-emits to JS.
 
 `src/native/OpenRungVpn.ts` exports the typed module. When
 `NativeModules.OpenRungVpn` is missing (Jest, fresh Metro without rebuild) it

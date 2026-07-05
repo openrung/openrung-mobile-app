@@ -4,6 +4,8 @@
     <string name="vpn_notification_title">OpenRung VPN</string>
     <string name="vpn_notification_preparing">در حال آماده‌سازی OpenRung VPN</string>
     <string name="vpn_notification_connected">از طریق %1$s متصل شد</string>
+    <string name="vpn_notification_disconnect">قطع اتصال</string>
+    <string name="vpn_notification_traffic">↓ %1$s ↑ %2$s — %3$s</string>
     <string name="relay_location_unknown">موقعیت نامشخص</string>
     <string name="status_disconnected">قطع شده</string>
     <string name="status_preparing">در حال آماده‌سازی VPN</string>

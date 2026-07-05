@@ -107,6 +107,12 @@ data class SingBoxConfiguration(
                 })
                 put("final", "proxy")
             })
+            // An (empty) clash_api block attaches sing-box's traffic manager so the
+            // CommandStatus stream reports uplink/downlink (StatusMessage.trafficAvailable).
+            // No external_controller -> no HTTP listener is opened.
+            put("experimental", buildJsonObject {
+                put("clash_api", buildJsonObject {})
+            })
         }
     }
 

@@ -68,6 +68,10 @@ describe('loadExitNodeDirectory', () => {
         latitude: 35.6895,
         longitude: 139.6917,
         nodeCount: 2,
+        probeTargets: [
+          { host: '203.0.113.10', port: 443 },
+          { host: '203.0.113.10', port: 443 },
+        ],
       },
       {
         countryCode: 'DE',
@@ -76,6 +80,7 @@ describe('loadExitNodeDirectory', () => {
         latitude: 52.5244,
         longitude: 13.4105,
         nodeCount: 1,
+        probeTargets: [{ host: '203.0.113.10', port: 443 }],
       },
       {
         countryCode: 'JP',
@@ -84,7 +89,23 @@ describe('loadExitNodeDirectory', () => {
         latitude: 34.6937,
         longitude: 135.5023,
         nodeCount: 1,
+        probeTargets: [{ host: '203.0.113.10', port: 443 }],
       },
+    ]);
+  });
+
+  it('caps probeTargets per region at LATENCY_PROBES_PER_REGION even with many relays', async () => {
+    const regions = await load([
+      relay({ id: 'a', public_host: '203.0.113.1', ...TOKYO }),
+      relay({ id: 'b', public_host: '203.0.113.2', ...TOKYO }),
+      relay({ id: 'c', public_host: '203.0.113.3', ...TOKYO }),
+      relay({ id: 'd', public_host: '203.0.113.4', ...TOKYO }),
+    ]);
+    expect(regions).toHaveLength(1);
+    expect(regions[0].nodeCount).toBe(4);
+    expect(regions[0].probeTargets).toEqual([
+      { host: '203.0.113.1', port: 443 },
+      { host: '203.0.113.2', port: 443 },
     ]);
   });
 
@@ -120,6 +141,7 @@ describe('loadExitNodeDirectory', () => {
         latitude: 35.6895,
         longitude: 139.6917,
         nodeCount: 1,
+        probeTargets: [{ host: '203.0.113.10', port: 443 }],
       },
       {
         countryCode: 'ZZ',
@@ -128,6 +150,7 @@ describe('loadExitNodeDirectory', () => {
         latitude: 1,
         longitude: 2,
         nodeCount: 1,
+        probeTargets: [{ host: '203.0.113.10', port: 443 }],
       },
     ]);
   });

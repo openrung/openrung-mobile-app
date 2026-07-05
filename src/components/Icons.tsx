@@ -61,6 +61,60 @@ export function InfoIcon({ color, size = 22, strokeWidth = 1.8 }: IconProps): Re
   );
 }
 
+export interface StarIconProps extends IconProps {
+  /** Filled star = favorited; outline = not. */
+  filled?: boolean;
+}
+
+/** Five-point star (favorite toggle on location pills). */
+export function StarIcon({
+  color,
+  size = 22,
+  strokeWidth = 1.8,
+  filled = false,
+}: StarIconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M12 3.8l2.47 5.06 5.53.8-4 3.94.94 5.6L12 16.6l-4.94 2.6.94-5.6-4-3.94 5.53-.8L12 3.8Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill={filled ? color : 'none'}
+      />
+    </Svg>
+  );
+}
+
+/** Checkmark in a rounded square (split-tunnel app selection). */
+export function CheckIcon({
+  color,
+  size = 22,
+  strokeWidth = 1.8,
+  filled = false,
+}: StarIconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M6 3.5h12A2.5 2.5 0 0 1 20.5 6v12a2.5 2.5 0 0 1-2.5 2.5H6A2.5 2.5 0 0 1 3.5 18V6A2.5 2.5 0 0 1 6 3.5Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        fill={filled ? color : 'none'}
+      />
+      {filled ? (
+        <Path
+          d="m8 12 2.8 2.8L16 9.2"
+          stroke="#061008"
+          strokeWidth={2.2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ) : null}
+    </Svg>
+  );
+}
+
 /** Power symbol (connect button). */
 export function PowerIcon({ color, size = 22, strokeWidth = 1.8 }: IconProps): React.JSX.Element {
   return (

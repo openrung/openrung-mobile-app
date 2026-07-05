@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import { AppConfig } from '../config';
-import { OpenRungVpn, subscribeVpnState } from '../native/OpenRungVpn';
-import { applyNativeState, useAppState } from './store';
+import { OpenRungVpn, subscribeTrafficStats, subscribeVpnState } from '../native/OpenRungVpn';
+import { applyNativeState, applyTrafficStats, recordLastExit, useAppState } from './store';
 import type { AppState } from './store';
 
 export interface VpnStateHook {
@@ -40,10 +40,21 @@ export function useVpnState(): VpnStateHook {
       .catch(() => {
         // Native state stays at the store default until the first event arrives.
       });
+    OpenRungVpn.getTrafficStats()
+      .then(traffic => {
+        if (mounted && traffic != null) {
+          applyTrafficStats(traffic);
+        }
+      })
+      .catch(() => {
+        // Traffic stays null until the first event arrives.
+      });
     const unsubscribe = subscribeVpnState(applyNativeState);
+    const unsubscribeTraffic = subscribeTrafficStats(applyTrafficStats);
     return () => {
       mounted = false;
       unsubscribe();
+      unsubscribeTraffic();
     };
   }, []);
 
@@ -56,6 +67,8 @@ export function useVpnState(): VpnStateHook {
 
   const prepareAndConnect = useCallback(
     async (country?: string | null) => {
+      // Remember the REQUESTED target (not the resolved relay) so auto-connect can replay it.
+      recordLastExit(country ?? null);
       try {
         await OpenRungVpn.prepare();
       } catch {

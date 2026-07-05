@@ -4,6 +4,8 @@
     <string name="vpn_notification_title">OpenRung VPN</string>
     <string name="vpn_notification_preparing">OpenRung VPN ကို ပြင်ဆင်နေသည်</string>
     <string name="vpn_notification_connected">%1$s မှတစ်ဆင့် ချိတ်ဆက်ပြီး</string>
+    <string name="vpn_notification_disconnect">ချိတ်ဆက်မှုဖြုတ်ရန်</string>
+    <string name="vpn_notification_traffic">↓ %1$s ↑ %2$s — %3$s</string>
     <string name="relay_location_unknown">မသိသော တည်နေရာ</string>
     <string name="status_disconnected">ချိတ်ဆက်မှု ပြတ်နေသည်</string>
     <string name="status_preparing">VPN ကို ပြင်ဆင်နေသည်</string>

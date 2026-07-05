@@ -1,93 +1,84 @@
 /**
  * Settings tab. Large title (it's a root tab now — no back arrow), then
- * sectioned panels: GENERAL (language) and DIAGNOSTICS (volunteer speed test,
- * debug console). Version and licenses live on the About tab. The language
- * picker mirrors the production dropdown semantics with a dark-styled modal
- * list; the speed test RUN button is enabled only while connected and not
- * already running.
+ * sectioned panels:
+ *   GENERAL         — language picker
+ *   CONNECTION      — auto-connect on launch, remember last exit
+ *   DIAGNOSTICS     — volunteer speed test (down+up), exit IP check, debug console
+ *   NETWORK TOOLBOX — curated third-party leak/speed test links (open in browser)
+ * Version and licenses live on the About tab. The language picker mirrors the
+ * production dropdown semantics with a dark-styled modal list.
  */
-import React, { useCallback, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ExitIpRow } from '../components/ExitIpRow';
 import { SettingPanel } from '../components/SettingPanel';
+import { SpeedTestRow } from '../components/SpeedTestRow';
+import { ToggleSwitch } from '../components/ToggleSwitch';
 import { AppConfig } from '../config';
-import { languageOptions, useLanguage, useStrings } from '../i18n';
+import { languageOptions, useLanguage, useStrings, type Strings } from '../i18n';
 import { OpenRungVpn } from '../native/OpenRungVpn';
-import { runSpeedTest, type SpeedTestResult } from '../net/speedTestClient';
-import {
-  buildSpeedTestCompletedEvent,
-  buildSpeedTestFailedEvent,
-  sendTelemetry,
-} from '../net/telemetryClient';
+import type { SplitTunnelConfig } from '../native/types';
+import { setAutoConnectEnabled, setRememberExitEnabled } from '../state/store';
 import { useVpnState } from '../state/useVpnState';
 import { monoFont, palette, tokens } from '../theme';
 
 export interface SettingsScreenProps {
   onOpenDebug: () => void;
+  onOpenSplitTunnel: () => void;
 }
 
-export function SettingsScreen({ onOpenDebug }: SettingsScreenProps): React.JSX.Element {
+function splitTunnelSubtitle(s: Strings, config: SplitTunnelConfig | null): string {
+  if (config == null || config.mode === 'off') {
+    return s.splitTunnelSubtitleOff;
+  }
+  return config.mode === 'proxyOnly'
+    ? s.splitTunnelSubtitleAllow(config.packages.length)
+    : s.splitTunnelSubtitleDeny(config.packages.length);
+}
+
+const TOOLBOX_TITLES: Record<(typeof AppConfig.TOOLBOX_LINKS)[number]['id'], (s: Strings) => string> = {
+  ipCheck: s => s.toolboxIpCheck,
+  dnsLeak: s => s.toolboxDnsLeak,
+  webrtcLeak: s => s.toolboxWebrtcLeak,
+  speedTest: s => s.toolboxSpeedTest,
+};
+
+export function SettingsScreen({
+  onOpenDebug,
+  onOpenSplitTunnel,
+}: SettingsScreenProps): React.JSX.Element {
   const s = useStrings();
   const insets = useSafeAreaInsets();
-  const { isConnected } = useVpnState();
+  const { state, isConnected } = useVpnState();
 
-  const [speedTestRunning, setSpeedTestRunning] = useState(false);
-  const [speedTestResult, setSpeedTestResult] = useState<SpeedTestResult | null>(null);
-  const [speedTestError, setSpeedTestError] = useState<string | null>(null);
-
-  // Same precedence as production: running > error > result > requires-connection > ready.
-  const speedTestSubtitle = speedTestRunning
-    ? s.speedTestRunning
-    : speedTestError != null
-      ? s.speedTestError(speedTestError)
-      : speedTestResult != null
-        ? s.speedTestResult(speedTestResult.downloadMbps)
-        : !isConnected
-          ? s.speedTestRequiresConnection
-          : s.speedTestReady;
-
-  const runEnabled = isConnected && !speedTestRunning;
-
-  const onRunSpeedTest = useCallback(() => {
-    setSpeedTestRunning(true);
-    setSpeedTestResult(null);
-    setSpeedTestError(null);
-    (async () => {
-      try {
-        const result = await runSpeedTest(AppConfig.TELEMETRY_BROKER_URL);
-        setSpeedTestResult(result);
-        try {
-          const identity = await OpenRungVpn.getIdentity();
-          if (identity.sessionId != null) {
-            // Telemetry is skipped when no session is active (contract §4).
-            await sendTelemetry(AppConfig.TELEMETRY_BROKER_URL, [
-              buildSpeedTestCompletedEvent(identity, result),
-            ]);
-          }
-        } catch {
-          // Telemetry is best-effort; never surfaces in the UI.
+  // Android-only per-app VPN summary; refreshed when Settings mounts (config lives natively).
+  const [splitTunnel, setSplitTunnel] = useState<SplitTunnelConfig | null>(null);
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+    let mounted = true;
+    OpenRungVpn.getSplitTunnelConfig()
+      .then(config => {
+        if (mounted) {
+          setSplitTunnel(config);
         }
-      } catch (error) {
-        // Mirrors production: message ?: exception simple name for the subtitle,
-        // the error type name for the telemetry attribute.
-        const errorType = error instanceof Error ? error.constructor.name || error.name : 'Error';
-        const message = error instanceof Error ? error.message || errorType : String(error);
-        setSpeedTestError(message);
-        try {
-          const identity = await OpenRungVpn.getIdentity();
-          if (identity.sessionId != null) {
-            await sendTelemetry(AppConfig.TELEMETRY_BROKER_URL, [
-              buildSpeedTestFailedEvent(identity, errorType),
-            ]);
-          }
-        } catch {
-          // Best-effort.
-        }
-      } finally {
-        setSpeedTestRunning(false);
-      }
-    })();
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   return (
@@ -110,28 +101,59 @@ export function SettingsScreen({ onOpenDebug }: SettingsScreenProps): React.JSX.
         trailing={<LanguagePicker />}
       />
 
-      <Text style={styles.sectionHeader}>{s.settingsDiagnosticsHeader.toUpperCase()}</Text>
+      <Text style={styles.sectionHeader}>{s.settingsConnectionHeader.toUpperCase()}</Text>
       <SettingPanel
-        title={s.speedTestSettingTitle}
-        subtitle={speedTestSubtitle}
+        title={s.autoConnectTitle}
+        subtitle={s.autoConnectSubtitle}
         trailing={
-          <Pressable
-            onPress={onRunSpeedTest}
-            disabled={!runEnabled}
-            style={[styles.runButton, !runEnabled && styles.runButtonDisabled]}
-            accessibilityRole="button"
-          >
-            <Text style={[styles.runLabel, !runEnabled && styles.runLabelDisabled]}>
-              {s.speedTestAction}
-            </Text>
-          </Pressable>
+          <ToggleSwitch
+            value={state.autoConnectEnabled}
+            onValueChange={setAutoConnectEnabled}
+            accessibilityLabel={s.autoConnectTitle}
+          />
         }
       />
+      <SettingPanel
+        title={s.rememberExitTitle}
+        subtitle={s.rememberExitSubtitle}
+        trailing={
+          <ToggleSwitch
+            value={state.rememberExitEnabled}
+            onValueChange={setRememberExitEnabled}
+            accessibilityLabel={s.rememberExitTitle}
+          />
+        }
+      />
+      {Platform.OS === 'android' ? (
+        <SettingPanel
+          title={s.splitTunnelTitle}
+          subtitle={splitTunnelSubtitle(s, splitTunnel)}
+          onPress={onOpenSplitTunnel}
+        />
+      ) : null}
+
+      <Text style={styles.sectionHeader}>{s.settingsDiagnosticsHeader.toUpperCase()}</Text>
+      <SpeedTestRow isConnected={isConnected} />
+      <ExitIpRow isConnected={isConnected} />
       <SettingPanel
         title={s.debugSettingTitle}
         subtitle={s.debugSettingSubtitle}
         onPress={onOpenDebug}
       />
+
+      <Text style={styles.sectionHeader}>{s.settingsToolboxHeader.toUpperCase()}</Text>
+      {AppConfig.TOOLBOX_LINKS.map(link => (
+        <SettingPanel
+          key={link.id}
+          title={TOOLBOX_TITLES[link.id](s)}
+          subtitle={s.toolboxSubtitle}
+          onPress={() => {
+            Linking.openURL(link.url).catch(() => {
+              // Ignore: no browser available.
+            });
+          }}
+        />
+      ))}
     </ScrollView>
   );
 }
@@ -208,28 +230,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 1.5,
     marginTop: 8,
-  },
-  // Material3 filled button metrics: 40dp tall pill, 24dp horizontal padding.
-  runButton: {
-    height: 40,
-    borderRadius: 20,
-    paddingHorizontal: 24,
-    backgroundColor: palette.terminalGreen,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  // Material3 default disabled colors (onSurface @ 12% / 38%), as in production.
-  runButtonDisabled: {
-    backgroundColor: 'rgba(29, 27, 32, 0.12)',
-  },
-  runLabel: {
-    color: palette.onGreenText,
-    fontFamily: monoFont,
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  runLabelDisabled: {
-    color: 'rgba(29, 27, 32, 0.38)',
   },
   // Material TextButton-ish: label-only button, terminal green mono.
   languageButton: {

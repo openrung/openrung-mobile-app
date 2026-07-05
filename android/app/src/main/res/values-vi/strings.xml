@@ -4,6 +4,8 @@
     <string name="vpn_notification_title">OpenRung VPN</string>
     <string name="vpn_notification_preparing">Đang chuẩn bị OpenRung VPN</string>
     <string name="vpn_notification_connected">Đã kết nối qua %1$s</string>
+    <string name="vpn_notification_disconnect">Ngắt kết nối</string>
+    <string name="vpn_notification_traffic">↓ %1$s ↑ %2$s — %3$s</string>
     <string name="relay_location_unknown">Vị trí không xác định</string>
     <string name="status_disconnected">Đã ngắt kết nối</string>
     <string name="status_preparing">Đang chuẩn bị VPN</string>

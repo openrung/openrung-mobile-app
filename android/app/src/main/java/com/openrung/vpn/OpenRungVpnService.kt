@@ -45,12 +45,32 @@ class OpenRungVpnService : VpnService() {
     private var engine: ProxyEngine? = null
     private var brokerUrl: String = AppConfig.DEFAULT_BROKER_URL
     private var activeRelayId: String? = null
+    private var lastNotificationText: String? = null
 
     override fun onCreate() {
         super.onCreate()
         OpenRungStatusStore.initialize(applicationContext)
         TelemetryManager.initialize(applicationContext)
         createNotificationChannel()
+        // Live speeds in the foreground notification: the 2s sample cadence is above
+        // Android's notification-update rate limit, and updateNotification() additionally
+        // skips unchanged text.
+        serviceScope.launch {
+            OpenRungStatusStore.trafficState.collect { stats ->
+                if (stats == null) return@collect
+                if (OpenRungStatusStore.uiState.value.status != ConnectionStatus.CONNECTED) return@collect
+                val location = OpenRungStatusStore.uiState.value.relayLabel
+                    ?: getString(R.string.relay_location_unknown)
+                updateNotification(
+                    getString(
+                        R.string.vpn_notification_traffic,
+                        formatBytesPerSecond(stats.downBps),
+                        formatBytesPerSecond(stats.upBps),
+                        location,
+                    ),
+                )
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -270,6 +290,7 @@ class OpenRungVpnService : VpnService() {
     private fun disconnect() {
         heartbeatJob?.cancel()
         heartbeatJob = null
+        OpenRungStatusStore.clearTraffic()
         OpenRungStatusStore.setStatus(ConnectionStatus.DISCONNECTING)
         connectJob?.cancel()
         cleanupActiveTunnel()
@@ -347,6 +368,8 @@ class OpenRungVpnService : VpnService() {
     }
 
     private fun updateNotification(message: String) {
+        if (message == lastNotificationText) return
+        lastNotificationText = message
         val manager = getSystemService(NotificationManager::class.java)
         manager.notify(NOTIFICATION_ID, notification(message))
     }
@@ -359,6 +382,12 @@ class OpenRungVpnService : VpnService() {
             launchIntent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
+        val disconnectPendingIntent = PendingIntent.getService(
+            this,
+            1,
+            disconnectIntent(this),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
         return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_vpn)
             .setContentTitle(getString(R.string.vpn_notification_title))
@@ -366,8 +395,17 @@ class OpenRungVpnService : VpnService() {
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            .addAction(0, getString(R.string.vpn_notification_disconnect), disconnectPendingIntent)
             .build()
     }
+
+    /** "4.5 MB/s" style human-readable rate for the notification line. */
+    private fun formatBytesPerSecond(bps: Long): String =
+        when {
+            bps >= 1_000_000 -> String.format(java.util.Locale.US, "%.1f MB/s", bps / 1_000_000.0)
+            bps >= 1_000 -> String.format(java.util.Locale.US, "%.0f KB/s", bps / 1_000.0)
+            else -> "$bps B/s"
+        }
 
     companion object {
         private const val ACTION_CONNECT = "com.openrung.action.CONNECT"

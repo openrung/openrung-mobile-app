@@ -19,10 +19,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConnectCard } from '../components/ConnectCard';
 import { EdgeFade } from '../components/EdgeFade';
 import { ExitNodeMap } from '../components/ExitNodeMap';
+import { FavoritesSection } from '../components/FavoritesSection';
+import { LatencyChip } from '../components/LatencyChip';
 import { MapStatusChip } from '../components/MapStatusChip';
 import { RecentsSection } from '../components/RecentsSection';
+import { AppConfig } from '../config';
 import { useStrings } from '../i18n';
-import { refreshDirectory } from '../state/store';
+import {
+  fastestCountry,
+  getSnapshot,
+  refreshDirectory,
+  runLatencyTest,
+  toggleFavorite,
+} from '../state/store';
 import { useVpnState } from '../state/useVpnState';
 import { monoFont, palette, tokens } from '../theme';
 
@@ -58,7 +67,13 @@ function Wordmark(): React.JSX.Element {
 export function MainScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { state, isConnected, isWorking, disconnect, prepareAndConnect } = useVpnState();
-  const { native, directoryStatus, availableRegions } = state;
+  const { native, directoryStatus, availableRegions, favorites, latency } = state;
+
+  // Latency badges are hidden once results age past the TTL (stale RTTs would mislead).
+  const latencyFresh =
+    latency.status === 'done' &&
+    latency.testedAtMs != null &&
+    Date.now() - latency.testedAtMs <= AppConfig.LATENCY_RESULT_TTL_MS;
 
   // Populate the exit-node map directory when the home screen is shown (no-op once loaded).
   useEffect(() => {
@@ -92,10 +107,37 @@ export function MainScreen(): React.JSX.Element {
     refreshDirectory(true);
   }, []);
 
+  const onRunLatency = useCallback(() => {
+    runLatencyTest().catch(() => {
+      // Failures surface as latency.status === 'failed' in the chip.
+    });
+  }, []);
+
+  const onConnectFastest = useCallback(async () => {
+    // Reuse fresh results; otherwise run the probe first, then read the post-await snapshot.
+    const snap = getSnapshot();
+    const fresh =
+      snap.latency.status === 'done' &&
+      snap.latency.testedAtMs != null &&
+      Date.now() - snap.latency.testedAtMs <= AppConfig.LATENCY_RESULT_TTL_MS;
+    if (!fresh) {
+      await runLatencyTest();
+    }
+    const best = fastestCountry(getSnapshot());
+    // Never dead-end: with no reachable exits, fall back to a broker pick.
+    prepareAndConnect(best?.countryCode ?? null).catch(() => {
+      // Reported via events.
+    });
+  }, [prepareAndConnect]);
+
   return (
     <View style={styles.root}>
       <View style={StyleSheet.absoluteFill}>
-        <ExitNodeMap regions={availableRegions} onRegionPress={onConnectRegion} />
+        <ExitNodeMap
+          regions={availableRegions}
+          onRegionPress={onConnectRegion}
+          latency={latencyFresh ? latency.results : null}
+        />
       </View>
       <EdgeFade />
 
@@ -112,24 +154,42 @@ export function MainScreen(): React.JSX.Element {
       >
         <View style={styles.header} pointerEvents="box-none">
           <Wordmark />
-          <MapStatusChip
-            directoryStatus={directoryStatus}
-            regionCount={availableRegions.length}
-            onRetry={onRetryDirectory}
-            style={styles.headerChip}
-          />
+          <View style={styles.headerChips} pointerEvents="box-none">
+            <MapStatusChip
+              directoryStatus={directoryStatus}
+              regionCount={availableRegions.length}
+              onRetry={onRetryDirectory}
+              style={styles.headerChip}
+            />
+            {availableRegions.length > 0 ? (
+              <LatencyChip isConnected={isConnected} onRunLatency={onRunLatency} />
+            ) : null}
+          </View>
         </View>
 
         <View style={styles.spacer} pointerEvents="none" />
 
         <View style={styles.bottomStack} pointerEvents="box-none">
-          <RecentsSection recents={native.recents} />
+          <FavoritesSection
+            favorites={favorites}
+            onSelect={onConnectRegion}
+            onToggleFavorite={toggleFavorite}
+          />
+          <RecentsSection
+            recents={native.recents}
+            favorites={favorites}
+            onSelect={onConnectRegion}
+            onToggleFavorite={toggleFavorite}
+          />
           <ConnectCard
             status={native.status}
             relayLabel={native.relayLabel}
             isConnected={isConnected}
             isWorking={isWorking}
             onToggle={onToggle}
+            traffic={state.traffic}
+            onConnectFastest={onConnectFastest}
+            fastestBusy={latency.status === 'running'}
           />
         </View>
       </View>
@@ -156,8 +216,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
   },
-  headerChip: {
+  headerChips: {
+    alignItems: 'flex-end',
+    gap: 6,
     marginTop: 4,
+  },
+  headerChip: {
     maxWidth: 180,
   },
   wordmarkRow: {

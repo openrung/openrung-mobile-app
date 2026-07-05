@@ -2,10 +2,15 @@ import { centroid, displayName } from '../model/countryGeo';
 import { uuid4 } from '../net/telemetryClient';
 import type {
   ConnectionStatus,
+  InstalledApp,
+  LatencyMeasurement,
+  LatencyTarget,
   NativeIdentity,
   NativeVpnState,
   OpenRungVpnModule,
   RecentNode,
+  SplitTunnelConfig,
+  TrafficStats,
 } from './types';
 
 /**
@@ -21,6 +26,30 @@ import type {
 
 const MAX_LOG_LINES = 80;
 const MAX_RECENTS = 8;
+const MAX_PERSISTED_LOG_LINES = 1000;
+const TRAFFIC_INTERVAL_MS = 2000;
+
+/**
+ * Simplified stand-in for the native scrubber so the Debug screen shows realistic
+ * `<ip>`/`<url>` placeholder tokens: production scrubs proxy URIs, URLs, IPs, UUIDs
+ * and credential-shaped key=value pairs before a line ever reaches disk.
+ */
+function mockScrub(message: string): string {
+  return message
+    .replace(/https?:\/\/[^\s]+/gi, '<url>')
+    .replace(/\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?\b/g, '<ip>');
+}
+
+const MOCK_APPS: InstalledApp[] = [
+  { packageName: 'com.android.chrome', label: 'Chrome', isSystem: false },
+  { packageName: 'org.mozilla.firefox', label: 'Firefox', isSystem: false },
+  { packageName: 'com.whatsapp', label: 'WhatsApp', isSystem: false },
+  { packageName: 'org.telegram.messenger', label: 'Telegram', isSystem: false },
+  { packageName: 'com.spotify.music', label: 'Spotify', isSystem: false },
+  { packageName: 'com.google.android.youtube', label: 'YouTube', isSystem: false },
+  { packageName: 'com.android.vending', label: 'Play Store', isSystem: true },
+  { packageName: 'com.android.settings', label: 'Settings', isSystem: true },
+];
 
 const STATUS_LABELS: Record<ConnectionStatus, string> = {
   disconnected: 'Disconnected',
@@ -56,10 +85,24 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
   private readonly clientId = uuid4();
   private sessionId: string | null = null;
 
+  private trafficListeners = new Set<(stats: TrafficStats) => void>();
+  private trafficTimer: ReturnType<typeof setInterval> | null = null;
+  private traffic: TrafficStats | null = null;
+
+  private splitTunnel: SplitTunnelConfig = { mode: 'off', packages: [] };
+  private persistedLog: string[] = [];
+
   subscribe(listener: (state: NativeVpnState) => void): () => void {
     this.listeners.add(listener);
     return () => {
       this.listeners.delete(listener);
+    };
+  }
+
+  subscribeTraffic(listener: (stats: TrafficStats) => void): () => void {
+    this.trafficListeners.add(listener);
+    return () => {
+      this.trafficListeners.delete(listener);
     };
   }
 
@@ -69,6 +112,7 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
 
   connect(brokerUrl: string, targetCountry: string | null): Promise<void> {
     this.cancelScript();
+    this.stopTrafficSimulation(false);
     this.sessionId = uuid4();
 
     const code = targetCountry ? targetCountry.trim().toUpperCase() : 'JP';
@@ -116,6 +160,7 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
         run: () => {
           this.appendLog('internet access verified in 812 ms');
           this.setStatus('connected', { relayLabel: null, lastError: null });
+          this.startTrafficSimulation();
         },
       },
       {
@@ -140,6 +185,7 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
 
   disconnect(): Promise<void> {
     this.cancelScript();
+    this.stopTrafficSimulation(true);
     this.setStatus('disconnecting');
     this.runScript([
       {
@@ -159,6 +205,107 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
 
   getIdentity(): Promise<NativeIdentity> {
     return Promise.resolve({ clientId: this.clientId, sessionId: this.sessionId });
+  }
+
+  getTrafficStats(): Promise<TrafficStats | null> {
+    return Promise.resolve(this.traffic ? { ...this.traffic } : null);
+  }
+
+  measureLatency(targets: LatencyTarget[], _timeoutMs: number): Promise<LatencyMeasurement> {
+    const results = targets.map(target => {
+      const reachable = Math.random() >= 0.1; // ~10% of relays unreachable
+      return {
+        id: target.id,
+        latencyMs: reachable ? Math.round(40 + Math.random() * 280) : null,
+        reachable,
+      };
+    });
+    // Standalone timer (not this.timers): a connect/disconnect mid-test must not
+    // cancel the resolution and leave the caller hanging.
+    return new Promise(resolve => {
+      setTimeout(
+        () => resolve({ viaTunnel: this.state.status === 'connected', results }),
+        400 + Math.random() * 400,
+      );
+    });
+  }
+
+  getInstalledApps(): Promise<InstalledApp[]> {
+    return Promise.resolve(MOCK_APPS.map(app => ({ ...app })));
+  }
+
+  getSplitTunnelConfig(): Promise<SplitTunnelConfig> {
+    return Promise.resolve({ ...this.splitTunnel, packages: [...this.splitTunnel.packages] });
+  }
+
+  setSplitTunnelConfig(config: SplitTunnelConfig): Promise<{ needsReconnect: boolean }> {
+    const changed =
+      config.mode !== this.splitTunnel.mode ||
+      config.packages.length !== this.splitTunnel.packages.length ||
+      config.packages.some(pkg => !this.splitTunnel.packages.includes(pkg));
+    this.splitTunnel = { mode: config.mode, packages: [...config.packages] };
+    const active =
+      this.state.status === 'connected' ||
+      this.state.status === 'connecting' ||
+      this.state.status === 'preparing';
+    return Promise.resolve({ needsReconnect: changed && active });
+  }
+
+  getPersistedLog(): Promise<string[]> {
+    return Promise.resolve([...this.persistedLog]);
+  }
+
+  clearPersistedLog(): Promise<void> {
+    this.persistedLog = [];
+    return Promise.resolve();
+  }
+
+  private startTrafficSimulation(): void {
+    this.stopTrafficSimulation(false);
+    // Random-walk speeds so the UI shows plausible movement: down ~200 KB/s–6 MB/s,
+    // up roughly an eighth of down.
+    let downBps = 400_000 + Math.random() * 1_200_000;
+    let upTotalBytes = 0;
+    let downTotalBytes = 0;
+    this.trafficTimer = setInterval(() => {
+      downBps = Math.min(6_000_000, Math.max(200_000, downBps * (0.7 + Math.random() * 0.6)));
+      const upBps = Math.max(25_000, downBps / (6 + Math.random() * 4));
+      downTotalBytes += downBps * (TRAFFIC_INTERVAL_MS / 1000);
+      upTotalBytes += upBps * (TRAFFIC_INTERVAL_MS / 1000);
+      this.traffic = {
+        upBps: Math.round(upBps),
+        downBps: Math.round(downBps),
+        upTotalBytes: Math.round(upTotalBytes),
+        downTotalBytes: Math.round(downTotalBytes),
+        updatedAtMs: Date.now(),
+      };
+      this.emitTraffic(this.traffic);
+    }, TRAFFIC_INTERVAL_MS);
+  }
+
+  /** Stops the traffic feed; when `emitZero`, sends the contract's final zeroed sample. */
+  private stopTrafficSimulation(emitZero: boolean): void {
+    if (this.trafficTimer != null) {
+      clearInterval(this.trafficTimer);
+      this.trafficTimer = null;
+    }
+    const wasRunning = this.traffic != null;
+    this.traffic = null;
+    if (emitZero && wasRunning) {
+      this.emitTraffic({
+        upBps: 0,
+        downBps: 0,
+        upTotalBytes: 0,
+        downTotalBytes: 0,
+        updatedAtMs: Date.now(),
+      });
+    }
+  }
+
+  private emitTraffic(stats: TrafficStats): void {
+    for (const listener of this.trafficListeners) {
+      listener({ ...stats });
+    }
   }
 
   private runScript(steps: ScriptStep[]): void {
@@ -191,6 +338,10 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
   private appendLog(message: string): void {
     const logLines = [...this.state.logLines, `${timestamp()} ${message}`].slice(-MAX_LOG_LINES);
     this.state = { ...this.state, logLines };
+    // Production mirrors every live line into the scrubbed persisted log (cap 1000).
+    this.persistedLog = [...this.persistedLog, `${timestamp()} ${mockScrub(message)}`].slice(
+      -MAX_PERSISTED_LOG_LINES,
+    );
     this.emit();
   }
 

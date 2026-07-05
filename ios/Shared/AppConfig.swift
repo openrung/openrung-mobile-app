@@ -39,6 +39,9 @@ enum AppConfig {
 
     // App ↔ extension shared-state plumbing.
     static let darwinNotificationName = "com.openrung.mobile.state-changed"
+    /// Separate channel for the ~2s traffic samples so they don't ride (and re-serialize)
+    /// the full connection-state snapshot.
+    static let trafficDarwinNotificationName = "com.openrung.mobile.traffic-changed"
     static let telemetryOutboxFilename = "outbox.json"
 
     // Heartbeat cadence (random in this range), matching Android.

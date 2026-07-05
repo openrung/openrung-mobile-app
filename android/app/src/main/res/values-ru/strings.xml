@@ -4,6 +4,8 @@
     <string name="vpn_notification_title">OpenRung VPN</string>
     <string name="vpn_notification_preparing">Подготовка OpenRung VPN</string>
     <string name="vpn_notification_connected">Подключено через %1$s</string>
+    <string name="vpn_notification_disconnect">Отключить</string>
+    <string name="vpn_notification_traffic">↓ %1$s ↑ %2$s — %3$s</string>
     <string name="relay_location_unknown">Неизвестное местоположение</string>
     <string name="status_disconnected">Отключено</string>
     <string name="status_preparing">Подготовка VPN</string>

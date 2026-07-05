@@ -4,6 +4,8 @@
     <string name="vpn_notification_title">OpenRung VPN</string>
     <string name="vpn_notification_preparing">OpenRung VPN hazırlanıyor</string>
     <string name="vpn_notification_connected">%1$s üzerinden bağlandı</string>
+    <string name="vpn_notification_disconnect">Bağlantıyı kes</string>
+    <string name="vpn_notification_traffic">↓ %1$s ↑ %2$s — %3$s</string>
     <string name="relay_location_unknown">Bilinmeyen konum</string>
     <string name="status_disconnected">Bağlı değil</string>
     <string name="status_preparing">VPN hazırlanıyor</string>

@@ -30,7 +30,7 @@ import {
 
 import { AppConfig } from '../config';
 import { useStrings } from '../i18n';
-import type { ExitNodeRegion } from '../model/exitNode';
+import { latencyQuality, regionKey, type ExitNodeRegion, type RegionLatency } from '../model/exitNode';
 
 const NODE_SOURCE = 'openrung-exit-nodes';
 const NODE_HALO_LAYER = 'openrung-exit-nodes-halo';
@@ -40,6 +40,10 @@ const NODE_LABEL_LAYER = 'openrung-exit-nodes-label';
 
 const NODE_GREEN = '#65F58A';
 const NODE_STROKE = '#04140A';
+// Latency badge colours by quality bucket (working yellow / warm reds), from the palette.
+const LATENCY_OK = '#EAF565';
+const LATENCY_SLOW = '#FFC0C0';
+const LATENCY_UNREACHABLE = '#FFA0A0';
 
 // Dark neon basemap palette: black ocean, faintly-shaded green land, neon-green borders.
 const OCEAN_COLOR = '#030604'; // app backdrop, so the map blends edge-to-edge
@@ -56,9 +60,20 @@ const MAX_ZOOM = 4.8;
 export interface ExitNodeMapProps {
   regions: ExitNodeRegion[];
   onRegionPress: (countryCode: string) => void;
+  /** Fresh latency results keyed by regionKey(); null when none/stale (badges hidden). */
+  latency?: Record<string, RegionLatency> | null;
 }
 
-export function ExitNodeMap({ regions, onRegionPress }: ExitNodeMapProps): React.JSX.Element {
+/**
+ * Memoized: the home-screen store updates every ~2s while connected (traffic samples), and
+ * `regions`/`onRegionPress` are referentially stable — without memo the whole MapLibre tree
+ * would re-render on every sample.
+ */
+function ExitNodeMapImpl({
+  regions,
+  onRegionPress,
+  latency = null,
+}: ExitNodeMapProps): React.JSX.Element {
   const s = useStrings();
 
   const mapStyle = useMemo<StyleSpecification>(
@@ -95,25 +110,34 @@ export function ExitNodeMap({ regions, onRegionPress }: ExitNodeMapProps): React
   );
 
   // One GeoJSON feature per region; code/name/count mirror the production props, label is the
-  // broker-served "City, Country" (country alone when the broker only knows the country).
+  // broker-served "City, Country" (country alone when the broker only knows the country). When a
+  // fresh latency result exists, `latencyText`/`latencyQuality` extend the existing label layer
+  // (no extra marker geometry — keeps dense clusters readable via the same collision handling).
   const nodeCollection = useMemo(
     () => ({
       type: 'FeatureCollection' as const,
-      features: regions.map(region => ({
-        type: 'Feature' as const,
-        geometry: {
-          type: 'Point' as const,
-          coordinates: [region.longitude, region.latitude],
-        },
-        properties: {
-          code: region.countryCode,
-          name: region.countryName,
-          count: region.nodeCount,
-          label: region.city ? `${region.city}, ${region.countryName}` : region.countryName,
-        },
-      })),
+      features: regions.map(region => {
+        const baseLabel = region.city ? `${region.city}, ${region.countryName}` : region.countryName;
+        const result = latency != null ? latency[regionKey(region)] : undefined;
+        const latencyText =
+          result == null ? '' : result.rttMs === null ? '×' : `${result.rttMs}ms`;
+        return {
+          type: 'Feature' as const,
+          geometry: {
+            type: 'Point' as const,
+            coordinates: [region.longitude, region.latitude],
+          },
+          properties: {
+            code: region.countryCode,
+            name: region.countryName,
+            count: region.nodeCount,
+            label: latencyText.length > 0 ? `${baseLabel} · ${latencyText}` : baseLabel,
+            latencyQuality: result == null ? 'none' : latencyQuality(result.rttMs),
+          },
+        };
+      }),
     }),
-    [regions],
+    [regions, latency],
   );
 
   const handleNodePress = useCallback(
@@ -215,7 +239,20 @@ export function ExitNodeMap({ regions, onRegionPress }: ExitNodeMapProps): React
             // Unlike the count, labels yield on collision so dense clusters stay readable.
           }}
           paint={{
-            'text-color': NODE_GREEN,
+            // Colour the whole label by latency bucket; green when no result yet.
+            'text-color': [
+              'match',
+              ['get', 'latencyQuality'],
+              'good',
+              NODE_GREEN,
+              'ok',
+              LATENCY_OK,
+              'slow',
+              LATENCY_SLOW,
+              'unreachable',
+              LATENCY_UNREACHABLE,
+              NODE_GREEN,
+            ] as unknown as string,
             'text-halo-color': NODE_STROKE,
             'text-halo-width': 1.2,
             'text-opacity': 0.9,
@@ -225,6 +262,8 @@ export function ExitNodeMap({ regions, onRegionPress }: ExitNodeMapProps): React
     </MapLibreMap>
   );
 }
+
+export const ExitNodeMap = React.memo(ExitNodeMapImpl);
 
 const styles = StyleSheet.create({
   map: {

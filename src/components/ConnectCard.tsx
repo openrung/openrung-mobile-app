@@ -31,9 +31,10 @@ import {
 } from 'react-native';
 
 import { statusLabel, useStrings, type Strings } from '../i18n';
-import type { ConnectionStatus } from '../native/types';
+import type { ConnectionStatus, TrafficStats } from '../native/types';
 import { monoFont, palette, tokens } from '../theme';
 import { PowerIcon } from './Icons';
+import { TrafficStatsRow } from './TrafficStatsRow';
 
 export interface ConnectCardProps {
   status: ConnectionStatus;
@@ -41,6 +42,12 @@ export interface ConnectCardProps {
   isConnected: boolean;
   isWorking: boolean;
   onToggle: () => void;
+  /** Live sample while connected; the footer line swaps to the stats row so card height stays stable. */
+  traffic?: TrafficStats | null;
+  /** Optional secondary action: latency-test then connect to the lowest-RTT exit. */
+  onConnectFastest?: () => void;
+  /** Busy while the fastest-exit latency test runs. */
+  fastestBusy?: boolean;
 }
 
 function dotColor(status: ConnectionStatus): string {
@@ -134,6 +141,9 @@ export function ConnectCard({
   isConnected,
   isWorking,
   onToggle,
+  traffic = null,
+  onConnectFastest,
+  fastestBusy = false,
 }: ConnectCardProps): React.JSX.Element {
   const s = useStrings();
 
@@ -273,9 +283,32 @@ export function ConnectCard({
         </Animated.View>
       </Pressable>
 
-      <Text style={styles.footer} numberOfLines={2}>
-        {isConnected ? s.trafficRouteConnected : s.trafficRouteDisconnected}
-      </Text>
+      {/* Slim secondary "FASTEST" action — subordinate to the primary CONNECT button.
+          Hidden while connected/working (it's a pick-and-connect shortcut). */}
+      {onConnectFastest != null && !isConnected && !isWorking ? (
+        <Pressable
+          onPress={onConnectFastest}
+          disabled={fastestBusy}
+          style={({ pressed }) => [
+            styles.fastestButton,
+            (pressed || fastestBusy) && styles.fastestButtonPressed,
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel={s.actionConnectFastest}
+        >
+          <Text style={styles.fastestLabel}>
+            {fastestBusy ? s.fastestFinding : `${s.actionConnectFastest} ⚡`}
+          </Text>
+        </Pressable>
+      ) : null}
+
+      {isConnected && traffic != null ? (
+        <TrafficStatsRow traffic={traffic} />
+      ) : (
+        <Text style={styles.footer} numberOfLines={2}>
+          {isConnected ? s.trafficRouteConnected : s.trafficRouteDisconnected}
+        </Text>
+      )}
     </View>
   );
 }
@@ -388,5 +421,23 @@ const styles = StyleSheet.create({
     fontFamily: monoFont,
     fontSize: 10,
     letterSpacing: 0.4,
+  },
+  fastestButton: {
+    height: 36,
+    borderRadius: tokens.radiusSm,
+    borderWidth: 1,
+    borderColor: tokens.glassBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fastestButtonPressed: {
+    opacity: 0.6,
+  },
+  fastestLabel: {
+    color: palette.terminalGreen,
+    fontFamily: monoFont,
+    fontSize: 12,
+    fontWeight: 'bold',
+    letterSpacing: 1.5,
   },
 });

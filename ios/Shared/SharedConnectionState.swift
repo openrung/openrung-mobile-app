@@ -55,6 +55,7 @@ enum SharedConnectionState {
     }
 
     static func setStatus(_ status: ConnectionStatus, clearRelayLabel: Bool = false, clearError: Bool = false) {
+        RuntimeLogStore.append(status.displayLabel)
         mutate { snapshot in
             snapshot.status = status
             if clearRelayLabel { snapshot.relayLabel = nil }
@@ -64,12 +65,15 @@ enum SharedConnectionState {
     }
 
     static func appendLog(_ message: String) {
+        // Every live line is also scrubbed into the persisted runtime log (contract §3).
+        RuntimeLogStore.append(message)
         mutate { snapshot in
             snapshot.logLines = ActivityLog.appended(snapshot.logLines, ActivityLog.line(message))
         }
     }
 
     static func fail(_ message: String) {
+        RuntimeLogStore.append("error: \(message)")
         mutate { snapshot in
             snapshot.status = .failed
             snapshot.lastError = message

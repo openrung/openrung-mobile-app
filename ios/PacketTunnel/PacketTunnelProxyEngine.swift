@@ -16,6 +16,8 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
     private var commandServer: LibboxCommandServer?
     private var platformInterface: LibboxPacketTunnelPlatformInterface?
     private var activeRelay: RelayDescriptor?
+    private var trafficClient: LibboxCommandClient?
+    private var trafficHandler: TrafficStatusHandler?
 
     func start(relay: RelayDescriptor, tunnelProvider: NEPacketTunnelProvider) async throws {
         activeRelay = relay
@@ -64,16 +66,51 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
 
         self.platformInterface = platformInterface
         self.commandServer = commandServer
+        startTrafficMonitor()
         logger.info("libbox started for relay \(relay.id, privacy: .public)")
     }
 
     func stop() {
+        stopTrafficMonitor()
         try? commandServer?.closeService()
         commandServer?.close()
         platformInterface?.reset()
         commandServer = nil
         platformInterface = nil
         activeRelay = nil
+    }
+
+    /// Attaches an in-process CommandStatus client to the command server started above (it
+    /// dials the LibboxSetup command-server port): samples arrive every ~2s and are published
+    /// to the host app via `SharedTrafficState`. The 1s pre-connect delay lets the server
+    /// finish binding.
+    private func startTrafficMonitor() {
+        stopTrafficMonitor()
+        let handler = TrafficStatusHandler()
+        let options = LibboxCommandClientOptions()
+        options.addCommand(LibboxCommandStatus)
+        options.statusInterval = 2_000_000_000
+        guard let client = LibboxNewCommandClient(handler, options) else {
+            logger.warning("could not create the traffic status client")
+            return
+        }
+        trafficHandler = handler
+        trafficClient = client
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 1) { [weak self, logger] in
+            guard let self, self.trafficClient === client else { return }
+            do {
+                try client.connect()
+            } catch {
+                logger.warning("traffic status client failed to connect: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+
+    private func stopTrafficMonitor() {
+        try? trafficClient?.disconnect()
+        trafficClient = nil
+        trafficHandler = nil
+        SharedTrafficState.clear()
     }
 
     private func availableCommandServerPort() throws -> Int32 {
@@ -86,6 +123,48 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
         logger.info("Using libbox command server port \(port, privacy: .public)")
         return port
     }
+}
+
+/// CommandStatus stream handler: converts total byte counters into rate + total samples
+/// (rates derived against locally measured elapsed time, so they stay correct even if the
+/// stream interval drifts). All other stream callbacks are unused no-ops.
+private final class TrafficStatusHandler: NSObject, LibboxCommandClientHandlerProtocol {
+    private var lastUplinkTotal: Int64 = -1
+    private var lastDownlinkTotal: Int64 = -1
+    private var lastSampleUptime: TimeInterval = 0
+
+    func writeStatus(_ message: LibboxStatusMessage?) {
+        guard let message, message.trafficAvailable else { return }
+        let nowUptime = ProcessInfo.processInfo.systemUptime
+        let elapsedMs = Int64((nowUptime - lastSampleUptime) * 1000)
+        let hasPrevious = lastUplinkTotal >= 0 && elapsedMs >= 1 && elapsedMs <= 60_000
+        let upBps = hasPrevious ? max(0, (message.uplinkTotal - lastUplinkTotal) * 1000 / elapsedMs) : 0
+        let downBps = hasPrevious ? max(0, (message.downlinkTotal - lastDownlinkTotal) * 1000 / elapsedMs) : 0
+        lastUplinkTotal = message.uplinkTotal
+        lastDownlinkTotal = message.downlinkTotal
+        lastSampleUptime = nowUptime
+        SharedTrafficState.write(
+            TrafficSnapshot(
+                upBps: upBps,
+                downBps: downBps,
+                upTotalBytes: message.uplinkTotal,
+                downTotalBytes: message.downlinkTotal,
+                updatedAtMs: Int64(Date().timeIntervalSince1970 * 1000)
+            )
+        )
+    }
+
+    func clearLogs() {}
+    func connected() {}
+    func disconnected(_ message: String?) {}
+    func initializeClashMode(_ modeList: (any LibboxStringIteratorProtocol)?, currentMode: String?) {}
+    func setDefaultLogLevel(_ level: Int32) {}
+    func updateClashMode(_ newMode: String?) {}
+    // Swift importer renames writeConnectionEvents: (its noun matches the arg type) to write(_:).
+    func write(_ events: LibboxConnectionEvents?) {}
+    func writeGroups(_ message: (any LibboxOutboundGroupIteratorProtocol)?) {}
+    func writeLogs(_ messageList: (any LibboxLogIteratorProtocol)?) {}
+    func writeOutbounds(_ message: (any LibboxOutboundGroupItemIteratorProtocol)?) {}
 }
 
 #else

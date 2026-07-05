@@ -4,6 +4,8 @@
     <string name="vpn_notification_title">OpenRung VPN</string>
     <string name="vpn_notification_preparing">正在准备 OpenRung VPN</string>
     <string name="vpn_notification_connected">已通过 %1$s 连接</string>
+    <string name="vpn_notification_disconnect">断开连接</string>
+    <string name="vpn_notification_traffic">↓ %1$s ↑ %2$s — %3$s</string>
     <string name="relay_location_unknown">未知位置</string>
     <string name="status_disconnected">已断开</string>
     <string name="status_preparing">正在准备 VPN</string>

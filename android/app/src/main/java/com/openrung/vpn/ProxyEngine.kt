@@ -11,9 +11,17 @@ import android.os.Process
 import android.util.Log
 import com.openrung.model.RelayDescriptor
 import com.openrung.state.OpenRungStatusStore
+import com.openrung.state.TrafficStats
 import com.openrung.telemetry.TelemetryManager
+import io.nekohasekai.libbox.CommandClient
+import io.nekohasekai.libbox.CommandClientHandler
 import io.nekohasekai.libbox.CommandServer
 import io.nekohasekai.libbox.CommandServerHandler
+import io.nekohasekai.libbox.ConnectionEvents
+import io.nekohasekai.libbox.LogIterator
+import io.nekohasekai.libbox.OutboundGroupItemIterator
+import io.nekohasekai.libbox.OutboundGroupIterator
+import io.nekohasekai.libbox.StatusMessage
 import io.nekohasekai.libbox.ConnectionOwner
 import io.nekohasekai.libbox.InterfaceUpdateListener
 import io.nekohasekai.libbox.Libbox
@@ -80,6 +88,8 @@ class StubProxyEngine : ProxyEngine {
 class LibboxProxyEngine : ProxyEngine {
     private var commandServer: CommandServer? = null
     private var tunFd: ParcelFileDescriptor? = null
+    private var trafficClient: CommandClient? = null
+    private var trafficConnectThread: Thread? = null
 
     override suspend fun start(
         relay: RelayDescriptor,
@@ -109,16 +119,103 @@ class LibboxProxyEngine : ProxyEngine {
         server.start()
         server.startOrReloadService(configJson, OverrideOptions())
         commandServer = server
+        startTrafficMonitor()
     }
 
     override fun stop() {
+        stopTrafficMonitor()
         runCatching { commandServer?.closeService() }
         runCatching { commandServer?.close() }
         commandServer = null
         runCatching { tunFd?.close() }
         tunFd = null
     }
+
+    /**
+     * Attaches an in-process CommandStatus client to the command server just started above
+     * (same pattern as sing-box's own clients): samples arrive every [TRAFFIC_INTERVAL_NS]
+     * and are published via [OpenRungStatusStore.setTraffic]. Rates are derived from the
+     * total counters against locally measured elapsed time, so they stay correct even if
+     * the stream interval drifts. The 1s pre-connect delay lets the server finish binding
+     * its command socket.
+     */
+    private fun startTrafficMonitor() {
+        stopTrafficMonitor()
+        val client = CommandClient(TrafficStatusHandler(), io.nekohasekai.libbox.CommandClientOptions().apply {
+            addCommand(Libbox.CommandStatus)
+            statusInterval = TRAFFIC_INTERVAL_NS
+        })
+        trafficClient = client
+        trafficConnectThread = Thread {
+            try {
+                Thread.sleep(1_000)
+                client.connect()
+            } catch (error: InterruptedException) {
+                // stop() raced the connect delay — nothing to do.
+            } catch (error: Throwable) {
+                Log.w(LOG_TAG, "traffic status client failed to connect", error)
+            }
+        }.apply {
+            isDaemon = true
+            name = "openrung-traffic-status"
+            start()
+        }
+    }
+
+    private fun stopTrafficMonitor() {
+        trafficConnectThread?.interrupt()
+        trafficConnectThread = null
+        runCatching { trafficClient?.disconnect() }
+        trafficClient = null
+        OpenRungStatusStore.clearTraffic()
+    }
 }
+
+/**
+ * CommandStatus stream handler: converts total byte counters into rate + total samples.
+ * All other stream callbacks are unused no-ops (we only subscribe to CommandStatus).
+ */
+private class TrafficStatusHandler : CommandClientHandler {
+    private var lastUplinkTotal = -1L
+    private var lastDownlinkTotal = -1L
+    private var lastSampleElapsedMs = 0L
+
+    override fun writeStatus(message: StatusMessage?) {
+        if (message == null || !message.trafficAvailable) return
+        val nowElapsedMs = android.os.SystemClock.elapsedRealtime()
+        val upTotal = message.uplinkTotal
+        val downTotal = message.downlinkTotal
+        val elapsedMs = nowElapsedMs - lastSampleElapsedMs
+        val hasPrevious = lastUplinkTotal >= 0 && elapsedMs in 1..60_000
+        val upBps = if (hasPrevious) ((upTotal - lastUplinkTotal) * 1000 / elapsedMs).coerceAtLeast(0) else 0
+        val downBps = if (hasPrevious) ((downTotal - lastDownlinkTotal) * 1000 / elapsedMs).coerceAtLeast(0) else 0
+        lastUplinkTotal = upTotal
+        lastDownlinkTotal = downTotal
+        lastSampleElapsedMs = nowElapsedMs
+        OpenRungStatusStore.setTraffic(
+            TrafficStats(
+                upBps = upBps,
+                downBps = downBps,
+                upTotalBytes = upTotal,
+                downTotalBytes = downTotal,
+                updatedAtMs = System.currentTimeMillis(),
+            ),
+        )
+    }
+
+    override fun connected() = Unit
+    override fun disconnected(message: String?) = Unit
+    override fun clearLogs() = Unit
+    override fun initializeClashMode(modes: StringIterator?, currentMode: String?) = Unit
+    override fun setDefaultLogLevel(level: Int) = Unit
+    override fun updateClashMode(mode: String?) = Unit
+    override fun writeConnectionEvents(events: ConnectionEvents?) = Unit
+    override fun writeGroups(groups: OutboundGroupIterator?) = Unit
+    override fun writeLogs(logs: LogIterator?) = Unit
+    override fun writeOutbounds(outbounds: OutboundGroupItemIterator?) = Unit
+}
+
+private const val TRAFFIC_INTERVAL_NS = 2_000_000_000L // 2s, in nanoseconds
 
 private class OpenRungCommandServerHandler(
     private val stopEngine: () -> Unit,
@@ -212,9 +309,43 @@ private class OpenRungLibboxPlatform(
             options.excludePackage.forEachRemaining { builder.addDisallowedApplication(it) }
         }
 
+        applySplitTunnel(builder)
+
         val fd = builder.establish() ?: error("android: the VPN tunnel could not be established")
         onTunOpened(fd)
         return fd.fd
+    }
+
+    /**
+     * Applies the persisted per-app split-tunnel config. Android forbids mixing allowed and
+     * disallowed lists, which the mode enum enforces structurally:
+     *  - PROXY_ONLY: only the listed apps use the tunnel — but OpenRung's OWN package is always
+     *    force-included so its telemetry/heartbeats/internet probe keep riding the tunnel
+     *    (they're designed to).
+     *  - BYPASS: the listed apps skip the tunnel — but OpenRung's own package is filtered out so
+     *    a fail-closed app never bypasses itself.
+     * A package that isn't installed throws NameNotFoundException; each add is guarded so one
+     * stale entry can't abort the establish.
+     */
+    private fun applySplitTunnel(builder: VpnService.Builder) {
+        val config = SplitTunnelStore.read(vpnService)
+        val ownPackage = vpnService.packageName
+        when (config.mode) {
+            SplitTunnelMode.OFF -> Unit
+            SplitTunnelMode.PROXY_ONLY -> {
+                val packages = config.packages + ownPackage
+                packages.forEach { pkg ->
+                    runCatching { builder.addAllowedApplication(pkg) }
+                        .onFailure { Log.w(LOG_TAG, "split-tunnel: cannot allow $pkg", it) }
+                }
+            }
+            SplitTunnelMode.BYPASS -> {
+                config.packages.filter { it != ownPackage }.forEach { pkg ->
+                    runCatching { builder.addDisallowedApplication(pkg) }
+                        .onFailure { Log.w(LOG_TAG, "split-tunnel: cannot disallow $pkg", it) }
+                }
+            }
+        }
     }
 
     override fun useProcFS(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.Q

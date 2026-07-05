@@ -38,6 +38,9 @@ object AppConfig {
     const val VPN_SESSION_NAME = "OpenRung Volunteer VPN"
     const val STATUS_PREFS = "openrung_status"
 
+    /** SharedPreferences file for the per-app split-tunnel config (read at tunnel establish time). */
+    const val SPLIT_TUNNEL_PREFS = "openrung_split_tunnel"
+
     /**
      * Relay fetch used to populate the exit-node map directory (the connect path still uses
      * [RELAY_LIMIT]). This is the broker's maximum allowed page size — the broker rejects anything

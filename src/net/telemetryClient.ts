@@ -1,5 +1,5 @@
 import type { NativeIdentity } from '../native/types';
-import type { SpeedTestResult } from './speedTestClient';
+import type { SpeedTestResult, UploadTestResult } from './speedTestClient';
 
 /**
  * Telemetry client, ported from the production `telemetry/TelemetryClient.kt` /
@@ -129,12 +129,43 @@ export function buildSpeedTestCompletedEvent(
 }
 
 /**
+ * The upload counterpart of `buildSpeedTestCompletedEvent`: same event name so the broker
+ * aggregates both directions, distinguished by `test_type`/`provider` (upload currently
+ * targets the Cloudflare sink, not the broker — see AppConfig.SPEEDTEST_UPLOAD_URL).
+ */
+export function buildUploadTestCompletedEvent(
+  identity: NativeIdentity,
+  result: UploadTestResult,
+): TelemetryEvent {
+  const active = requireSession(identity);
+  return {
+    schema_version: 1,
+    event_id: uuid4(),
+    event: 'speed_test_completed',
+    occurred_at: new Date().toISOString(),
+    client_id: active.clientId,
+    session_id: active.sessionId,
+    attributes: {
+      provider: 'cloudflare',
+      test_type: 'manual_upload',
+    },
+    measurements: {
+      bytes_uploaded: Math.trunc(result.bytesUploaded),
+      upload_duration_ms: Math.trunc(result.durationMs),
+      upload_mbps_milli: Math.trunc(result.uploadMbps * 1_000),
+    },
+  };
+}
+
+/**
  * The `speed_test_failed` event, built exactly like the production Settings screen does
- * (attributes `provider` + `error_type`, no measurements).
+ * (attributes `provider` + `error_type`, no measurements). `testType` distinguishes the
+ * download and upload phases now that the row runs both.
  */
 export function buildSpeedTestFailedEvent(
   identity: NativeIdentity,
   errorType: string,
+  testType: string = 'manual_download',
 ): TelemetryEvent {
   const active = requireSession(identity);
   return {
@@ -147,6 +178,7 @@ export function buildSpeedTestFailedEvent(
     attributes: {
       provider: 'openrung_broker',
       error_type: errorType,
+      test_type: testType,
     },
     measurements: {},
   };

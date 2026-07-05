@@ -1,3 +1,4 @@
+import { AppConfig } from '../config';
 import { displayName } from '../model/countryGeo';
 import type { ExitNodeRegion } from '../model/exitNode';
 import { orderedCandidates, serverTimeMs } from '../model/relay';
@@ -51,6 +52,9 @@ export async function loadExitNodeDirectory(
     const existing = regionsByKey.get(key);
     if (existing) {
       existing.nodeCount += 1;
+      if (existing.probeTargets.length < AppConfig.LATENCY_PROBES_PER_REGION) {
+        existing.probeTargets.push({ host: relay.public_host, port: relay.public_port });
+      }
       continue;
     }
     const country = (relay.country ?? '').trim();
@@ -61,6 +65,8 @@ export async function loadExitNodeDirectory(
       latitude: relay.latitude,
       longitude: relay.longitude,
       nodeCount: 1,
+      // isUsable (via orderedCandidates) already guarantees a non-blank host + positive port.
+      probeTargets: [{ host: relay.public_host, port: relay.public_port }],
     });
   }
 
