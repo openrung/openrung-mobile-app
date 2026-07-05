@@ -4,11 +4,11 @@
  * over the map. Hidden entirely while there is no history, so a fresh install
  * keeps the map uncluttered.
  *
- * Pills are deliberately NOT tappable: recents are recorded from past
- * connections (the broker picks the relay), not a connect affordance.
+ * Tapping a pill reconnects to that country, same flow as tapping a region
+ * on the map (broker still picks the specific relay within it).
  */
 import React from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { useStrings } from '../i18n';
 import type { RecentNode } from '../native/types';
@@ -16,6 +16,7 @@ import { monoFont, palette, tokens } from '../theme';
 
 export interface RecentsSectionProps {
   recents: RecentNode[];
+  onPress: (countryCode: string) => void;
 }
 
 /** ISO 3166-1 alpha-2 -> flag emoji via regional indicators; neutral flag if invalid. */
@@ -29,7 +30,7 @@ function countryFlag(code: string): string {
   return String.fromCodePoint(first) + String.fromCodePoint(second);
 }
 
-export function RecentsSection({ recents }: RecentsSectionProps): React.JSX.Element | null {
+export function RecentsSection({ recents, onPress }: RecentsSectionProps): React.JSX.Element | null {
   const s = useStrings();
 
   if (recents.length === 0) {
@@ -44,12 +45,15 @@ export function RecentsSection({ recents }: RecentsSectionProps): React.JSX.Elem
         data={recents}
         keyExtractor={item => item.countryCode}
         renderItem={({ item }) => (
-          <View style={styles.pill}>
+          <Pressable
+            style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
+            onPress={() => onPress(item.countryCode)}
+          >
             <Text style={styles.flag}>{countryFlag(item.countryCode)}</Text>
             <Text style={styles.pillLabel} numberOfLines={1}>
               {item.label}
             </Text>
-          </View>
+          </Pressable>
         )}
         ItemSeparatorComponent={PillGap}
         showsHorizontalScrollIndicator={false}
@@ -84,6 +88,9 @@ const styles = StyleSheet.create({
     borderColor: tokens.glassBorder,
     paddingHorizontal: 12,
     paddingVertical: 8,
+  },
+  pillPressed: {
+    opacity: 0.6,
   },
   pillLabel: {
     flexShrink: 1,

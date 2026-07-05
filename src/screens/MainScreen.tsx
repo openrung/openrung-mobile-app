@@ -123,7 +123,7 @@ export function MainScreen(): React.JSX.Element {
         <View style={styles.spacer} pointerEvents="none" />
 
         <View style={styles.bottomStack} pointerEvents="box-none">
-          <RecentsSection recents={native.recents} />
+          <RecentsSection recents={native.recents} onPress={onConnectRegion} />
           <ConnectCard
             status={native.status}
             relayLabel={native.relayLabel}
