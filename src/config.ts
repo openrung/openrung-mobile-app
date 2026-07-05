@@ -69,4 +69,4 @@ export const AppConfig = {
 } as const;
 
 /** App version reported in X-OpenRung-App-Version (production uses BuildConfig.VERSION_NAME). */
-export const APP_VERSION = '0.2.0';
+export const APP_VERSION = '0.2.1';
