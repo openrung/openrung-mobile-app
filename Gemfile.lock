@@ -24,10 +24,10 @@ GEM
     benchmark (0.5.0)
     bigdecimal (4.1.2)
     claide (1.1.0)
-    cocoapods (1.15.2)
+    cocoapods (1.16.2)
       addressable (~> 2.8)
       claide (>= 1.0.2, < 2.0)
-      cocoapods-core (= 1.15.2)
+      cocoapods-core (= 1.16.2)
       cocoapods-deintegrate (>= 1.0.3, < 2.0)
       cocoapods-downloader (>= 2.1, < 3.0)
       cocoapods-plugins (>= 1.0.0, < 2.0)
@@ -41,8 +41,8 @@ GEM
       molinillo (~> 0.8.0)
       nap (~> 1.0)
       ruby-macho (>= 2.3.0, < 3.0)
-      xcodeproj (>= 1.23.0, < 2.0)
-    cocoapods-core (1.15.2)
+      xcodeproj (>= 1.27.0, < 2.0)
+    cocoapods-core (1.16.2)
       activesupport (>= 5.0, < 8)
       addressable (~> 2.8)
       algoliasearch (~> 1.0)
@@ -92,7 +92,7 @@ GEM
     minitest (5.27.0)
     molinillo (0.8.0)
     mutex_m (0.3.0)
-    nanaimo (0.3.0)
+    nanaimo (0.4.0)
     nap (1.1.0)
     netrc (0.11.0)
     nkf (0.3.0)
@@ -104,12 +104,12 @@ GEM
       ethon (>= 0.18.0)
     tzinfo (2.0.6)
       concurrent-ruby (~> 1.0)
-    xcodeproj (1.25.1)
+    xcodeproj (1.27.0)
       CFPropertyList (>= 2.3.3, < 4.0)
       atomos (~> 0.1.3)
       claide (>= 1.0.2, < 2.0)
       colored2 (~> 3.1)
-      nanaimo (~> 0.3.0)
+      nanaimo (~> 0.4.0)
       rexml (>= 3.3.6, < 4.0)
 
 PLATFORMS
@@ -129,12 +129,12 @@ DEPENDENCIES
   activesupport (>= 6.1.7.5, != 7.1.0)
   benchmark
   bigdecimal
-  cocoapods (>= 1.13, != 1.15.1, != 1.15.0)
+  cocoapods (>= 1.16.2)
   concurrent-ruby (< 1.3.4)
   logger
   mutex_m
   nkf
-  xcodeproj (< 1.26.0)
+  xcodeproj (>= 1.27.0)
 
 CHECKSUMS
   CFPropertyList (3.0.8) sha256=2c99d0d980536d3d7ab252f7bd59ac8be50fbdd1ff487c98c949bb66bb114261
@@ -146,8 +146,8 @@ CHECKSUMS
   benchmark (0.5.0) sha256=465df122341aedcb81a2a24b4d3bd19b6c67c1530713fd533f3ff034e419236c
   bigdecimal (4.1.2) sha256=53d217666027eab4280346fba98e7d5b66baaae1b9c3c1c0ffe89d48188a3fbd
   claide (1.1.0) sha256=6d3c5c089dde904d96aa30e73306d0d4bd444b1accb9b3125ce14a3c0183f82e
-  cocoapods (1.15.2) sha256=f0f5153de8d028d133b96f423e04f37fb97a1da0d11dda581a9f46c0cba4090a
-  cocoapods-core (1.15.2) sha256=322650d97fe1ad4c0831a09669764b888bd91c6d79d0f6bb07281a17667a2136
+  cocoapods (1.16.2) sha256=0ff1c860f32df3db8b16df09b58da1a6bb2a12fe55f6d5e8be994a74fadd1e5e
+  cocoapods-core (1.16.2) sha256=4bb1b5c420691e60cf36fa227dec6bc48c096c34c97bb7aa512ea7f3246fc12b
   cocoapods-deintegrate (1.0.5) sha256=517c2a448ef563afe99b6e7668704c27f5de9e02715a88ee9de6974dc1b3f6a2
   cocoapods-downloader (2.1) sha256=bb6ebe1b3966dc4055de54f7a28b773485ac724fdf575d9bee2212d235e7b6d1
   cocoapods-plugins (1.0.0) sha256=725d17ce90b52f862e73476623fd91441b4430b742d8a071000831efb440ca9a
@@ -181,7 +181,7 @@ CHECKSUMS
   minitest (5.27.0) sha256=2d3b17f8a36fe7801c1adcffdbc38233b938eb0b4966e97a6739055a45fa77d5
   molinillo (0.8.0) sha256=efbff2716324e2a30bccd3eba1ff3a735f4d5d53ffddbc6a2f32c0ca9433045d
   mutex_m (0.3.0) sha256=cfcb04ac16b69c4813777022fdceda24e9f798e48092a2b817eb4c0a782b0751
-  nanaimo (0.3.0) sha256=aaaedc60497070b864a7e220f7c4b4cad3a0daddda2c30055ba8dae306342376
+  nanaimo (0.4.0) sha256=faf069551bab17f15169c1f74a1c73c220657e71b6e900919897a10d991d0723
   nap (1.1.0) sha256=949691660f9d041d75be611bb2a8d2fd559c467537deac241f4097d9b5eea576
   netrc (0.11.0) sha256=de1ce33da8c99ab1d97871726cba75151113f117146becbe45aa85cb3dabee3f
   nkf (0.3.0) sha256=357a8dbeba38b727b75930f665146546076a394a1c243faf634ff176e3588895
@@ -191,7 +191,7 @@ CHECKSUMS
   securerandom (0.4.1) sha256=cc5193d414a4341b6e225f0cb4446aceca8e50d5e1888743fac16987638ea0b1
   typhoeus (1.6.0) sha256=bacc41c23e379547e29801dc235cd1699b70b955a1ba3d32b2b877aa844c331d
   tzinfo (2.0.6) sha256=8daf828cc77bcf7d63b0e3bdb6caa47e2272dcfaf4fbfe46f8c3a9df087a829b
-  xcodeproj (1.25.1) sha256=9a2310dccf6d717076e86f602b17c640046b6f1dfe64480044596f6f2f13dc84
+  xcodeproj (1.27.0) sha256=8cc7a73b4505c227deab044dce118ede787041c702bc47636856a2e566f854d3
 
 RUBY VERSION
   ruby 4.0.5
