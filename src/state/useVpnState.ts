@@ -10,8 +10,11 @@ export interface VpnStateHook {
   isWorking: boolean;
   /** connected */
   isConnected: boolean;
-  /** Start (or switch) the tunnel; country: ISO alpha-2 or omitted/null = broker picks. */
-  connect: (country?: string | null) => Promise<void>;
+  /**
+   * Start (or switch) the tunnel; country: ISO alpha-2 or omitted/null = broker picks.
+   * relayId: connect to that exact broker relay (takes precedence over country).
+   */
+  connect: (country?: string | null, relayId?: string | null) => Promise<void>;
   disconnect: () => Promise<void>;
   /**
    * Mirrors production `beginConnect`: request OS consent via prepare(), then start the tunnel.
@@ -19,7 +22,7 @@ export interface VpnStateHook {
    * simply makes the service fail and the status comes back through the store), so the prepare
    * result/failure is deliberately not gated on.
    */
-  prepareAndConnect: (country?: string | null) => Promise<void>;
+  prepareAndConnect: (country?: string | null, relayId?: string | null) => Promise<void>;
 }
 
 /**
@@ -48,20 +51,21 @@ export function useVpnState(): VpnStateHook {
   }, []);
 
   const connect = useCallback(
-    (country?: string | null) => OpenRungVpn.connect(AppConfig.DEFAULT_BROKER_URL, country ?? null),
+    (country?: string | null, relayId?: string | null) =>
+      OpenRungVpn.connect(AppConfig.DEFAULT_BROKER_URL, country ?? null, relayId ?? null),
     [],
   );
 
   const disconnect = useCallback(() => OpenRungVpn.disconnect(), []);
 
   const prepareAndConnect = useCallback(
-    async (country?: string | null) => {
+    async (country?: string | null, relayId?: string | null) => {
       try {
         await OpenRungVpn.prepare();
       } catch {
         // See doc comment: production starts the service on any consent-flow return.
       }
-      await connect(country ?? null);
+      await connect(country ?? null, relayId ?? null);
     },
     [connect],
   );

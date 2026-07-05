@@ -90,12 +90,12 @@ class OpenRungVpnModule(
     override fun onNewIntent(intent: Intent) = Unit
 
     @ReactMethod
-    fun connect(brokerUrl: String, targetCountry: String?, promise: Promise) {
+    fun connect(brokerUrl: String, targetCountry: String?, targetRelayId: String?, promise: Promise) {
         try {
             val context = reactContext.applicationContext
             ContextCompat.startForegroundService(
                 context,
-                OpenRungVpnService.connectIntent(context, brokerUrl, targetCountry),
+                OpenRungVpnService.connectIntent(context, brokerUrl, targetCountry, targetRelayId),
             )
             promise.resolve(null)
         } catch (error: Throwable) {

@@ -48,9 +48,14 @@ export async function loadExitNodeDirectory(
     const code = relay.country_code.trim().toUpperCase();
     const city = (relay.city ?? '').trim();
     const key = `${code}|${city}`;
+    const pickerEntry = {
+      id: relay.id,
+      label: (relay.label ?? '').trim() || null,
+    };
     const existing = regionsByKey.get(key);
     if (existing) {
       existing.nodeCount += 1;
+      existing.relays.push(pickerEntry);
       continue;
     }
     const country = (relay.country ?? '').trim();
@@ -61,6 +66,7 @@ export async function loadExitNodeDirectory(
       latitude: relay.latitude,
       longitude: relay.longitude,
       nodeCount: 1,
+      relays: [pickerEntry],
     });
   }
 

@@ -13,21 +13,11 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useStrings } from '../i18n';
 import type { RecentNode } from '../native/types';
 import { monoFont, palette, tokens } from '../theme';
+import { countryFlag } from './countryFlag';
 
 export interface RecentsSectionProps {
   recents: RecentNode[];
   onPress: (countryCode: string) => void;
-}
-
-/** ISO 3166-1 alpha-2 -> flag emoji via regional indicators; neutral flag if invalid. */
-function countryFlag(code: string): string {
-  const upper = code.trim().toUpperCase();
-  if (!/^[A-Z]{2}$/.test(upper)) {
-    return '🏳';
-  }
-  const first = 0x1f1e6 + (upper.charCodeAt(0) - 65);
-  const second = 0x1f1e6 + (upper.charCodeAt(1) - 65);
-  return String.fromCodePoint(first) + String.fromCodePoint(second);
 }
 
 export function RecentsSection({ recents, onPress }: RecentsSectionProps): React.JSX.Element | null {

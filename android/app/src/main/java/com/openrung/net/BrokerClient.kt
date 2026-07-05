@@ -28,6 +28,10 @@ class BrokerClient(
             requestMethod = "GET"
             connectTimeout = 10_000
             readTimeout = 15_000
+            // Real-time data served with a long max-age by the broker edge — never let any
+            // installed HTTP response cache replay a stale relay list.
+            useCaches = false
+            setRequestProperty("Cache-Control", "no-cache, no-store")
             clientId?.let { setRequestProperty("X-OpenRung-Client-ID", it) }
             sessionId?.let { setRequestProperty("X-OpenRung-Session-ID", it) }
             setRequestProperty("X-OpenRung-App-Version", BuildConfig.VERSION_NAME)

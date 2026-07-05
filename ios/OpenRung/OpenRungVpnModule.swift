@@ -89,15 +89,17 @@ final class OpenRungVpnModule: RCTEventEmitter {
 
     /// Start (or switch) the tunnel. Mirrors `AppViewModel.connect(countryCode:)` including the
     /// production relay-switch dance: stop → 350 ms → reconfigure → start.
-    @objc(connect:targetCountry:resolver:rejecter:)
+    @objc(connect:targetCountry:targetRelayId:resolver:rejecter:)
     func connect(
         _ brokerUrl: String,
         targetCountry: String?,
+        targetRelayId: String?,
         resolver resolve: @escaping RCTPromiseResolveBlock,
         rejecter reject: @escaping RCTPromiseRejectBlock
     ) {
         Task { @MainActor in
             let normalizedCountry = Self.normalizedCountryCode(targetCountry)
+            let normalizedRelayID = targetRelayId?.trimmingCharacters(in: .whitespacesAndNewlines)
             let shouldSwitchRelay = self.status.isConnected || self.status.isWorking
             do {
                 guard Self.canUseNetworkExtension else {
@@ -110,7 +112,12 @@ final class OpenRungVpnModule: RCTEventEmitter {
                     self.refreshVPNStatus()
                     try? await Task.sleep(nanoseconds: 350_000_000)
                 }
-                try await self.configure(manager: manager, brokerURL: brokerURL, targetCountry: normalizedCountry)
+                try await self.configure(
+                    manager: manager,
+                    brokerURL: brokerURL,
+                    targetCountry: normalizedCountry,
+                    targetRelayID: normalizedRelayID?.isEmpty == false ? normalizedRelayID : nil
+                )
                 try manager.connection.startVPNTunnel()
                 self.manager = manager
                 self.refreshVPNStatus()
@@ -175,13 +182,21 @@ final class OpenRungVpnModule: RCTEventEmitter {
         return manager
     }
 
-    private func configure(manager: NETunnelProviderManager, brokerURL: URL, targetCountry: String?) async throws {
+    private func configure(
+        manager: NETunnelProviderManager,
+        brokerURL: URL,
+        targetCountry: String?,
+        targetRelayID: String? = nil
+    ) async throws {
         let tunnelProtocol = NETunnelProviderProtocol()
         tunnelProtocol.providerBundleIdentifier = AppConfig.packetTunnelBundleIdentifier
         tunnelProtocol.serverAddress = brokerURL.host ?? brokerURL.absoluteString
         var providerConfiguration = [AppConfig.providerBrokerURLKey: brokerURL.absoluteString]
         if let targetCountry {
             providerConfiguration[AppConfig.providerTargetCountryKey] = targetCountry
+        }
+        if let targetRelayID {
+            providerConfiguration[AppConfig.providerTargetRelayIDKey] = targetRelayID
         }
         tunnelProtocol.providerConfiguration = providerConfiguration
         manager.protocolConfiguration = tunnelProtocol

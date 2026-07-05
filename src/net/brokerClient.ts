@@ -150,6 +150,7 @@ export function decodeRelayListResponse(body: string): RelayListResponse {
     const item = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
     return {
       id: asString(item.id),
+      label: asOptionalString(item.label),
       public_host: asString(item.public_host),
       public_port: asNumber(item.public_port),
       protocol: asString(item.protocol),
@@ -198,6 +199,11 @@ export async function listRelays(
   const headers: Record<string, string> = {
     'X-OpenRung-App-Version': APP_VERSION,
     'X-OpenRung-RN': Platform.OS,
+    // The relay list is real-time data, but the broker edge serves it with a long max-age.
+    // Without this, the platform HTTP cache (OkHttp on Android) replays an hours-stale list
+    // and newly registered relays never appear until the cache entry ages out.
+    'Cache-Control': 'no-cache, no-store',
+    Pragma: 'no-cache',
   };
   if (clientId) {
     headers['X-OpenRung-Client-ID'] = clientId;

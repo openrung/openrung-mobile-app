@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSyncExternalStore } from 'react';
 import { AppConfig } from '../config';
-import type { DirectoryStatus, ExitNodeRegion } from '../model/exitNode';
+import type { DirectoryStatus, ExitNodeRegion, HomeViewMode } from '../model/exitNode';
 import { firstReachable } from '../net/brokerClient';
 import { loadExitNodeDirectory } from '../net/exitNodeDirectory';
 import type { NativeVpnState } from '../native/types';
@@ -18,9 +18,11 @@ export interface AppState {
   directoryStatus: DirectoryStatus;
   availableRegions: ExitNodeRegion[];
   languageTag: string; // '' = system, persisted in AsyncStorage
+  homeViewMode: HomeViewMode; // home directory presentation, persisted in AsyncStorage
 }
 
 export const LANGUAGE_STORAGE_KEY = 'openrung.language';
+export const HOME_VIEW_MODE_STORAGE_KEY = 'openrung.homeViewMode';
 
 const INITIAL_NATIVE_STATE: NativeVpnState = {
   status: 'disconnected',
@@ -37,6 +39,7 @@ function initialState(): AppState {
     directoryStatus: 'idle',
     availableRegions: [],
     languageTag: '',
+    homeViewMode: 'map',
   };
 }
 
@@ -130,6 +133,26 @@ export async function hydrateLanguage(): Promise<void> {
     }
   } catch {
     // Best-effort: fall back to the in-memory default ('' = system).
+  }
+}
+
+/** Sets the home-screen directory presentation (map or list) and persists it to AsyncStorage. */
+export function setHomeViewMode(mode: HomeViewMode): void {
+  setState({ ...state, homeViewMode: mode });
+  AsyncStorage.setItem(HOME_VIEW_MODE_STORAGE_KEY, mode).catch(() => {
+    // Persistence is best-effort, same as the language selection.
+  });
+}
+
+/** Loads the persisted home view mode (called once when the home screen mounts). */
+export async function hydrateHomeViewMode(): Promise<void> {
+  try {
+    const persisted = await AsyncStorage.getItem(HOME_VIEW_MODE_STORAGE_KEY);
+    if ((persisted === 'map' || persisted === 'list') && persisted !== state.homeViewMode) {
+      setState({ ...state, homeViewMode: persisted });
+    }
+  } catch {
+    // Best-effort: keep the in-memory default ('map').
   }
 }
 

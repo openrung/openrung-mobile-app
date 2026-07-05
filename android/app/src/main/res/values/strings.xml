@@ -15,6 +15,7 @@
     <string name="log_broker_fallback">primary broker unreachable; using fallback %1$s</string>
     <string name="log_broker_returned">broker returned %1$d relays; %2$d usable</string>
     <string name="log_connecting_country">connecting to a volunteer in %1$s</string>
+    <string name="log_connecting_relay">connecting to relay %1$s</string>
     <string name="log_trying_relay">trying relay %1$s at %2$s:%3$d</string>
     <string name="log_checking_relay_reachability">checking relay TCP reachability</string>
     <string name="log_verifying_internet">verifying internet access through the VPN</string>
@@ -23,6 +24,7 @@
     <string name="log_error_prefix">error: %1$s</string>
     <string name="error_no_usable_relay">No usable VLESS Reality Vision direct-exit relay is available.</string>
     <string name="error_no_relay_in_country">No volunteer relay available in %1$s right now.</string>
+    <string name="error_relay_not_available">The selected relay is no longer available.</string>
     <string name="error_vpn_connection_failed">VPN connection failed</string>
     <string name="error_relay_unreachable">Relay %1$s:%2$d is not reachable from this Android device. If this is the emulator, use an IPv4/dual-stack volunteer endpoint or an IPv6-capable emulator network.</string>
     <string name="error_all_relays_failed">All relay connection attempts failed. Last error: %1$s</string>

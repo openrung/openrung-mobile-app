@@ -13,6 +13,8 @@ object RelayConstants {
 @Serializable
 data class RelayDescriptor(
     val id: String,
+    /** Volunteer-chosen relay name (e.g. "silly-lemur"); empty on older brokers. */
+    val label: String = "",
     @SerialName("public_host")
     val publicHost: String,
     @SerialName("public_port")

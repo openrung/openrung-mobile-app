@@ -8,6 +8,8 @@ public enum RelayConstants {
 
 public struct RelayDescriptor: Codable, Equatable, Identifiable, Sendable {
     public let id: String
+    /// Volunteer-chosen relay name (e.g. "silly-lemur"); absent on older brokers.
+    public let label: String?
     public let publicHost: String
     public let publicPort: Int
     public let relayProtocol: String
@@ -34,6 +36,7 @@ public struct RelayDescriptor: Codable, Equatable, Identifiable, Sendable {
 
     public init(
         id: String,
+        label: String? = nil,
         publicHost: String,
         publicPort: Int,
         relayProtocol: String,
@@ -56,6 +59,7 @@ public struct RelayDescriptor: Codable, Equatable, Identifiable, Sendable {
         longitude: Double? = nil
     ) {
         self.id = id
+        self.label = label
         self.publicHost = publicHost
         self.publicPort = publicPort
         self.relayProtocol = relayProtocol
@@ -80,6 +84,7 @@ public struct RelayDescriptor: Codable, Equatable, Identifiable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case id
+        case label
         case publicHost = "public_host"
         case publicPort = "public_port"
         case relayProtocol = "protocol"
