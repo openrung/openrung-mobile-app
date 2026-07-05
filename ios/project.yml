@@ -11,7 +11,9 @@ options:
 
 settings:
   base:
-    MARKETING_VERSION: "0.2.1"
+    # Injected from package.json by scripts/generate-project.sh (the app version string is
+    # single-sourced there; check-versions.mjs enforces the baked pbxproj value matches).
+    MARKETING_VERSION: "${APP_VERSION}"
     CURRENT_PROJECT_VERSION: "3"
     DEVELOPMENT_TEAM: 9VLV9A7KS9
     CODE_SIGN_STYLE: Automatic

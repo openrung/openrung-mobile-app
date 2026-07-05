@@ -1,4 +1,8 @@
 import { candidates } from './net/brokerClient';
+// The app version string lives in exactly ONE place — package.json — and every other
+// surface (Android versionName, iOS MARKETING_VERSION, this constant) derives from it so
+// they cannot drift. scripts/check-versions.mjs enforces this in CI.
+import { version } from '../package.json';
 
 /**
  * App configuration, ported 1:1 from the production `config/AppConfig.kt`
@@ -69,4 +73,4 @@ export const AppConfig = {
 } as const;
 
 /** App version reported in X-OpenRung-App-Version (production uses BuildConfig.VERSION_NAME). */
-export const APP_VERSION = '0.2.1';
+export const APP_VERSION = version;
