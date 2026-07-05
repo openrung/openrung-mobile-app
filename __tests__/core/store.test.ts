@@ -1,6 +1,7 @@
 /**
  * refreshDirectory no-op semantics (production OpenRungStatusStore.refreshDirectory):
  * no-op while a load is in flight or after a successful NON-EMPTY load, unless forced.
+ * Also covers the persisted homeViewMode preference (map/list home presentation).
  */
 jest.mock('@react-native-async-storage/async-storage', () => {
   const storage = new Map<string, string>();
@@ -18,7 +19,16 @@ jest.mock('@react-native-async-storage/async-storage', () => {
   };
 });
 
-import { getSnapshot, refreshDirectory, resetStoreForTests } from '../../src/state/store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import {
+  HOME_VIEW_MODE_STORAGE_KEY,
+  getSnapshot,
+  hydrateHomeViewMode,
+  refreshDirectory,
+  resetStoreForTests,
+  setHomeViewMode,
+} from '../../src/state/store';
 
 interface MockResponse {
   status: number;
@@ -92,6 +102,7 @@ describe('refreshDirectory', () => {
         latitude: 35.6895, // the broker's coordinate, no client-side geo lookup
         longitude: 139.6917,
         nodeCount: 1,
+        relays: [{ id: 'tokyo-volunteer-1', label: null }],
       },
     ]);
     expect(relayFetches).toBe(1);
@@ -141,5 +152,33 @@ describe('refreshDirectory', () => {
     await refreshDirectory(); // FAILED does not latch either
     expect(getSnapshot().directoryStatus).toBe('loaded');
     expect(getSnapshot().availableRegions).toHaveLength(1);
+  });
+});
+
+describe('homeViewMode', () => {
+  beforeEach(async () => {
+    await AsyncStorage.removeItem(HOME_VIEW_MODE_STORAGE_KEY);
+  });
+
+  it('defaults to the map presentation', () => {
+    expect(getSnapshot().homeViewMode).toBe('map');
+  });
+
+  it('setHomeViewMode updates the state and persists the selection', async () => {
+    setHomeViewMode('list');
+    expect(getSnapshot().homeViewMode).toBe('list');
+    expect(await AsyncStorage.getItem(HOME_VIEW_MODE_STORAGE_KEY)).toBe('list');
+  });
+
+  it('hydrates a persisted selection', async () => {
+    await AsyncStorage.setItem(HOME_VIEW_MODE_STORAGE_KEY, 'list');
+    await hydrateHomeViewMode();
+    expect(getSnapshot().homeViewMode).toBe('list');
+  });
+
+  it('ignores unknown persisted values', async () => {
+    await AsyncStorage.setItem(HOME_VIEW_MODE_STORAGE_KEY, 'globe');
+    await hydrateHomeViewMode();
+    expect(getSnapshot().homeViewMode).toBe('map');
   });
 });

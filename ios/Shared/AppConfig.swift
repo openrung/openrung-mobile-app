@@ -6,6 +6,7 @@ enum AppConfig {
     static let packetTunnelBundleIdentifier = "com.openrung.mobile.PacketTunnel"
     static let providerBrokerURLKey = "broker_url"
     static let providerTargetCountryKey = "target_country"
+    static let providerTargetRelayIDKey = "target_relay_id"
 
     /// Discovery broker (relay-list bootstrap) default. Prefer the HTTPS, Cloudflare-fronted endpoint:
     /// discovery is the censorship-critical path — it runs BEFORE the VPN tunnel is up — and TLS + CDN

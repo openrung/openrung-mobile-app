@@ -11,6 +11,7 @@ export const RelayConstants = {
 
 export interface RelayDescriptor {
   id: string;
+  label?: string; // volunteer-chosen relay name (e.g. "silly-lemur"); absent on older brokers
   public_host: string;
   public_port: number;
   protocol: string;

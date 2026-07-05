@@ -35,6 +35,9 @@ public struct BrokerClient: Sendable {
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
+        // Real-time data served with a long max-age by the broker edge — bypass URLSession's
+        // cache so a newly registered relay shows up on the next fetch, not hours later.
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         if let clientID {
             request.setValue(clientID, forHTTPHeaderField: "X-OpenRung-Client-ID")
         }

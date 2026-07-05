@@ -61,6 +61,37 @@ export function InfoIcon({ color, size = 22, strokeWidth = 1.8 }: IconProps): Re
   );
 }
 
+/** Folded tri-panel map outline (home view toggle). */
+export function MapIcon({ color, size = 22, strokeWidth = 1.8 }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M9 4.5 3.5 6.5v13L9 17.5l6 2 5.5-2v-13L15 6.5l-6-2Z"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Line x1="9" y1="4.5" x2="9" y2="17.5" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+      <Line x1="15" y1="6.5" x2="15" y2="19.5" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+/** Bulleted rows (home view toggle). */
+export function ListIcon({ color, size = 22, strokeWidth = 1.8 }: IconProps): React.JSX.Element {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Circle cx="5" cy="6.5" r="1.15" fill={color} />
+      <Circle cx="5" cy="12" r="1.15" fill={color} />
+      <Circle cx="5" cy="17.5" r="1.15" fill={color} />
+      <Line x1="9.5" y1="6.5" x2="20" y2="6.5" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+      <Line x1="9.5" y1="12" x2="20" y2="12" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+      <Line x1="9.5" y1="17.5" x2="20" y2="17.5" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 /** Power symbol (connect button). */
 export function PowerIcon({ color, size = 22, strokeWidth = 1.8 }: IconProps): React.JSX.Element {
   return (

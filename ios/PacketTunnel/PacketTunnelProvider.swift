@@ -51,6 +51,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         TunnelDiagnostics.clear()
         let brokerURL = resolveBrokerURL()
         let targetCountry = resolveTargetCountry()
+        let targetRelayID = resolveTargetRelayID()
         self.brokerURL = brokerURL
         // Telemetry/heartbeat go DIRECT to the origin IP, not the Cloudflare-fronted discovery broker,
         // so high-frequency heartbeats don't burn the Workers free-tier quota (see AppConfig).
@@ -74,7 +75,10 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             // discovery offline.
             let fetch = try await BrokerClient.firstReachable(
                 candidates: AppConfig.brokerCandidates(primary: brokerURL),
-                limit: targetCountry == nil ? AppConfig.relayLimit : AppConfig.directoryRelayLimit,
+                // Targeted connects (country or exact relay) need the full set so the target is present.
+                limit: targetCountry == nil && targetRelayID == nil
+                    ? AppConfig.relayLimit
+                    : AppConfig.directoryRelayLimit,
                 clientID: session.clientId,
                 sessionID: session.id
             )
@@ -97,7 +101,18 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             }
 
             let targetedCandidates: [RelayDescriptor]
-            if let targetCountry {
+            if let targetRelayID {
+                // A relay picked from the list's expanded per-relay rows: pin that exact relay,
+                // never silently fall back to a different one.
+                failureStage = "relay_id_filter"
+                let matched = candidates.filter { $0.id == targetRelayID }
+                guard let picked = matched.first else {
+                    throw PacketTunnelError.relayNotAvailable
+                }
+                let displayName = (picked.label?.isEmpty == false ? picked.label : nil) ?? picked.id
+                SharedConnectionState.appendLog("connecting to relay \(displayName)")
+                targetedCandidates = matched
+            } else if let targetCountry {
                 let countryName = CountryGeo.displayName(targetCountry) ?? targetCountry
                 SharedConnectionState.appendLog("connecting to a volunteer in \(countryName)")
                 failureStage = "relay_geo_filter"
@@ -273,6 +288,18 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         return normalized.isEmpty ? nil : normalized
     }
 
+    private func resolveTargetRelayID() -> String? {
+        guard
+            let tunnelProtocol = protocolConfiguration as? NETunnelProviderProtocol,
+            let providerConfiguration = tunnelProtocol.providerConfiguration,
+            let relayID = providerConfiguration[AppConfig.providerTargetRelayIDKey] as? String
+        else {
+            return nil
+        }
+        let normalized = relayID.trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalized.isEmpty ? nil : normalized
+    }
+
     private static func errorType(_ error: Error) -> String {
         String(describing: type(of: error))
     }
@@ -293,6 +320,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
 enum PacketTunnelError: LocalizedError {
     case noUsableRelay
     case noRelayInCountry(String)
+    case relayNotAvailable
     case relayUnreachable(host: String, port: Int)
     case allRelaysFailed(String?)
 
@@ -302,6 +330,8 @@ enum PacketTunnelError: LocalizedError {
             return "No usable VLESS Reality Vision direct-exit relay is available."
         case .noRelayInCountry(let countryName):
             return "No volunteer relay available in \(countryName) right now."
+        case .relayNotAvailable:
+            return "The selected relay is no longer available."
         case .relayUnreachable(let host, let port):
             return "Relay \(host):\(port) is not reachable from this device."
         case .allRelaysFailed(let message):

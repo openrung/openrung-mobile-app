@@ -8,6 +8,7 @@
 RCT_EXTERN_METHOD(prepare : (RCTPromiseResolveBlock)resolve rejecter : (RCTPromiseRejectBlock)reject)
 
 RCT_EXTERN_METHOD(connect : (NSString *)brokerUrl targetCountry : (NSString *_Nullable)targetCountry
+                      targetRelayId : (NSString *_Nullable)targetRelayId
                       resolver : (RCTPromiseResolveBlock)resolve rejecter : (RCTPromiseRejectBlock)reject)
 
 RCT_EXTERN_METHOD(disconnect : (RCTPromiseResolveBlock)resolve rejecter : (RCTPromiseRejectBlock)reject)

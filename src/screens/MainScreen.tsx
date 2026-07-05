@@ -1,11 +1,16 @@
 /**
- * Home screen. The exit-node map IS the screen: it fills the entire viewport
- * (running underneath the translucent tab bar) and stays pannable/zoomable,
- * while an edge vignette keeps only the center crisp and dissolves the map
- * into the app background towards every edge. The chrome floats on top:
+ * Home screen. The exit-node map IS the screen by default: it fills the
+ * entire viewport (running underneath the translucent tab bar) and stays
+ * pannable/zoomable, while an edge vignette keeps only the center crisp and
+ * dissolves the map into the app background towards every edge. The chrome
+ * floats on top:
  *
  *  - header: OpenRung wordmark (with a blinking terminal cursor) + tagline on
  *    the left, the relay-directory status chip on the right;
+ *  - view toggle: a MAP/LIST segmented pill under the header switches the
+ *    directory presentation (persisted, store.homeViewMode). In list mode a
+ *    scrollable relay list fills the middle; the map stays mounted beneath it
+ *    so toggling back keeps the camera position;
  *  - bottom stack: recents pills + the glass connect card, anchored above the
  *    tab bar.
  *
@@ -21,8 +26,10 @@ import { EdgeFade } from '../components/EdgeFade';
 import { ExitNodeMap } from '../components/ExitNodeMap';
 import { MapStatusChip } from '../components/MapStatusChip';
 import { RecentsSection } from '../components/RecentsSection';
+import { RelayList } from '../components/RelayList';
+import { ViewModeToggle } from '../components/ViewModeToggle';
 import { useStrings } from '../i18n';
-import { refreshDirectory } from '../state/store';
+import { hydrateHomeViewMode, refreshDirectory, setHomeViewMode } from '../state/store';
 import { useVpnState } from '../state/useVpnState';
 import { monoFont, palette, tokens } from '../theme';
 
@@ -58,11 +65,14 @@ function Wordmark(): React.JSX.Element {
 export function MainScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { state, isConnected, isWorking, disconnect, prepareAndConnect } = useVpnState();
-  const { native, directoryStatus, availableRegions } = state;
+  const { native, directoryStatus, availableRegions, homeViewMode } = state;
+  const isListMode = homeViewMode === 'list';
 
-  // Populate the exit-node map directory when the home screen is shown (no-op once loaded).
+  // Populate the exit-node map directory when the home screen is shown (no-op once loaded)
+  // and restore the persisted map/list presentation.
   useEffect(() => {
     refreshDirectory();
+    hydrateHomeViewMode();
   }, []);
 
   const onToggle = useCallback(() => {
@@ -88,13 +98,28 @@ export function MainScreen(): React.JSX.Element {
     [prepareAndConnect],
   );
 
+  const onConnectRelay = useCallback(
+    (relayId: string, countryCode: string) => {
+      // Picked from an expanded multi-relay location in the list: pin that exact relay.
+      prepareAndConnect(countryCode, relayId).catch(() => {
+        // Reported via events.
+      });
+    },
+    [prepareAndConnect],
+  );
+
   const onRetryDirectory = useCallback(() => {
     refreshDirectory(true);
   }, []);
 
   return (
     <View style={styles.root}>
-      <View style={StyleSheet.absoluteFill}>
+      <View
+        style={StyleSheet.absoluteFill}
+        // Hidden from assistive tech while the list covers it (iOS / Android).
+        accessibilityElementsHidden={isListMode}
+        importantForAccessibility={isListMode ? 'no-hide-descendants' : 'auto'}
+      >
         <ExitNodeMap regions={availableRegions} onRegionPress={onConnectRegion} />
       </View>
       <EdgeFade />
@@ -120,7 +145,19 @@ export function MainScreen(): React.JSX.Element {
           />
         </View>
 
-        <View style={styles.spacer} pointerEvents="none" />
+        <ViewModeToggle mode={homeViewMode} onChange={setHomeViewMode} style={styles.viewToggle} />
+
+        {isListMode ? (
+          <RelayList
+            regions={availableRegions}
+            directoryStatus={directoryStatus}
+            onRelayPress={onConnectRelay}
+            onRetry={onRetryDirectory}
+            style={styles.list}
+          />
+        ) : (
+          <View style={styles.spacer} pointerEvents="none" />
+        )}
 
         <View style={styles.bottomStack} pointerEvents="box-none">
           <RecentsSection recents={native.recents} onPress={onConnectRegion} />
@@ -186,8 +223,15 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 1.2,
   },
+  viewToggle: {
+    marginTop: 14,
+  },
   spacer: {
     flex: 1,
+  },
+  list: {
+    flex: 1,
+    marginVertical: 14,
   },
   bottomStack: {
     gap: 14,

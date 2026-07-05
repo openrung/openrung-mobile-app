@@ -55,8 +55,8 @@ function load(relays: RelayDescriptor[]) {
 describe('loadExitNodeDirectory', () => {
   it('groups located relays into one marker per country + city at the broker coordinates', async () => {
     const regions = await load([
-      relay({ id: 'a', ...TOKYO }),
-      relay({ id: 'b', ...TOKYO }),
+      relay({ id: 'a', label: 'silly-lemur', ...TOKYO }),
+      relay({ id: 'b', label: 'swift-harbor', ...TOKYO }),
       relay({ id: 'c', ...OSAKA }),
       relay({ id: 'd', ...BERLIN }),
     ]);
@@ -68,6 +68,11 @@ describe('loadExitNodeDirectory', () => {
         latitude: 35.6895,
         longitude: 139.6917,
         nodeCount: 2,
+        // Broker order, with the volunteer-chosen labels the list picker shows.
+        relays: [
+          { id: 'a', label: 'silly-lemur' },
+          { id: 'b', label: 'swift-harbor' },
+        ],
       },
       {
         countryCode: 'DE',
@@ -76,6 +81,7 @@ describe('loadExitNodeDirectory', () => {
         latitude: 52.5244,
         longitude: 13.4105,
         nodeCount: 1,
+        relays: [{ id: 'd', label: null }],
       },
       {
         countryCode: 'JP',
@@ -84,6 +90,7 @@ describe('loadExitNodeDirectory', () => {
         latitude: 34.6937,
         longitude: 135.5023,
         nodeCount: 1,
+        relays: [{ id: 'c', label: null }],
       },
     ]);
   });
@@ -120,6 +127,7 @@ describe('loadExitNodeDirectory', () => {
         latitude: 35.6895,
         longitude: 139.6917,
         nodeCount: 1,
+        relays: [{ id: 'a', label: null }],
       },
       {
         countryCode: 'ZZ',
@@ -128,6 +136,7 @@ describe('loadExitNodeDirectory', () => {
         latitude: 1,
         longitude: 2,
         nodeCount: 1,
+        relays: [{ id: 'b', label: null }],
       },
     ]);
   });

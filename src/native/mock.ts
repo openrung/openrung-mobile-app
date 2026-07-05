@@ -67,7 +67,11 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
     return Promise.resolve(true);
   }
 
-  connect(brokerUrl: string, targetCountry: string | null): Promise<void> {
+  connect(
+    brokerUrl: string,
+    targetCountry: string | null,
+    targetRelayId: string | null = null,
+  ): Promise<void> {
     this.cancelScript();
     this.sessionId = uuid4();
 
@@ -78,7 +82,7 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
     // a city only for the default Tokyo relay and falls back to the country name otherwise, like
     // production does when the broker hasn't sent a city.
     const relayLabel = code === 'JP' ? 'Tokyo, Japan' : countryName;
-    const relayId = `${code.toLowerCase()}-volunteer-1`;
+    const relayId = targetRelayId ?? `${code.toLowerCase()}-volunteer-1`;
 
     this.setStatus('preparing', { relayLabel: null, lastError: null });
     this.runScript([
@@ -93,7 +97,9 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
         delayMs: 700,
         run: () => {
           this.appendLog('broker returned 3 relays; 3 usable');
-          if (targetCountry) {
+          if (targetRelayId) {
+            this.appendLog(`connecting to relay ${targetRelayId}`);
+          } else if (targetCountry) {
             this.appendLog(`connecting to a volunteer in ${countryName}`);
           }
         },

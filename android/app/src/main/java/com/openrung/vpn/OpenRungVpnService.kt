@@ -58,10 +58,11 @@ class OpenRungVpnService : VpnService() {
             ACTION_CONNECT -> {
                 val brokerUrl = intent.getStringExtra(EXTRA_BROKER_URL).orEmpty()
                 val targetCountry = intent.getStringExtra(EXTRA_TARGET_COUNTRY)?.takeIf { it.isNotBlank() }
+                val targetRelayId = intent.getStringExtra(EXTRA_TARGET_RELAY_ID)?.takeIf { it.isNotBlank() }
                 heartbeatJob?.cancel()
                 connectJob?.cancel()
                 connectJob = serviceScope.launch {
-                    connect(brokerUrl.ifBlank { AppConfig.DEFAULT_BROKER_URL }, targetCountry)
+                    connect(brokerUrl.ifBlank { AppConfig.DEFAULT_BROKER_URL }, targetCountry, targetRelayId)
                 }
             }
             ACTION_DISCONNECT -> disconnect()
@@ -80,7 +81,11 @@ class OpenRungVpnService : VpnService() {
         super.onDestroy()
     }
 
-    private suspend fun connect(brokerUrl: String, targetCountry: String? = null) {
+    private suspend fun connect(
+        brokerUrl: String,
+        targetCountry: String? = null,
+        targetRelayId: String? = null,
+    ) {
         this.brokerUrl = brokerUrl
         // Tear down any existing tunnel first so tapping a different location cleanly switches relays.
         cleanupActiveTunnel()
@@ -104,12 +109,13 @@ class OpenRungVpnService : VpnService() {
                     runCatching { GeoIpClient().lookup() }.getOrNull()
                 }
                 val brokerStarted = SystemClock.elapsedRealtime()
-                // When targeting a specific country, fetch the full relay set so that country's
-                // relays are present (the default page may otherwise miss them). Tries each broker
+                // When targeting a specific country or relay, fetch the full relay set so the
+                // target is present (the default page may otherwise miss it). Tries each broker
                 // candidate in order so a blocked primary endpoint doesn't take discovery offline.
+                val targeted = targetCountry != null || targetRelayId != null
                 val result = BrokerClient.firstReachable(
                     candidates = brokerEndpoints,
-                    limit = if (targetCountry != null) AppConfig.DIRECTORY_RELAY_LIMIT else AppConfig.RELAY_LIMIT,
+                    limit = if (targeted) AppConfig.DIRECTORY_RELAY_LIMIT else AppConfig.RELAY_LIMIT,
                     clientId = telemetrySession.clientId,
                     sessionId = telemetrySession.id,
                 )
@@ -131,7 +137,18 @@ class OpenRungVpnService : VpnService() {
             )
             check(candidates.isNotEmpty()) { getString(R.string.error_no_usable_relay) }
 
-            val targetedCandidates = if (targetCountry != null) {
+            val targetedCandidates = if (targetRelayId != null) {
+                // A relay picked from the list's expanded per-relay rows: pin that exact relay,
+                // never silently fall back to a different one.
+                failureStage = "relay_id_filter"
+                val matched = candidates.filter { it.id == targetRelayId }
+                check(matched.isNotEmpty()) { getString(R.string.error_relay_not_available) }
+                val picked = matched.first()
+                OpenRungStatusStore.appendLog(
+                    getString(R.string.log_connecting_relay, picked.label.ifBlank { picked.id }),
+                )
+                matched
+            } else if (targetCountry != null) {
                 val countryName = CountryGeo.displayName(targetCountry) ?: targetCountry
                 OpenRungStatusStore.appendLog(getString(R.string.log_connecting_country, countryName))
                 failureStage = "relay_geo_filter"
@@ -374,16 +391,23 @@ class OpenRungVpnService : VpnService() {
         private const val ACTION_DISCONNECT = "com.openrung.action.DISCONNECT"
         private const val EXTRA_BROKER_URL = "broker_url"
         private const val EXTRA_TARGET_COUNTRY = "target_country"
+        private const val EXTRA_TARGET_RELAY_ID = "target_relay_id"
         private const val NOTIFICATION_CHANNEL_ID = "openrung_vpn"
         private const val NOTIFICATION_ID = 2001
         internal const val HEARTBEAT_MIN_DELAY_MS = 50_000L
         internal const val HEARTBEAT_MAX_DELAY_MS = 70_000L
 
-        fun connectIntent(context: Context, brokerUrl: String, targetCountry: String? = null): Intent =
+        fun connectIntent(
+            context: Context,
+            brokerUrl: String,
+            targetCountry: String? = null,
+            targetRelayId: String? = null,
+        ): Intent =
             Intent(context, OpenRungVpnService::class.java).apply {
                 action = ACTION_CONNECT
                 putExtra(EXTRA_BROKER_URL, brokerUrl)
                 targetCountry?.let { putExtra(EXTRA_TARGET_COUNTRY, it) }
+                targetRelayId?.let { putExtra(EXTRA_TARGET_RELAY_ID, it) }
             }
 
         fun disconnectIntent(context: Context): Intent =
