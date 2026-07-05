@@ -114,6 +114,26 @@ jest.mock('react-native-safe-area-context', () => {
   };
 });
 
+// Stand-in for the native TabView: renders the active route's scene like the
+// real tab controller would (Jest runs as Platform.OS === 'ios').
+jest.mock('react-native-bottom-tabs', () => {
+  const ReactActual = require('react');
+  const { View } = require('react-native');
+  const TabView = ({
+    navigationState,
+    renderScene,
+  }: {
+    navigationState: { index: number; routes: { key: string }[] };
+    renderScene: (props: { route: { key: string }; jumpTo: (key: string) => void }) => React.ReactNode;
+  }) =>
+    ReactActual.createElement(
+      View,
+      null,
+      renderScene({ route: navigationState.routes[navigationState.index], jumpTo: () => {} }),
+    );
+  return { __esModule: true, default: TabView };
+});
+
 import App from '../App';
 
 // Keep the directory refresh (broker fetch) off the real network: reject fast so
