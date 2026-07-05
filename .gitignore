@@ -77,3 +77,11 @@ yarn-error.log
 # OpenRung engine artifacts (built out-of-tree, see docs)
 android/app/libs/libbox.aar
 ios/ThirdParty/Libbox.xcframework/
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# Claude Code
+.claude/
