@@ -101,8 +101,10 @@ android {
             keyPassword 'android'
         }
         // Play upload key. The keystore is git-ignored; credentials live in
-        // ~/.gradle/gradle.properties (OPENRUNG_UPLOAD_*). Checkouts without
-        // them fall back to the debug key so local release builds still work.
+        // ~/.gradle/gradle.properties (OPENRUNG_UPLOAD_*). When absent, release
+        // builds fail (see the buildTypes.release block and the taskGraph guard
+        // below) rather than silently signing with the committed, publicly-known
+        // debug key.
         if (project.hasProperty('OPENRUNG_UPLOAD_STORE_FILE')) {
             release {
                 storeFile file(OPENRUNG_UPLOAD_STORE_FILE)
@@ -116,13 +118,46 @@ android {
         debug {
             signingConfig signingConfigs.debug
         }
+        // Note: the release signingConfig is chosen fail-closed just below; the
+        // taskGraph guard after this android { } block aborts a keyless release build.
         release {
-            signingConfig project.hasProperty('OPENRUNG_UPLOAD_STORE_FILE')
-                    ? signingConfigs.release
-                    : signingConfigs.debug
+            // Fail-closed signing. With the real upload key present we sign properly.
+            // Without it we must NOT fall back to the committed debug key: that key's
+            // private material and password are public, so a release APK signed with it
+            // is indistinguishable from a genuine build and anyone could forge "updates"
+            // for this VPN app. A release build without the key fails (enforced by the
+            // taskGraph guard below), unless a developer knowingly opts in to a throwaway
+            // debug-signed local build with -PopenrungAllowDebugSignedRelease.
+            if (project.hasProperty('OPENRUNG_UPLOAD_STORE_FILE')) {
+                signingConfig signingConfigs.release
+            } else if (project.hasProperty('openrungAllowDebugSignedRelease')) {
+                signingConfig signingConfigs.debug
+            }
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
+    }
+}
+
+// Refuse to *assemble* a release without a real signing key rather than silently
+// producing a debug-signed (forgeable) "release". Runs only when a release output task
+// for this module is actually scheduled, so debug builds and `./gradlew tasks` are
+// unaffected. Opt out for a throwaway local build with -PopenrungAllowDebugSignedRelease.
+gradle.taskGraph.whenReady { graph ->
+    boolean assemblingRelease = graph.allTasks.any { task ->
+        task.project == project && task.name ==~ /(?i)(assemble|bundle|package).*Release/
+    }
+    boolean hasUploadKey = project.hasProperty('OPENRUNG_UPLOAD_STORE_FILE')
+    boolean allowDebugSigned = project.hasProperty('openrungAllowDebugSignedRelease')
+    if (assemblingRelease && !hasUploadKey && !allowDebugSigned) {
+        throw new GradleException(
+                "OpenRung release build has no signing key. Set OPENRUNG_UPLOAD_* in " +
+                "~/.gradle/gradle.properties to sign with the real upload key, or pass " +
+                "-PopenrungAllowDebugSignedRelease for a throwaway debug-signed local build " +
+                "(that APK is signed with a public key and must NEVER be distributed).")
+    } else if (assemblingRelease && !hasUploadKey && allowDebugSigned) {
+        logger.warn("OpenRung: signing the RELEASE build with the PUBLIC debug key " +
+                "(-PopenrungAllowDebugSignedRelease set). This APK is NOT distributable.")
     }
 }
 
