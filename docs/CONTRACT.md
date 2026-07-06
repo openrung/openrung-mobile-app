@@ -13,14 +13,25 @@ functionality 1:1 unless noted.
 **Native (Kotlin service / Swift NEPacketTunnelProvider extension)** owns the whole
 connect path, exactly as in the production apps:
 broker relay fetch (connect path), relay selection, TCP reachability, sing-box
-(libbox) engine lifecycle, TUN + DNS config, internet probe, fail-closed behavior,
-heartbeat telemetry, VPN permission + background lifecycle, recents recording,
-status/log persistence.
+(libbox) engine lifecycle, TUN + DNS config, internet probe, connection-failure
+handling, heartbeat telemetry, VPN permission + background lifecycle, recents
+recording, status/log persistence.
 
 **TypeScript (RN shell)** owns everything the production *app processes* own:
 all UI, navigation, exit-node map directory (broker fetch, grouped by the
 broker-served relay locations — relay IPs are never geolocated client-side),
 speed test, language selection, licenses screens.
+
+**Availability over "never leak."** OpenRung is availability-first: keeping the
+user reachable matters more than guaranteeing no traffic ever leaves the tunnel.
+The only leak protection is sing-box `strict_route` *while the tunnel is up*
+(`SingBoxConfiguration`). There is deliberately **no OS-level kill switch** (no
+`includeAllNetworks` / on-demand enforcement), so when the tunnel is down — no
+relay reachable, a service/extension crash, or between sessions — traffic falls
+back to the normal network rather than being blocked. "Connection-failure
+handling" above and "report failure if no relay works" elsewhere therefore mean
+the connect attempt *reports failure without leaving a half-open or leaky tunnel* —
+NOT that the OS blocks traffic while the VPN is down.
 
 ## 2. Identifiers
 
@@ -186,7 +197,8 @@ Ported from the production app with packages renamed
 ported (that lives in TS now). Files:
 
 - `vpn/OpenRungVpnService.kt`, `vpn/ProxyEngine.kt` — verbatim port (connect flow,
-  fail-closed, notification id 2001 channel `openrung_vpn`, heartbeat 50–70s).
+  connection-failure handling, notification id 2001 channel `openrung_vpn`,
+  heartbeat 50–70s).
 - `net/` BrokerClient, GeoIpClient, InternetProbe, RelayReachability,
   SingBoxConfiguration; `model/` RelayDescriptor, RelaySelector, CountryGeo,
   RecentNode; `telemetry/` all four files; `config/AppConfig.kt`.
