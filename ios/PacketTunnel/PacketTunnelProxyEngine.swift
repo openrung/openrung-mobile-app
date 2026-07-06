@@ -6,6 +6,10 @@ import OSLog
 protocol PacketTunnelProxyEngine: AnyObject {
     func start(relay: RelayDescriptor, tunnelProvider: NEPacketTunnelProvider) async throws
     func stop()
+    /// Pause the engine when the device sleeps and resume it on wake, so iOS doesn't terminate the
+    /// extension for CPU/wakeups while the tunnel sits idle. Safe no-op before the engine starts.
+    func pause()
+    func wake()
 }
 
 #if canImport(Libbox)
@@ -34,7 +38,16 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
         setupOptions.crashReportSource = AppConfig.engineDirectoryName
         setupOptions.oomKillerEnabled = false
         setupOptions.oomKillerDisabled = true
+        // The libbox command server listens on loopback TCP. iOS has no per-app loopback isolation,
+        // and the unix-socket alternative (commandServerListenPort = 0) puts the socket at
+        // basePath/command.sock, whose path overflows Darwin's 104-byte sun_path limit inside an
+        // app-extension container. So gate the listener with a random per-launch secret: libbox's
+        // gRPC auth interceptor rejects any client that doesn't present it, which blocks a
+        // co-installed app from issuing commands (close/reload the service, subscribe to logs,
+        // trigger a crash). The app's own control calls (startOrReloadService, closeService, pause,
+        // wake) are direct in-process method calls and bypass the interceptor.
         setupOptions.commandServerListenPort = try availableCommandServerPort()
+        setupOptions.commandServerSecret = Self.makeCommandServerSecret()
 
         TunnelDiagnostics.recordEvent("Setting up libbox")
         logger.info("Setting up libbox")
@@ -76,6 +89,19 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
         activeRelay = nil
     }
 
+    func pause() {
+        commandServer?.pause()
+    }
+
+    func wake() {
+        commandServer?.wake()
+    }
+
+    /// Per-launch random secret for the command server's gRPC auth interceptor (see `start`).
+    private static func makeCommandServerSecret() -> String {
+        (0..<32).map { _ in String(format: "%02x", UInt8.random(in: .min ... .max)) }.joined()
+    }
+
     private func availableCommandServerPort() throws -> Int32 {
         var port: Int32 = 0
         var error: NSError?
@@ -103,6 +129,9 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
     func stop() {
         activeRelay = nil
     }
+
+    func pause() {}
+    func wake() {}
 }
 
 #endif

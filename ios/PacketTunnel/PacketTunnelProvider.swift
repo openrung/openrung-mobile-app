@@ -45,6 +45,18 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         }
     }
 
+    override func sleep(completionHandler: @escaping () -> Void) {
+        // Pause the engine while the device sleeps so iOS doesn't terminate the extension for CPU
+        // wakeups; libbox schedules its own auto-wake. Without this the extension can be silently
+        // killed while SharedConnectionState still reports .connected.
+        engine?.pause()
+        completionHandler()
+    }
+
+    override func wake() {
+        engine?.wake()
+    }
+
     // MARK: - Connection flow
 
     private func connect(completionHandler: @escaping (Error?) -> Void) async {
