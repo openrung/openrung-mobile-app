@@ -6,7 +6,7 @@
  * list; the speed test RUN button is enabled only while connected and not
  * already running.
  */
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -36,6 +36,19 @@ export function SettingsScreen({ onOpenDebug }: SettingsScreenProps): React.JSX.
   const [speedTestResult, setSpeedTestResult] = useState<SpeedTestResult | null>(null);
   const [speedTestError, setSpeedTestError] = useState<string | null>(null);
 
+  const mountedRef = useRef(true);
+  const runControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      // Android unmounts inactive tabs. Abort an in-flight speed test on unmount so it stops
+      // downloading instead of finishing in the background — and so a fresh RUN after returning
+      // to the tab can't kick off a second concurrent download.
+      mountedRef.current = false;
+      runControllerRef.current?.abort();
+    };
+  }, []);
+
   // Same precedence as production: running > error > result > requires-connection > ready.
   const speedTestSubtitle = speedTestRunning
     ? s.speedTestRunning
@@ -50,12 +63,22 @@ export function SettingsScreen({ onOpenDebug }: SettingsScreenProps): React.JSX.
   const runEnabled = isConnected && !speedTestRunning;
 
   const onRunSpeedTest = useCallback(() => {
+    const controller = new AbortController();
+    runControllerRef.current = controller;
     setSpeedTestRunning(true);
     setSpeedTestResult(null);
     setSpeedTestError(null);
     (async () => {
       try {
-        const result = await runSpeedTest(AppConfig.TELEMETRY_BROKER_URL);
+        const result = await runSpeedTest(
+          AppConfig.TELEMETRY_BROKER_URL,
+          undefined,
+          undefined,
+          controller.signal,
+        );
+        if (!mountedRef.current) {
+          return;
+        }
         setSpeedTestResult(result);
         try {
           const identity = await OpenRungVpn.getIdentity();
@@ -69,6 +92,12 @@ export function SettingsScreen({ onOpenDebug }: SettingsScreenProps): React.JSX.
           // Telemetry is best-effort; never surfaces in the UI.
         }
       } catch (error) {
+        // A run cancelled by unmount/navigation is not a real failure: don't surface it or report
+        // a bogus speed_test_failed event. (A timeout aborts the internal controller, not this
+        // one, so it still falls through to the failure path below.)
+        if (controller.signal.aborted || !mountedRef.current) {
+          return;
+        }
         // Mirrors production: message ?: exception simple name for the subtitle,
         // the error type name for the telemetry attribute.
         const errorType = error instanceof Error ? error.constructor.name || error.name : 'Error';
@@ -85,7 +114,9 @@ export function SettingsScreen({ onOpenDebug }: SettingsScreenProps): React.JSX.
           // Best-effort.
         }
       } finally {
-        setSpeedTestRunning(false);
+        if (mountedRef.current) {
+          setSpeedTestRunning(false);
+        }
       }
     })();
   }, []);

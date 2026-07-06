@@ -34,16 +34,23 @@ export function useVpnState(): VpnStateHook {
 
   useEffect(() => {
     let mounted = true;
+    let receivedEvent = false;
+    // Subscribe FIRST so no event is missed, and track whether one has arrived: a slow getState()
+    // seed must not clobber a fresher event that landed while it was in flight (e.g. mounting during
+    // a connecting -> connected transition).
+    const unsubscribe = subscribeVpnState(nativeState => {
+      receivedEvent = true;
+      applyNativeState(nativeState);
+    });
     OpenRungVpn.getState()
       .then(nativeState => {
-        if (mounted) {
+        if (mounted && !receivedEvent) {
           applyNativeState(nativeState);
         }
       })
       .catch(() => {
         // Native state stays at the store default until the first event arrives.
       });
-    const unsubscribe = subscribeVpnState(applyNativeState);
     return () => {
       mounted = false;
       unsubscribe();

@@ -148,4 +148,11 @@ describe('loadExitNodeDirectory', () => {
     ]);
     expect(regions).toEqual([]);
   });
+
+  it('excludes a broker-located relay with a blank id (no list key / connect target)', async () => {
+    const regions = await load([relay({ id: '', ...TOKYO }), relay({ id: 'ok', ...TOKYO })]);
+    expect(regions).toHaveLength(1);
+    expect(regions[0].nodeCount).toBe(1);
+    expect(regions[0].relays).toEqual([{ id: 'ok', label: null }]);
+  });
 });

@@ -42,7 +42,9 @@ export async function loadExitNodeDirectory(
 
   const regionsByKey = new Map<string, ExitNodeRegion>();
   for (const relay of usable) {
-    if (!isLocated(relay)) {
+    // A relay with a blank id can't be keyed in the list or targeted by tap-to-connect (it would
+    // hand an empty targetRelayId to the native VPN layer), so it never enters the directory.
+    if (relay.id.trim().length === 0 || !isLocated(relay)) {
       continue;
     }
     const code = relay.country_code.trim().toUpperCase();
