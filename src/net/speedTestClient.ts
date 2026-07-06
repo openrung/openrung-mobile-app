@@ -46,13 +46,27 @@ export function calculateMbps(bytes: number, durationMs: number): number {
   return (bytes * 8) / durationMs / 1_000;
 }
 
-async function download(endpoint: string, bytes: number): Promise<SpeedTestResult> {
+async function download(
+  endpoint: string,
+  bytes: number,
+  signal?: AbortSignal,
+): Promise<SpeedTestResult> {
   const separator = endpoint.includes('?') ? '&' : '?';
   const cacheBust = `${Date.now()}${Math.floor(Math.random() * 1_000_000)}`;
   const url = `${endpoint}${separator}bytes=${bytes}&cacheBust=${cacheBust}`;
 
+  // Bounded by a timeout; an optional caller signal (e.g. the screen unmounting) also aborts the
+  // request so a navigated-away speed test stops downloading instead of running to completion.
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const onCallerAbort = () => controller.abort();
+  if (signal) {
+    if (signal.aborted) {
+      controller.abort();
+    } else {
+      signal.addEventListener('abort', onCallerAbort);
+    }
+  }
   try {
     const startedMs = Date.now();
     const response = await fetch(url, {
@@ -81,19 +95,22 @@ async function download(endpoint: string, bytes: number): Promise<SpeedTestResul
     };
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener('abort', onCallerAbort);
   }
 }
 
 /**
  * Runs the production two-phase test against `{broker}/api/v1/speed-test`: a 1 MB warmup download
- * followed by the measured 10 MB download; the second download's result is returned.
+ * followed by the measured 10 MB download; the second download's result is returned. An optional
+ * `signal` aborts an in-flight run (e.g. when the Settings screen unmounts).
  */
 export async function runSpeedTest(
   brokerUrl: string,
   warmupBytes: number = DEFAULT_WARMUP_BYTES,
   measurementBytes: number = DEFAULT_MEASUREMENT_BYTES,
+  signal?: AbortSignal,
 ): Promise<SpeedTestResult> {
   const endpoint = speedTestUrl(brokerUrl);
-  await download(endpoint, warmupBytes);
-  return download(endpoint, measurementBytes);
+  await download(endpoint, warmupBytes, signal);
+  return download(endpoint, measurementBytes, signal);
 }
