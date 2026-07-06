@@ -19,6 +19,13 @@ export interface AppState {
   availableRegions: ExitNodeRegion[];
   languageTag: string; // '' = system, persisted in AsyncStorage
   homeViewMode: HomeViewMode; // home directory presentation, persisted in AsyncStorage
+  /**
+   * Epoch ms of the moment the native status last ENTERED 'connected' (stamped
+   * shell-side, so after an app restart it counts from the first mirrored
+   * event). Null whenever the tunnel is not connected. Drives the session
+   * uptime readout.
+   */
+  connectedAtMs: number | null;
 }
 
 export const LANGUAGE_STORAGE_KEY = 'openrung.language';
@@ -40,6 +47,7 @@ function initialState(): AppState {
     availableRegions: [],
     languageTag: '',
     homeViewMode: 'map',
+    connectedAtMs: null,
   };
 }
 
@@ -73,9 +81,23 @@ export function useAppState(): AppState {
   return useSyncExternalStore(subscribe, getSnapshot);
 }
 
+/**
+ * Session-uptime stamp: set on every transition INTO 'connected' (a relay
+ * switch re-enters via connecting, so it restarts the clock), preserved across
+ * connected-state events (log lines, recents), cleared once the tunnel leaves.
+ */
+function nextConnectedAtMs(previous: AppState, native: NativeVpnState): number | null {
+  if (native.status !== 'connected') {
+    return null;
+  }
+  return previous.native.status === 'connected' && previous.connectedAtMs != null
+    ? previous.connectedAtMs
+    : Date.now();
+}
+
 /** Mirrors a `NativeVpnState` (from getState() or an openrungStateChanged event) into the store. */
 export function applyNativeState(native: NativeVpnState): void {
-  setState({ ...state, native });
+  setState({ ...state, native, connectedAtMs: nextConnectedAtMs(state, native) });
 }
 
 /**

@@ -1,5 +1,7 @@
 import { Platform } from 'react-native';
 
+import type { ConnectionStatus } from './native/types';
+
 /**
  * Terminal-green-on-black palette, hex-for-hex from the production Compose UI
  * (contract §5). ALL text in the app renders in `monoFont`.
@@ -85,3 +87,22 @@ export const tokens = {
   /** Screen edge padding. */
   edge: 20,
 } as const;
+
+/**
+ * Status-dot colour for live-status readouts (connect card, ocean telemetry):
+ * green when connected, amber while working, red on failure, dim when idle.
+ */
+export function statusDotColor(status: ConnectionStatus): string {
+  switch (status) {
+    case 'connected':
+      return palette.terminalGreen;
+    case 'preparing':
+    case 'connecting':
+    case 'disconnecting':
+      return tokens.working;
+    case 'failed':
+      return palette.consoleError;
+    case 'disconnected':
+      return palette.dimText;
+  }
+}

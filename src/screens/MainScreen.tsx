@@ -11,6 +11,10 @@
  *    directory presentation (persisted, store.homeViewMode). In list mode a
  *    scrollable relay list fills the middle; the map stays mounted beneath it
  *    so toggling back keeps the camera position;
+ *  - ocean telemetry: a map-space HUD (inside ExitNodeMap) anchored in the
+ *    Pacific directly east of Shibuya — just off the default phone view, one
+ *    eastward pan away — with network totals, link status/uptime, and the
+ *    last tunnel error;
  *  - bottom stack: recents pills + the glass connect card, anchored above the
  *    tab bar.
  *
@@ -25,6 +29,7 @@ import { ConnectCard } from '../components/ConnectCard';
 import { EdgeFade } from '../components/EdgeFade';
 import { ExitNodeMap } from '../components/ExitNodeMap';
 import { MapStatusChip } from '../components/MapStatusChip';
+import { OceanTelemetry } from '../components/OceanTelemetry';
 import { RecentsSection } from '../components/RecentsSection';
 import { RelayList } from '../components/RelayList';
 import { ViewModeToggle } from '../components/ViewModeToggle';
@@ -65,7 +70,7 @@ function Wordmark(): React.JSX.Element {
 export function MainScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { state, isConnected, isWorking, disconnect, prepareAndConnect } = useVpnState();
-  const { native, directoryStatus, availableRegions, homeViewMode } = state;
+  const { native, directoryStatus, availableRegions, homeViewMode, connectedAtMs } = state;
   const isListMode = homeViewMode === 'list';
 
   // Populate the exit-node map directory when the home screen is shown (no-op once loaded)
@@ -120,7 +125,17 @@ export function MainScreen(): React.JSX.Element {
         accessibilityElementsHidden={isListMode}
         importantForAccessibility={isListMode ? 'no-hide-descendants' : 'auto'}
       >
-        <ExitNodeMap regions={availableRegions} onRegionPress={onConnectRegion} />
+        <ExitNodeMap regions={availableRegions} onRegionPress={onConnectRegion}>
+          <OceanTelemetry
+            regions={availableRegions}
+            directoryStatus={directoryStatus}
+            status={native.status}
+            relayLabel={native.relayLabel}
+            lastError={native.lastError}
+            logLines={native.logLines}
+            connectedAtMs={connectedAtMs}
+          />
+        </ExitNodeMap>
       </View>
       <EdgeFade />
 

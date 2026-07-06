@@ -45,4 +45,12 @@ export const ar: Partial<Strings> = {
   relayAuto: 'مرحّل تلقائي',
   settingsGeneralHeader: 'عام',
   settingsDiagnosticsHeader: 'التشخيص',
+
+  // Ocean telemetry panel (map view).
+  telemetryNetworkHeader: 'الشبكة',
+  telemetryLinkHeader: 'الوصلة',
+  telemetryRelaysLabel: 'مرحّلات',
+  telemetryLocationsLabel: 'مواقع',
+  telemetryCountriesLabel: 'دول',
+  telemetryUptimeLabel: 'مدة الاتصال',
 };

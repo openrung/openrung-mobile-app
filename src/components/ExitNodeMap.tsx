@@ -15,7 +15,9 @@
  *    [0, -1.6]) and a "City, Country" label below the dot (10pt, hidden on
  *    collision so dense clusters stay readable);
  *  - tapping a marker (28px-padded hitbox) reports the region's ISO country
- *    code so the caller can connect to a volunteer there.
+ *    code so the caller can connect to a volunteer there;
+ *  - `children` are rendered inside the map above the node layers, for
+ *    map-space annotations (e.g. the ocean telemetry panel).
  */
 import React, { useCallback, useMemo } from 'react';
 import { StyleSheet, type NativeSyntheticEvent } from 'react-native';
@@ -56,9 +58,15 @@ const MAX_ZOOM = 4.8;
 export interface ExitNodeMapProps {
   regions: ExitNodeRegion[];
   onRegionPress: (countryCode: string) => void;
+  /** Map-space annotations (MapLibre children) rendered above the node layers. */
+  children?: React.ReactNode;
 }
 
-export function ExitNodeMap({ regions, onRegionPress }: ExitNodeMapProps): React.JSX.Element {
+export function ExitNodeMap({
+  regions,
+  onRegionPress,
+  children,
+}: ExitNodeMapProps): React.JSX.Element {
   const s = useStrings();
 
   const mapStyle = useMemo<StyleSpecification>(
@@ -222,6 +230,7 @@ export function ExitNodeMap({ regions, onRegionPress }: ExitNodeMapProps): React
           }}
         />
       </GeoJSONSource>
+      {children}
     </MapLibreMap>
   );
 }

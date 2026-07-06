@@ -45,4 +45,12 @@ export const fa: Partial<Strings> = {
   relayAuto: 'رله خودکار',
   settingsGeneralHeader: 'عمومی',
   settingsDiagnosticsHeader: 'عیب‌یابی',
+
+  // Ocean telemetry panel (map view).
+  telemetryNetworkHeader: 'شبکه',
+  telemetryLinkHeader: 'پیوند',
+  telemetryRelaysLabel: 'رله‌ها',
+  telemetryLocationsLabel: 'مکان‌ها',
+  telemetryCountriesLabel: 'کشورها',
+  telemetryUptimeLabel: 'مدت اتصال',
 };

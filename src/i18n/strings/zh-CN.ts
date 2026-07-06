@@ -45,4 +45,12 @@ export const zhCN: Partial<Strings> = {
   relayAuto: '自动中继',
   settingsGeneralHeader: '常规',
   settingsDiagnosticsHeader: '诊断',
+
+  // Ocean telemetry panel (map view).
+  telemetryNetworkHeader: '网络',
+  telemetryLinkHeader: '链路',
+  telemetryRelaysLabel: '中继',
+  telemetryLocationsLabel: '地点',
+  telemetryCountriesLabel: '国家',
+  telemetryUptimeLabel: '在线时长',
 };

@@ -45,4 +45,12 @@ export const vi: Partial<Strings> = {
   relayAuto: 'relay tự động',
   settingsGeneralHeader: 'Chung',
   settingsDiagnosticsHeader: 'Chẩn đoán',
+
+  // Ocean telemetry panel (map view).
+  telemetryNetworkHeader: 'MẠNG',
+  telemetryLinkHeader: 'KẾT NỐI',
+  telemetryRelaysLabel: 'relay',
+  telemetryLocationsLabel: 'địa điểm',
+  telemetryCountriesLabel: 'quốc gia',
+  telemetryUptimeLabel: 'thời lượng',
 };

@@ -45,4 +45,12 @@ export const zhTW: Partial<Strings> = {
   relayAuto: '自動中繼',
   settingsGeneralHeader: '一般',
   settingsDiagnosticsHeader: '診斷',
+
+  // Ocean telemetry panel (map view).
+  telemetryNetworkHeader: '網路',
+  telemetryLinkHeader: '鏈路',
+  telemetryRelaysLabel: '中繼',
+  telemetryLocationsLabel: '地點',
+  telemetryCountriesLabel: '國家',
+  telemetryUptimeLabel: '連線時長',
 };

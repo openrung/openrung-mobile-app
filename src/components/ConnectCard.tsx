@@ -32,7 +32,7 @@ import {
 
 import { statusLabel, useStrings, type Strings } from '../i18n';
 import type { ConnectionStatus } from '../native/types';
-import { monoFont, palette, tokens } from '../theme';
+import { monoFont, palette, statusDotColor, tokens } from '../theme';
 import { PowerIcon } from './Icons';
 
 export interface ConnectCardProps {
@@ -41,21 +41,6 @@ export interface ConnectCardProps {
   isConnected: boolean;
   isWorking: boolean;
   onToggle: () => void;
-}
-
-function dotColor(status: ConnectionStatus): string {
-  switch (status) {
-    case 'connected':
-      return palette.terminalGreen;
-    case 'preparing':
-    case 'connecting':
-    case 'disconnecting':
-      return tokens.working;
-    case 'failed':
-      return palette.consoleError;
-    case 'disconnected':
-      return palette.dimText;
-  }
 }
 
 /** Button caption per lifecycle stage (working states show the live status). */
@@ -103,7 +88,7 @@ function StatusDot({ status }: { status: ConnectionStatus }): React.JSX.Element 
     return () => loop.stop();
   }, [animate, pulse]);
 
-  const color = dotColor(status);
+  const color = statusDotColor(status);
   return (
     <View style={styles.dotWrap}>
       <Animated.View
