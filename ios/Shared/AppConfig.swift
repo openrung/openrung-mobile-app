@@ -8,23 +8,28 @@ enum AppConfig {
     static let providerTargetCountryKey = "target_country"
     static let providerTargetRelayIDKey = "target_relay_id"
 
-    /// Discovery broker (relay-list bootstrap) default. Prefer the HTTPS, Cloudflare-fronted endpoint:
-    /// discovery is the censorship-critical path — it runs BEFORE the VPN tunnel is up — and TLS + CDN
-    /// edge IPs make it costly to block. Falls back to the raw origin IP; see `defaultBrokerURLs`.
+    /// Discovery broker (relay-list bootstrap) default, and — since discovery is HTTPS-only — the sole
+    /// built-in discovery candidate. Discovery is the censorship-critical path: it runs BEFORE the VPN
+    /// tunnel is up, and the relay list it returns defines which server the client trusts as its exit.
+    /// The relay list is NOT signed, so it must only be fetched over a TLS-authenticated channel; the
+    /// Cloudflare-fronted HTTPS endpoint (TLS + CDN edge IPs) is both hard to block and unforgeable.
     static let defaultBrokerURL = URL(string: "https://broker.openrung.org/")!
 
-    /// Telemetry / heartbeat / speed-test target: the raw origin IP, NOT the Cloudflare-fronted
-    /// hostname. Heartbeats fire ~once/minute per connected user; routing them through the Cloudflare
-    /// Worker would burn the Workers free-tier quota (100k requests/day). They ride the established VPN
-    /// tunnel so they don't need the CDN front (and it's the same broker either way). Discovery stays
-    /// fronted (low volume, pre-tunnel, needs the resilience); telemetry goes direct (high volume).
-    static let telemetryBrokerURL = URL(string: "http://54.238.185.205:8080/")!
+    /// Telemetry / heartbeat / speed-test target. Uses the same Cloudflare-fronted HTTPS broker as
+    /// discovery, so this traffic is TLS-protected — the app never sends anything in cleartext. Kept
+    /// as a separate constant from `defaultBrokerURL` because telemetry is high-volume (heartbeats
+    /// fire ~once/minute per connected user), so it consumes the Cloudflare Worker free-tier request
+    /// quota (100k/day). If that quota becomes a constraint, the planned fix is to send telemetry
+    /// direct-to-origin over TLS via a dedicated unproxied hostname — "Option A" in
+    /// docs/ARCHITECTURE.md § "Network transport". Never revert to a raw-IP HTTP endpoint: that leaked
+    /// the user's real pre-VPN IP, geo and stable client ID in cleartext.
+    static let telemetryBrokerURL = URL(string: "https://broker.openrung.org/")!
 
     /// Ordered discovery candidates, tried in order until one returns relays (see
-    /// `BrokerClient.firstReachable`): the Cloudflare-fronted endpoint first, then the raw IP as a
-    /// fallback so a blocked edge never takes discovery offline. The raw cleartext IP is why
-    /// `NSAllowsArbitraryLoads` is still set.
-    static let defaultBrokerURLs: [URL] = [defaultBrokerURL, telemetryBrokerURL]
+    /// `BrokerClient.firstReachable`). HTTPS-only: the unsigned relay list must never be fetched over
+    /// a forgeable cleartext channel, so there is deliberately NO raw-IP fallback here. A blocked edge
+    /// fails discovery CLOSED (offline) rather than open to an attacker-injected relay.
+    static let defaultBrokerURLs: [URL] = [defaultBrokerURL]
 
     /// Ordered broker candidates for a connection attempt: the caller-selected `primary` (the provider
     /// configuration's broker, today the default) first, then the built-in `defaultBrokerURLs`,
