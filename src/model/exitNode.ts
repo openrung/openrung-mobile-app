@@ -21,6 +21,15 @@ export interface ExitNodeRegion {
   relays: ExitNodeRelay[]; // broker order; nodeCount === relays.length
 }
 
+/**
+ * Display name for a single relay wherever one is shown (list picker child
+ * rows, ocean telemetry): the volunteer-chosen label, or the bare broker id
+ * as fallback.
+ */
+export function relayDisplayName(relay: ExitNodeRelay): string {
+  return relay.label ?? relay.id.replace(/^relay_/, '').slice(0, 12);
+}
+
 /** Load state of the exit-node map directory (the list of available exit-node regions). */
 export type DirectoryStatus = 'idle' | 'loading' | 'loaded' | 'failed';
 

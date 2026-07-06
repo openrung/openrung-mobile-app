@@ -17,6 +17,7 @@ import React, { useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, StyleProp, Text, View, ViewStyle } from 'react-native';
 
 import { useStrings } from '../i18n';
+import { relayDisplayName } from '../model/exitNode';
 import type { DirectoryStatus, ExitNodeRegion, ExitNodeRelay } from '../model/exitNode';
 import { monoFont, palette, tokens } from '../theme';
 import { countryFlag } from './countryFlag';
@@ -36,11 +37,6 @@ type Row =
 
 function regionKey(region: ExitNodeRegion): string {
   return `${region.countryCode}|${region.city ?? ''}`;
-}
-
-/** Display name for a relay child row; volunteer label, or the bare broker id as fallback. */
-function relayLabel(relay: ExitNodeRelay): string {
-  return relay.label ?? relay.id.replace(/^relay_/, '').slice(0, 12);
 }
 
 export function RelayList({
@@ -121,11 +117,11 @@ export function RelayList({
                 style={({ pressed }) => [styles.relayRow, pressed && styles.rowPressed]}
                 onPress={() => onRelayPress(item.relay.id, item.countryCode)}
                 accessibilityRole="button"
-                accessibilityLabel={relayLabel(item.relay)}
+                accessibilityLabel={relayDisplayName(item.relay)}
               >
                 <Text style={styles.relayBullet}>└</Text>
                 <Text style={styles.relayLabel} numberOfLines={1}>
-                  {relayLabel(item.relay)}
+                  {relayDisplayName(item.relay)}
                 </Text>
               </Pressable>
             );

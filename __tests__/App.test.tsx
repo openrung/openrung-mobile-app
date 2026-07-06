@@ -29,6 +29,7 @@ jest.mock('@maplibre/maplibre-react-native', () => {
     Camera: stub('MapLibreCamera'),
     GeoJSONSource: stub('MapLibreGeoJSONSource'),
     Layer: stub('MapLibreLayer'),
+    Marker: stub('MapLibreMarker'),
   };
 });
 

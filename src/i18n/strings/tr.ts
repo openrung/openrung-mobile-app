@@ -45,4 +45,12 @@ export const tr: Partial<Strings> = {
   relayAuto: 'otomatik röle',
   settingsGeneralHeader: 'Genel',
   settingsDiagnosticsHeader: 'Tanılama',
+
+  // Ocean telemetry panel (map view).
+  telemetryNetworkHeader: 'AĞ',
+  telemetryLinkHeader: 'BAĞLANTI',
+  telemetryRelaysLabel: 'röleler',
+  telemetryLocationsLabel: 'konumlar',
+  telemetryCountriesLabel: 'ülkeler',
+  telemetryUptimeLabel: 'süre',
 };

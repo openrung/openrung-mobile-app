@@ -23,12 +23,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
   HOME_VIEW_MODE_STORAGE_KEY,
+  applyNativeState,
   getSnapshot,
   hydrateHomeViewMode,
   refreshDirectory,
   resetStoreForTests,
   setHomeViewMode,
 } from '../../src/state/store';
+import type { NativeVpnState } from '../../src/native/types';
 
 interface MockResponse {
   status: number;
@@ -180,5 +182,60 @@ describe('homeViewMode', () => {
     await AsyncStorage.setItem(HOME_VIEW_MODE_STORAGE_KEY, 'globe');
     await hydrateHomeViewMode();
     expect(getSnapshot().homeViewMode).toBe('map');
+  });
+});
+
+describe('connectedAtMs (session uptime stamp)', () => {
+  const nativeState = (partial: Partial<NativeVpnState>): NativeVpnState => ({
+    status: 'disconnected',
+    relayLabel: null,
+    lastError: null,
+    logLines: [],
+    recents: [],
+    ...partial,
+  });
+
+  let nowSpy: jest.SpyInstance<number, []>;
+
+  beforeEach(() => {
+    nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1_000);
+  });
+
+  afterEach(() => {
+    nowSpy.mockRestore();
+  });
+
+  it('stamps entry into connected and preserves it across connected-state events', () => {
+    applyNativeState(nativeState({ status: 'connecting' }));
+    expect(getSnapshot().connectedAtMs).toBeNull();
+
+    applyNativeState(nativeState({ status: 'connected', relayLabel: 'Tokyo, Japan' }));
+    expect(getSnapshot().connectedAtMs).toBe(1_000);
+
+    // Later connected events (log lines, recents) must not restart the clock.
+    nowSpy.mockReturnValue(5_000);
+    applyNativeState(
+      nativeState({ status: 'connected', relayLabel: 'Tokyo, Japan', logLines: ['[00:00:01] up'] }),
+    );
+    expect(getSnapshot().connectedAtMs).toBe(1_000);
+  });
+
+  it('clears on disconnect and re-stamps a later session (relay switch restarts the clock)', () => {
+    applyNativeState(nativeState({ status: 'connected' }));
+    expect(getSnapshot().connectedAtMs).toBe(1_000);
+
+    applyNativeState(nativeState({ status: 'disconnecting' }));
+    expect(getSnapshot().connectedAtMs).toBeNull();
+
+    // Switch flow: connecting -> connected again gets a fresh stamp.
+    nowSpy.mockReturnValue(9_000);
+    applyNativeState(nativeState({ status: 'connecting' }));
+    applyNativeState(nativeState({ status: 'connected' }));
+    expect(getSnapshot().connectedAtMs).toBe(9_000);
+  });
+
+  it('stays null through failed states', () => {
+    applyNativeState(nativeState({ status: 'failed', lastError: 'broker unreachable' }));
+    expect(getSnapshot().connectedAtMs).toBeNull();
   });
 });

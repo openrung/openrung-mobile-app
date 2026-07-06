@@ -46,4 +46,12 @@ export const ru: Partial<Strings> = {
   relayAuto: 'авто-реле',
   settingsGeneralHeader: 'Основные',
   settingsDiagnosticsHeader: 'Диагностика',
+
+  // Ocean telemetry panel (map view).
+  telemetryNetworkHeader: 'СЕТЬ',
+  telemetryLinkHeader: 'КАНАЛ',
+  telemetryRelaysLabel: 'реле',
+  telemetryLocationsLabel: 'локации',
+  telemetryCountriesLabel: 'страны',
+  telemetryUptimeLabel: 'аптайм',
 };

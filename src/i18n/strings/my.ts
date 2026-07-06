@@ -47,4 +47,12 @@ export const my: Partial<Strings> = {
   relayAuto: 'အလိုအလျောက် relay',
   settingsGeneralHeader: 'အထွေထွေ',
   settingsDiagnosticsHeader: 'စစ်ဆေးခြင်း',
+
+  // Ocean telemetry panel (map view).
+  telemetryNetworkHeader: 'ကွန်ရက်',
+  telemetryLinkHeader: 'ချိတ်ဆက်မှု',
+  telemetryRelaysLabel: 'relay',
+  telemetryLocationsLabel: 'တည်နေရာ',
+  telemetryCountriesLabel: 'နိုင်ငံ',
+  telemetryUptimeLabel: 'ကြာချိန်',
 };

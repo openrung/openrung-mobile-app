@@ -97,6 +97,14 @@ export const en = {
     'Everything flows through a VLESS/REALITY tunnel that looks like ordinary TLS, and the VPN is fail-closed: no relay, no traffic.',
   aboutFootnote:
     'OpenRung is free software (GPL-3.0-or-later). Built by volunteers, for everyone.',
+
+  // --- Ocean telemetry panel (map view, anchored over the Pacific) ---
+  telemetryNetworkHeader: 'NETWORK',
+  telemetryLinkHeader: 'LINK',
+  telemetryRelaysLabel: 'relays',
+  telemetryLocationsLabel: 'locations',
+  telemetryCountriesLabel: 'countries',
+  telemetryUptimeLabel: 'uptime',
 };
 
 export type Strings = typeof en;
