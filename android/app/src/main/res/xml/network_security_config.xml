@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cleartext HTTP is denied for every host. All app traffic — relay discovery, telemetry / heartbeat /
+  speed-test, geo lookup, connectivity probes — goes over HTTPS. Discovery in particular must never
+  fall back to cleartext, because the relay list is unsigned and a forged one would redirect the whole
+  tunnel. If telemetry is ever moved to a direct-to-origin endpoint ("Option A" in docs/ARCHITECTURE.md
+  § "Network transport"), it should still be HTTPS; only add a scoped domain-config here if that origin
+  genuinely cannot present a publicly-trusted certificate.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

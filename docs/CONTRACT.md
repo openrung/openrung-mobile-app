@@ -200,7 +200,9 @@ ported (that lives in TS now). Files:
 - Manifest: INTERNET, ACCESS_NETWORK_STATE, FOREGROUND_SERVICE,
   FOREGROUND_SERVICE_SPECIAL_USE, POST_NOTIFICATIONS; service
   `.vpn.OpenRungVpnService` with BIND_VPN_SERVICE + specialUse;
-  `usesCleartextTraffic=true` (raw-IP telemetry broker).
+  `networkSecurityConfig=@xml/network_security_config` — cleartext HTTP denied for
+  all hosts (discovery, telemetry, geo and probes are all HTTPS; see ARCHITECTURE.md
+  § "Network transport").
 - Gradle: serialization plugin (Kotlin 2.1.20), kotlinx-serialization-json 1.7.3,
   kotlinx-coroutines-android 1.9.0, conditional `implementation(files("libs/libbox.aar"))`
   (file is copied locally, git-ignored). Status strings the service logs live in
@@ -232,8 +234,9 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   (RCT_EXTERN_MODULE) — implements §3 over NETunnelProviderManager +
   SharedConnectionState (Darwin observer + NEVPNStatusDidChange), including the
   production relay-switch dance (stop → 350 ms → reconfigure → start).
-- Both targets: packet-tunnel-provider entitlement + app group;
-  `NSAllowsArbitraryLoads=true`. PacketTunnel links `ThirdParty/Libbox.xcframework`
+- Both targets: packet-tunnel-provider entitlement + app group; no ATS exceptions —
+  default App Transport Security is enforced because every endpoint is HTTPS (see
+  ARCHITECTURE.md § "Network transport"). PacketTunnel links `ThirdParty/Libbox.xcframework`
   (embed:false) + libresolv.tbd, `APPLICATION_EXTENSION_API_ONLY=YES`; compiles
   without the xcframework via the existing `#if canImport(Libbox)` stub.
 

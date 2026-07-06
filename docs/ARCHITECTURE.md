@@ -81,6 +81,55 @@ change; TS mirrors it into the store and never mutates it. Commands flow the
 other way as the five bridge methods (`prepare`, `connect`, `disconnect`,
 `getState`, `getIdentity`).
 
+## Network transport
+
+Every endpoint the app talks to is HTTPS. Both platforms enforce this at the OS
+layer: iOS runs default App Transport Security (no exceptions), and the Android
+`network_security_config.xml` denies cleartext for all hosts. There is no `http://`
+endpoint anywhere in the app.
+
+- **Relay discovery** — `https://broker.openrung.org/` only. This is the
+  censorship-critical, pre-tunnel path, and the relay list it returns is *unsigned*,
+  so it must only ever be fetched over a TLS-authenticated channel: a forged list
+  would repoint the whole tunnel at an attacker's exit. There is deliberately **no**
+  raw-IP fallback — a blocked edge fails discovery closed (offline), never open to an
+  injected relay.
+- **Telemetry / heartbeat / speed-test** — currently also `https://broker.openrung.org/`
+  (the same Cloudflare-fronted broker); see the trade-off below.
+- **Geo lookup** (`https://ipwho.is/`) and **connectivity probes**
+  (`https://www.gstatic.com/generate_204`, `https://cp.cloudflare.com/generate_204`)
+  are HTTPS.
+
+### Telemetry transport: current (Option B) vs. future (Option A)
+
+Telemetry is higher-volume than discovery — heartbeats fire ~once/minute per
+connected user, plus per-app connection records — so its transport is a
+cost/security trade-off:
+
+- **Option B — current.** Send telemetry to the Cloudflare-fronted
+  `https://broker.openrung.org/`, the same endpoint as discovery. TLS end-to-end with
+  zero extra infrastructure. Cost: every heartbeat runs through the Cloudflare Worker
+  and counts against its request quota (free tier: 100k/day). Fine at low user counts.
+- **Option A — future, if the Worker quota becomes the bottleneck.** Give the origin
+  box a dedicated *unproxied* (DNS-only / "grey-cloud") hostname — e.g.
+  `origin.openrung.org` → the origin IP directly — with a publicly-trusted TLS
+  certificate (e.g. Let's Encrypt) terminated on the origin, then point
+  `TELEMETRY_BROKER_URL` at `https://origin.openrung.org/`. This keeps telemetry
+  TLS-protected *and* bypasses the Cloudflare Worker (so it no longer consumes the
+  quota), while remaining a real hostname both platforms' cleartext policies accept.
+  The app-side change is one line of `TELEMETRY_BROKER_URL` in each of the three
+  `AppConfig` files (`src/config.ts`, `android/.../config/AppConfig.kt`,
+  `ios/Shared/AppConfig.swift`); the rest is server-side (DNS record + origin cert).
+  Because the new endpoint is HTTPS, no cleartext exception is needed on either
+  platform — unless the origin cannot present a publicly-trusted cert, in which case
+  add a scoped `domain-config` in `network_security_config.xml` (Android) and the
+  equivalent `NSExceptionDomains` entry (iOS) for that one hostname.
+
+  Do **not** revert to the old raw-IP-over-HTTP telemetry endpoint. That transmitted
+  the user's real pre-VPN IP, city, ISP and stable client ID in cleartext — readable
+  by the volunteer relay operator, and (on connection-failure flush paths) by the
+  user's own censored network.
+
 ## The bridge contract (§3 of the contract)
 
 One classic NativeModule named `OpenRungVpn` on both platforms, identical
