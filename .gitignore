@@ -78,6 +78,9 @@ yarn-error.log
 android/app/libs/libbox.aar
 ios/ThirdParty/Libbox.xcframework/
 
+# Cloudflare Wrangler (local miniflare state / R2 dev bucket; can hold large release artifacts)
+.wrangler/
+
 # Env files
 .env
 .env.*
