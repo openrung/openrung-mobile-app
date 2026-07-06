@@ -31,6 +31,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -77,7 +78,12 @@ class OpenRungVpnService : VpnService() {
 
     override fun onDestroy() {
         disconnect()
-        connectJob?.cancel()
+        // Cancel the scope so its Job, its Main.immediate dispatcher, and any in-flight
+        // coroutines (connect, heartbeat, the disconnect() telemetry flush) don't outlive this
+        // service instance. Mirrors OpenRungVpnModule.invalidate(). This supersedes the explicit
+        // connectJob cancel (scope cancellation cancels all children). The on-destroy telemetry
+        // flush is best-effort — the outbox retries anything dropped here on the next session.
+        serviceScope.cancel()
         super.onDestroy()
     }
 
