@@ -34,8 +34,10 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.coroutines.coroutineContext
 import kotlin.random.Random
 
 class OpenRungVpnService : VpnService() {
@@ -167,6 +169,10 @@ class OpenRungVpnService : VpnService() {
 
             failureStage = "relay_connect"
             val connectedRelay = connectFirstAvailable(targetedCandidates)
+            // If a disconnect raced in while we were connecting, don't publish CONNECTED for a
+            // tunnel that's being torn down. Stopping the engine is owned by disconnect()/a new
+            // connect (both call cleanupActiveTunnel); we just must not commit CONNECTED here.
+            coroutineContext.ensureActive()
             val relay = connectedRelay.relay
             activeRelayId = relay.id
             TelemetryManager.markConnected(relay.id)
@@ -189,6 +195,9 @@ class OpenRungVpnService : VpnService() {
                 ),
             )
             runCatching { TelemetryManager.flush(AppConfig.TELEMETRY_BROKER_URL) }
+            // The flush above swallows cancellation (runCatching), so re-check: a disconnect that
+            // raced in during it must not leave a heartbeat loop running after teardown.
+            coroutineContext.ensureActive()
             startHeartbeatLoop()
         } catch (error: CancellationException) {
             throw error
@@ -219,6 +228,11 @@ class OpenRungVpnService : VpnService() {
                 OpenRungStatusStore.appendLog(getString(R.string.log_checking_relay_reachability))
                 val tcpLatencyMs = try {
                     RelayReachability.checkTcp(relay)
+                } catch (error: CancellationException) {
+                    // A racing disconnect cancels this coroutine; let cancellation propagate instead
+                    // of masking it as an "unreachable" failure, which would keep trying relays and
+                    // could bring a tunnel up after teardown.
+                    throw error
                 } catch (error: Throwable) {
                     throw IllegalStateException(
                         getString(R.string.error_relay_unreachable, relay.publicHost, relay.publicPort),
