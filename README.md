@@ -33,6 +33,11 @@ The app is a thin, well-designed TypeScript shell over a native VPN engine. The
 shell handles everything the user sees — the map, relay directory, and connect
 UI — while the native module carries the actual traffic.
 
+OpenRung is **availability-first**: it optimizes for keeping you reachable rather
+than guaranteeing zero leakage. If no relay can be reached the app reports the
+failure and leaves your normal connection in place instead of blocking it — there
+is no OS-level kill switch.
+
 ```mermaid
 flowchart LR
     ui["📱 React Native shell<br/>(map · directory · connect UI)"]
@@ -73,8 +78,8 @@ side-by-side with them.
   + GeoIP grouping, speed test, and language selection.
 - **Android native (`android/`)** — the production `VpnService` connect path
   (package `com.openrung.*`): broker relay fetch, relay selection + TCP
-  reachability, sing-box/libbox engine, TUN + DNS, internet probe, fail-closed
-  behavior, heartbeat telemetry, plus the `OpenRungVpn` React Native module that
+  reachability, sing-box/libbox engine, TUN + DNS, internet probe, connection-failure
+  handling, heartbeat telemetry, plus the `OpenRungVpn` React Native module that
   bridges it.
 - **iOS native (`ios/`)** — the production `NEPacketTunnelProvider` extension,
   shared Swift sources compiled into both targets, and an `OpenRungVpnModule`

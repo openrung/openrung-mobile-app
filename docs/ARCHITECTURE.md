@@ -16,7 +16,7 @@ TypeScript through one small bridge module, `OpenRungVpn`.
 **Native owns the connect path** (exactly as in the production apps):
 broker relay fetch for connecting, relay selection, TCP reachability,
 sing-box (libbox) engine lifecycle, TUN + DNS configuration, internet probe,
-fail-closed behavior, heartbeat telemetry, VPN permission and background
+connection-failure handling, heartbeat telemetry, VPN permission and background
 lifecycle, recents recording, and status/log persistence. If the RN process
 dies, the tunnel keeps running.
 
@@ -28,6 +28,13 @@ speed test, language selection, and the licenses screens.
 Note that the broker is queried from *both* sides, matching production: the
 native service fetches relays to connect, and the TS shell independently
 fetches relays to draw the map directory.
+
+**Availability over "never leak."** OpenRung is availability-first. The only leak
+protection is sing-box `strict_route` while the tunnel is up; there is deliberately
+no OS-level kill switch, so when the tunnel is down (no relay reachable, a crash, or
+between sessions) traffic falls back to the normal network instead of being blocked.
+"Report failure if no relay works" below means the connect attempt reports failure
+without leaving a leaky tunnel — not that traffic is blocked. See CONTRACT.md §1.
 
 ## Data flow
 
@@ -69,7 +76,7 @@ fetches relays to draw the map directory.
   |  broker fetch -> relay selection -> TCP reachability                |
   |     -> sing-box config -> libbox engine + TUN + DNS                 |
   |     -> internet probe -> geo label -> heartbeat telemetry           |
-  |     -> fail closed if no relay works                                |
+  |     -> report failure if no relay works                             |
   +-----|---------------------------------------------------------------+
         v
      libbox (sing-box, statically linked)
@@ -177,7 +184,7 @@ The production connect-path packages are ported with only the package rename
 are not ported (TS owns them). Key pieces:
 
 - `vpn/OpenRungVpnService.kt` + `vpn/ProxyEngine.kt` — the whole connect
-  flow, fail-closed, notification id 2001 on channel `openrung_vpn`,
+  flow, connection-failure handling, notification id 2001 on channel `openrung_vpn`,
   heartbeat every 50–70 s.
 - `net/`, `model/`, `telemetry/`, `config/AppConfig.kt` — verbatim.
 - `state/OpenRungStatusStore.kt` — trimmed to status/relay/error/logs/recents
