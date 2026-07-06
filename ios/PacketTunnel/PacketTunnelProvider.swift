@@ -10,6 +10,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     private let selector = RelaySelector()
     private var engine: PacketTunnelProxyEngine?
     private var heartbeatTask: Task<Void, Never>?
+    private var connectTask: Task<Void, Never>?
     private var activeRelayID: String?
     private var brokerURL = AppConfig.defaultBrokerURL
 
@@ -17,7 +18,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         options: [String: NSObject]?,
         completionHandler: @escaping (Error?) -> Void
     ) {
-        Task { await connect(completionHandler: completionHandler) }
+        connectTask = Task { await connect(completionHandler: completionHandler) }
     }
 
     override func stopTunnel(
@@ -26,20 +27,29 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     ) {
         heartbeatTask?.cancel()
         heartbeatTask = nil
+        // Cancel any in-flight connect and wait for it to unwind BEFORE tearing down, so it can't
+        // assign a new engine or publish .connected for a tunnel we're stopping. connect() checks
+        // for cancellation before it commits; a libbox engine it already started (start() is not
+        // cancellable) is stopped below, after the await.
+        let pendingConnect = connectTask
+        connectTask = nil
+        pendingConnect?.cancel()
         SharedConnectionState.setStatus(.disconnecting)
-
-        if let relayID = activeRelayID {
-            TelemetryManager.record("tunnel_stopped", relayId: relayID)
-        }
-        activeRelayID = nil
-        TelemetryManager.endSession(reason: "disconnect")
-
-        engine?.stop()
-        engine = nil
-        SharedConnectionState.setStatus(.disconnected, clearRelayLabel: true, clearError: true)
 
         let telemetryURLString = AppConfig.telemetryBrokerURL.absoluteString
         Task {
+            await pendingConnect?.value
+
+            if let relayID = activeRelayID {
+                TelemetryManager.record("tunnel_stopped", relayId: relayID)
+            }
+            activeRelayID = nil
+            TelemetryManager.endSession(reason: "disconnect")
+
+            engine?.stop()
+            engine = nil
+            SharedConnectionState.setStatus(.disconnected, clearRelayLabel: true, clearError: true)
+
             try? await TelemetryManager.flush(brokerURL: telemetryURLString)
             completionHandler()
         }
@@ -138,6 +148,12 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
 
             failureStage = "relay_connect"
             let connected = try await connectFirstAvailableRelay(targetedCandidates)
+
+            // A stop may have arrived while we were connecting. Don't publish .connected or start
+            // the heartbeat for a tunnel that's being torn down; stopTunnel awaited this task and
+            // stops the engine connectFirstAvailableRelay assigned.
+            try Task.checkCancellation()
+
             let relay = connected.relay
             activeRelayID = relay.id
             TelemetryManager.markConnected(relayId: relay.id)
@@ -159,6 +175,11 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
 
             logger.info("Connected through relay \(relay.id, privacy: .public)")
             completionHandler(nil)
+        } catch is CancellationError {
+            // Stopped mid-connect. Leave engine teardown and the .disconnected status to stopTunnel
+            // (which awaited this task); don't record a failure or publish an error for a
+            // user-initiated stop.
+            completionHandler(CancellationError())
         } catch {
             engine?.stop()
             engine = nil
@@ -180,6 +201,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         var lastError: Error?
 
         for (index, relay) in candidates.enumerated() {
+            try Task.checkCancellation()
             do {
                 SharedConnectionState.appendLog("trying relay \(relay.id) at \(relay.publicHost):\(relay.publicPort)")
                 SharedConnectionState.appendLog("checking relay TCP reachability")
@@ -208,6 +230,12 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                     internetProbeMs: probe.durationMs,
                     attempts: index + 1
                 )
+            } catch is CancellationError {
+                // A racing stop cancelled us; stop the engine this attempt may have started and
+                // propagate cancellation instead of trying the next relay.
+                engine?.stop()
+                engine = nil
+                throw CancellationError()
             } catch {
                 lastError = error
                 TelemetryManager.record(
