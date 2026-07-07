@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DEBUG-ONLY override of the main network security config (resource merging: this file replaces
+  src/main/res/xml/network_security_config.xml in debug builds only; release builds are untouched).
+
+  The base-config keeps the same cleartext ban as production: discovery must never fall back to
+  cleartext, because the relay list is unsigned and a forged one would redirect the whole tunnel.
+  The ONLY exception below is the fixed set of loopback / emulator-host addresses Metro serves the
+  JS bundle from during development. These resolve to the developer's own machine, never to any
+  relay, discovery, or telemetry endpoint, so the production rationale is not weakened. Do not add
+  any other hosts here — a real hostname or routable IP in this list would let debug builds talk
+  cleartext to the network at large.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- Metro bundler dev hosts only -->
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <!-- Android emulator's alias for the host machine -->
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <!-- Genymotion's alias for the host machine -->
+        <domain includeSubdomains="false">10.0.3.2</domain>
+    </domain-config>
+</network-security-config>
