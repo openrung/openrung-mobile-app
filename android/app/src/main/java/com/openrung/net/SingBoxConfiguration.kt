@@ -107,6 +107,13 @@ data class SingBoxConfiguration(
                 })
                 put("final", "proxy")
             })
+            put("experimental", buildJsonObject {
+                // No external_controller is set, so nothing listens; an empty clash_api
+                // block just turns on sing-box's traffic accounting, which feeds the
+                // cumulative bytes_sent/bytes_received counters reported with session
+                // telemetry (see TelemetryManager.updateTrafficCounters).
+                put("clash_api", buildJsonObject { })
+            })
         }
     }
 

@@ -25,6 +25,7 @@ object TelemetryManager {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private var context: Context? = null
     private var activeSession: Session? = null
+    private var sessionTraffic: TrafficCounters? = null
 
     data class Session(
         val id: String,
@@ -35,6 +36,15 @@ object TelemetryManager {
         val connectedElapsedMs: Long? = null,
         val geoAttributes: Map<String, String> = emptyMap(),
     )
+
+    /** Cumulative tunneled-traffic counters for the active session, as last reported by the engine. */
+    data class TrafficCounters(val bytesSent: Long, val bytesReceived: Long) {
+        /** Broker contract (openrung docs/api.md): cumulative per session, zero values omitted. */
+        fun measurements(): Map<String, Long> = buildMap {
+            if (bytesSent > 0) put("bytes_sent", bytesSent)
+            if (bytesReceived > 0) put("bytes_received", bytesReceived)
+        }
+    }
 
     fun initialize(context: Context) {
         synchronized(lock) {
@@ -51,10 +61,33 @@ object TelemetryManager {
             clientId = clientId(context),
             brokerUrl = brokerUrl,
             startedElapsedMs = SystemClock.elapsedRealtime(),
-        ).also { synchronized(lock) { activeSession = it } }
+        ).also {
+            synchronized(lock) {
+                activeSession = it
+                sessionTraffic = null
+            }
+        }
     }
 
     fun activeSession(): Session? = synchronized(lock) { activeSession }
+
+    /**
+     * Records the tunnel's traffic counters for the active session. Reported values must be
+     * cumulative since the engine started; the high-water mark is kept so a counter reset
+     * (engine restart) never regresses what the session already reported.
+     */
+    fun updateTrafficCounters(bytesSent: Long, bytesReceived: Long) {
+        synchronized(lock) {
+            if (activeSession == null) return
+            val current = sessionTraffic
+            sessionTraffic = TrafficCounters(
+                bytesSent = maxOf(bytesSent, current?.bytesSent ?: 0L),
+                bytesReceived = maxOf(bytesReceived, current?.bytesReceived ?: 0L),
+            )
+        }
+    }
+
+    private fun trafficCounters(): TrafficCounters? = synchronized(lock) { sessionTraffic }
 
     fun markConnected(relayId: String) {
         synchronized(lock) {
@@ -146,13 +179,19 @@ object TelemetryManager {
         val now = SystemClock.elapsedRealtime()
         val measurements = mutableMapOf("session_duration_ms" to (now - session.startedElapsedMs))
         session.connectedElapsedMs?.let { measurements["connection_duration_ms"] = now - it }
+        trafficCounters()?.let { measurements.putAll(it.measurements()) }
         record(
             event = "connection_ended",
             relayId = session.relayId,
             attributes = mapOf("reason" to reason),
             measurements = measurements,
         )
-        synchronized(lock) { if (activeSession?.id == session.id) activeSession = null }
+        synchronized(lock) {
+            if (activeSession?.id == session.id) {
+                activeSession = null
+                sessionTraffic = null
+            }
+        }
     }
 
     // NOTE(prototype): recordSpeedTest(SpeedTestResult) is not ported — the speed test
@@ -166,6 +205,7 @@ object TelemetryManager {
             occurredAt = Instant.now(),
             elapsedRealtimeMs = SystemClock.elapsedRealtime(),
             attributes = deviceAttributes(appContext) + session.geoAttributes,
+            trafficCounters = trafficCounters(),
         ) ?: return
         val queued = synchronized(lock) { readOutbox(appContext).take(UPLOAD_BATCH_SIZE - 1) }
         TelemetryClient(session.brokerUrl).send(queued + event)
@@ -246,6 +286,7 @@ internal fun buildSessionHeartbeat(
     occurredAt: Instant,
     elapsedRealtimeMs: Long,
     attributes: Map<String, String>,
+    trafficCounters: TelemetryManager.TrafficCounters? = null,
 ): TelemetryEvent? {
     val relayId = session.relayId ?: return null
     val connectedElapsedMs = session.connectedElapsedMs ?: return null
@@ -260,6 +301,6 @@ internal fun buildSessionHeartbeat(
         measurements = mapOf(
             "session_duration_ms" to (elapsedRealtimeMs - session.startedElapsedMs).coerceAtLeast(0),
             "connected_duration_ms" to (elapsedRealtimeMs - connectedElapsedMs).coerceAtLeast(0),
-        ),
+        ) + (trafficCounters?.measurements() ?: emptyMap()),
     )
 }

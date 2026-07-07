@@ -12,15 +12,22 @@ import android.util.Log
 import com.openrung.model.RelayDescriptor
 import com.openrung.state.OpenRungStatusStore
 import com.openrung.telemetry.TelemetryManager
+import io.nekohasekai.libbox.CommandClient
+import io.nekohasekai.libbox.CommandClientHandler
+import io.nekohasekai.libbox.CommandClientOptions
 import io.nekohasekai.libbox.CommandServer
 import io.nekohasekai.libbox.CommandServerHandler
+import io.nekohasekai.libbox.ConnectionEvents
 import io.nekohasekai.libbox.ConnectionOwner
 import io.nekohasekai.libbox.InterfaceUpdateListener
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.libbox.LocalDNSTransport
+import io.nekohasekai.libbox.LogIterator
 import io.nekohasekai.libbox.NeighborUpdateListener
 import io.nekohasekai.libbox.NetworkInterfaceIterator
 import io.nekohasekai.libbox.Notification
+import io.nekohasekai.libbox.OutboundGroupItemIterator
+import io.nekohasekai.libbox.OutboundGroupIterator
 import io.nekohasekai.libbox.OverrideOptions
 import io.nekohasekai.libbox.PlatformInterface
 import io.nekohasekai.libbox.PlatformUser
@@ -28,6 +35,7 @@ import io.nekohasekai.libbox.RoutePrefix
 import io.nekohasekai.libbox.RoutePrefixIterator
 import io.nekohasekai.libbox.SetupOptions
 import io.nekohasekai.libbox.ShellSession
+import io.nekohasekai.libbox.StatusMessage
 import io.nekohasekai.libbox.StringIterator
 import io.nekohasekai.libbox.SystemProxyStatus
 import io.nekohasekai.libbox.TunOptions
@@ -79,6 +87,7 @@ class StubProxyEngine : ProxyEngine {
 
 class LibboxProxyEngine : ProxyEngine {
     private var commandServer: CommandServer? = null
+    private var statusClient: CommandClient? = null
     private var tunFd: ParcelFileDescriptor? = null
 
     override suspend fun start(
@@ -109,14 +118,72 @@ class LibboxProxyEngine : ProxyEngine {
         server.start()
         server.startOrReloadService(configJson, OverrideOptions())
         commandServer = server
+        statusClient = connectStatusClient()
+    }
+
+    /**
+     * Subscribes to the in-process libbox status stream, whose messages carry the tunnel's
+     * cumulative uplink/downlink byte counters (enabled by the clash_api traffic accounting in
+     * the sing-box config). Best-effort: if the subscription fails, sessions simply omit the
+     * bytes_sent/bytes_received telemetry measurements.
+     */
+    private fun connectStatusClient(): CommandClient? {
+        val options = CommandClientOptions().apply {
+            addCommand(Libbox.CommandStatus)
+            statusInterval = STATUS_INTERVAL_NS
+        }
+        val client = CommandClient(TrafficStatusHandler(), options)
+        return runCatching { client.connect() }
+            .map { client }
+            .onFailure { Log.w(LOG_TAG, "libbox status client connect failed", it) }
+            .getOrNull()
     }
 
     override fun stop() {
+        runCatching { statusClient?.disconnect() }
+        statusClient = null
         runCatching { commandServer?.closeService() }
         runCatching { commandServer?.close() }
         commandServer = null
         runCatching { tunFd?.close() }
         tunFd = null
+    }
+
+    companion object {
+        /** Status push interval, a Go time.Duration in nanoseconds. */
+        private const val STATUS_INTERVAL_NS = 3_000_000_000L
+    }
+}
+
+/** Receives libbox status pushes and forwards the tunnel's traffic counters to telemetry. */
+private class TrafficStatusHandler : CommandClientHandler {
+    override fun connected() = Unit
+
+    override fun disconnected(message: String?) = Unit
+
+    override fun clearLogs() = Unit
+
+    override fun initializeClashMode(modeList: StringIterator?, currentMode: String?) = Unit
+
+    override fun setDefaultLogLevel(level: Int) = Unit
+
+    override fun updateClashMode(newMode: String?) = Unit
+
+    override fun writeConnectionEvents(events: ConnectionEvents?) = Unit
+
+    override fun writeGroups(groups: OutboundGroupIterator?) = Unit
+
+    override fun writeLogs(messages: LogIterator?) = Unit
+
+    override fun writeOutbounds(outbounds: OutboundGroupItemIterator?) = Unit
+
+    override fun writeStatus(message: StatusMessage?) {
+        val status = message ?: return
+        if (!status.trafficAvailable) return
+        TelemetryManager.updateTrafficCounters(
+            bytesSent = status.uplinkTotal,
+            bytesReceived = status.downlinkTotal,
+        )
     }
 }
 

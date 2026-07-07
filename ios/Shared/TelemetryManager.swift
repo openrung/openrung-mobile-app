@@ -4,6 +4,12 @@ import Foundation
 /// Usable from both processes — the extension drives the connection lifecycle/heartbeat, the app
 /// records speed-test results. Port of Android `TelemetryManager`.
 enum TelemetryManager {
+    /// Traffic counters for the active session, kept in memory only: the engine, the heartbeat
+    /// loop, and endSession all run in the packet tunnel extension, so nothing needs to cross
+    /// the app-group boundary (the app process never reports these measurements).
+    private static let trafficLock = NSLock()
+    private static var sessionTraffic: TrafficCounters?
+
     static func clientId() -> String {
         ClientIdentity.getOrCreate()
     }
@@ -16,8 +22,34 @@ enum TelemetryManager {
             brokerURL: brokerURL,
             startedElapsedMs: MonotonicClock.nowMs()
         )
+        resetTrafficCounters()
         TelemetrySessionStore.save(session)
         return session
+    }
+
+    /// Records the tunnel's traffic counters for the active session. Reported values must be
+    /// cumulative since the engine started; the high-water mark is kept so a counter reset
+    /// (engine restart) never regresses what the session already reported.
+    /// Port of Android `TelemetryManager.updateTrafficCounters`.
+    static func updateTrafficCounters(bytesSent: Int64, bytesReceived: Int64) {
+        trafficLock.lock()
+        defer { trafficLock.unlock() }
+        sessionTraffic = TrafficCounters(
+            bytesSent: max(bytesSent, sessionTraffic?.bytesSent ?? 0),
+            bytesReceived: max(bytesReceived, sessionTraffic?.bytesReceived ?? 0)
+        )
+    }
+
+    private static func trafficCounters() -> TrafficCounters? {
+        trafficLock.lock()
+        defer { trafficLock.unlock() }
+        return sessionTraffic
+    }
+
+    private static func resetTrafficCounters() {
+        trafficLock.lock()
+        defer { trafficLock.unlock() }
+        sessionTraffic = nil
     }
 
     static func activeSession() -> TelemetrySession? {
@@ -71,7 +103,11 @@ enum TelemetryManager {
         if let connected = session.connectedElapsedMs {
             measurements["connection_duration_ms"] = max(now - connected, 0)
         }
+        if let traffic = trafficCounters() {
+            measurements.merge(traffic.measurements()) { _, new in new }
+        }
         record("connection_ended", relayId: session.relayId, attributes: ["reason": reason], measurements: measurements)
+        resetTrafficCounters()
         TelemetrySessionStore.save(nil)
     }
 
@@ -102,7 +138,8 @@ enum TelemetryManager {
             session: session,
             occurredAt: iso8601Now(),
             elapsedRealtimeMs: MonotonicClock.nowMs(),
-            attributes: attributes
+            attributes: attributes,
+            trafficCounters: trafficCounters()
         ) else { return }
 
         let queued = TelemetryOutbox.peek(max: TelemetryOutboxState.uploadBatchSize - 1)
