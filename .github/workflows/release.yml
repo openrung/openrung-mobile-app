@@ -1,0 +1,147 @@
+name: Release Android APK
+
+# Version-gated: runs on every push to main, but only builds + publishes a GitHub
+# Release when package.json's version CHANGED in that push (i.e. a version-bump PR
+# merged). A normal bug-fix merge that doesn't touch the version is a no-op.
+#
+# Security: this triggers only on `push` to main (never `pull_request`), so fork PRs
+# cannot run it or reach the signing secrets. Keep it that way.
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release-android
+  cancel-in-progress: false
+
+jobs:
+  detect-version-bump:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.check.outputs.changed }}
+      version: ${{ steps.check.outputs.version }}
+      version_code: ${{ steps.check.outputs.version_code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: check
+        run: |
+          new=$(node -p "require('./package.json').version")
+          version_code=$(grep -m1 -E 'versionCode[[:space:]]+[0-9]+' android/app/build.gradle | grep -oE '[0-9]+' | head -1)
+          before="${{ github.event.before }}"
+          old=""
+          if [ -n "$before" ] && [ "$before" != "0000000000000000000000000000000000000000" ]; then
+            if git show "$before:package.json" > /tmp/old-package.json 2>/dev/null; then
+              old=$(node -p "require('/tmp/old-package.json').version || ''" 2>/dev/null || echo "")
+            fi
+          fi
+          echo "version=$new" >> "$GITHUB_OUTPUT"
+          echo "version_code=$version_code" >> "$GITHUB_OUTPUT"
+          if [ "$new" != "$old" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Version bump detected: '${old:-none}' -> '$new' (build $version_code) — releasing."
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Version unchanged ($new) — no release."
+          fi
+
+  release:
+    needs: detect-version-bump
+    if: needs.detect-version-bump.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the tag + GitHub Release
+    env:
+      VERSION: ${{ needs.detect-version-bump.outputs.version }}
+      VERSION_CODE: ${{ needs.detect-version-bump.outputs.version_code }}
+      ASSET: openrung-mobile-${{ needs.detect-version-bump.outputs.version }}-${{ needs.detect-version-bump.outputs.version_code }}-release.apk
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - uses: android-actions/setup-android@v3
+      - name: Install NDK 29.0.14206865
+        run: sdkmanager "ndk;29.0.14206865"
+
+      # libbox.aar is the GPL corresponding-source pinned in SINGBOX_VERSION and built
+      # out of tree (Go + gomobile + NDK). Cache it so it only rebuilds when sing-box
+      # is bumped — otherwise the ~5-10 min build runs every release.
+      - name: Cache libbox.aar
+        id: libbox
+        uses: actions/cache@v4
+        with:
+          path: android/app/libs/libbox.aar
+          key: libbox-${{ hashFiles('SINGBOX_VERSION') }}
+      - name: Build libbox.aar
+        if: steps.libbox.outputs.cache-hit != 'true'
+        run: bash android/build-libbox-release.sh
+
+      - name: Decode upload keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.OPENRUNG_UPLOAD_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::OPENRUNG_UPLOAD_KEYSTORE_BASE64 secret is not set — cannot sign the release."
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | base64 --decode > android/app/upload.keystore
+
+      - name: Build signed release APK
+        working-directory: android
+        env:
+          ORG_GRADLE_PROJECT_OPENRUNG_UPLOAD_STORE_FILE: upload.keystore
+          ORG_GRADLE_PROJECT_OPENRUNG_UPLOAD_STORE_PASSWORD: ${{ secrets.OPENRUNG_UPLOAD_STORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_OPENRUNG_UPLOAD_KEY_ALIAS: ${{ secrets.OPENRUNG_UPLOAD_KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_OPENRUNG_UPLOAD_KEY_PASSWORD: ${{ secrets.OPENRUNG_UPLOAD_KEY_PASSWORD }}
+        run: ./gradlew :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Verify signing (must be the real upload key, not the debug key)
+        run: |
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          certs=$("$BT/apksigner" verify --print-certs android/app/build/outputs/apk/release/app-release.apk)
+          echo "$certs" | grep -i "certificate DN"
+          echo "$certs" | grep -qi "CN=OpenRung" || { echo "::error::APK is not signed with the OpenRung upload key"; exit 1; }
+
+      - name: Stage APK asset
+        run: cp android/app/build/outputs/apk/release/app-release.apk "$ASSET"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: v${{ env.VERSION }} (build ${{ env.VERSION_CODE }})
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: ${{ env.ASSET }}
+
+      # Optional: mirror to Cloudflare R2, but only if the token secret is configured.
+      # No-op (not a failure) when CLOUDFLARE_API_TOKEN is absent.
+      - name: Mirror to Cloudflare R2
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "CLOUDFLARE_API_TOKEN not set — skipping R2 mirror."
+            exit 0
+          fi
+          npx --yes wrangler@4 r2 object put \
+            "openrung-downloads/android/$ASSET" \
+            --file "$ASSET" \
+            --content-type application/vnd.android.package-archive \
+            --remote
