@@ -88,3 +88,10 @@ ios/ThirdParty/Libbox.xcframework/
 
 # Claude Code
 .claude/
+
+# design-sync (claude.ai/design) — scratch + build output, never committed
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules
