@@ -113,6 +113,13 @@ public struct SingBoxConfiguration: Equatable, Sendable {
                     ]
                 ],
                 "final": "proxy"
+            ],
+            "experimental": [
+                // No external_controller is set, so nothing listens; an empty clash_api
+                // block just turns on sing-box's traffic accounting, which feeds the
+                // cumulative bytes_sent/bytes_received counters reported with session
+                // telemetry (see TelemetryManager.updateTrafficCounters).
+                "clash_api": [String: Any]()
             ]
         ]
     }

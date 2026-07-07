@@ -18,8 +18,12 @@ import Libbox
 final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
     private let logger = Logger(subsystem: AppConfig.loggingSubsystem, category: "EmbeddedProxyEngine")
     private var commandServer: LibboxCommandServer?
+    private var statusClient: LibboxCommandClient?
     private var platformInterface: LibboxPacketTunnelPlatformInterface?
     private var activeRelay: RelayDescriptor?
+
+    /// Status push interval, a Go time.Duration in nanoseconds.
+    private static let statusIntervalNs: Int64 = 3_000_000_000
 
     func start(relay: RelayDescriptor, tunnelProvider: NEPacketTunnelProvider) async throws {
         activeRelay = relay
@@ -77,10 +81,34 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
 
         self.platformInterface = platformInterface
         self.commandServer = commandServer
+        statusClient = connectStatusClient()
         logger.info("libbox started for relay \(relay.id, privacy: .public)")
     }
 
+    /// Subscribes to the in-process libbox status stream, whose messages carry the tunnel's
+    /// cumulative uplink/downlink byte counters (enabled by the clash_api traffic accounting in
+    /// the sing-box config). Best-effort: if the subscription fails, sessions simply omit the
+    /// bytes_sent/bytes_received telemetry measurements.
+    private func connectStatusClient() -> LibboxCommandClient? {
+        let options = LibboxCommandClientOptions()
+        options.addCommand(LibboxCommandStatus)
+        options.statusInterval = Self.statusIntervalNs
+        guard let client = LibboxNewCommandClient(TrafficStatusHandler(), options) else {
+            logger.warning("Unable to create libbox status client; session traffic will not be reported")
+            return nil
+        }
+        do {
+            try client.connect()
+        } catch {
+            logger.warning("libbox status client connect failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+        return client
+    }
+
     func stop() {
+        try? statusClient?.disconnect()
+        statusClient = nil
         try? commandServer?.closeService()
         commandServer?.close()
         platformInterface?.reset()
@@ -111,6 +139,37 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
         TunnelDiagnostics.recordEvent("Using libbox command server port \(port)")
         logger.info("Using libbox command server port \(port, privacy: .public)")
         return port
+    }
+}
+
+/// Receives libbox status pushes and forwards the tunnel's traffic counters to telemetry.
+private final class TrafficStatusHandler: NSObject, LibboxCommandClientHandlerProtocol {
+    func connected() {}
+
+    func disconnected(_ message: String?) {}
+
+    func clearLogs() {}
+
+    func initializeClashMode(_ modeList: (any LibboxStringIteratorProtocol)?, currentMode: String?) {}
+
+    func setDefaultLogLevel(_ level: Int32) {}
+
+    func updateClashMode(_ newMode: String?) {}
+
+    func write(_ events: LibboxConnectionEvents?) {}
+
+    func writeGroups(_ message: (any LibboxOutboundGroupIteratorProtocol)?) {}
+
+    func writeLogs(_ messageList: (any LibboxLogIteratorProtocol)?) {}
+
+    func writeOutbounds(_ message: (any LibboxOutboundGroupItemIteratorProtocol)?) {}
+
+    func writeStatus(_ message: LibboxStatusMessage?) {
+        guard let message, message.trafficAvailable else { return }
+        TelemetryManager.updateTrafficCounters(
+            bytesSent: message.uplinkTotal,
+            bytesReceived: message.downlinkTotal
+        )
     }
 }
 
