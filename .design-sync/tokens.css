@@ -1,0 +1,46 @@
+/* OpenRung terminal theme — hand-generated from src/theme.ts (palette +
+   tokens; hex-for-hex with the production Compose UI). The components carry
+   these values inline via react-native-web StyleSheet; the custom properties
+   below are for layout glue written AROUND the components in designs. */
+:root {
+  /* palette */
+  --or-screen: #030604;
+  --or-panel: #07110B;
+  --or-border-dim: #294F35;
+  --or-terminal-green: #65F58A;
+  --or-body-text: #D8FFE0;
+  --or-dim-text: #7DA989;
+  --or-relay-line: #A5F2B5;
+  --or-connected-button: #B6F579;
+  --or-on-green-text: #061008;
+  --or-console-error: #FFA0A0;
+  --or-chip-failed-text: #FFC0C0;
+  --or-chip-background: rgba(7, 17, 11, 0.8);
+  --or-fab-background: #0D1C12;
+  --or-fab-content: #65F58A;
+  --or-marker-stroke: #04140A;
+
+  /* product tokens */
+  --or-glass: rgba(7, 17, 11, 0.86);
+  --or-glass-dense: rgba(3, 6, 4, 0.92);
+  --or-glass-border: rgba(41, 79, 53, 0.9);
+  --or-glow: rgba(101, 245, 138, 0.55);
+  --or-glow-soft: rgba(101, 245, 138, 0.25);
+  --or-working: #EAF565;
+  --or-radius-sm: 10px;
+  --or-radius-md: 16px;
+  --or-radius-lg: 22px;
+  --or-tab-bar-height: 62px;
+  --or-edge: 20px;
+
+  /* every text element in the app is monospace */
+  --or-mono: Menlo, Consolas, 'Liberation Mono', monospace;
+}
+
+/* The app is terminal-green-on-black: designs built with this DS sit on the
+   near-black screen background with monospace text by default. */
+body {
+  background: var(--or-screen);
+  color: var(--or-body-text);
+  font-family: var(--or-mono);
+}

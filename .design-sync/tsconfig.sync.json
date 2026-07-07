@@ -1,0 +1,14 @@
+{
+  // Module aliases for the design-sync web bundle ONLY (cfg.tsconfig feeds
+  // the converter's esbuild paths plugin). Never used by the app's tsc.
+  "compilerOptions": {
+    "baseUrl": "..",
+    "paths": {
+      "react-native": ["./.design-sync/web-shims/react-native-web.ts"],
+      "react-native-svg": ["./.design-sync/web-shims/react-native-svg.ts"],
+      "react-native-safe-area-context": ["./.design-sync/web-shims/safe-area-context.tsx"],
+      "@react-native-async-storage/async-storage": ["./.design-sync/web-shims/async-storage.ts"],
+      "@maplibre/maplibre-react-native": ["./.design-sync/web-shims/maplibre.tsx"]
+    }
+  }
+}
