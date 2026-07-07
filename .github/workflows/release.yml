@@ -4,11 +4,15 @@ name: Release Android APK
 # Release when package.json's version CHANGED in that push (i.e. a version-bump PR
 # merged). A normal bug-fix merge that doesn't touch the version is a no-op.
 #
-# Security: this triggers only on `push` to main (never `pull_request`), so fork PRs
-# cannot run it or reach the signing secrets. Keep it that way.
+# Security: this triggers only on `push` to main and manual `workflow_dispatch` (never
+# `pull_request`), so fork PRs cannot run it or reach the signing secrets. Keep it that way.
 on:
   push:
     branches: [main]
+  # Manual re-run — e.g. to retry a release that failed in CI without bumping the version.
+  # On workflow_dispatch there is no `before` commit, so the version check treats it as a
+  # release of whatever version main currently holds.
+  workflow_dispatch: {}
 
 concurrency:
   group: release-android
@@ -87,6 +91,14 @@ jobs:
         with:
           path: android/app/libs/libbox.aar
           key: libbox-${{ hashFiles('SINGBOX_VERSION') }}
+      # sing-box's build_libbox execs $GOPATH/bin/{gomobile,gobind} and aborts with
+      # "missing gomobile installation" if they're absent. Install the exact fork + version
+      # sing-box pins (github.com/sagernet/gomobile — see its go.mod).
+      - name: Install gomobile
+        if: steps.libbox.outputs.cache-hit != 'true'
+        run: |
+          go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.12
+          go install github.com/sagernet/gomobile/cmd/gobind@v0.1.12
       - name: Build libbox.aar
         if: steps.libbox.outputs.cache-hit != 'true'
         run: bash android/build-libbox-release.sh
