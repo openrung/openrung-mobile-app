@@ -79,8 +79,11 @@ jobs:
           go-version: stable
 
       - uses: android-actions/setup-android@v3
-      - name: Install NDK 29.0.14206865
-        run: sdkmanager "ndk;29.0.14206865"
+      # Two NDKs are needed: 29.0.14206865 to LINK the prebuilt libcronet.a inside libbox
+      # (older lld rejects its relocations), and 27.1.12297006 for the Gradle APK build
+      # (android/build.gradle pins ndkVersion). The runner's default NDK is neither.
+      - name: Install NDKs
+        run: sdkmanager "ndk;29.0.14206865" "ndk;27.1.12297006"
 
       # libbox.aar is the GPL corresponding-source pinned in SINGBOX_VERSION and built
       # out of tree (Go + gomobile + NDK). Cache it so it only rebuilds when sing-box
@@ -99,9 +102,15 @@ jobs:
         run: |
           go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.12
           go install github.com/sagernet/gomobile/cmd/gobind@v0.1.12
+      # Force NDK 29 for the libbox link. The runner pre-sets ANDROID_NDK_HOME to an older
+      # NDK, which the script's ${VAR:-default} would otherwise keep — and that older lld
+      # fails on libcronet.a with "unknown relocation".
       - name: Build libbox.aar
         if: steps.libbox.outputs.cache-hit != 'true'
-        run: bash android/build-libbox-release.sh
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/29.0.14206865"
+          export ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/29.0.14206865"
+          bash android/build-libbox-release.sh
 
       - name: Decode upload keystore
         env:
