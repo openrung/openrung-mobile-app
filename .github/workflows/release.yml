@@ -138,8 +138,14 @@ jobs:
           echo "$certs" | grep -i "certificate DN"
           echo "$certs" | grep -qi "CN=OpenRung" || { echo "::error::APK is not signed with the OpenRung upload key"; exit 1; }
 
-      - name: Stage APK asset
-        run: cp android/app/build/outputs/apk/release/app-release.apk "$ASSET"
+      # Two names: a versioned asset for history, and a STABLE openrung-android.apk so that
+      # https://github.com/openrung/openrung-mobile-app/releases/latest/download/openrung-android.apk
+      # is a permanent link that always serves the newest release (used by the openrung.org
+      # download button, which lives in the separate openrung/openrung repo).
+      - name: Stage APK assets
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk "$ASSET"
+          cp android/app/build/outputs/apk/release/app-release.apk openrung-android.apk
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -148,7 +154,9 @@ jobs:
           name: v${{ env.VERSION }} (build ${{ env.VERSION_CODE }})
           generate_release_notes: true
           fail_on_unmatched_files: true
-          files: ${{ env.ASSET }}
+          files: |
+            ${{ env.ASSET }}
+            openrung-android.apk
 
       # Optional: mirror to Cloudflare R2, but only if the token secret is configured.
       # No-op (not a failure) when CLOUDFLARE_API_TOKEN is absent.
@@ -164,5 +172,10 @@ jobs:
           npx --yes wrangler@4 r2 object put \
             "openrung-downloads/android/$ASSET" \
             --file "$ASSET" \
+            --content-type application/vnd.android.package-archive \
+            --remote
+          npx --yes wrangler@4 r2 object put \
+            "openrung-downloads/android/openrung-android.apk" \
+            --file openrung-android.apk \
             --content-type application/vnd.android.package-archive \
             --remote
