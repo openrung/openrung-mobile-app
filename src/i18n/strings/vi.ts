@@ -53,4 +53,64 @@ export const vi: Partial<Strings> = {
   telemetryLocationsLabel: 'địa điểm',
   telemetryCountriesLabel: 'quốc gia',
   telemetryUptimeLabel: 'thời lượng',
+
+  // Content description (open action).
+  openContentDescription: 'Mở',
+
+  // Volunteer speed test (diagnostics).
+  speedTestSettingTitle: 'Kiểm tra tốc độ relay tình nguyện',
+  speedTestReady: 'Tải xuống 10 MB qua relay tình nguyện đang hoạt động và báo cáo kết quả.',
+  speedTestRequiresConnection: 'Kết nối với relay tình nguyện trước khi chạy kiểm tra tốc độ.',
+  speedTestRunning: 'Đang kiểm tra tốc độ tải xuống qua relay tình nguyện…',
+  speedTestResult: (mbps: number) => `Tốc độ tải xuống: ${mbps.toFixed(1)} Mbps`,
+  speedTestError: (error: string) => `Kiểm tra tốc độ thất bại: ${error}`,
+  speedTestAction: 'CHẠY',
+
+  // Map and list views (exit nodes).
+  mapContentDescription:
+    'Bản đồ các nút thoát tình nguyện khả dụng khắp khu vực Châu Á - Thái Bình Dương',
+  mapLoading: 'đang định vị các nút thoát khả dụng…',
+  mapFailed: 'không tải được các nút thoát — nhấn để thử lại',
+  mapNodesAvailable: (count: number) => `${count} địa điểm khả dụng`,
+  mapNoNodes: 'hiện không có nút thoát nào khả dụng',
+  recentsLabel: 'Gần đây',
+  recentsEmpty: 'Chưa có địa điểm gần đây.',
+  viewToggleMap: 'Bản đồ',
+  viewToggleList: 'Danh sách',
+  listContentDescription: 'Danh sách các nút thoát tình nguyện khả dụng',
+  listRelayCount: (count: number) => (count === 1 ? '1 relay' : `${count} relay`),
+
+  // Debug console (diagnostics).
+  debugSettingTitle: 'Gỡ lỗi',
+  debugSettingSubtitle: 'Bảng điều khiển kết nối và chẩn đoán.',
+  debugTitle: 'Bảng điều khiển gỡ lỗi',
+
+  // Open-source licenses.
+  licensesSettingTitle: 'Giấy phép nguồn mở',
+  licensesSettingSubtitle: 'Giấy phép và ghi công cho phần mềm đi kèm.',
+  licensesTitle: 'Giấy phép nguồn mở',
+  licensesIntro:
+    'OpenRung là phần mềm tự do được cấp phép theo GPL-3.0-or-later vì nó liên kết sing-box. Toàn bộ mã nguồn tương ứng của bản dựng này có sẵn tại liên kết bên dưới.',
+  licensesSourceTitle: 'Mã nguồn',
+  licensesFullTextTitle: 'Toàn văn giấy phép',
+  licensesFullTextSubtitle: 'GNU GPL-3.0 và thông báo của bên thứ ba.',
+  licensesComponentsHeader: 'Thành phần',
+
+  // Home overlay and about screen.
+  homeTagline: 'mạng lưới relay tình nguyện',
+  aboutMissionBody:
+    'OpenRung định tuyến lưu lượng của bạn qua các relay do tình nguyện viên khắp thế giới vận hành, giữ cho internet mở luôn truy cập được khi mạng bị lọc chặn. Không tài khoản, không quảng cáo, không theo dõi — chỉ là những người chia sẻ băng thông.',
+  aboutHowHeader: 'Cách hoạt động',
+  aboutProjectHeader: 'Dự án',
+  aboutHow1Title: 'Tình nguyện viên chia sẻ băng thông',
+  aboutHow1Body:
+    'Mọi người khắp nơi vận hành các nút relay nhỏ trên kết nối của chính họ và đăng ký chúng với mạng lưới.',
+  aboutHow2Title: 'Bộ điều phối tìm relay cho bạn',
+  aboutHow2Body:
+    'Khi bạn kết nối, bộ điều phối trao cho thiết bị của bạn một danh sách ngắn các relay khỏe mạnh và ứng dụng chọn relay đầu tiên phản hồi.',
+  aboutHow3Title: 'Lưu lượng đi qua đường hầm mã hóa',
+  aboutHow3Body:
+    'Mọi thứ đều đi qua một đường hầm VLESS/REALITY trông như TLS thông thường, và VPN ở chế độ fail-closed: không có relay, không có lưu lượng.',
+  aboutFootnote:
+    'OpenRung là phần mềm tự do (GPL-3.0-or-later). Được xây dựng bởi tình nguyện viên, cho mọi người.',
 };

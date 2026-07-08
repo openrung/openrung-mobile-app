@@ -53,4 +53,67 @@ export const fa: Partial<Strings> = {
   telemetryLocationsLabel: 'مکان‌ها',
   telemetryCountriesLabel: 'کشورها',
   telemetryUptimeLabel: 'مدت اتصال',
+
+  // Content descriptions.
+  openContentDescription: 'باز کردن',
+
+  // Volunteer speed test.
+  speedTestSettingTitle: 'تست سرعت داوطلب',
+  speedTestReady: 'از طریق رله داوطلب فعال، 10 MB دانلود می‌کند و نتیجه را گزارش می‌دهد.',
+  speedTestRequiresConnection: 'پیش از اجرای تست سرعت، به یک رله داوطلب متصل شوید.',
+  speedTestRunning: 'در حال تست سرعت دانلود از طریق رله داوطلب…',
+  speedTestResult: (mbps: number) => `سرعت دانلود: ${mbps.toFixed(1)} Mbps`,
+  speedTestError: (error: string) => `تست سرعت ناموفق بود: ${error}`,
+  speedTestAction: 'اجرا',
+
+  // Map view (exit nodes).
+  mapContentDescription: 'نقشهٔ گره‌های خروجی داوطلب موجود در سراسر منطقهٔ آسیا-اقیانوسیه',
+  mapLoading: 'در حال یافتن گره‌های خروجی موجود…',
+  mapFailed: 'بارگذاری گره‌های خروجی ناموفق بود — برای تلاش دوباره ضربه بزنید',
+  mapNodesAvailable: (count: number) => `${count} مکان موجود`,
+  mapNoNodes: 'در حال حاضر هیچ گره خروجی موجود نیست',
+
+  // Recent locations.
+  recentsLabel: 'اخیر',
+  recentsEmpty: 'هنوز مکان اخیری وجود ندارد.',
+
+  // Map / list toggle.
+  viewToggleMap: 'نقشه',
+  viewToggleList: 'فهرست',
+  listContentDescription: 'فهرست گره‌های خروجی داوطلب موجود',
+  listRelayCount: (count: number) => (count === 1 ? '1 رله' : `${count} رله`),
+
+  // Debug console.
+  debugSettingTitle: 'اشکال‌زدایی',
+  debugSettingSubtitle: 'کنسول اتصال و عیب‌یابی.',
+  debugTitle: 'کنسول اشکال‌زدایی',
+
+  // Open-source licenses.
+  licensesSettingTitle: 'مجوزهای متن‌باز',
+  licensesSettingSubtitle: 'مجوزها و ذکر منبع برای نرم‌افزارهای همراه.',
+  licensesTitle: 'مجوزهای متن‌باز',
+  licensesIntro:
+    'OpenRung نرم‌افزار آزاد است و چون به sing-box پیوند می‌خورد، تحت مجوز GPL-3.0-or-later منتشر شده است. کد منبع کامل و متناظر این نسخه از طریق پیوند زیر در دسترس است.',
+  licensesSourceTitle: 'کد منبع',
+  licensesFullTextTitle: 'متن کامل مجوزها',
+  licensesFullTextSubtitle: 'GNU GPL-3.0 و اعلان‌های اشخاص ثالث.',
+  licensesComponentsHeader: 'مؤلفه‌ها',
+
+  // Home tagline + about screen.
+  homeTagline: 'شبکهٔ رله‌های داوطلب',
+  aboutMissionBody:
+    'OpenRung ترافیک شما را از طریق رله‌هایی که داوطلبان در سراسر جهان اجرا می‌کنند هدایت می‌کند و دسترسی به اینترنت آزاد را هنگام فیلتر شدن شبکه‌ها حفظ می‌کند. بدون حساب کاربری، بدون تبلیغات، بدون ردیابی — فقط مردمی که پهنای باند خود را به اشتراک می‌گذارند.',
+  aboutHowHeader: 'چگونه کار می‌کند',
+  aboutProjectHeader: 'پروژه',
+  aboutHow1Title: 'داوطلبان پهنای باند را به اشتراک می‌گذارند',
+  aboutHow1Body:
+    'مردم در همه‌جا گره‌های رلهٔ کوچکی را روی اتصال‌های خود اجرا می‌کنند و آن‌ها را در شبکه ثبت می‌کنند.',
+  aboutHow2Title: 'کارگزار رلهٔ شما را پیدا می‌کند',
+  aboutHow2Body:
+    'هنگامی که متصل می‌شوید، کارگزار فهرست کوتاهی از رله‌های سالم را به دستگاه شما می‌دهد و برنامه اولین رله‌ای را که پاسخ دهد انتخاب می‌کند.',
+  aboutHow3Title: 'ترافیک از یک تونل رمزنگاری‌شده عبور می‌کند',
+  aboutHow3Body:
+    'همه‌چیز از طریق یک تونل VLESS/REALITY جریان می‌یابد که شبیه TLS معمولی به نظر می‌رسد، و VPN در حالت fail-closed است: بدون رله، بدون ترافیک.',
+  aboutFootnote:
+    'OpenRung نرم‌افزار آزاد است (GPL-3.0-or-later). ساخته‌شده توسط داوطلبان، برای همه.',
 };

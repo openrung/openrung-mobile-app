@@ -55,4 +55,77 @@ export const my: Partial<Strings> = {
   telemetryLocationsLabel: 'တည်နေရာ',
   telemetryCountriesLabel: 'နိုင်ငံ',
   telemetryUptimeLabel: 'ကြာချိန်',
+
+  // Open action (accessibility).
+  openContentDescription: 'ဖွင့်ရန်',
+
+  // Volunteer speed test.
+  speedTestSettingTitle: 'စေတနာ့ဝန်ထမ်း အမြန်နှုန်း စမ်းသပ်ခြင်း',
+  speedTestReady:
+    'လက်ရှိ စေတနာ့ဝန်ထမ်း ရီလေးမှတစ်ဆင့် 10 MB ကို ဒေါင်းလုဒ်လုပ်ပြီး ရလဒ်ကို ဖော်ပြပါ။',
+  speedTestRequiresConnection:
+    'အမြန်နှုန်း စမ်းသပ်မှု မလုပ်မီ စေတနာ့ဝန်ထမ်း ရီလေးတစ်ခုသို့ ချိတ်ဆက်ပါ။',
+  speedTestRunning:
+    'စေတနာ့ဝန်ထမ်း ရီလေးမှတစ်ဆင့် ဒေါင်းလုဒ် အမြန်နှုန်းကို စမ်းသပ်နေသည်…',
+  speedTestResult: (mbps: number) => `ဒေါင်းလုဒ် အမြန်နှုန်း: ${mbps.toFixed(1)} Mbps`,
+  speedTestError: (error: string) => `အမြန်နှုန်း စမ်းသပ်မှု မအောင်မြင်ပါ: ${error}`,
+  speedTestAction: 'စမ်းသပ်မည်',
+
+  // Map view (exit nodes).
+  mapContentDescription:
+    'အာရှ-ပစိဖိတ် ဒေသတစ်ဝှမ်းရှိ ရနိုင်သော စေတနာ့ဝန်ထမ်း ထွက်ပေါက်ဆုံမှတ်များ၏ မြေပုံ',
+  mapLoading: 'ရနိုင်သော ထွက်ပေါက်ဆုံမှတ်များကို ရှာဖွေနေသည်…',
+  mapFailed: 'ထွက်ပေါက်ဆုံမှတ်များ ရယူ၍မရပါ — ပြန်စမ်းရန် တို့ပါ',
+  mapNodesAvailable: (count: number) => `တည်နေရာ ${count} ခု ရနိုင်သည်`,
+  mapNoNodes: 'ယခုအချိန်တွင် ထွက်ပေါက်ဆုံမှတ် မရနိုင်ပါ',
+
+  // Recent locations.
+  recentsLabel: 'မကြာသေးမီက',
+  recentsEmpty: 'မကြာသေးမီက တည်နေရာများ မရှိသေးပါ။',
+
+  // Map / list view toggle.
+  viewToggleMap: 'မြေပုံ',
+  viewToggleList: 'စာရင်း',
+
+  // List view (exit nodes).
+  listContentDescription:
+    'ရနိုင်သော စေတနာ့ဝန်ထမ်း ထွက်ပေါက်ဆုံမှတ်များ၏ စာရင်း',
+  listRelayCount: (count: number) => (count === 1 ? 'ရီလေး 1 ခု' : `ရီလေး ${count} ခု`),
+
+  // Debug console.
+  debugSettingTitle: 'အမှားရှာဖွေခြင်း',
+  debugSettingSubtitle: 'ချိတ်ဆက်မှု ကွန်ဆိုးလ်နှင့် စစ်ဆေးမှုများ။',
+  debugTitle: 'အမှားရှာဖွေရေး ကွန်ဆိုးလ်',
+
+  // Open-source licenses.
+  licensesSettingTitle: 'ပွင့်လင်းအရင်းအမြစ် လိုင်စင်များ',
+  licensesSettingSubtitle:
+    'ပါဝင်သော ဆော့ဖ်ဝဲအတွက် လိုင်စင်များနှင့် ကျေးဇူးတင်လွှာ။',
+  licensesTitle: 'ပွင့်လင်းအရင်းအမြစ် လိုင်စင်များ',
+  licensesIntro:
+    'OpenRung သည် sing-box ကို ချိတ်ဆက်အသုံးပြုသောကြောင့် GPL-3.0-or-later အောက်တွင် လိုင်စင်ရရှိထားသော အခမဲ့ဆော့ဖ်ဝဲ ဖြစ်သည်။ ဤ build အတွက် ပြည့်စုံသော သက်ဆိုင်ရာ အရင်းအမြစ်ကုဒ်ကို အောက်ပါ လင့်ခ်တွင် ရယူနိုင်သည်။',
+  licensesSourceTitle: 'အရင်းအမြစ်ကုဒ်',
+  licensesFullTextTitle: 'လိုင်စင် စာသားအပြည့်အစုံ',
+  licensesFullTextSubtitle: 'GNU GPL-3.0 နှင့် ပြင်ပ အသိပေးချက်များ။',
+  licensesComponentsHeader: 'အစိတ်အပိုင်းများ',
+
+  // Home overlay tagline.
+  homeTagline: 'စေတနာ့ဝန်ထမ်း ရီလေး ကွန်ရက်',
+
+  // About screen (mission / how it works / project).
+  aboutMissionBody:
+    'OpenRung သည် ကမ္ဘာတစ်ဝှမ်းရှိ စေတနာ့ဝန်ထမ်းများ လည်ပတ်သော ရီလေးများမှတစ်ဆင့် သင့်ဒေတာအသွားအလာကို လမ်းကြောင်းချပေးပြီး၊ ကွန်ရက်များ စစ်ထုတ်ပိတ်ဆို့ခံရသည့်အခါ ပွင့်လင်းသော အင်တာနက်ကို ဆက်လက်အသုံးပြုနိုင်စေသည်။ အကောင့်မရှိ၊ ကြော်ငြာမရှိ၊ ခြေရာခံမှုမရှိ — လိုင်းအကျယ် မျှဝေပေးသည့် လူများသာ ဖြစ်သည်။',
+  aboutHowHeader: 'အလုပ်လုပ်ပုံ',
+  aboutProjectHeader: 'ပရောဂျက်',
+  aboutHow1Title: 'စေတနာ့ဝန်ထမ်းများ လိုင်းအကျယ် မျှဝေကြသည်',
+  aboutHow1Body:
+    'နေရာအနှံ့မှ လူများသည် မိမိတို့၏ ချိတ်ဆက်မှုများပေါ်တွင် သေးငယ်သော ရီလေးဆုံမှတ်များကို လည်ပတ်ပြီး ၎င်းတို့ကို ကွန်ရက်တွင် မှတ်ပုံတင်ကြသည်။',
+  aboutHow2Title: 'ကြားခံသည် သင့်ရီလေးကို ရှာဖွေပေးသည်',
+  aboutHow2Body:
+    'သင် ချိတ်ဆက်သည့်အခါ ကြားခံသည် သင့်စက်ပစ္စည်းသို့ ကောင်းမွန်သန်စွမ်းသော ရီလေးများ၏ စာရင်းတိုတစ်ခုကို ပေးအပ်ပြီး အက်ပ်သည် ပထမဆုံး တုံ့ပြန်သည့် ရီလေးကို ရွေးချယ်သည်။',
+  aboutHow3Title: 'ဒေတာအသွားအလာသည် ကုဒ်ဝှက်ထားသော ဥမင်မှတစ်ဆင့် ဖြတ်သန်းသည်',
+  aboutHow3Body:
+    'အရာအားလုံးသည် သာမန် TLS နှင့် တူသော VLESS/REALITY ဥမင်မှတစ်ဆင့် စီးဆင်းသွားပြီး VPN သည် fail-closed ဖြစ်သည်: ရီလေးမရှိလျှင် ဒေတာအသွားအလာ မရှိပါ။',
+  aboutFootnote:
+    'OpenRung သည် အခမဲ့ဆော့ဖ်ဝဲ (GPL-3.0-or-later) ဖြစ်သည်။ စေတနာ့ဝန်ထမ်းများက အားလုံးအတွက် တည်ဆောက်ထားသည်။',
 };
