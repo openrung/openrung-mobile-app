@@ -255,6 +255,7 @@ object TelemetryManager {
         val capabilities = connectivity.getNetworkCapabilities(connectivity.activeNetwork)
         return mapOf(
             "app_version" to BuildConfig.VERSION_NAME,
+            "os_name" to "android",
             "android_api" to Build.VERSION.SDK_INT.toString(),
             "device_manufacturer" to Build.MANUFACTURER,
             "device_model" to Build.MODEL,

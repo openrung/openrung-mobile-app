@@ -38,6 +38,7 @@ public enum DeviceAttributes {
         let path = NetworkPathMonitor.shared.currentSnapshot
         return [
             "app_version": appVersion,
+            "os_name": "ios",
             "ios_version": osVersion,
             "device_manufacturer": "Apple",
             "device_model": deviceModel,
