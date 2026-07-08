@@ -53,4 +53,71 @@ export const tr: Partial<Strings> = {
   telemetryLocationsLabel: 'konumlar',
   telemetryCountriesLabel: 'ülkeler',
   telemetryUptimeLabel: 'süre',
+
+  // Content description for the open action.
+  openContentDescription: 'Aç',
+
+  // Volunteer speed test (diagnostics).
+  speedTestSettingTitle: 'Gönüllü hız testi',
+  speedTestReady: 'Aktif gönüllü röle üzerinden 10 MB indirin ve sonucu bildirin.',
+  speedTestRequiresConnection: 'Hız testini çalıştırmadan önce bir gönüllü röleye bağlanın.',
+  speedTestRunning: 'Gönüllü röle üzerinden indirme hızı test ediliyor…',
+  speedTestResult: (mbps: number) => `İndirme hızı: ${mbps.toFixed(1)} Mbps`,
+  speedTestError: (error: string) => `Hız testi başarısız: ${error}`,
+  speedTestAction: 'ÇALIŞTIR',
+
+  // Exit node map view.
+  mapContentDescription: 'Asya-Pasifik bölgesindeki mevcut gönüllü çıkış düğümlerinin haritası',
+  mapLoading: 'mevcut çıkış düğümleri bulunuyor…',
+  mapFailed: 'çıkış düğümleri yüklenemedi — yeniden denemek için dokunun',
+  mapNodesAvailable: (count: number) => `${count} konum mevcut`,
+  mapNoNodes: 'şu anda mevcut çıkış düğümü yok',
+
+  // Recent locations.
+  recentsLabel: 'Son kullanılanlar',
+  recentsEmpty: 'Henüz son kullanılan konum yok.',
+
+  // Map / list view toggle.
+  viewToggleMap: 'Harita',
+  viewToggleList: 'Liste',
+
+  // Exit node list view.
+  listContentDescription: 'Mevcut gönüllü çıkış düğümlerinin listesi',
+  listRelayCount: (count: number) => (count === 1 ? '1 röle' : `${count} röle`),
+
+  // Debug console (diagnostics).
+  debugSettingTitle: 'Hata ayıklama',
+  debugSettingSubtitle: 'Bağlantı konsolu ve tanılama.',
+  debugTitle: 'Hata ayıklama konsolu',
+
+  // Open-source licenses screen.
+  licensesSettingTitle: 'Açık kaynak lisansları',
+  licensesSettingSubtitle: 'Paketlenmiş yazılımlar için lisanslar ve atıflar.',
+  licensesTitle: 'Açık kaynak lisansları',
+  licensesIntro:
+    "OpenRung, sing-box'a bağlandığı için GPL-3.0-or-later ile lisanslanan özgür bir yazılımdır. Bu derlemeye karşılık gelen eksiksiz kaynak kodu aşağıdaki bağlantıda mevcuttur.",
+  licensesSourceTitle: 'Kaynak kodu',
+  licensesFullTextTitle: 'Tam lisans metinleri',
+  licensesFullTextSubtitle: 'GNU GPL-3.0 ve üçüncü taraf bildirimleri.',
+  licensesComponentsHeader: 'Bileşenler',
+
+  // Home overlay tagline.
+  homeTagline: 'gönüllü röle ağı',
+
+  // About screen (mission, how it works, project).
+  aboutMissionBody:
+    'OpenRung, trafiğinizi dünyanın dört bir yanındaki gönüllülerin çalıştırdığı röleler üzerinden yönlendirir; böylece ağlar filtrelendiğinde açık internet erişilebilir kalır. Hesap yok, reklam yok, takip yok — yalnızca bant genişliğini paylaşan insanlar.',
+  aboutHowHeader: 'Nasıl çalışır',
+  aboutProjectHeader: 'Proje',
+  aboutHow1Title: 'Gönüllüler bant genişliği paylaşır',
+  aboutHow1Body:
+    'Dünyanın her yerindeki insanlar kendi bağlantıları üzerinde küçük röle düğümleri çalıştırır ve bunları ağa kaydeder.',
+  aboutHow2Title: 'Aracı rölenizi bulur',
+  aboutHow2Body:
+    'Bağlandığınızda aracı, cihazınıza sağlıklı rölelerden oluşan kısa bir liste verir ve uygulama yanıt veren ilk röleyi seçer.',
+  aboutHow3Title: 'Trafik şifreli bir tünelden geçer',
+  aboutHow3Body:
+    'Her şey, sıradan TLS gibi görünen bir VLESS/REALITY tüneli üzerinden akar ve VPN fail-closed çalışır: röle yoksa trafik yok.',
+  aboutFootnote:
+    'OpenRung özgür bir yazılımdır (GPL-3.0-or-later). Gönüllüler tarafından, herkes için geliştirildi.',
 };

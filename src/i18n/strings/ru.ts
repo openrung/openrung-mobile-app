@@ -54,4 +54,65 @@ export const ru: Partial<Strings> = {
   telemetryLocationsLabel: 'локации',
   telemetryCountriesLabel: 'страны',
   telemetryUptimeLabel: 'аптайм',
+
+  // Content description (open action).
+  openContentDescription: 'Открыть',
+
+  // Volunteer speed test (diagnostics).
+  speedTestSettingTitle: 'Волонтёрский тест скорости',
+  speedTestReady: 'Загрузить 10 MB через активный волонтёрский ретранслятор и показать результат.',
+  speedTestRequiresConnection: 'Перед запуском теста скорости подключитесь к волонтёрскому ретранслятору.',
+  speedTestRunning: 'Проверка скорости загрузки через волонтёрский ретранслятор…',
+  speedTestResult: (mbps: number) => `Скорость загрузки: ${mbps.toFixed(1)} Mbps`,
+  speedTestError: (error: string) => `Ошибка теста скорости: ${error}`,
+  speedTestAction: 'ЗАПУСК',
+
+  // Map view (exit-node overview).
+  mapContentDescription: 'Карта доступных волонтёрских выходных узлов в Азиатско-Тихоокеанском регионе',
+  mapLoading: 'поиск доступных выходных узлов…',
+  mapFailed: 'не удалось загрузить выходные узлы — нажмите, чтобы повторить',
+  mapNodesAvailable: (count: number) => `доступно локаций: ${count}`,
+  mapNoNodes: 'сейчас нет доступных выходных узлов',
+
+  // Recents, view toggle & list view.
+  recentsLabel: 'Недавние',
+  recentsEmpty: 'Пока нет недавних локаций.',
+  viewToggleMap: 'Карта',
+  viewToggleList: 'Список',
+  listContentDescription: 'Список доступных волонтёрских выходных узлов',
+  listRelayCount: (count: number) => (count === 1 ? '1 реле' : `${count} реле`),
+
+  // Debug console (diagnostics).
+  debugSettingTitle: 'Отладка',
+  debugSettingSubtitle: 'Консоль подключения и диагностика.',
+  debugTitle: 'Консоль отладки',
+
+  // Open-source licenses.
+  licensesSettingTitle: 'Лицензии с открытым исходным кодом',
+  licensesSettingSubtitle: 'Лицензии и атрибуция для включённого ПО.',
+  licensesTitle: 'Лицензии с открытым исходным кодом',
+  licensesIntro:
+    'OpenRung — свободное программное обеспечение под лицензией GPL-3.0-or-later, поскольку использует sing-box. Полный соответствующий исходный код этой сборки доступен по ссылке ниже.',
+  licensesSourceTitle: 'Исходный код',
+  licensesFullTextTitle: 'Полные тексты лицензий',
+  licensesFullTextSubtitle: 'GNU GPL-3.0 и уведомления третьих сторон.',
+  licensesComponentsHeader: 'Компоненты',
+
+  // Home overlay / about screen.
+  homeTagline: 'волонтёрская сеть ретрансляторов',
+  aboutMissionBody:
+    'OpenRung направляет ваш трафик через ретрансляторы, которыми управляют волонтёры по всему миру, сохраняя открытый интернет доступным, когда сети фильтруются. Без аккаунтов, без рекламы, без слежки — просто люди, делящиеся пропускной способностью.',
+  aboutHowHeader: 'Как это работает',
+  aboutProjectHeader: 'Проект',
+  aboutHow1Title: 'Волонтёры делятся пропускной способностью',
+  aboutHow1Body:
+    'Люди по всему миру запускают небольшие узлы-ретрансляторы на собственных подключениях и регистрируют их в сети.',
+  aboutHow2Title: 'Брокер находит ваш ретранслятор',
+  aboutHow2Body:
+    'Когда вы подключаетесь, брокер передаёт вашему устройству короткий список работающих ретрансляторов, и приложение выбирает первый ответивший.',
+  aboutHow3Title: 'Трафик идёт по зашифрованному туннелю',
+  aboutHow3Body:
+    'Всё проходит через туннель VLESS/REALITY, который выглядит как обычный TLS, а VPN работает fail-closed: нет ретранслятора, нет трафика.',
+  aboutFootnote:
+    'OpenRung — свободное программное обеспечение (GPL-3.0-or-later). Создано волонтёрами для всех.',
 };
