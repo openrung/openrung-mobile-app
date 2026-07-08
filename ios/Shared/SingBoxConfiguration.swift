@@ -12,7 +12,7 @@ public struct SingBoxConfiguration: Equatable, Sendable {
         tunnelIPv4Address: String = "172.19.0.1/30",
         tunnelIPv6Address: String = "fdfe:dcba:9876::1/126",
         dnsServers: [String] = ["1.1.1.1", "8.8.8.8"],
-        mtu: Int = 1500
+        mtu: Int = 1400
     ) {
         self.relay = relay
         self.tunnelIPv4Address = tunnelIPv4Address

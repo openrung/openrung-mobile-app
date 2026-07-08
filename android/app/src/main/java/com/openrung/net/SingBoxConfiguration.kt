@@ -17,7 +17,7 @@ data class SingBoxConfiguration(
     val tunnelIPv4Address: String = "172.19.0.1/30",
     val tunnelIPv6Address: String = "fdfe:dcba:9876::1/126",
     val dnsServers: List<String> = listOf("1.1.1.1", "8.8.8.8"),
-    val mtu: Int = 1500,
+    val mtu: Int = 1400,
 ) {
     fun encodedJsonString(): String {
         validateRelay()
