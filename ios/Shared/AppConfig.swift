@@ -26,10 +26,20 @@ enum AppConfig {
     static let telemetryBrokerURL = URL(string: "https://broker.openrung.org/")!
 
     /// Ordered discovery candidates, tried in order until one returns relays (see
-    /// `BrokerClient.firstReachable`). HTTPS-only: the unsigned relay list must never be fetched over
-    /// a forgeable cleartext channel, so there is deliberately NO raw-IP fallback here. A blocked edge
-    /// fails discovery CLOSED (offline) rather than open to an attacker-injected relay.
-    static let defaultBrokerURLs: [URL] = [defaultBrokerURL]
+    /// `BrokerClient.firstReachable`). Every entry MUST be HTTPS: the relay list is not yet signed, so
+    /// it is authenticated only by the TLS cert of the serving host — a cleartext/bare-IP entry would
+    /// let an on-path censor inject a malicious relay set.
+    ///
+    /// Only one front is deployed today, so a censor who blocks it fails discovery CLOSED (offline).
+    /// Closing that single point of failure is the front-diversity layer: adding more *HTTPS* fronts
+    /// on independent CDNs/domains is safe now (still TLS-authenticated) and just needs the extra
+    /// fronts deployed. Non-TLS / out-of-band channels (raw IP, cached blobs) stay off this list until
+    /// the broker signs the relay list. Keep this in sync with the other clients' AppConfig.
+    static let defaultBrokerURLs: [URL] = [
+        defaultBrokerURL,
+        // Additional HTTPS fronts once deployed (second domain / second CDN), e.g.:
+        //   URL(string: "https://broker2.openrung.org/")!,
+    ]
 
     /// Ordered broker candidates for a connection attempt: the caller-selected `primary` (the provider
     /// configuration's broker, today the default) first, then the built-in `defaultBrokerURLs`,
