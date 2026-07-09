@@ -137,6 +137,14 @@ android {
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
+
+    testOptions {
+        unitTests {
+            // FailureClassifierErrnoTest runs under Robolectric, which needs the merged
+            // Android resources available to the JVM unit-test classpath.
+            includeAndroidResources = true
+        }
+    }
 }
 
 // Refuse to *assemble* a release without a real signing key rather than silently
@@ -183,4 +191,11 @@ dependencies {
     } else {
         implementation jscFlavor
     }
+
+    // Unit tests for the vpn failure classifier. Robolectric supplies real android.system
+    // OsConstants values and a working ErrnoException so the errno-based classification
+    // (connection_refused/reset/network_unreachable/…) can be exercised on the JVM — a plain
+    // stubbed android.jar reports every OsConstants value as 0.
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.14.1")
 }

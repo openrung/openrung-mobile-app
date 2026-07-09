@@ -1,9 +1,7 @@
 import Foundation
 
-public enum BrokerClientError: Error, Equatable {
-    case invalidResponse
-    case httpStatus(Int)
-}
+// BrokerClientError moved to BrokerClientError.swift so FailureClassifier and its tests can depend
+// on it without the rest of the networking stack.
 
 /// A successful relay fetch together with the broker endpoint that served it.
 public struct BrokerFetch: Sendable {

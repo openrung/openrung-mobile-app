@@ -143,14 +143,18 @@ class OpenRungVpnService : VpnService() {
             OpenRungStatusStore.appendLog(
                 getString(R.string.log_broker_returned, relayResponse.relays.size, candidates.size),
             )
-            check(candidates.isNotEmpty()) { getString(R.string.error_no_usable_relay) }
+            if (candidates.isEmpty()) {
+                throw RelaySelectionException.NoUsableRelay(getString(R.string.error_no_usable_relay))
+            }
 
             val targetedCandidates = if (targetRelayId != null) {
                 // A relay picked from the list's expanded per-relay rows: pin that exact relay,
                 // never silently fall back to a different one.
                 failureStage = "relay_id_filter"
                 val matched = candidates.filter { it.id == targetRelayId }
-                check(matched.isNotEmpty()) { getString(R.string.error_relay_not_available) }
+                if (matched.isEmpty()) {
+                    throw RelaySelectionException.RelayNotInList(getString(R.string.error_relay_not_available))
+                }
                 val picked = matched.first()
                 OpenRungStatusStore.appendLog(
                     getString(R.string.log_connecting_relay, picked.label.ifBlank { picked.id }),
@@ -161,7 +165,11 @@ class OpenRungVpnService : VpnService() {
                 OpenRungStatusStore.appendLog(getString(R.string.log_connecting_country, countryName))
                 failureStage = "relay_geo_filter"
                 filterByCountry(candidates, targetCountry).also {
-                    check(it.isNotEmpty()) { getString(R.string.error_no_relay_in_country, countryName) }
+                    if (it.isEmpty()) {
+                        throw RelaySelectionException.NoRelayInCountry(
+                            getString(R.string.error_no_relay_in_country, countryName),
+                        )
+                    }
                 }
             } else {
                 candidates
@@ -203,12 +211,17 @@ class OpenRungVpnService : VpnService() {
             throw error
         } catch (error: Throwable) {
             cleanupActiveTunnel()
+            val failureReason = FailureClassifier.classify(error)
+            val failureDetail = FailureClassifier.detail(error)
             TelemetryManager.record(
                 event = "connection_failed",
-                attributes = mapOf(
-                    "failure_stage" to failureStage,
-                    "error_type" to error::class.java.simpleName,
-                ),
+                attributes = buildMap {
+                    put("failure_stage", failureStage)
+                    // Kept alongside failure_reason for dashboard continuity with older app versions.
+                    put("error_type", error::class.java.simpleName)
+                    if (failureReason.isNotBlank()) put("failure_reason", failureReason)
+                    if (failureDetail.isNotBlank()) put("failure_detail", failureDetail)
+                },
             )
             TelemetryManager.endSession("connection_failed")
             runCatching { TelemetryManager.flush(AppConfig.TELEMETRY_BROKER_URL) }
@@ -242,11 +255,21 @@ class OpenRungVpnService : VpnService() {
                 val config = SingBoxConfiguration(relay = relay).encodedJsonString()
                 val proxyEngine = ProxyEngineFactory.create()
                 val tunnelStarted = SystemClock.elapsedRealtime()
-                proxyEngine.start(
-                    relay = relay,
-                    configJson = config,
-                    vpnService = this,
-                )
+                // Tag an engine start/liveness failure as EngineStartException so it classifies as
+                // process_exited (the embedded-engine analogue of the Go clients' sing-box subprocess
+                // dying). The original error is kept as the cause so a more specific signal in its
+                // chain still wins over process_exited.
+                try {
+                    proxyEngine.start(
+                        relay = relay,
+                        configJson = config,
+                        vpnService = this,
+                    )
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Throwable) {
+                    throw EngineStartException(error.message, error)
+                }
                 val tunnelStartMs = SystemClock.elapsedRealtime() - tunnelStarted
                 engine = proxyEngine
                 OpenRungStatusStore.appendLog(getString(R.string.log_verifying_internet))
@@ -265,10 +288,17 @@ class OpenRungVpnService : VpnService() {
                 throw error
             } catch (error: Throwable) {
                 lastError = error
+                val attemptReason = FailureClassifier.classify(error)
+                val attemptDetail = FailureClassifier.detail(error)
                 TelemetryManager.record(
                     event = "relay_attempt_failed",
                     relayId = relay.id,
-                    attributes = mapOf("error_type" to error::class.java.simpleName),
+                    attributes = buildMap {
+                        // Kept alongside failure_reason for continuity with older app versions.
+                        put("error_type", error::class.java.simpleName)
+                        if (attemptReason.isNotBlank()) put("failure_reason", attemptReason)
+                        if (attemptDetail.isNotBlank()) put("failure_detail", attemptDetail)
+                    },
                     measurements = mapOf("attempt" to (index + 1).toLong()),
                 )
                 OpenRungStatusStore.appendLog(
@@ -282,11 +312,14 @@ class OpenRungVpnService : VpnService() {
             }
         }
 
+        // Preserve lastError as the cause so connection_failed classifies on the real root cause
+        // (timeout, connection_refused, process_exited, …) instead of this generic wrapper.
         throw IllegalStateException(
             getString(
                 R.string.error_all_relays_failed,
                 lastError?.message ?: getString(R.string.error_unknown),
             ),
+            lastError,
         )
     }
 

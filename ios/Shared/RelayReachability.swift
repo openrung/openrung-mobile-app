@@ -1,10 +1,8 @@
 import Foundation
 import Network
 
-public enum RelayReachabilityError: Error, Equatable {
-    case invalidPort
-    case timeout
-}
+// RelayReachabilityError moved to RelayReachabilityError.swift so FailureClassifier and its tests
+// can depend on it without this Network-backed implementation.
 
 /// Measures TCP connect latency to a relay endpoint. Port of Android `RelayReachability.checkTcp`.
 public enum RelayReachability {

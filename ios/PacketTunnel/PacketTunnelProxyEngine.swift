@@ -195,16 +195,5 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
 
 #endif
 
-enum PacketTunnelProxyEngineError: LocalizedError {
-    case engineNotLinked
-    case engineStartFailed(String)
-
-    var errorDescription: String? {
-        switch self {
-        case .engineNotLinked:
-            return "Libbox.xcframework is not linked yet. Build sing-box lib_apple and add Libbox to the PacketTunnel target."
-        case .engineStartFailed(let message):
-            return "The embedded VLESS Reality Vision engine failed to start: \(message)"
-        }
-    }
-}
+// PacketTunnelProxyEngineError moved to PacketTunnelProxyEngineError.swift so FailureClassifier and
+// its tests can depend on it without linking Libbox.
