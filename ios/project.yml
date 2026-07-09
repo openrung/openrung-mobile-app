@@ -112,6 +112,25 @@ targets:
         CODE_SIGN_ENTITLEMENTS: PacketTunnel/PacketTunnel.entitlements
         APPLICATION_EXTENSION_API_ONLY: "YES"
 
+  # Hostless logic-test bundle for the failure classifier. It compiles FailureClassifier and the
+  # small error types it maps directly into the test module (rather than @testable-importing the
+  # extension), so the suite builds and runs without the app, CocoaPods, or Libbox.
+  OpenRungTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: OpenRungTests
+      - path: PacketTunnel/FailureClassifier.swift
+      - path: PacketTunnel/PacketTunnelError.swift
+      - path: PacketTunnel/PacketTunnelProxyEngineError.swift
+      - path: Shared/BrokerClientError.swift
+      - path: Shared/RelayReachabilityError.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.openrung.mobile.OpenRungTests
+        GENERATE_INFOPLIST_FILE: "YES"
+        CODE_SIGNING_ALLOWED: "NO"
+
 schemes:
   # Explicit so the scheme name stays `OpenRung` for the Podfile target + xcodebuild -scheme.
   OpenRung:
@@ -122,3 +141,11 @@ schemes:
       config: Debug
     archive:
       config: Release
+  OpenRungTests:
+    build:
+      targets:
+        OpenRungTests: [test]
+    test:
+      config: Debug
+      targets:
+        - OpenRungTests

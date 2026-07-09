@@ -183,11 +183,14 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         } catch {
             engine?.stop()
             engine = nil
-            let message = Self.describe(error)
-            TelemetryManager.record(
-                "connection_failed",
-                attributes: ["failure_stage": failureStage, "error_type": Self.errorType(error)]
-            )
+            let message = FailureClassifier.describe(error)
+            var attributes = ["failure_stage": failureStage, "error_type": FailureClassifier.errorType(error)]
+            // Additive: keep error_type; the broker prefers failure_reason and falls back to it.
+            let reason = FailureClassifier.classify(error)
+            if reason.isEmpty == false { attributes["failure_reason"] = reason }
+            let detail = FailureClassifier.detail(error)
+            if detail.isEmpty == false { attributes["failure_detail"] = detail }
+            TelemetryManager.record("connection_failed", attributes: attributes)
             TelemetryManager.endSession(reason: "connection_failed")
             try? await TelemetryManager.flush(brokerURL: AppConfig.telemetryBrokerURL.absoluteString)
             SharedConnectionState.fail(message)
@@ -209,8 +212,14 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 let tcpLatencyMs: Int64
                 do {
                     tcpLatencyMs = try await RelayReachability.checkTcp(relay)
+                } catch is CancellationError {
+                    // A racing stop cancelled the probe; propagate cancellation rather than masking
+                    // it as an unreachable relay (handled by the outer cancellation catch).
+                    throw CancellationError()
                 } catch {
-                    throw PacketTunnelError.relayUnreachable(host: relay.publicHost, port: relay.publicPort)
+                    // Carry the real cause so the failure classifies on its merits (timeout,
+                    // connection_refused, …) instead of a generic reachability token.
+                    throw PacketTunnelError.relayUnreachable(host: relay.publicHost, port: relay.publicPort, underlying: error)
                 }
 
                 let proxyEngine = EmbeddedProxyEngine()
@@ -238,19 +247,26 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 throw CancellationError()
             } catch {
                 lastError = error
+                var attributes = ["error_type": FailureClassifier.errorType(error)]
+                let reason = FailureClassifier.classify(error)
+                if reason.isEmpty == false { attributes["failure_reason"] = reason }
+                let detail = FailureClassifier.detail(error)
+                if detail.isEmpty == false { attributes["failure_detail"] = detail }
                 TelemetryManager.record(
                     "relay_attempt_failed",
                     relayId: relay.id,
-                    attributes: ["error_type": Self.errorType(error)],
+                    attributes: attributes,
                     measurements: ["attempt": Int64(index + 1)]
                 )
-                SharedConnectionState.appendLog("relay \(relay.id) failed: \(Self.describe(error))")
+                SharedConnectionState.appendLog("relay \(relay.id) failed: \(FailureClassifier.describe(error))")
                 engine?.stop()
                 engine = nil
             }
         }
 
-        throw PacketTunnelError.allRelaysFailed(lastError.map(Self.describe))
+        // Carry the last error itself (not just its message) so connection_failed classifies on the
+        // real root cause instead of this generic wrapper.
+        throw PacketTunnelError.allRelaysFailed(lastError)
     }
 
     /**
@@ -340,14 +356,6 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         return normalized.isEmpty ? nil : normalized
     }
 
-    private static func errorType(_ error: Error) -> String {
-        String(describing: type(of: error))
-    }
-
-    private static func describe(_ error: Error) -> String {
-        (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-    }
-
     private struct ConnectedRelay {
         let relay: RelayDescriptor
         let tcpLatencyMs: Int64
@@ -357,28 +365,5 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     }
 }
 
-enum PacketTunnelError: LocalizedError {
-    case noUsableRelay
-    case noRelayInCountry(String)
-    case relayNotAvailable
-    case relayUnreachable(host: String, port: Int)
-    case allRelaysFailed(String?)
-
-    var errorDescription: String? {
-        switch self {
-        case .noUsableRelay:
-            return "No usable VLESS Reality Vision direct-exit relay is available."
-        case .noRelayInCountry(let countryName):
-            return "No volunteer relay available in \(countryName) right now."
-        case .relayNotAvailable:
-            return "The selected relay is no longer available."
-        case .relayUnreachable(let host, let port):
-            return "Relay \(host):\(port) is not reachable from this device."
-        case .allRelaysFailed(let message):
-            if let message {
-                return "All relay connection attempts failed. Last error: \(message)"
-            }
-            return "All relay connection attempts failed."
-        }
-    }
-}
+// PacketTunnelError moved to PacketTunnelError.swift so FailureClassifier and its tests can depend
+// on it without the NetworkExtension-backed provider. Its cases now carry the underlying Error.

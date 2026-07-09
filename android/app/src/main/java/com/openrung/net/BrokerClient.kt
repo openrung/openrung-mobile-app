@@ -14,6 +14,14 @@ import java.net.URI
 import java.net.URL
 import java.net.URLEncoder
 
+/**
+ * A non-2xx HTTP response from the broker. Carries the status [code] so a failure can be classified
+ * (429 → `rate_limited`, otherwise `http_<code>`) instead of being flattened into a generic
+ * [IOException] message where the code is lost. Extends [IOException] so existing callers — which
+ * already treat broker failures as `IOException` — are unaffected.
+ */
+class BrokerHttpException(val status: Int, message: String) : IOException(message)
+
 class BrokerClient(
     private val baseUrl: String,
     private val json: Json = Json { ignoreUnknownKeys = true },
@@ -48,7 +56,10 @@ class BrokerClient(
             val body = stream.bufferedReader().use { it.readText() }
             if (status !in 200..299) {
                 val apiError = runCatching { json.decodeFromString<ErrorResponse>(body).error }.getOrNull()
-                throw IOException("broker list relays: ${apiError?.ifBlank { null } ?: body.ifBlank { connection.responseMessage }}")
+                throw BrokerHttpException(
+                    status,
+                    "broker list relays: ${apiError?.ifBlank { null } ?: body.ifBlank { connection.responseMessage }}",
+                )
             }
             json.decodeFromString<RelayListResponse>(body)
         } finally {
