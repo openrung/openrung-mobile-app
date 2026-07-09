@@ -141,9 +141,23 @@ final class FailureClassifierTests: XCTestCase {
         XCTAssertEqual(FailureClassifier.truncate(over).utf8.count, 256)
     }
 
-    func testDetailUsesLocalizedDescription() {
-        // allRelaysFailed's errorDescription embeds the unwrapped last error's description.
-        let detail = FailureClassifier.detail(PacketTunnelError.allRelaysFailed(URLError(.timedOut)))
+    func testDetailUsesUnderlyingDescription() {
+        struct RootCause: LocalizedError {
+            var errorDescription: String? { "connect timed out root cause" }
+        }
+
+        XCTAssertEqual(
+            FailureClassifier.detail(PacketTunnelError.allRelaysFailed(RootCause())),
+            "connect timed out root cause"
+        )
+        XCTAssertEqual(
+            FailureClassifier.detail(PacketTunnelError.relayUnreachable(host: "1.2.3.4", port: 443, underlying: RootCause())),
+            "connect timed out root cause"
+        )
+    }
+
+    func testDetailFallsBackToWrapperDescriptionWithoutUnderlyingError() {
+        let detail = FailureClassifier.detail(PacketTunnelError.allRelaysFailed(nil))
         XCTAssertTrue(detail.hasPrefix("All relay connection attempts failed."))
     }
 }

@@ -99,7 +99,7 @@ enum FailureClassifier {
                 return "dns_failure"
             case .tls:
                 return "tls_handshake"
-            @unknown default:
+            default:
                 break
             }
         }
@@ -143,9 +143,31 @@ enum FailureClassifier {
         String(describing: type(of: error))
     }
 
-    /// `describe(error)` truncated to fit the broker's 256-UTF-8-byte attribute limit.
+    /// The underlying/root error's description, truncated to fit the broker's 256-UTF-8-byte
+    /// attribute limit. This keeps `failure_detail` aligned with `failure_reason`: wrapper errors
+    /// like `allRelaysFailed` classify on their underlying cause, so their detail should too.
     static func detail(_ error: Error) -> String {
-        truncate(describe(error))
+        truncate(detailDescription(error))
+    }
+
+    private static func detailDescription(_ error: Error, depth: Int = 0) -> String {
+        if depth < 8, let underlying = underlyingDetailError(error) {
+            return detailDescription(underlying, depth: depth + 1)
+        }
+        return describe(error)
+    }
+
+    private static func underlyingDetailError(_ error: Error) -> Error? {
+        if let tunnelError = error as? PacketTunnelError {
+            switch tunnelError {
+            case .relayUnreachable(_, _, let underlying), .allRelaysFailed(let underlying):
+                return underlying
+            default:
+                return nil
+            }
+        }
+
+        return (error as NSError).userInfo[NSUnderlyingErrorKey] as? Error
     }
 
     /// Truncates `value` to at most `maxBytes` UTF-8 bytes without splitting a multi-byte character:
