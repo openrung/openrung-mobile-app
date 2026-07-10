@@ -90,7 +90,7 @@ android {
         applicationId "com.openrung.mobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 6
+        versionCode 7
         versionName appVersionName
     }
     signingConfigs {
