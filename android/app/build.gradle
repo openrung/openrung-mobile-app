@@ -198,4 +198,7 @@ dependencies {
     // stubbed android.jar reports every OsConstants value as 0.
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.14.1")
+    // Unit tests for the staggered-race broker discovery (net/BrokerClientTest): virtual-time
+    // control over the stagger cadence, with no real sockets or real 2.5 s waits.
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
 }

@@ -23,10 +23,12 @@ object AppConfig {
     const val TELEMETRY_BROKER_URL = "https://broker.openrung.org/"
 
     /**
-     * Ordered discovery candidates, tried in order until one returns relays (see
-     * [com.openrung.net.BrokerClient.firstReachable]). Every entry MUST be HTTPS: the relay list is
-     * not yet signed, so it is authenticated only by the TLS cert of the serving host — a
-     * cleartext/bare-IP entry would let an on-path censor inject a malicious relay set.
+     * Ordered discovery candidates, raced with a staggered start: the first entry starts
+     * immediately, each later entry joins [DISCOVERY_STAGGER_MS] after the previous one, and the
+     * first candidate to return relays wins (see [com.openrung.net.BrokerClient.firstReachable]).
+     * Every entry MUST be HTTPS: the relay list is not yet signed, so it is authenticated only by
+     * the TLS cert of the serving host — a cleartext/bare-IP entry would let an on-path censor
+     * inject a malicious relay set.
      *
      * Only one front is deployed today, so a censor who blocks it fails discovery CLOSED (offline).
      * Closing that single point of failure is the front-diversity layer: adding more *HTTPS* fronts on
@@ -43,11 +45,24 @@ object AppConfig {
     /**
      * Ordered discovery candidates for a connection attempt: the caller-selected [primary] (a user
      * override or the persisted choice) first, then the built-in [DEFAULT_BROKER_URLS], de-duplicated
-     * while preserving order. The primary is never discarded, so a user's custom broker is always
-     * tried first and the defaults only act as a fallback.
+     * while preserving order. The primary is never discarded, so a user's custom broker always
+     * starts the discovery race first — in the staggered race, list position is expressed purely
+     * as a head start of [DISCOVERY_STAGGER_MS] per position — and the defaults act as fallbacks.
      */
     fun brokerCandidates(primary: String?): List<String> =
         com.openrung.net.BrokerClient.candidates(primary, DEFAULT_BROKER_URLS)
+
+    /**
+     * Stagger interval of the discovery race ([com.openrung.net.BrokerClient.firstReachable]):
+     * candidate N+1 is started this many milliseconds after candidate N unless an attempt has
+     * already succeeded. Small enough that a blocked/blackholed primary front only delays discovery
+     * by ~2.5 s per fallback position (instead of a full request timeout), large enough that a
+     * healthy primary almost always answers before the first fallback is ever contacted, keeping
+     * fallback-front load near zero. MUST stay in sync with desktop `DiscoveryStagger` (Go config
+     * package) and the RN/Swift AppConfigs — the staggered-race semantics are identical across all
+     * four clients.
+     */
+    const val DISCOVERY_STAGGER_MS = 2_500L
 
     const val RELAY_LIMIT = 5
     const val VPN_SESSION_NAME = "OpenRung Volunteer VPN"

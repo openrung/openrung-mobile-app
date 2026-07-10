@@ -1,4 +1,10 @@
-import { candidates, decodeRelayListResponse, relayListUrl } from '../../src/net/brokerClient';
+import { AppConfig } from '../../src/config';
+import {
+  candidates,
+  decodeRelayListResponse,
+  firstReachable,
+  relayListUrl,
+} from '../../src/net/brokerClient';
 
 describe('relayListUrl', () => {
   it('builds the relay list URL from a bare base', () => {
@@ -144,5 +150,147 @@ describe('candidates', () => {
       'https://b/',
     ]);
     expect(candidates('', fallbacks)).toEqual(fallbacks);
+  });
+});
+
+describe('firstReachable (staggered discovery race)', () => {
+  const STAGGER_MS = AppConfig.DISCOVERY_STAGGER_MS;
+  const PRIMARY = 'https://primary.example/';
+  const SECONDARY = 'https://secondary.example/';
+  const TERTIARY = 'https://tertiary.example/';
+
+  const EMPTY_LIST = JSON.stringify({ count: 0, server_time: '2026-01-01T00:00:00Z', relays: [] });
+
+  /** The init the client passes to fetch — always carries the merged per-attempt AbortSignal. */
+  interface FetchInit {
+    signal: AbortSignal;
+  }
+  type FetchStub = jest.Mock<Promise<unknown>, [string, FetchInit]>;
+
+  function okResponse(): { status: number; text: () => Promise<string> } {
+    return { status: 200, text: async () => EMPTY_LIST };
+  }
+
+  /** A fetch that never responds but honours its AbortSignal — a blackholed/censored endpoint. */
+  function hangingFetch(init: FetchInit): Promise<unknown> {
+    return new Promise((_resolve, reject) => {
+      init.signal.addEventListener('abort', () => reject(new Error('aborted')));
+    });
+  }
+
+  const originalFetch = (globalThis as Record<string, unknown>).fetch;
+  let fetchStub: FetchStub;
+
+  function installFetch(impl: (url: string, init: FetchInit) => Promise<unknown>): void {
+    fetchStub = jest.fn(impl);
+    (globalThis as Record<string, unknown>).fetch = fetchStub;
+  }
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    (globalThis as Record<string, unknown>).fetch = originalFetch;
+  });
+
+  it('lets a healthy primary win without ever starting the fallback', async () => {
+    installFetch(async () => okResponse());
+
+    const result = await firstReachable([PRIMARY, SECONDARY]);
+
+    expect(result.brokerUrl).toBe(PRIMARY);
+    expect(fetchStub).toHaveBeenCalledTimes(1);
+
+    // The win must also cancel the pending stagger timer: even long after the stagger interval
+    // has passed, the fallback front is never contacted (keeps fallback load near zero).
+    await jest.advanceTimersByTimeAsync(STAGGER_MS * 3);
+    expect(fetchStub).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts the fallback after one stagger and lets it beat a hanging primary', async () => {
+    installFetch((url, init) =>
+      url.startsWith(PRIMARY) ? hangingFetch(init) : Promise.resolve(okResponse()),
+    );
+
+    const race = firstReachable([PRIMARY, SECONDARY]);
+
+    // Just before the stagger elapses, only the primary has been contacted.
+    await jest.advanceTimersByTimeAsync(STAGGER_MS - 1);
+    expect(fetchStub).toHaveBeenCalledTimes(1);
+
+    // At the stagger boundary the fallback starts, succeeds, and wins the race even though the
+    // higher-priority primary attempt is still pending (priority = head start, nothing else).
+    await jest.advanceTimersByTimeAsync(1);
+    await expect(race).resolves.toMatchObject({ brokerUrl: SECONDARY });
+    expect(fetchStub).toHaveBeenCalledTimes(2);
+
+    // The losing primary attempt was aborted for real: the abort reached its fetch's signal.
+    const [, primaryInit] = fetchStub.mock.calls[0];
+    expect(primaryInit.signal.aborted).toBe(true);
+  });
+
+  it('starts one candidate per stagger interval and aborts every loser when one wins', async () => {
+    installFetch((url, init) =>
+      url.startsWith(TERTIARY) ? Promise.resolve(okResponse()) : hangingFetch(init),
+    );
+
+    const race = firstReachable([PRIMARY, SECONDARY, TERTIARY]);
+    expect(fetchStub).toHaveBeenCalledTimes(1); // t=0: primary starts immediately
+
+    await jest.advanceTimersByTimeAsync(STAGGER_MS);
+    expect(fetchStub).toHaveBeenCalledTimes(2); // t=1*stagger: secondary joins
+
+    await jest.advanceTimersByTimeAsync(STAGGER_MS);
+    expect(fetchStub).toHaveBeenCalledTimes(3); // t=2*stagger: tertiary joins and wins
+
+    await expect(race).resolves.toMatchObject({ brokerUrl: TERTIARY });
+    const inits = fetchStub.mock.calls.map(([, init]) => init);
+    expect(inits[0].signal.aborted).toBe(true);
+    expect(inits[1].signal.aborted).toBe(true);
+    expect(inits[2].signal.aborted).toBe(false); // the winner itself is never aborted
+  });
+
+  it('surfaces the FIRST candidate (primary) error when every candidate fails', async () => {
+    const primaryError = new Error('primary: connection reset');
+    const fallbackError = new Error('fallback: HTTP 502');
+    installFetch(url => Promise.reject(url.startsWith(PRIMARY) ? primaryError : fallbackError));
+
+    // Attach handlers up front so the eventual rejection is captured, then drive the clock.
+    const outcome = firstReachable([PRIMARY, SECONDARY]).then(
+      () => {
+        throw new Error('expected the race to fail');
+      },
+      (error: unknown) => error,
+    );
+
+    // The primary fails almost instantly, but an early failure must NOT start the fallback
+    // ahead of schedule — starts are driven purely by the stagger cadence.
+    await jest.advanceTimersByTimeAsync(STAGGER_MS - 1);
+    expect(fetchStub).toHaveBeenCalledTimes(1);
+
+    await jest.advanceTimersByTimeAsync(1);
+    expect(fetchStub).toHaveBeenCalledTimes(2);
+
+    // The primary's error is the meaningful diagnostic — not the last-observed (fallback) one.
+    expect(await outcome).toBe(primaryError);
+  });
+
+  it('with a single candidate behaves exactly like one plain attempt', async () => {
+    const failure = new Error('broker down');
+    installFetch(() => Promise.reject(failure));
+
+    // The error propagates unchanged (same instance, not wrapped or replaced).
+    await expect(firstReachable([PRIMARY])).rejects.toBe(failure);
+    expect(fetchStub).toHaveBeenCalledTimes(1);
+    // No stagger timer was ever scheduled, and the attempt's timeout timer was cleaned up.
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it('rejects when no candidates are configured', async () => {
+    installFetch(async () => okResponse());
+    await expect(firstReachable([])).rejects.toThrow('no broker endpoints configured');
+    expect(fetchStub).not.toHaveBeenCalled();
   });
 });
