@@ -112,9 +112,10 @@ targets:
         CODE_SIGN_ENTITLEMENTS: PacketTunnel/PacketTunnel.entitlements
         APPLICATION_EXTENSION_API_ONLY: "YES"
 
-  # Hostless logic-test bundle for the failure classifier. It compiles FailureClassifier and the
-  # small error types it maps directly into the test module (rather than @testable-importing the
-  # extension), so the suite builds and runs without the app, CocoaPods, or Libbox.
+  # Hostless logic-test bundle for the failure classifier and the broker discovery flow. It
+  # compiles the tested sources (and their small dependency closure) directly into the test module
+  # (rather than @testable-importing the extension), so the suite builds and runs without the app,
+  # CocoaPods, or Libbox.
   OpenRungTests:
     type: bundle.unit-test
     platform: iOS
@@ -123,7 +124,13 @@ targets:
       - path: PacketTunnel/FailureClassifier.swift
       - path: PacketTunnel/PacketTunnelError.swift
       - path: PacketTunnel/PacketTunnelProxyEngineError.swift
+      - path: Shared/AppConfig.swift
+      - path: Shared/BrokerClient.swift
       - path: Shared/BrokerClientError.swift
+      - path: Shared/BrokerEndpoint.swift
+      - path: Shared/DeviceAttributes.swift
+      - path: Shared/NetworkPathMonitor.swift
+      - path: Shared/RelayDescriptor.swift
       - path: Shared/RelayReachabilityError.swift
     settings:
       base:

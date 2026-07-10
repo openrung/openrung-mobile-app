@@ -70,17 +70,34 @@ export function relayListUrl(baseUrl: string, limit: number): string {
 }
 
 /**
+ * The ordered discovery endpoints for one request, plus whether `urls[0]` is a genuine user
+ * override. Built by `candidates` and consumed by `firstReachable`; carrying the flag alongside
+ * the list keeps the two from being computed inconsistently.
+ */
+export interface BrokerCandidates {
+  urls: string[];
+  /**
+   * True when `urls[0]` is a genuine user override — a non-blank primary that is not one of the
+   * built-in defaults. `firstReachable` then tries it strictly first (full per-attempt timeout)
+   * and only races the remaining defaults after it fails, so a custom broker that is merely
+   * slower than the stagger is never silently outrun by a default front.
+   */
+  overrideFirst: boolean;
+}
+
+/**
  * Builds the ordered broker candidate list, de-duplicated while preserving order. A non-blank
  * `primary` is tried FIRST only when it is a genuine override — i.e. not already one of the
- * `fallbacks`. A persisted value that merely echoes a built-in default must NOT reorder the
- * defaults' preferred (HTTPS-first) ordering, otherwise an upgrader whose last-used default was
- * the raw IP would keep hitting the IP before the Cloudflare-fronted endpoint. Pure and
- * side-effect free so it is unit-testable.
+ * `fallbacks` — and only such an override sets `overrideFirst`, giving it the strict head phase
+ * described on {@link BrokerCandidates}. A persisted value that merely echoes a built-in default
+ * must NOT reorder the defaults' preferred (HTTPS-first) ordering (or claim the override phase),
+ * otherwise an upgrader whose last-used default was the raw IP would keep hitting the IP before
+ * the Cloudflare-fronted endpoint. Pure and side-effect free so it is unit-testable.
  */
 export function candidates(
   primary: string | null | undefined,
   fallbacks: readonly string[],
-): string[] {
+): BrokerCandidates {
   const ordered: string[] = [];
   const seen = new Set<string>();
   const add = (value: string) => {
@@ -89,9 +106,11 @@ export function candidates(
       ordered.push(value);
     }
   };
+  let overrideFirst = false;
   const trimmedPrimary = primary?.trim() ?? '';
   if (trimmedPrimary.length > 0 && !fallbacks.some(fallback => fallback.trim() === trimmedPrimary)) {
     add(trimmedPrimary);
+    overrideFirst = true;
   }
   for (const fallback of fallbacks) {
     const trimmed = fallback.trim();
@@ -99,7 +118,7 @@ export function candidates(
       add(trimmed);
     }
   }
-  return ordered;
+  return { urls: ordered, overrideFirst };
 }
 
 /**
@@ -278,17 +297,57 @@ export async function listRelays(
  *     primary's failure is the meaningful diagnostic; later fallbacks' errors are secondary.
  *  5. With a single candidate the observable behavior equals the old sequential loop: one
  *     attempt, no timers beyond its own timeout, its error propagated unchanged.
+ *  6. When `candidates.overrideFirst` is set, `urls[0]` is a GENUINE user override and racing it
+ *     would betray the user's choice: a custom broker that is merely slower than the stagger
+ *     would silently lose to a default front. The override is therefore attempted strictly
+ *     first, alone, with its full per-attempt timeout — no default is contacted while it is
+ *     pending — and it wins on any success, exactly like the old sequential loop. Only when the
+ *     override FAILS does the race of points 1–5 start over the REMAINING candidates (the first
+ *     of them immediately, the next one stagger later, and so on). If the override and every
+ *     remaining candidate fail, the override's error is rethrown — it is `urls[0]`, so point 4's
+ *     diagnostic is unchanged.
  *
  * `options` excludes `signal` because the race owns per-attempt cancellation: each attempt gets
  * its own AbortSignal, threaded through listRelays so losing requests are aborted for real.
  */
-export function firstReachable(
+export async function firstReachable(
+  brokerCandidates: BrokerCandidates,
+  options: Omit<ListRelaysOptions, 'signal'> = {},
+): Promise<Fetch> {
+  const { urls, overrideFirst } = brokerCandidates;
+  if (urls.length === 0) {
+    throw new Error('no broker endpoints configured');
+  }
+  if (overrideFirst) {
+    let overrideError: unknown;
+    try {
+      // Strict override phase (spec point 6): one plain attempt, full timeout, no race timers.
+      const response = await listRelays(urls[0], options);
+      return { brokerUrl: urls[0], response };
+    } catch (error: unknown) {
+      overrideError = error;
+    }
+    const surfaced =
+      overrideError instanceof Error ? overrideError : new Error('no broker endpoints reachable');
+    const remaining = urls.slice(1);
+    if (remaining.length === 0) {
+      throw surfaced;
+    }
+    try {
+      return await race(remaining, options);
+    } catch {
+      // All-fail keeps surfacing candidates[0]'s — the override's — error (spec point 4).
+      throw surfaced;
+    }
+  }
+  return race(urls, options);
+}
+
+/** The staggered-race core behind `firstReachable` (spec points 1–5), sans override handling. */
+function race(
   candidateUrls: string[],
   options: Omit<ListRelaysOptions, 'signal'> = {},
 ): Promise<Fetch> {
-  if (candidateUrls.length === 0) {
-    return Promise.reject(new Error('no broker endpoints configured'));
-  }
   return new Promise<Fetch>((resolve, reject) => {
     /** One abort controller per STARTED attempt, index-aligned with candidateUrls. */
     const controllers: AbortController[] = [];

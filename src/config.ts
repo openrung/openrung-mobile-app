@@ -1,4 +1,4 @@
-import { candidates } from './net/brokerClient';
+import { candidates, type BrokerCandidates } from './net/brokerClient';
 // The app version string lives in exactly ONE place — package.json — and every other
 // surface (Android versionName, iOS MARKETING_VERSION, this constant) derives from it so
 // they cannot drift. scripts/check-versions.mjs enforces this in CI.
@@ -53,11 +53,14 @@ export const AppConfig = {
   /**
    * Ordered discovery candidates for a connection attempt: the caller-selected `primary` (a user
    * override or the persisted choice) first, then the built-in DEFAULT_BROKER_URLS, de-duplicated
-   * while preserving order. The primary is never discarded, so a user's custom broker always
-   * starts the discovery race first — in the staggered race, list position is expressed purely
-   * as a head start of DISCOVERY_STAGGER_MS per position — and the defaults act as fallbacks.
+   * while preserving order. A GENUINE override (a primary that is not one of the defaults) is
+   * flagged `overrideFirst`: `firstReachable` tries it strictly first with its full per-attempt
+   * timeout — a user's custom broker is never silently outrun by a default front merely for being
+   * slower than the stagger — and the defaults race as fallbacks only after it fails. A primary
+   * that echoes a default keeps the pure staggered race, where list position is just a head start
+   * of DISCOVERY_STAGGER_MS per position.
    */
-  brokerCandidates(primary: string | null | undefined): string[] {
+  brokerCandidates(primary: string | null | undefined): BrokerCandidates {
     return candidates(primary, AppConfig.DEFAULT_BROKER_URLS);
   },
 

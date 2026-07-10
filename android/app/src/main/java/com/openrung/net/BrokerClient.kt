@@ -11,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -94,25 +95,42 @@ class BrokerClient(
     /** A successful relay fetch together with the broker endpoint that served it. */
     data class Fetch(val brokerUrl: String, val response: RelayListResponse)
 
+    /**
+     * The ordered discovery endpoints for one request, plus whether `urls[0]` is a genuine user
+     * override. Built by [candidates] and consumed by [firstReachable]; carrying the flag
+     * alongside the list keeps the two from being computed inconsistently.
+     *
+     * [overrideFirst] is true when `urls[0]` is a genuine user override — a non-blank primary
+     * that is not one of the built-in defaults. [firstReachable] then tries it strictly first
+     * (full per-attempt timeout) and only races the remaining defaults after it fails, so a
+     * custom broker that is merely slower than the stagger is never silently outrun by a
+     * default front.
+     */
+    data class Candidates(val urls: List<String>, val overrideFirst: Boolean = false)
+
     companion object {
         /**
          * Builds the ordered broker candidate list, de-duplicated while preserving order. A non-blank
          * [primary] is tried FIRST only when it is a genuine override — i.e. not already one of the
-         * [fallbacks]. A persisted value that merely echoes a built-in default must NOT reorder the
-         * defaults' preferred (HTTPS-first) ordering, otherwise an upgrader whose last-used default was
-         * the raw IP would keep hitting the IP before the Cloudflare-fronted endpoint. Pure and
-         * side-effect free so it is unit-testable.
+         * [fallbacks] — and only such an override sets [Candidates.overrideFirst], giving it the
+         * strict head phase described on [Candidates]. A persisted value that merely echoes a
+         * built-in default must NOT reorder the defaults' preferred (HTTPS-first) ordering (or claim
+         * the override phase), otherwise an upgrader whose last-used default was the raw IP would
+         * keep hitting the IP before the Cloudflare-fronted endpoint. Pure and side-effect free so
+         * it is unit-testable.
          */
-        fun candidates(primary: String?, fallbacks: List<String>): List<String> {
+        fun candidates(primary: String?, fallbacks: List<String>): Candidates {
             val ordered = LinkedHashSet<String>()
+            var overrideFirst = false
             val trimmedPrimary = primary?.trim()?.takeIf { it.isNotEmpty() }
             if (trimmedPrimary != null && fallbacks.none { it.trim() == trimmedPrimary }) {
                 ordered.add(trimmedPrimary)
+                overrideFirst = true
             }
             fallbacks.forEach { fallback ->
                 fallback.trim().takeIf { it.isNotEmpty() }?.let { ordered.add(it) }
             }
-            return ordered.toList()
+            return Candidates(ordered.toList(), overrideFirst)
         }
 
         /**
@@ -140,11 +158,21 @@ class BrokerClient(
          *     secondary.
          *  5. With a single candidate the observable behavior equals the old sequential loop:
          *     one attempt, no stagger timers, its error propagated unchanged.
+         *  6. When [Candidates.overrideFirst] is set, `urls[0]` is a GENUINE user override and
+         *     racing it would betray the user's choice: a custom broker that is merely slower
+         *     than the stagger would silently lose to a default front. The override is therefore
+         *     attempted strictly first, alone, with its full per-attempt timeout — no default is
+         *     contacted while it is pending — and it wins on any success, exactly like the old
+         *     sequential loop. Only when the override FAILS does the race of points 1–5 start
+         *     over the REMAINING candidates (the first of them immediately, the next one stagger
+         *     later, and so on). If the override and every remaining candidate fail, the
+         *     override's error is rethrown — it is `urls[0]`, so point 4's diagnostic is
+         *     unchanged.
          *
-         * Cancelling the caller cancels the whole race, including every in-flight attempt.
+         * Cancelling the caller cancels the whole flow, including every in-flight attempt.
          */
         suspend fun firstReachable(
-            candidates: List<String>,
+            candidates: Candidates,
             limit: Int = 5,
             clientId: String? = null,
             sessionId: String? = null,
@@ -154,15 +182,47 @@ class BrokerClient(
         }
 
         /**
-         * Race core behind [firstReachable] with the per-candidate fetch injectable, so the
-         * stagger / first-success / all-fail semantics are unit-testable on the JVM under
-         * virtual time (see `BrokerClientTest`) without real sockets.
+         * Core behind [firstReachable] with the per-candidate fetch injectable, so the override /
+         * stagger / first-success / all-fail semantics are unit-testable on the JVM under virtual
+         * time (see `BrokerClientTest`) without real sockets.
          */
         internal suspend fun firstReachable(
+            candidates: Candidates,
+            attempt: suspend (String) -> RelayListResponse,
+        ): Fetch {
+            require(candidates.urls.isNotEmpty()) { "no broker endpoints configured" }
+            if (!candidates.overrideFirst) return race(candidates.urls, attempt)
+
+            val overrideUrl = candidates.urls.first()
+            val overrideError: Throwable = try {
+                // Strict override phase (spec point 6): one plain attempt, full timeout, no race.
+                return Fetch(overrideUrl, attempt(overrideUrl))
+            } catch (cancellation: CancellationException) {
+                // The caller went away: rethrow its cancellation. Only an attempt that threw
+                // CancellationException of its own accord while we are still live counts as an
+                // ordinary failure (mirrors the race core's loser handling).
+                if (!currentCoroutineContext().isActive) throw cancellation
+                cancellation
+            } catch (error: Throwable) {
+                error
+            }
+            val remaining = candidates.urls.drop(1)
+            if (remaining.isEmpty()) throw overrideError
+            return try {
+                race(remaining, attempt)
+            } catch (cancellation: CancellationException) {
+                throw cancellation // the caller went away mid-race — not a broker diagnostic
+            } catch (_: Throwable) {
+                // All-fail keeps surfacing candidates[0]'s — the override's — error (spec point 4).
+                throw overrideError
+            }
+        }
+
+        /** The staggered-race core (spec points 1–5), sans override handling. */
+        private suspend fun race(
             candidates: List<String>,
             attempt: suspend (String) -> RelayListResponse,
         ): Fetch {
-            require(candidates.isNotEmpty()) { "no broker endpoints configured" }
             // Failure of each settled attempt, index-aligned with [candidates]; errors[0] is the
             // surfaced diagnostic (spec point 4). Attempts fail on arbitrary threads, but every
             // slot is written before its incrementAndGet below, so the increment that completes

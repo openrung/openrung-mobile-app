@@ -45,10 +45,13 @@ enum AppConfig {
 
     /// Ordered broker candidates for a connection attempt: the caller-selected `primary` (the provider
     /// configuration's broker, today the default) first, then the built-in `defaultBrokerURLs`,
-    /// de-duplicated while preserving order. The primary is never discarded, so a custom broker always
-    /// starts the discovery race first — in the staggered race, list position is expressed purely as a
-    /// head start of `discoveryStaggerMs` per position — and the defaults act as fallbacks.
-    static func brokerCandidates(primary: URL?) -> [URL] {
+    /// de-duplicated while preserving order. A GENUINE override (a primary that is not one of the
+    /// defaults) is flagged `overrideFirst`: `BrokerClient.firstReachable` tries it strictly first
+    /// with its full per-attempt timeout — a user's custom broker is never silently outrun by a
+    /// default front merely for being slower than the stagger — and the defaults race as fallbacks
+    /// only after it fails. A primary that echoes a default keeps the pure staggered race, where
+    /// list position is just a head start of `discoveryStaggerMs` per position.
+    static func brokerCandidates(primary: URL?) -> BrokerCandidates {
         BrokerClient.candidates(primary: primary, fallbacks: defaultBrokerURLs)
     }
 
