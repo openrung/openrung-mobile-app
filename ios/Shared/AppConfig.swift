@@ -11,8 +11,10 @@ enum AppConfig {
     /// Discovery broker (relay-list bootstrap) default, and — since discovery is HTTPS-only — the sole
     /// built-in discovery candidate. Discovery is the censorship-critical path: it runs BEFORE the VPN
     /// tunnel is up, and the relay list it returns defines which server the client trusts as its exit.
-    /// The relay list is NOT signed, so it must only be fetched over a TLS-authenticated channel; the
-    /// Cloudflare-fronted HTTPS endpoint (TLS + CDN edge IPs) is both hard to block and unforgeable.
+    /// The relay list is Ed25519-signed by the broker and verified against `relaySigningKeys` before
+    /// it is decoded (see `RelayListVerifier`), so its authenticity no longer rests on the transport;
+    /// the Cloudflare-fronted HTTPS endpoint stays the default because TLS + CDN edge IPs are hard to
+    /// block and keep the client identity headers off the wire in cleartext.
     static let defaultBrokerURL = URL(string: "https://broker.openrung.org/")!
 
     /// Telemetry / heartbeat / speed-test target. Uses the same Cloudflare-fronted HTTPS broker as
@@ -27,20 +29,40 @@ enum AppConfig {
 
     /// Ordered discovery candidates, raced with a staggered start: the first entry starts
     /// immediately, each later entry joins `discoveryStaggerMs` after the previous one, and the first
-    /// candidate to return relays wins (see `BrokerClient.firstReachable`). Every entry MUST be
-    /// HTTPS: the relay list is not yet signed, so it is authenticated only by the TLS cert of the
-    /// serving host — a cleartext/bare-IP entry would let an on-path censor inject a malicious relay
-    /// set.
+    /// candidate to return relays wins (see `BrokerClient.firstReachable`). Every non-loopback
+    /// candidate's relay list must carry a valid Ed25519 signature under `relaySigningKeys`
+    /// (`RelayListVerifier`), so a censor or on-path attacker controlling a candidate can only fail
+    /// it, never feed a forged relay set. Entries stay HTTPS regardless — TLS keeps the client
+    /// identity headers confidential, which the signature does not.
     ///
-    /// Only one front is deployed today, so a censor who blocks it fails discovery CLOSED (offline).
-    /// Closing that single point of failure is the front-diversity layer: adding more *HTTPS* fronts
-    /// on independent CDNs/domains is safe now (still TLS-authenticated) and just needs the extra
-    /// fronts deployed. Non-TLS / out-of-band channels (raw IP, cached blobs) stay off this list until
-    /// the broker signs the relay list. Keep this in sync with the other clients' AppConfig.
+    /// Two independent fronts are deployed — the Cloudflare Worker and an AWS CloudFront distribution
+    /// (different provider AND DNS zone) — so a single CDN/zone/account failure no longer fails
+    /// discovery CLOSED. Both proxy the one signing broker, so both serve verifiable lists. With
+    /// signing in place, non-TLS / out-of-band channels (direct-IP fallback, signed mirrors, cached
+    /// lists) become possible in later phases. Keep this in sync with the other clients' AppConfig.
     static let defaultBrokerURLs: [URL] = [
         defaultBrokerURL,
-        // Additional HTTPS fronts once deployed (second domain / second CDN), e.g.:
-        //   URL(string: "https://broker2.openrung.org/")!,
+        // Independent second front: AWS CloudFront (different provider + DNS zone).
+        URL(string: "https://d2r7mdpyevvs1m.cloudfront.net/")!,
+    ]
+
+    /// Ed25519 public keys trusted to sign the relay list, in pinned order — active key first, then
+    /// the offline standby (a third "previous" slot appears during rotations; signing spec §4.2/§11).
+    /// `keyID` is the lowercase hex of the first 8 bytes of SHA-256 over the raw 32-byte public key;
+    /// it routes verification to the matching key first but is advisory only — on a miss every pinned
+    /// key is tried. These constants MUST stay byte-identical to `testdata/signing_vectors.json`
+    /// (`pinned_keys`), which is what the committed-vector CI guard compares them against, and in
+    /// sync with the other clients' pinned lists. Rotating keys means shipping a release with the
+    /// updated list — see the signing spec's promotion runbook.
+    static let relaySigningKeys: [RelaySigningKey] = [
+        RelaySigningKey(
+            keyID: "627405615601c589",
+            publicKeyHex: "176c03cbc70833285abcea75f2a0e137bd687629142408c22806a86308bd4974"
+        ),
+        RelaySigningKey(
+            keyID: "672f79aa99a573cd",
+            publicKeyHex: "5b2698cfa7a796c671a30aabd5475d55095b91464221f051837eb8fe01f36ea2"
+        ),
     ]
 
     /// Ordered broker candidates for a connection attempt: the caller-selected `primary` (the provider

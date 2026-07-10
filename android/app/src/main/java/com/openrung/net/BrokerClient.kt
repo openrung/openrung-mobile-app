@@ -19,6 +19,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.io.IOException
 import java.net.HttpURLConnection
+import java.net.InetAddress
 import java.net.URI
 import java.net.URL
 import java.net.URLEncoder
@@ -35,12 +36,23 @@ class BrokerHttpException(val status: Int, message: String) : IOException(messag
 class BrokerClient(
     private val baseUrl: String,
     private val json: Json = Json { ignoreUnknownKeys = true },
+    private val verifier: RelayListVerifier = RelayListVerifier(),
+    /**
+     * When true, loopback brokers are signature-verified like any other candidate. Production
+     * leaves this false: loopback (the adb-reverse dev flow) is the ONE signature-exempt channel,
+     * mirroring the desktop client's `EnforceSecureBrokerURL` loopback-http allowance (SPEC v1
+     * §5.2). Internal so the HTTP-level signing tests can force verification against a 127.0.0.1
+     * fixture server.
+     */
+    internal val requireSignatureOnLoopback: Boolean = false,
 ) {
     suspend fun listRelays(
         limit: Int = 5,
         clientId: String? = null,
         sessionId: String? = null,
     ): RelayListResponse = withContext(Dispatchers.IO) {
+        // What the query string will actually ask for — a signed response must echo it (§2.2).
+        val requestedLimit = effectiveLimit(limit)
         val url = URL(relayListUrl(baseUrl, limit))
         val connection = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
@@ -50,6 +62,15 @@ class BrokerClient(
             // installed HTTP response cache replay a stale relay list.
             useCaches = false
             setRequestProperty("Cache-Control", "no-cache, no-store")
+            if (!url.protocol.equals("https", ignoreCase = true)) {
+                // Non-TLS candidate discipline (SPEC v1 §5.2/§6): no transparent gzip —
+                // HttpURLConnection silently adds it otherwise, and a middlebox recompressing
+                // cleartext would change the exact bytes the relay-list signature covers — and
+                // no redirect-following, so an on-path attacker's 3xx is just a failed candidate.
+                // TLS candidates are untouched: edge compression decodes back to origin bytes.
+                setRequestProperty("Accept-Encoding", "identity")
+                instanceFollowRedirects = false
+            }
             clientId?.let { setRequestProperty("X-OpenRung-Client-ID", it) }
             sessionId?.let { setRequestProperty("X-OpenRung-Session-ID", it) }
             setRequestProperty("X-OpenRung-App-Version", BuildConfig.VERSION_NAME)
@@ -77,15 +98,31 @@ class BrokerClient(
             } else {
                 connection.errorStream ?: connection.inputStream
             }
-            val body = stream.bufferedReader().use { it.readText() }
+            // Raw bytes straight off the connection stream, BEFORE any charset decoding: the
+            // relay-list signature covers the exact bytes the broker sent (SPEC v1 §5.1), so a
+            // readText() decode + re-encode has no place on this path.
+            val bodyBytes = stream.use { it.readBytes() }
             if (status !in 200..299) {
+                // Non-2xx responses are unsigned by design and always mean "candidate failed" —
+                // never authenticated broker state (SPEC v1 §5.2 step 1).
+                val body = String(bodyBytes, Charsets.UTF_8)
                 val apiError = runCatching { json.decodeFromString<ErrorResponse>(body).error }.getOrNull()
                 throw BrokerHttpException(
                     status,
                     "broker list relays: ${apiError?.ifBlank { null } ?: body.ifBlank { connection.responseMessage }}",
                 )
             }
-            json.decodeFromString<RelayListResponse>(body)
+            if (requireSignatureOnLoopback || !hostIsLoopback(url.host)) {
+                verifier.verifyAndDecode(
+                    bodyBytes = bodyBytes,
+                    signatureHeader = RelayListVerifier.signatureHeader(connection.headerFields),
+                    requestedLimit = requestedLimit,
+                    json = json,
+                ).response
+            } else {
+                // Loopback dev brokers (adb reverse) stay usable unsigned — the one exemption.
+                json.decodeFromString<RelayListResponse>(String(bodyBytes, Charsets.UTF_8))
+            }
         } finally {
             disconnectOnCancel.cancel()
             connection.disconnect()
@@ -272,6 +309,28 @@ class BrokerClient(
             }
         }
 
+        /**
+         * The limit actually requested from the broker: non-positive values fall back to the
+         * broker's default page size of 5. This is also the value a signed response must echo
+         * back in its `limit` field (SPEC v1 §2.2), so [listRelays] and [relayListUrl] MUST
+         * derive it identically — hence the shared helper.
+         */
+        internal fun effectiveLimit(limit: Int): Int = if (limit < 1) 5 else limit
+
+        /**
+         * Whether [host] (as returned by [URL.getHost], so IPv6 literals keep their brackets) is
+         * localhost or a loopback IP literal — the one signature-exempt broker channel, mirroring
+         * the desktop client's `hostIsLoopback` (internal/client/broker.go). The literal check
+         * gates the [InetAddress] call so a plain hostname never triggers a DNS lookup here (a
+         * DNS answer must never decide whether verification is skipped).
+         */
+        internal fun hostIsLoopback(host: String): Boolean {
+            val bare = host.trim().removePrefix("[").removeSuffix("]")
+            if (bare.equals("localhost", ignoreCase = true)) return true
+            val isLiteral = bare.isNotEmpty() && (bare.all { it.isDigit() || it == '.' } || bare.contains(':'))
+            return isLiteral && runCatching { InetAddress.getByName(bare).isLoopbackAddress }.getOrDefault(false)
+        }
+
         fun relayListUrl(baseUrl: String, limit: Int): String {
             val trimmed = baseUrl.trim()
             require(trimmed.isNotBlank()) { "broker URL is required" }
@@ -285,8 +344,7 @@ class BrokerClient(
             val relayPath = listOf(basePath, "api/v1/relays")
                 .filter { it.isNotBlank() }
                 .joinToString(separator = "/", prefix = "/")
-            val safeLimit = if (limit < 1) 5 else limit
-            val query = appendLimit(uri.rawQuery, safeLimit)
+            val query = appendLimit(uri.rawQuery, effectiveLimit(limit))
             return URI(uri.scheme, uri.userInfo, uri.host, uri.port, relayPath, query, null).toString()
         }
 

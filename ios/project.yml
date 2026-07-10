@@ -112,10 +112,16 @@ targets:
         CODE_SIGN_ENTITLEMENTS: PacketTunnel/PacketTunnel.entitlements
         APPLICATION_EXTENSION_API_ONLY: "YES"
 
-  # Hostless logic-test bundle for the failure classifier and the broker discovery flow. It
-  # compiles the tested sources (and their small dependency closure) directly into the test module
-  # (rather than @testable-importing the extension), so the suite builds and runs without the app,
-  # CocoaPods, or Libbox.
+  # Hostless logic-test bundle. It compiles the units under test and their source closure directly
+  # into the test module (rather than @testable-importing the app/extension), so the suites build and
+  # run without the app, CocoaPods, or Libbox. Three suites live here:
+  #   - FailureClassifierTests: FailureClassifier + the small error types it maps.
+  #   - BrokerClientTests: the broker discovery flow (staggered race + override-first).
+  #   - RelayListVerifierTests: RelayListVerifier, plus AppConfig and its compile closure
+  #     (BrokerClient/RelayDescriptor/DeviceAttributes/NetworkPathMonitor/BrokerEndpoint) so the §11
+  #     pinned-key CI guard verifies the committed rotation vectors against the REAL
+  #     AppConfig.relaySigningKeys constant — a typo'd pin fails CI here, not on rotation day.
+  # All sources are Foundation/UIKit/Network/CryptoKit only (no CocoaPods, no Libbox).
   OpenRungTests:
     type: bundle.unit-test
     platform: iOS
@@ -132,6 +138,7 @@ targets:
       - path: Shared/NetworkPathMonitor.swift
       - path: Shared/RelayDescriptor.swift
       - path: Shared/RelayReachabilityError.swift
+      - path: Shared/RelayListVerifier.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.openrung.mobile.OpenRungTests

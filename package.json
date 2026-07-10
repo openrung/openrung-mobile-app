@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@maplibre/maplibre-react-native": "^11.3.6",
+    "@noble/ed25519": "2.3.0",
+    "@noble/hashes": "2.2.0",
     "@react-native-async-storage/async-storage": "^3.1.1",
     "@react-native/new-app-screen": "0.86.0",
     "react": "19.2.3",

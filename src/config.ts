@@ -10,11 +10,12 @@ import { version } from '../package.json';
  */
 export const AppConfig = {
   /**
-   * Discovery broker (relay-list bootstrap) default, and — since discovery is HTTPS-only — the sole
-   * built-in discovery candidate. Discovery is the censorship-critical path: it runs BEFORE the VPN
-   * tunnel is up, and the relay list it returns defines which server the client trusts as its exit.
-   * The relay list is NOT signed, so it must only be fetched over a TLS-authenticated channel; the
-   * Cloudflare-fronted HTTPS endpoint (TLS + CDN edge IPs) is both hard to block and unforgeable.
+   * Discovery broker (relay-list bootstrap) default. Discovery is the censorship-critical path: it
+   * runs BEFORE the VPN tunnel is up, and the relay list it returns defines which server the client
+   * trusts as its exit. The relay list is Ed25519-signed by the broker (SPEC v1) and verified
+   * against RELAY_SIGNING_KEYS below, so its authenticity no longer depends on the transport; the
+   * Cloudflare-fronted HTTPS endpoint remains the default because TLS + CDN edge IPs are also hard
+   * to block.
    */
   DEFAULT_BROKER_URL: 'https://broker.openrung.org/',
 
@@ -34,20 +35,21 @@ export const AppConfig = {
    * Ordered discovery candidates, raced with a staggered start: the first entry starts
    * immediately, each later entry joins DISCOVERY_STAGGER_MS after the previous one, and the
    * first candidate to return relays wins (see `firstReachable` in `net/brokerClient.ts`).
-   * Every entry MUST be HTTPS: the relay list is not yet signed, so it is
-   * authenticated only by the TLS cert of the serving host — a cleartext/bare-IP entry would let an
-   * on-path censor inject a malicious relay set.
+   * Every candidate's relay list is verified against RELAY_SIGNING_KEYS (loopback dev hosts
+   * excepted), so list authenticity no longer rests on the TLS cert of the serving host —
+   * a forged or tampered response is simply a failed candidate.
    *
-   * Only one front is deployed today, so a censor who blocks it fails discovery CLOSED (offline).
-   * Closing that single point of failure is the front-diversity layer: adding more *HTTPS* fronts on
-   * independent CDNs/domains is safe now (still TLS-authenticated) and just needs the extra fronts
-   * deployed. Non-TLS / out-of-band channels (raw IP, cached blobs) stay off this list until the
-   * broker signs the relay list. Keep this in sync with the other clients' AppConfig.
+   * Two independent fronts are deployed — the Cloudflare Worker and an AWS CloudFront distribution
+   * (different provider AND DNS zone) — so a single CDN/zone/account failure no longer fails
+   * discovery CLOSED. Both proxy the one signing broker, so both serve verifiable lists. Now that
+   * the list is signed, non-TLS channels (direct-IP fallback, static mirrors) become safe to ADD
+   * here in a later step — signing defends integrity only, a censor can still block any individual
+   * entry. Keep this in sync with the other clients' AppConfig.
    */
   DEFAULT_BROKER_URLS: [
     'https://broker.openrung.org/',
-    // Additional HTTPS fronts once deployed (second domain / second CDN), e.g.:
-    //   'https://broker2.openrung.org/',
+    // Independent second front: AWS CloudFront (different provider + DNS zone).
+    'https://d2r7mdpyevvs1m.cloudfront.net/',
   ],
 
   /**
@@ -74,6 +76,28 @@ export const AppConfig = {
    * AppConfigs — the staggered-race semantics are identical across all four clients.
    */
   DISCOVERY_STAGGER_MS: 2_500,
+
+  /**
+   * Pinned Ed25519 public keys for relay-list signature verification (SPEC v1 §4.2), ordered
+   * active first, offline standby second. `publicKeyHex` is the raw 32-byte key as lowercase hex;
+   * `keyId` is lowercase hex of the first 8 bytes of SHA-256 over that raw key. The key_id in the
+   * broker's signature header is advisory routing only — verification falls back to trying every
+   * pinned key — so a keyId typo here costs one wasted verify, never an outage. MUST stay in sync
+   * with the desktop Go client and the Kotlin/Swift AppConfigs, and with the `pinned_keys` block
+   * of testdata/signing_vectors.json: the CI pinned-key guard (relaySigning.test.ts) verifies a
+   * committed test vector against each constant so a truncated/typo'd key fails CI immediately
+   * instead of being discovered on key-promotion day (SPEC v1 §11).
+   */
+  RELAY_SIGNING_KEYS: [
+    {
+      keyId: '627405615601c589', // active (online, on the broker)
+      publicKeyHex: '176c03cbc70833285abcea75f2a0e137bd687629142408c22806a86308bd4974',
+    },
+    {
+      keyId: '672f79aa99a573cd', // standby (offline, promotable per the rotation runbook)
+      publicKeyHex: '5b2698cfa7a796c671a30aabd5475d55095b91464221f051837eb8fe01f36ea2',
+    },
+  ],
 
   RELAY_LIMIT: 5,
   VPN_SESSION_NAME: 'OpenRung Volunteer VPN',
