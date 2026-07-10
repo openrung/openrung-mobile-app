@@ -127,31 +127,48 @@ describe('decodeRelayListResponse', () => {
 describe('candidates', () => {
   const fallbacks = ['https://broker.openrung.org/', 'http://54.238.185.205:8080/'];
 
-  it('puts a genuine primary override first, then the fallbacks', () => {
-    expect(candidates('https://my-broker.example/', fallbacks)).toEqual([
-      'https://my-broker.example/',
-      'https://broker.openrung.org/',
-      'http://54.238.185.205:8080/',
-    ]);
+  it('puts a genuine primary override first, then the fallbacks, and flags the override', () => {
+    expect(candidates('https://my-broker.example/', fallbacks)).toEqual({
+      urls: [
+        'https://my-broker.example/',
+        'https://broker.openrung.org/',
+        'http://54.238.185.205:8080/',
+      ],
+      overrideFirst: true,
+    });
   });
 
-  it('does NOT let a primary that echoes a fallback reorder the HTTPS-first defaults', () => {
-    expect(candidates('http://54.238.185.205:8080/', fallbacks)).toEqual(fallbacks);
-    expect(candidates('https://broker.openrung.org/', fallbacks)).toEqual(fallbacks);
+  it('does NOT let a primary that echoes a fallback reorder the HTTPS-first defaults or claim the override phase', () => {
+    expect(candidates('http://54.238.185.205:8080/', fallbacks)).toEqual({
+      urls: fallbacks,
+      overrideFirst: false,
+    });
+    expect(candidates('https://broker.openrung.org/', fallbacks)).toEqual({
+      urls: fallbacks,
+      overrideFirst: false,
+    });
   });
 
   it('trims the primary before comparing against fallbacks', () => {
-    expect(candidates('  https://broker.openrung.org/  ', fallbacks)).toEqual(fallbacks);
+    expect(candidates('  https://broker.openrung.org/  ', fallbacks)).toEqual({
+      urls: fallbacks,
+      overrideFirst: false,
+    });
   });
 
   it('drops blank entries and de-duplicates while preserving order', () => {
-    expect(candidates(null, ['  ', 'https://a/', 'https://a/', 'https://b/'])).toEqual([
-      'https://a/',
-      'https://b/',
-    ]);
-    expect(candidates('', fallbacks)).toEqual(fallbacks);
+    expect(candidates(null, ['  ', 'https://a/', 'https://a/', 'https://b/'])).toEqual({
+      urls: ['https://a/', 'https://b/'],
+      overrideFirst: false,
+    });
+    expect(candidates('', fallbacks)).toEqual({ urls: fallbacks, overrideFirst: false });
   });
 });
+
+/** Wraps urls as a pure-race candidate list — what `candidates()` builds without an override. */
+const noOverride = (...urls: string[]) => ({ urls, overrideFirst: false });
+/** Wraps urls as a candidate list whose FIRST entry is a genuine user override. */
+const withOverride = (...urls: string[]) => ({ urls, overrideFirst: true });
 
 describe('firstReachable (staggered discovery race)', () => {
   const STAGGER_MS = AppConfig.DISCOVERY_STAGGER_MS;
@@ -198,7 +215,7 @@ describe('firstReachable (staggered discovery race)', () => {
   it('lets a healthy primary win without ever starting the fallback', async () => {
     installFetch(async () => okResponse());
 
-    const result = await firstReachable([PRIMARY, SECONDARY]);
+    const result = await firstReachable(noOverride(PRIMARY, SECONDARY));
 
     expect(result.brokerUrl).toBe(PRIMARY);
     expect(fetchStub).toHaveBeenCalledTimes(1);
@@ -214,7 +231,7 @@ describe('firstReachable (staggered discovery race)', () => {
       url.startsWith(PRIMARY) ? hangingFetch(init) : Promise.resolve(okResponse()),
     );
 
-    const race = firstReachable([PRIMARY, SECONDARY]);
+    const race = firstReachable(noOverride(PRIMARY, SECONDARY));
 
     // Just before the stagger elapses, only the primary has been contacted.
     await jest.advanceTimersByTimeAsync(STAGGER_MS - 1);
@@ -236,7 +253,7 @@ describe('firstReachable (staggered discovery race)', () => {
       url.startsWith(TERTIARY) ? Promise.resolve(okResponse()) : hangingFetch(init),
     );
 
-    const race = firstReachable([PRIMARY, SECONDARY, TERTIARY]);
+    const race = firstReachable(noOverride(PRIMARY, SECONDARY, TERTIARY));
     expect(fetchStub).toHaveBeenCalledTimes(1); // t=0: primary starts immediately
 
     await jest.advanceTimersByTimeAsync(STAGGER_MS);
@@ -258,7 +275,7 @@ describe('firstReachable (staggered discovery race)', () => {
     installFetch(url => Promise.reject(url.startsWith(PRIMARY) ? primaryError : fallbackError));
 
     // Attach handlers up front so the eventual rejection is captured, then drive the clock.
-    const outcome = firstReachable([PRIMARY, SECONDARY]).then(
+    const outcome = firstReachable(noOverride(PRIMARY, SECONDARY)).then(
       () => {
         throw new Error('expected the race to fail');
       },
@@ -282,7 +299,7 @@ describe('firstReachable (staggered discovery race)', () => {
     installFetch(() => Promise.reject(failure));
 
     // The error propagates unchanged (same instance, not wrapped or replaced).
-    await expect(firstReachable([PRIMARY])).rejects.toBe(failure);
+    await expect(firstReachable(noOverride(PRIMARY))).rejects.toBe(failure);
     expect(fetchStub).toHaveBeenCalledTimes(1);
     // No stagger timer was ever scheduled, and the attempt's timeout timer was cleaned up.
     expect(jest.getTimerCount()).toBe(0);
@@ -290,7 +307,90 @@ describe('firstReachable (staggered discovery race)', () => {
 
   it('rejects when no candidates are configured', async () => {
     installFetch(async () => okResponse());
-    await expect(firstReachable([])).rejects.toThrow('no broker endpoints configured');
+    await expect(firstReachable(noOverride())).rejects.toThrow('no broker endpoints configured');
     expect(fetchStub).not.toHaveBeenCalled();
+  });
+
+  describe('user-override strict phase (spec point 6)', () => {
+    it('lets a genuine override slower than the stagger win — defaults are never contacted', async () => {
+      // The override answers only after 3 stagger intervals: under pure race semantics the
+      // default front would long since have won; under override-first it must never even start.
+      installFetch(url =>
+        url.startsWith(PRIMARY)
+          ? new Promise(resolve => setTimeout(() => resolve(okResponse()), STAGGER_MS * 3))
+          : Promise.resolve(okResponse()),
+      );
+
+      const outcome = firstReachable(withOverride(PRIMARY, SECONDARY));
+
+      // Well past several stagger intervals, no default has been contacted.
+      await jest.advanceTimersByTimeAsync(STAGGER_MS * 2);
+      expect(fetchStub).toHaveBeenCalledTimes(1);
+
+      await jest.advanceTimersByTimeAsync(STAGGER_MS);
+      await expect(outcome).resolves.toMatchObject({ brokerUrl: PRIMARY });
+      expect(fetchStub).toHaveBeenCalledTimes(1);
+    });
+
+    it('starts the remaining defaults only when the override FAILS, then races them on the stagger cadence', async () => {
+      const overrideError = new Error('override down');
+      installFetch((url, init) => {
+        if (url.startsWith(PRIMARY)) {
+          return new Promise((_resolve, reject) => setTimeout(() => reject(overrideError), 1_000));
+        }
+        return url.startsWith(SECONDARY) ? hangingFetch(init) : Promise.resolve(okResponse());
+      });
+
+      const outcome = firstReachable(withOverride(PRIMARY, SECONDARY, TERTIARY));
+
+      // While the override is pending, no default is contacted — there is no race yet.
+      await jest.advanceTimersByTimeAsync(999);
+      expect(fetchStub).toHaveBeenCalledTimes(1);
+
+      // The override's failure starts the remainder race: its first candidate immediately...
+      await jest.advanceTimersByTimeAsync(1);
+      expect(fetchStub).toHaveBeenCalledTimes(2);
+
+      // ...and the next one a full stagger later, on the usual cadence.
+      await jest.advanceTimersByTimeAsync(STAGGER_MS - 1);
+      expect(fetchStub).toHaveBeenCalledTimes(2);
+      await jest.advanceTimersByTimeAsync(1);
+      await expect(outcome).resolves.toMatchObject({ brokerUrl: TERTIARY });
+      expect(fetchStub).toHaveBeenCalledTimes(3);
+
+      // The hanging default that lost the remainder race was aborted for real.
+      const inits = fetchStub.mock.calls.map(([, init]) => init);
+      expect(inits[1].signal.aborted).toBe(true);
+      expect(inits[2].signal.aborted).toBe(false);
+    });
+
+    it('surfaces the override error when the remainder race also fails', async () => {
+      const overrideError = new Error('override: connection refused');
+      const defaultError = new Error('default: HTTP 502');
+      installFetch(url =>
+        Promise.reject(url.startsWith(PRIMARY) ? overrideError : defaultError),
+      );
+
+      const outcome = firstReachable(withOverride(PRIMARY, SECONDARY)).then(
+        () => {
+          throw new Error('expected the override flow to fail');
+        },
+        (error: unknown) => error,
+      );
+
+      // The override is candidates[0]: its error stays the surfaced diagnostic (spec point 4) —
+      // the user configured that broker, so its failure is what they need to see.
+      expect(await outcome).toBe(overrideError);
+      expect(fetchStub).toHaveBeenCalledTimes(2);
+    });
+
+    it('with a single overridden candidate behaves exactly like one plain attempt', async () => {
+      const failure = new Error('override broker down');
+      installFetch(() => Promise.reject(failure));
+
+      await expect(firstReachable(withOverride(PRIMARY))).rejects.toBe(failure);
+      expect(fetchStub).toHaveBeenCalledTimes(1);
+      expect(jest.getTimerCount()).toBe(0);
+    });
   });
 });

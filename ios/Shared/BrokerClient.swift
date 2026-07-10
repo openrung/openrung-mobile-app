@@ -14,6 +14,24 @@ public struct BrokerFetch: Sendable {
     }
 }
 
+/// The ordered discovery endpoints for one request, plus whether `urls[0]` is a genuine user
+/// override. Built by `BrokerClient.candidates` and consumed by `BrokerClient.firstReachable`;
+/// carrying the flag alongside the list keeps the two from being computed inconsistently.
+public struct BrokerCandidates: Sendable {
+    /// Ordered discovery candidates.
+    public let urls: [URL]
+    /// True when `urls[0]` is a genuine user override — a primary that is not one of the built-in
+    /// defaults. `firstReachable` then tries it strictly first (full per-attempt timeout) and only
+    /// races the remaining defaults after it fails, so a custom broker that is merely slower than
+    /// the stagger is never silently outrun by a default front.
+    public let overrideFirst: Bool
+
+    public init(urls: [URL], overrideFirst: Bool = false) {
+        self.urls = urls
+        self.overrideFirst = overrideFirst
+    }
+}
+
 public struct BrokerClient: Sendable {
     private let baseURL: URL
     private let session: URLSession
@@ -61,18 +79,22 @@ public struct BrokerClient: Sendable {
     }
 
     /// Builds the ordered broker candidate list, de-duplicated while preserving order. `primary` is
-    /// tried FIRST only when it is a genuine override — i.e. not already one of the `fallbacks`. A
-    /// persisted value that merely echoes a built-in default must NOT reorder the defaults' preferred
-    /// (HTTPS-first) ordering. Pure and side-effect free so it is unit-testable.
-    public static func candidates(primary: URL?, fallbacks: [URL]) -> [URL] {
+    /// tried FIRST only when it is a genuine override — i.e. not already one of the `fallbacks` —
+    /// and only such an override sets `overrideFirst`, giving it the strict head phase described on
+    /// `BrokerCandidates`. A persisted value that merely echoes a built-in default must NOT reorder
+    /// the defaults' preferred (HTTPS-first) ordering (or claim the override phase). Pure and
+    /// side-effect free so it is unit-testable.
+    public static func candidates(primary: URL?, fallbacks: [URL]) -> BrokerCandidates {
         var ordered: [URL] = []
+        var overrideFirst = false
         if let primary, fallbacks.contains(primary) == false {
             ordered.append(primary)
+            overrideFirst = true
         }
         for fallback in fallbacks where ordered.contains(fallback) == false {
             ordered.append(fallback)
         }
-        return ordered
+        return BrokerCandidates(urls: ordered, overrideFirst: overrideFirst)
     }
 
     /// Staggered-race discovery (happy-eyeballs style) across the candidate brokers, returning the
@@ -98,22 +120,78 @@ public struct BrokerClient: Sendable {
     ///     primary's failure is the meaningful diagnostic; later fallbacks' errors are secondary.
     ///  5. With a single candidate the observable behavior equals the old sequential loop: one
     ///     attempt, no stagger sleeps, its error propagated unchanged.
+    ///  6. When `candidates.overrideFirst` is set, `urls[0]` is a GENUINE user override and racing
+    ///     it would betray the user's choice: a custom broker that is merely slower than the
+    ///     stagger would silently lose to a default front. The override is therefore attempted
+    ///     strictly first, alone, with its full per-attempt timeout — no default is contacted
+    ///     while it is pending — and it wins on any success, exactly like the old sequential loop.
+    ///     Only when the override FAILS does the race of points 1–5 start over the REMAINING
+    ///     candidates (the first of them immediately, the next one stagger later, and so on). If
+    ///     the override and every remaining candidate fail, the override's error is rethrown — it
+    ///     is `urls[0]`, so point 4's diagnostic is unchanged.
     ///
     /// Honors task cancellation like the old sequential loop: cancelling the surrounding task
     /// cancels every in-flight attempt and rethrows `CancellationError`, never a per-attempt error.
     public static func firstReachable(
-        candidates: [URL],
+        candidates: BrokerCandidates,
         limit: Int = 5,
         clientID: String? = nil,
         sessionID: String? = nil,
         session: URLSession = .shared
     ) async throws -> BrokerFetch {
+        try await firstReachable(candidates: candidates) { url in
+            try await BrokerClient(baseURL: url, session: session)
+                .listRelays(limit: limit, clientID: clientID, sessionID: sessionID)
+        }
+    }
+
+    /// Core behind `firstReachable` with the per-candidate fetch injectable and the stagger
+    /// overridable, so the override / stagger / first-success / all-fail semantics are
+    /// unit-testable (see `BrokerClientTests`) without real sockets or real 2.5 s staggers.
+    static func firstReachable(
+        candidates: BrokerCandidates,
+        staggerMs: UInt64 = AppConfig.discoveryStaggerMs,
+        attempt: @escaping @Sendable (URL) async throws -> RelayListResponse
+    ) async throws -> BrokerFetch {
         try Task.checkCancellation()
-        guard candidates.isEmpty == false else {
+        guard candidates.urls.isEmpty == false else {
             throw BrokerClientError.invalidResponse
         }
 
-        return try await withThrowingTaskGroup(
+        if candidates.overrideFirst {
+            let overrideURL = candidates.urls[0]
+            let overrideError: Error
+            do {
+                // Strict override phase (spec point 6): one plain attempt, full timeout, no race.
+                return BrokerFetch(brokerURL: overrideURL, response: try await attempt(overrideURL))
+            } catch {
+                // The caller went away: rethrow its cancellation, not the override's failure.
+                try Task.checkCancellation()
+                overrideError = error
+            }
+            let remaining = Array(candidates.urls.dropFirst())
+            if remaining.isEmpty {
+                throw overrideError
+            }
+            do {
+                return try await race(remaining, staggerMs: staggerMs, attempt: attempt)
+            } catch is CancellationError {
+                throw CancellationError() // the caller went away mid-race — not a broker diagnostic
+            } catch {
+                // All-fail keeps surfacing candidates[0]'s — the override's — error (spec point 4).
+                throw overrideError
+            }
+        }
+        return try await race(candidates.urls, staggerMs: staggerMs, attempt: attempt)
+    }
+
+    /// The staggered-race core (spec points 1–5), sans override handling.
+    private static func race(
+        _ candidates: [URL],
+        staggerMs: UInt64,
+        attempt: @escaping @Sendable (URL) async throws -> RelayListResponse
+    ) async throws -> BrokerFetch {
+        try await withThrowingTaskGroup(
             of: (Int, Result<BrokerFetch, Error>).self,
             returning: BrokerFetch.self
         ) { group in
@@ -125,7 +203,7 @@ public struct BrokerClient: Sendable {
                         // candidates only ever start while no attempt has succeeded yet; an early
                         // failure does NOT cut the sleep short (spec point 1).
                         try? await Task.sleep(
-                            nanoseconds: UInt64(index) * AppConfig.discoveryStaggerMs * 1_000_000
+                            nanoseconds: UInt64(index) * staggerMs * 1_000_000
                         )
                     }
                     if Task.isCancelled {
@@ -134,8 +212,7 @@ public struct BrokerClient: Sendable {
                         return (index, .failure(CancellationError()))
                     }
                     do {
-                        let response = try await BrokerClient(baseURL: url, session: session)
-                            .listRelays(limit: limit, clientID: clientID, sessionID: sessionID)
+                        let response = try await attempt(url)
                         return (index, .success(BrokerFetch(brokerURL: url, response: response)))
                     } catch {
                         return (index, .failure(error))

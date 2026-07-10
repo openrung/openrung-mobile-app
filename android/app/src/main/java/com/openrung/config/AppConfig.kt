@@ -45,11 +45,14 @@ object AppConfig {
     /**
      * Ordered discovery candidates for a connection attempt: the caller-selected [primary] (a user
      * override or the persisted choice) first, then the built-in [DEFAULT_BROKER_URLS], de-duplicated
-     * while preserving order. The primary is never discarded, so a user's custom broker always
-     * starts the discovery race first — in the staggered race, list position is expressed purely
-     * as a head start of [DISCOVERY_STAGGER_MS] per position — and the defaults act as fallbacks.
+     * while preserving order. A GENUINE override (a primary that is not one of the defaults) is
+     * flagged `overrideFirst`: `firstReachable` tries it strictly first with its full per-attempt
+     * timeout — a user's custom broker is never silently outrun by a default front merely for being
+     * slower than the stagger — and the defaults race as fallbacks only after it fails. A primary
+     * that echoes a default keeps the pure staggered race, where list position is just a head start
+     * of [DISCOVERY_STAGGER_MS] per position.
      */
-    fun brokerCandidates(primary: String?): List<String> =
+    fun brokerCandidates(primary: String?): com.openrung.net.BrokerClient.Candidates =
         com.openrung.net.BrokerClient.candidates(primary, DEFAULT_BROKER_URLS)
 
     /**
