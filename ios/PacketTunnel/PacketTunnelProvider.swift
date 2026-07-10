@@ -93,8 +93,9 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             // Resolve our own geo concurrently with the broker fetch (both before the tunnel is up).
             async let geoLookup: ClientGeoInfo? = try? await GeoIpClient().lookup()
             let brokerStartedNs = DispatchTime.now().uptimeNanoseconds
-            // Tries each broker candidate in order so a blocked primary endpoint doesn't take
-            // discovery offline.
+            // Staggered race across the broker candidates: a blocked primary front costs one
+            // stagger interval of extra latency (not a full request timeout) before a fallback
+            // front is contacted, and never takes discovery offline.
             let fetch = try await BrokerClient.firstReachable(
                 candidates: AppConfig.brokerCandidates(primary: brokerURL),
                 // Targeted connects (country or exact relay) need the full set so the target is present.
@@ -106,11 +107,12 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             )
             let response = fetch.response
             let brokerFetchMs = Int64((DispatchTime.now().uptimeNanoseconds - brokerStartedNs) / 1_000_000)
-            // If the primary broker was unreachable and a fallback served the list, pin the rest of
-            // this session's broker traffic (telemetry, heartbeats) to the endpoint that worked.
+            // If a fallback front won the discovery race (primary blocked, down, or just slower
+            // than its head start), pin the rest of this session's broker traffic (telemetry,
+            // heartbeats) to the endpoint that worked.
             if fetch.brokerURL != brokerURL {
                 self.brokerURL = fetch.brokerURL
-                SharedConnectionState.appendLog("primary broker unreachable; using fallback \(fetch.brokerURL.absoluteString)")
+                SharedConnectionState.appendLog("primary broker lost the discovery race; using fallback \(fetch.brokerURL.absoluteString)")
             }
             if let geo = await geoLookup {
                 TelemetryManager.setGeoInfo(geo)

@@ -12,7 +12,7 @@
     <string name="status_disconnecting">Disconnecting</string>
     <string name="status_failed">Failed</string>
     <string name="log_fetching_relays">fetching relays from %1$s</string>
-    <string name="log_broker_fallback">primary broker unreachable; using fallback %1$s</string>
+    <string name="log_broker_fallback">primary broker lost the discovery race; using fallback %1$s</string>
     <string name="log_broker_returned">broker returned %1$d relays; %2$d usable</string>
     <string name="log_connecting_country">connecting to a volunteer in %1$s</string>
     <string name="log_connecting_relay">connecting to relay %1$s</string>

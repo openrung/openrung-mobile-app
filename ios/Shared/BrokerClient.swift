@@ -36,6 +36,10 @@ public struct BrokerClient: Sendable {
         // Real-time data served with a long max-age by the broker edge — bypass URLSession's
         // cache so a newly registered relay shows up on the next fetch, not hours later.
         request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        // Per-attempt timeout, matching the other clients (TS REQUEST_TIMEOUT_MS = 15 s, Android
+        // readTimeout = 15 s) — without it URLSession's ~60 s default would let a hung attempt
+        // undo the staggered-race latency win.
+        request.timeoutInterval = 15
         if let clientID {
             request.setValue(clientID, forHTTPHeaderField: "X-OpenRung-Client-ID")
         }
@@ -71,10 +75,32 @@ public struct BrokerClient: Sendable {
         return ordered
     }
 
-    /// Fetches relays from each candidate broker in order, returning the first success along with the
-    /// endpoint that served it. A blocked or down primary endpoint therefore no longer takes discovery
-    /// offline as long as one candidate is reachable. Honors task cancellation; if every candidate
-    /// fails, the last error is rethrown.
+    /// Staggered-race discovery (happy-eyeballs style) across the candidate brokers, returning the
+    /// first success along with the endpoint that served it. A blocked or blackholed primary front
+    /// therefore costs one `AppConfig.discoveryStaggerMs` of extra latency — not a full request
+    /// timeout — before a fallback front is contacted, and never takes discovery offline as long as
+    /// one candidate is reachable.
+    ///
+    /// Race semantics — MUST stay identical across the desktop Go client, the reference TypeScript
+    /// implementation (`firstReachable` in `src/net/brokerClient.ts`), the Android Kotlin port, and
+    /// this Swift port:
+    ///
+    ///  1. `candidates[0]` starts immediately; while no attempt has succeeded yet, every
+    ///     `discoveryStaggerMs` the next not-yet-started candidate joins the race. An early FAILURE
+    ///     does not accelerate the schedule — starts are driven purely by the stagger cadence
+    ///     (candidate N sleeps N staggers before attempting, which is the same cadence).
+    ///  2. The first SUCCESS wins and returns immediately, cancelling every other in-flight attempt
+    ///     and the not-yet-started sleepers. A later candidate that succeeds first wins even while an
+    ///     earlier-priority attempt is still pending: candidate order buys a head start in the race,
+    ///     nothing more.
+    ///  3. The per-attempt timeout is unchanged (each attempt is one `listRelays` request).
+    ///  4. If EVERY candidate fails, the FIRST candidate's (the primary's) error is rethrown — the
+    ///     primary's failure is the meaningful diagnostic; later fallbacks' errors are secondary.
+    ///  5. With a single candidate the observable behavior equals the old sequential loop: one
+    ///     attempt, no stagger sleeps, its error propagated unchanged.
+    ///
+    /// Honors task cancellation like the old sequential loop: cancelling the surrounding task
+    /// cancels every in-flight attempt and rethrows `CancellationError`, never a per-attempt error.
     public static func firstReachable(
         candidates: [URL],
         limit: Int = 5,
@@ -82,18 +108,61 @@ public struct BrokerClient: Sendable {
         sessionID: String? = nil,
         session: URLSession = .shared
     ) async throws -> BrokerFetch {
-        var lastError: Error?
-        for url in candidates {
-            try Task.checkCancellation()
-            do {
-                let response = try await BrokerClient(baseURL: url, session: session)
-                    .listRelays(limit: limit, clientID: clientID, sessionID: sessionID)
-                return BrokerFetch(brokerURL: url, response: response)
-            } catch {
-                lastError = error
-            }
+        try Task.checkCancellation()
+        guard candidates.isEmpty == false else {
+            throw BrokerClientError.invalidResponse
         }
-        throw lastError ?? BrokerClientError.invalidResponse
+
+        return try await withThrowingTaskGroup(
+            of: (Int, Result<BrokerFetch, Error>).self,
+            returning: BrokerFetch.self
+        ) { group in
+            for (index, url) in candidates.enumerated() {
+                group.addTask {
+                    if index > 0 {
+                        // Head start of the earlier candidates: candidate N joins the race N staggers
+                        // after candidate 0. A win cancels this sleep (via cancelAll below), so later
+                        // candidates only ever start while no attempt has succeeded yet; an early
+                        // failure does NOT cut the sleep short (spec point 1).
+                        try? await Task.sleep(
+                            nanoseconds: UInt64(index) * AppConfig.discoveryStaggerMs * 1_000_000
+                        )
+                    }
+                    if Task.isCancelled {
+                        // The race already settled (or the caller stopped the tunnel) while this
+                        // attempt was still waiting its turn — never contact the endpoint.
+                        return (index, .failure(CancellationError()))
+                    }
+                    do {
+                        let response = try await BrokerClient(baseURL: url, session: session)
+                            .listRelays(limit: limit, clientID: clientID, sessionID: sessionID)
+                        return (index, .success(BrokerFetch(brokerURL: url, response: response)))
+                    } catch {
+                        return (index, .failure(error))
+                    }
+                }
+            }
+
+            // Failure of each settled attempt, index-aligned; errors[0] is the surfaced diagnostic.
+            var errors = [Error?](repeating: nil, count: candidates.count)
+            while let (index, outcome) = try await group.next() {
+                switch outcome {
+                case .success(let fetch):
+                    // First success wins: cancel every other in-flight attempt (URLSession aborts
+                    // the losers' requests for real) and the pending staggers (spec point 2).
+                    group.cancelAll()
+                    return fetch
+                case .failure(let error):
+                    errors[index] = error
+                }
+            }
+
+            // Every candidate has started and failed. If the surrounding task was cancelled
+            // mid-race the collected errors are just cancellation noise — propagate
+            // CancellationError instead, exactly like the old loop's per-iteration check.
+            try Task.checkCancellation()
+            throw errors[0] ?? BrokerClientError.invalidResponse
+        }
     }
 
     public static func relaysURL(brokerURL: URL, limit: Int) throws -> URL {

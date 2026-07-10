@@ -31,8 +31,10 @@ export const AppConfig = {
   TELEMETRY_BROKER_URL: 'https://broker.openrung.org/',
 
   /**
-   * Ordered discovery candidates, tried in order until one returns relays (see `firstReachable` in
-   * `net/brokerClient.ts`). Every entry MUST be HTTPS: the relay list is not yet signed, so it is
+   * Ordered discovery candidates, raced with a staggered start: the first entry starts
+   * immediately, each later entry joins DISCOVERY_STAGGER_MS after the previous one, and the
+   * first candidate to return relays wins (see `firstReachable` in `net/brokerClient.ts`).
+   * Every entry MUST be HTTPS: the relay list is not yet signed, so it is
    * authenticated only by the TLS cert of the serving host — a cleartext/bare-IP entry would let an
    * on-path censor inject a malicious relay set.
    *
@@ -51,12 +53,24 @@ export const AppConfig = {
   /**
    * Ordered discovery candidates for a connection attempt: the caller-selected `primary` (a user
    * override or the persisted choice) first, then the built-in DEFAULT_BROKER_URLS, de-duplicated
-   * while preserving order. The primary is never discarded, so a user's custom broker is always
-   * tried first and the defaults only act as a fallback.
+   * while preserving order. The primary is never discarded, so a user's custom broker always
+   * starts the discovery race first — in the staggered race, list position is expressed purely
+   * as a head start of DISCOVERY_STAGGER_MS per position — and the defaults act as fallbacks.
    */
   brokerCandidates(primary: string | null | undefined): string[] {
     return candidates(primary, AppConfig.DEFAULT_BROKER_URLS);
   },
+
+  /**
+   * Stagger interval of the discovery race (`firstReachable`): candidate N+1 is started this many
+   * milliseconds after candidate N unless an attempt has already succeeded. Small enough that a
+   * blocked/blackholed primary front only delays discovery by ~2.5 s per fallback position
+   * (instead of a full 15 s request timeout), large enough that a healthy primary almost always
+   * answers before the first fallback is ever contacted, keeping fallback-front load near zero.
+   * MUST stay in sync with desktop `DiscoveryStagger` (Go config package) and the Kotlin/Swift
+   * AppConfigs — the staggered-race semantics are identical across all four clients.
+   */
+  DISCOVERY_STAGGER_MS: 2_500,
 
   RELAY_LIMIT: 5,
   VPN_SESSION_NAME: 'OpenRung Volunteer VPN',
