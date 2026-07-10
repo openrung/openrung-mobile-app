@@ -32,11 +32,21 @@ export const AppConfig = {
 
   /**
    * Ordered discovery candidates, tried in order until one returns relays (see `firstReachable` in
-   * `net/brokerClient.ts`). HTTPS-only: the unsigned relay list must never be fetched over a
-   * forgeable cleartext channel, so there is deliberately NO raw-IP fallback here. A blocked edge
-   * fails discovery CLOSED (offline) rather than open to an attacker-injected relay.
+   * `net/brokerClient.ts`). Every entry MUST be HTTPS: the relay list is not yet signed, so it is
+   * authenticated only by the TLS cert of the serving host — a cleartext/bare-IP entry would let an
+   * on-path censor inject a malicious relay set.
+   *
+   * Only one front is deployed today, so a censor who blocks it fails discovery CLOSED (offline).
+   * Closing that single point of failure is the front-diversity layer: adding more *HTTPS* fronts on
+   * independent CDNs/domains is safe now (still TLS-authenticated) and just needs the extra fronts
+   * deployed. Non-TLS / out-of-band channels (raw IP, cached blobs) stay off this list until the
+   * broker signs the relay list. Keep this in sync with the other clients' AppConfig.
    */
-  DEFAULT_BROKER_URLS: ['https://broker.openrung.org/'],
+  DEFAULT_BROKER_URLS: [
+    'https://broker.openrung.org/',
+    // Additional HTTPS fronts once deployed (second domain / second CDN), e.g.:
+    //   'https://broker2.openrung.org/',
+  ],
 
   /**
    * Ordered discovery candidates for a connection attempt: the caller-selected `primary` (a user
