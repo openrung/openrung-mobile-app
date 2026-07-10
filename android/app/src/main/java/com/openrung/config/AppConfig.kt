@@ -32,27 +32,30 @@ object AppConfig {
      * [com.openrung.net.RelayListVerifier]), so a candidate's TLS cert is no longer what
      * authenticates the list — an entry that fails verification is simply a failed candidate.
      *
-     * Only one front is deployed today, so a censor who blocks it fails discovery CLOSED (offline).
-     * Closing that single point of failure is the front-diversity layer: additional fronts on
-     * independent CDNs/domains, and — now that the relay list is signed — non-TLS channels (direct
-     * IP, signed mirrors) in later phases. Entries stay HTTPS for now because the discovery request
-     * carries the client identity headers, which must not travel in cleartext. Keep this in sync
-     * with the other clients' AppConfig.
+     * Two independent fronts are deployed — the Cloudflare Worker and an AWS CloudFront distribution
+     * (different provider AND DNS zone) — so a single CDN/zone/account failure no longer fails
+     * discovery CLOSED. Both proxy the one signing broker, so both serve verifiable lists. Non-TLS
+     * channels (direct IP, signed mirrors) become safe to add in later phases now that the list is
+     * signed. Entries stay HTTPS for now because the discovery request carries the client identity
+     * headers, which must not travel in cleartext. Keep this in sync with the other clients' AppConfig.
      */
     val DEFAULT_BROKER_URLS: List<String> = listOf(
         DEFAULT_BROKER_URL,
-        // Additional HTTPS fronts once deployed (second domain / second CDN), e.g.:
-        //   "https://broker2.openrung.org/",
+        // Independent second front: AWS CloudFront (different provider + DNS zone).
+        "https://d2r7mdpyevvs1m.cloudfront.net/",
     )
 
     /**
      * Ordered discovery candidates for a connection attempt: the caller-selected [primary] (a user
      * override or the persisted choice) first, then the built-in [DEFAULT_BROKER_URLS], de-duplicated
-     * while preserving order. The primary is never discarded, so a user's custom broker always
-     * starts the discovery race first — in the staggered race, list position is expressed purely
-     * as a head start of [DISCOVERY_STAGGER_MS] per position — and the defaults act as fallbacks.
+     * while preserving order. A GENUINE override (a primary that is not one of the defaults) is
+     * flagged `overrideFirst`: `firstReachable` tries it strictly first with its full per-attempt
+     * timeout — a user's custom broker is never silently outrun by a default front merely for being
+     * slower than the stagger — and the defaults race as fallbacks only after it fails. A primary
+     * that echoes a default keeps the pure staggered race, where list position is just a head start
+     * of [DISCOVERY_STAGGER_MS] per position.
      */
-    fun brokerCandidates(primary: String?): List<String> =
+    fun brokerCandidates(primary: String?): com.openrung.net.BrokerClient.Candidates =
         com.openrung.net.BrokerClient.candidates(primary, DEFAULT_BROKER_URLS)
 
     /**

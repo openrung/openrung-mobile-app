@@ -253,7 +253,7 @@ describe('listRelays verification shim (fetch level)', () => {
         ? signedResponse(signedApiBody({ limit: 5 }))
         : signedResponse(signedApiBody({ limit: 5 }), { header: null }), // unsigned primary
     );
-    const race = firstReachable(['https://stripped.example/', good]);
+    const race = firstReachable({ urls: ['https://stripped.example/', good], overrideFirst: false });
     await jest.advanceTimersByTimeAsync(AppConfig.DISCOVERY_STAGGER_MS);
     await expect(race).resolves.toMatchObject({ brokerUrl: good });
   });

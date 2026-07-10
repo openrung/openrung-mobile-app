@@ -118,9 +118,10 @@ class OpenRungVpnService : VpnService() {
                 }
                 val brokerStarted = SystemClock.elapsedRealtime()
                 // When targeting a specific country or relay, fetch the full relay set so the
-                // target is present (the default page may otherwise miss it). Races the broker
-                // candidates with a staggered start, so a blocked primary endpoint costs one
-                // DISCOVERY_STAGGER_MS of extra latency instead of taking discovery offline.
+                // target is present (the default page may otherwise miss it). A genuine user
+                // override is tried strictly first with its full attempt timeout; the defaults
+                // race with a staggered start, so a blocked front costs one DISCOVERY_STAGGER_MS
+                // of extra latency instead of taking discovery offline.
                 val targeted = targetCountry != null || targetRelayId != null
                 val result = BrokerClient.firstReachable(
                     candidates = brokerEndpoints,
@@ -133,8 +134,9 @@ class OpenRungVpnService : VpnService() {
                 result to elapsed
             }
             val relayResponse = fetch.response
-            // If a fallback front won the discovery race (primary blocked, down, or just slower than
-            // its head start), pin the rest of this session's broker traffic (telemetry, heartbeats)
+            // If a fallback front won discovery — a genuine override is beaten only by FAILING
+            // outright (it is tried strictly first); a default primary also when merely slower than
+            // its head start — pin the rest of this session's broker traffic (telemetry, heartbeats)
             // to the endpoint that worked. The persisted/configured broker URL is left untouched so a
             // user's custom choice survives.
             if (fetch.brokerUrl != brokerUrl) {

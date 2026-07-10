@@ -1,4 +1,4 @@
-import { candidates } from './net/brokerClient';
+import { candidates, type BrokerCandidates } from './net/brokerClient';
 // The app version string lives in exactly ONE place — package.json — and every other
 // surface (Android versionName, iOS MARKETING_VERSION, this constant) derives from it so
 // they cannot drift. scripts/check-versions.mjs enforces this in CI.
@@ -39,27 +39,30 @@ export const AppConfig = {
    * excepted), so list authenticity no longer rests on the TLS cert of the serving host —
    * a forged or tampered response is simply a failed candidate.
    *
-   * Only one front is deployed today, so a censor who blocks it fails discovery CLOSED (offline).
-   * Closing that single point of failure is the front-diversity layer: signature verification
-   * makes non-TLS channels (direct-IP fallback, static mirrors) safe to ADD here once the signing
-   * broker is deployed and the verifying probe is green (SPEC v1 §10.3 sequencing) — signing
-   * defends integrity only, a censor can still block any individual entry. Keep this in sync with
-   * the other clients' AppConfig.
+   * Two independent fronts are deployed — the Cloudflare Worker and an AWS CloudFront distribution
+   * (different provider AND DNS zone) — so a single CDN/zone/account failure no longer fails
+   * discovery CLOSED. Both proxy the one signing broker, so both serve verifiable lists. Now that
+   * the list is signed, non-TLS channels (direct-IP fallback, static mirrors) become safe to ADD
+   * here in a later step — signing defends integrity only, a censor can still block any individual
+   * entry. Keep this in sync with the other clients' AppConfig.
    */
   DEFAULT_BROKER_URLS: [
     'https://broker.openrung.org/',
-    // Additional HTTPS fronts once deployed (second domain / second CDN), e.g.:
-    //   'https://broker2.openrung.org/',
+    // Independent second front: AWS CloudFront (different provider + DNS zone).
+    'https://d2r7mdpyevvs1m.cloudfront.net/',
   ],
 
   /**
    * Ordered discovery candidates for a connection attempt: the caller-selected `primary` (a user
    * override or the persisted choice) first, then the built-in DEFAULT_BROKER_URLS, de-duplicated
-   * while preserving order. The primary is never discarded, so a user's custom broker always
-   * starts the discovery race first — in the staggered race, list position is expressed purely
-   * as a head start of DISCOVERY_STAGGER_MS per position — and the defaults act as fallbacks.
+   * while preserving order. A GENUINE override (a primary that is not one of the defaults) is
+   * flagged `overrideFirst`: `firstReachable` tries it strictly first with its full per-attempt
+   * timeout — a user's custom broker is never silently outrun by a default front merely for being
+   * slower than the stagger — and the defaults race as fallbacks only after it fails. A primary
+   * that echoes a default keeps the pure staggered race, where list position is just a head start
+   * of DISCOVERY_STAGGER_MS per position.
    */
-  brokerCandidates(primary: string | null | undefined): string[] {
+  brokerCandidates(primary: string | null | undefined): BrokerCandidates {
     return candidates(primary, AppConfig.DEFAULT_BROKER_URLS);
   },
 

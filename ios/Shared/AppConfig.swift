@@ -35,15 +35,15 @@ enum AppConfig {
     /// it, never feed a forged relay set. Entries stay HTTPS regardless — TLS keeps the client
     /// identity headers confidential, which the signature does not.
     ///
-    /// Only one front is deployed today, so a censor who blocks it fails discovery CLOSED (offline).
-    /// Closing that single point of failure is the front-diversity layer: adding more HTTPS fronts on
-    /// independent CDNs/domains just needs the extra fronts deployed, and with signing in place
-    /// non-TLS / out-of-band channels (direct-IP fallback, signed mirrors, cached lists) become
-    /// possible in later phases. Keep this in sync with the other clients' AppConfig.
+    /// Two independent fronts are deployed — the Cloudflare Worker and an AWS CloudFront distribution
+    /// (different provider AND DNS zone) — so a single CDN/zone/account failure no longer fails
+    /// discovery CLOSED. Both proxy the one signing broker, so both serve verifiable lists. With
+    /// signing in place, non-TLS / out-of-band channels (direct-IP fallback, signed mirrors, cached
+    /// lists) become possible in later phases. Keep this in sync with the other clients' AppConfig.
     static let defaultBrokerURLs: [URL] = [
         defaultBrokerURL,
-        // Additional HTTPS fronts once deployed (second domain / second CDN), e.g.:
-        //   URL(string: "https://broker2.openrung.org/")!,
+        // Independent second front: AWS CloudFront (different provider + DNS zone).
+        URL(string: "https://d2r7mdpyevvs1m.cloudfront.net/")!,
     ]
 
     /// Ed25519 public keys trusted to sign the relay list, in pinned order — active key first, then
@@ -67,10 +67,13 @@ enum AppConfig {
 
     /// Ordered broker candidates for a connection attempt: the caller-selected `primary` (the provider
     /// configuration's broker, today the default) first, then the built-in `defaultBrokerURLs`,
-    /// de-duplicated while preserving order. The primary is never discarded, so a custom broker always
-    /// starts the discovery race first — in the staggered race, list position is expressed purely as a
-    /// head start of `discoveryStaggerMs` per position — and the defaults act as fallbacks.
-    static func brokerCandidates(primary: URL?) -> [URL] {
+    /// de-duplicated while preserving order. A GENUINE override (a primary that is not one of the
+    /// defaults) is flagged `overrideFirst`: `BrokerClient.firstReachable` tries it strictly first
+    /// with its full per-attempt timeout — a user's custom broker is never silently outrun by a
+    /// default front merely for being slower than the stagger — and the defaults race as fallbacks
+    /// only after it fails. A primary that echoes a default keeps the pure staggered race, where
+    /// list position is just a head start of `discoveryStaggerMs` per position.
+    static func brokerCandidates(primary: URL?) -> BrokerCandidates {
         BrokerClient.candidates(primary: primary, fallbacks: defaultBrokerURLs)
     }
 

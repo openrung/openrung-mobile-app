@@ -112,15 +112,16 @@ targets:
         CODE_SIGN_ENTITLEMENTS: PacketTunnel/PacketTunnel.entitlements
         APPLICATION_EXTENSION_API_ONLY: "YES"
 
-  # Hostless logic-test bundle. It compiles the units under test and their sources directly into the
-  # test module (rather than @testable-importing the app/extension), so the suite builds and runs
-  # without the app, CocoaPods, or Libbox. Two suites live here:
+  # Hostless logic-test bundle. It compiles the units under test and their source closure directly
+  # into the test module (rather than @testable-importing the app/extension), so the suites build and
+  # run without the app, CocoaPods, or Libbox. Three suites live here:
   #   - FailureClassifierTests: FailureClassifier + the small error types it maps.
-  #   - RelayListVerifierTests: RelayListVerifier (self-contained), plus AppConfig and its compile
-  #     closure (BrokerClient/RelayDescriptor/DeviceAttributes/NetworkPathMonitor/BrokerEndpoint) so
-  #     the §11 pinned-key CI guard can verify the committed rotation vectors against the REAL
-  #     AppConfig.relaySigningKeys constant — a typo'd pin fails CI here, not on rotation day. All of
-  #     these are Foundation/UIKit/Network/CryptoKit only (no CocoaPods, no Libbox).
+  #   - BrokerClientTests: the broker discovery flow (staggered race + override-first).
+  #   - RelayListVerifierTests: RelayListVerifier, plus AppConfig and its compile closure
+  #     (BrokerClient/RelayDescriptor/DeviceAttributes/NetworkPathMonitor/BrokerEndpoint) so the §11
+  #     pinned-key CI guard verifies the committed rotation vectors against the REAL
+  #     AppConfig.relaySigningKeys constant — a typo'd pin fails CI here, not on rotation day.
+  # All sources are Foundation/UIKit/Network/CryptoKit only (no CocoaPods, no Libbox).
   OpenRungTests:
     type: bundle.unit-test
     platform: iOS
@@ -129,15 +130,15 @@ targets:
       - path: PacketTunnel/FailureClassifier.swift
       - path: PacketTunnel/PacketTunnelError.swift
       - path: PacketTunnel/PacketTunnelProxyEngineError.swift
-      - path: Shared/BrokerClientError.swift
-      - path: Shared/RelayReachabilityError.swift
-      - path: Shared/RelayListVerifier.swift
       - path: Shared/AppConfig.swift
       - path: Shared/BrokerClient.swift
-      - path: Shared/RelayDescriptor.swift
+      - path: Shared/BrokerClientError.swift
+      - path: Shared/BrokerEndpoint.swift
       - path: Shared/DeviceAttributes.swift
       - path: Shared/NetworkPathMonitor.swift
-      - path: Shared/BrokerEndpoint.swift
+      - path: Shared/RelayDescriptor.swift
+      - path: Shared/RelayReachabilityError.swift
+      - path: Shared/RelayListVerifier.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.openrung.mobile.OpenRungTests
