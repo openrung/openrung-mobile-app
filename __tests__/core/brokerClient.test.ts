@@ -4,7 +4,9 @@ import {
   decodeRelayListResponse,
   firstReachable,
   relayListUrl,
+  setRelaySigningKeysForTests,
 } from '../../src/net/brokerClient';
+import { TEST_SIGNING_KEY, signedApiBody, signedResponse } from '../helpers/signing';
 
 describe('relayListUrl', () => {
   it('builds the relay list URL from a bare base', () => {
@@ -159,16 +161,19 @@ describe('firstReachable (staggered discovery race)', () => {
   const SECONDARY = 'https://secondary.example/';
   const TERTIARY = 'https://tertiary.example/';
 
-  const EMPTY_LIST = JSON.stringify({ count: 0, server_time: '2026-01-01T00:00:00Z', relays: [] });
-
   /** The init the client passes to fetch — always carries the merged per-attempt AbortSignal. */
   interface FetchInit {
     signal: AbortSignal;
   }
   type FetchStub = jest.Mock<Promise<unknown>, [string, FetchInit]>;
 
-  function okResponse(): { status: number; text: () => Promise<string> } {
-    return { status: 200, text: async () => EMPTY_LIST };
+  /**
+   * An empty relay list exactly as a production broker serves it: Ed25519-signed (with the
+   * public §2.3 test key, pinned below) and echoing the default request limit of 5. The race
+   * candidates are non-loopback, so every winning response must pass signature verification.
+   */
+  function okResponse(): unknown {
+    return signedResponse(signedApiBody({ limit: 5 }));
   }
 
   /** A fetch that never responds but honours its AbortSignal — a blackholed/censored endpoint. */
@@ -188,10 +193,12 @@ describe('firstReachable (staggered discovery race)', () => {
 
   beforeEach(() => {
     jest.useFakeTimers();
+    setRelaySigningKeysForTests([TEST_SIGNING_KEY]);
   });
 
   afterEach(() => {
     jest.useRealTimers();
+    setRelaySigningKeysForTests(null);
     (globalThis as Record<string, unknown>).fetch = originalFetch;
   });
 

@@ -28,8 +28,16 @@ public struct BrokerClient: Sendable {
         self.decoder = decoder
     }
 
+    /// Verifier over the operator keys pinned in AppConfig. Built once — verification itself is
+    /// per-response (`listRelays`), on the raw bytes, before any JSON decode.
+    private static let relayListVerifier = RelayListVerifier(keys: AppConfig.relaySigningKeys)
+
     public func listRelays(limit: Int = 5, clientID: String? = nil, sessionID: String? = nil) async throws -> RelayListResponse {
-        let url = try BrokerClient.relaysURL(brokerURL: baseURL, limit: limit)
+        // The effective limit is what the query carries; the broker echoes it back inside the
+        // signed body and the verifier rejects any mismatch (anti variant-steering, signing spec
+        // §2.2), so it must be computed once and used for both the URL and the check.
+        let effectiveLimit = max(limit, 1)
+        let url = try BrokerClient.relaysURL(brokerURL: baseURL, limit: effectiveLimit)
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -55,6 +63,24 @@ public struct BrokerClient: Sendable {
         }
         guard (200..<300).contains(httpResponse.statusCode) else {
             throw BrokerClientError.httpStatus(httpResponse.statusCode)
+        }
+
+        // Authenticate BEFORE decoding: Ed25519 over the exact raw bytes URLSession handed us
+        // (post transfer-decoding, equal to origin bytes), against the pinned operator keys —
+        // never over re-serialized parsed JSON (signing spec §5.2). The header MUST be read via
+        // value(forHTTPHeaderField:), which matches case-insensitively; allHeaderFields
+        // subscripting is case-sensitive and silently misses the lowercased names HTTP/2+ puts
+        // on the wire. Loopback candidates are the sole exemption (local dev broker, mirroring
+        // the desktop client's EnforceSecureBrokerURL allowance); every other candidate —
+        // including user overrides — fails without a valid signature. The verified key id is
+        // dropped for now: the §5.2 keyIdUsed telemetry ships with the client cache phase.
+        if RelayListVerifier.isLoopbackHost(url.host) == false {
+            _ = try BrokerClient.relayListVerifier.verify(
+                body: data,
+                signatureHeader: httpResponse.value(forHTTPHeaderField: RelayListVerifier.signatureHeaderName),
+                channel: .api,
+                requestedLimit: effectiveLimit
+            )
         }
 
         return try decoder.decode(RelayListResponse.self, from: data)

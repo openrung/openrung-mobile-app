@@ -21,6 +21,8 @@ jest.mock('@react-native-async-storage/async-storage', () => {
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { AppConfig } from '../../src/config';
+import { setRelaySigningKeysForTests } from '../../src/net/brokerClient';
 import {
   HOME_VIEW_MODE_STORAGE_KEY,
   applyNativeState,
@@ -31,14 +33,21 @@ import {
   setHomeViewMode,
 } from '../../src/state/store';
 import type { NativeVpnState } from '../../src/native/types';
+import { TEST_SIGNING_KEY, signedApiBody, signedResponse } from '../helpers/signing';
 
-interface MockResponse {
-  status: number;
-  text: () => Promise<string>;
-}
-
-function jsonResponse(payload: unknown): MockResponse {
-  return { status: 200, text: async () => JSON.stringify(payload) };
+/**
+ * A relay-list response as the production broker serves it: Ed25519-signed (with the public
+ * §2.3 test key, pinned in beforeEach) and echoing the directory request's
+ * DIRECTORY_RELAY_LIMIT — the default broker candidates are non-loopback, so refreshDirectory
+ * only ever accepts verified lists.
+ */
+function jsonResponse(payload: unknown): unknown {
+  return signedResponse(
+    signedApiBody({
+      ...(payload as Record<string, unknown>),
+      limit: AppConfig.DIRECTORY_RELAY_LIMIT,
+    }),
+  );
 }
 
 const RELAY_LIST = {
@@ -88,7 +97,12 @@ function installFetch(relayPayload: unknown = RELAY_LIST): void {
 
 beforeEach(() => {
   resetStoreForTests();
+  setRelaySigningKeysForTests([TEST_SIGNING_KEY]);
   installFetch();
+});
+
+afterEach(() => {
+  setRelaySigningKeysForTests(null);
 });
 
 describe('refreshDirectory', () => {

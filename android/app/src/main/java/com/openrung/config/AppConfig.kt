@@ -5,8 +5,10 @@ object AppConfig {
      * Discovery broker (relay-list bootstrap) default, and — since discovery is HTTPS-only — the sole
      * built-in discovery candidate. Discovery is the censorship-critical path: it runs BEFORE the VPN
      * tunnel is up, and the relay list it returns defines which server the client trusts as its exit.
-     * The relay list is NOT signed, so it must only be fetched over a TLS-authenticated channel; the
-     * Cloudflare-fronted HTTPS endpoint (TLS + CDN edge IPs) is both hard to block and unforgeable.
+     * The relay list is Ed25519-signed by the broker and verified against
+     * [RELAY_SIGNING_PUBLIC_KEYS_HEX], so its authenticity no longer rests on the transport; the
+     * Cloudflare-fronted HTTPS endpoint stays the default because it is hard to block and keeps the
+     * client identity headers off the wire in cleartext.
      */
     const val DEFAULT_BROKER_URL = "https://broker.openrung.org/"
 
@@ -26,15 +28,16 @@ object AppConfig {
      * Ordered discovery candidates, raced with a staggered start: the first entry starts
      * immediately, each later entry joins [DISCOVERY_STAGGER_MS] after the previous one, and the
      * first candidate to return relays wins (see [com.openrung.net.BrokerClient.firstReachable]).
-     * Every entry MUST be HTTPS: the relay list is not yet signed, so it is authenticated only by
-     * the TLS cert of the serving host — a cleartext/bare-IP entry would let an on-path censor
-     * inject a malicious relay set.
+     * Every response is Ed25519-verified against [RELAY_SIGNING_PUBLIC_KEYS_HEX] (see
+     * [com.openrung.net.RelayListVerifier]), so a candidate's TLS cert is no longer what
+     * authenticates the list — an entry that fails verification is simply a failed candidate.
      *
      * Only one front is deployed today, so a censor who blocks it fails discovery CLOSED (offline).
-     * Closing that single point of failure is the front-diversity layer: adding more *HTTPS* fronts on
-     * independent CDNs/domains is safe now (still TLS-authenticated) and just needs the extra fronts
-     * deployed. Non-TLS / out-of-band channels (raw IP, cached blobs) stay off this list until the
-     * broker signs the relay list. Keep this in sync with the other clients' AppConfig.
+     * Closing that single point of failure is the front-diversity layer: additional fronts on
+     * independent CDNs/domains, and — now that the relay list is signed — non-TLS channels (direct
+     * IP, signed mirrors) in later phases. Entries stay HTTPS for now because the discovery request
+     * carries the client identity headers, which must not travel in cleartext. Keep this in sync
+     * with the other clients' AppConfig.
      */
     val DEFAULT_BROKER_URLS: List<String> = listOf(
         DEFAULT_BROKER_URL,
@@ -63,6 +66,27 @@ object AppConfig {
      * four clients.
      */
     const val DISCOVERY_STAGGER_MS = 2_500L
+
+    /**
+     * Ordered Ed25519 public keys (raw 32-byte keys as lowercase hex) trusted to sign the relay
+     * list (SPEC v1 §4.2): the active broker key first, then the offline standby that a routine
+     * rotation promotes. Signing detaches relay-list authenticity from the transport — a valid
+     * signature from one of these keys, not the TLS cert of whichever front answered, is what
+     * lets discovery trust a response (see [com.openrung.net.RelayListVerifier]). The `key_id`
+     * in the signature header is advisory routing only: on mismatch every key here is tried, so
+     * a broker-side key_id bug costs one wasted verify, not an outage. MUST stay in sync with
+     * the desktop Go, RN and iOS pinned lists; the pinned-key CI guard in RelayListVerifierTest
+     * verifies each entry against its committed rotation vector, so a truncated or typo'd
+     * constant fails the build instead of being discovered on promotion day. A key may be
+     * dropped only per the rotation runbook (broker no longer signs with it AND key_id
+     * telemetry shows zero verifications under it).
+     */
+    val RELAY_SIGNING_PUBLIC_KEYS_HEX: List<String> = listOf(
+        // Active broker signing key (key_id 627405615601c589).
+        "176c03cbc70833285abcea75f2a0e137bd687629142408c22806a86308bd4974",
+        // Offline standby, promoted on rotation or key loss (key_id 672f79aa99a573cd).
+        "5b2698cfa7a796c671a30aabd5475d55095b91464221f051837eb8fe01f36ea2",
+    )
 
     const val RELAY_LIMIT = 5
     const val VPN_SESSION_NAME = "OpenRung Volunteer VPN"

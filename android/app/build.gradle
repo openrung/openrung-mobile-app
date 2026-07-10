@@ -186,6 +186,12 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
+    // Relay-list signature verification (net/RelayListVerifier): Ed25519 over the raw response
+    // bytes against the operator keys pinned in AppConfig. Tink's pure-Java Ed25519Verify is used
+    // because minSdk 26 predates the platform Ed25519 provider (API 33+); Tink shrinks under R8
+    // and avoids the crippled-bundled-BouncyCastle provider-registration footgun.
+    implementation("com.google.crypto.tink:tink-android:1.23.0")
+
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
     } else {

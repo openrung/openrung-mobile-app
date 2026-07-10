@@ -78,6 +78,20 @@ data class RelayListResponse(
     @SerialName("server_time")
     val serverTime: String,
     val relays: List<RelayDescriptor>,
+    // Relay-list signing fields (SPEC v1 §2.2). They live inside the signed body — not in
+    // headers — so an attacker cannot rewrite freshness or channel binding without breaking the
+    // signature. Defaults cover pre-signing brokers, which only ever reach the parser on the
+    // signature-exempt loopback dev path (see com.openrung.net.RelayListVerifier).
+    /** RFC3339 expiry of this snapshot: `server_time` + 30 min on the API channel. */
+    @SerialName("not_after")
+    val notAfter: String = "",
+    /** Advisory id (first 8 SHA-256 bytes of the signing pubkey, hex) — routing hint only. */
+    @SerialName("key_id")
+    val keyId: String = "",
+    /** "api" or "mirror"; verified to match the channel the response was fetched from. */
+    val channel: String = "",
+    /** API channel: echo of the requested `limit`, verified to kill variant steering. */
+    val limit: Int? = null,
 ) {
     val serverInstant: Instant
         get() = Instant.parse(serverTime)
