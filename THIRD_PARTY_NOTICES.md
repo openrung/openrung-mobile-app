@@ -51,7 +51,7 @@ distributed inside the apps. This list must be completed from the exact build
 (`go-licenses` against the sing-box module); the notable ones include:
 
 - `gvisor.dev/gvisor` — Apache-2.0 (ships a NOTICE file that must be reproduced)
-- `github.com/quic-go/quic-go` — MIT
+- `github.com/sagernet/quic-go` (SagerNet's sing-box fork of quic-go) — MIT
 - `golang.zx2c4.com/wireguard` (wireguard-go) — MIT
 - `github.com/refraction-networking/utls` — BSD-3-Clause
 - `github.com/sagernet/sing`, `sing-quic`, `sing-shadowsocks*`, and related
@@ -166,12 +166,13 @@ scripts — is available from the app's source repository:
 **https://github.com/openrung/openrung-mobile-app**.
 
 The apps statically link a specific sing-box commit. That commit is pinned in
-this repository at [`SINGBOX_VERSION`](SINGBOX_VERSION) and consumed by the
-libbox build scripts (`android/build-libbox-release.sh` and
-`ios/ThirdParty/README.md`); the per-release procedure is documented in
-[`RELEASE.md`](RELEASE.md). Record/verify that the pin matches the shipped
-binary at each release so the corresponding source is reproducible. OpenRung
-will provide the corresponding source for at least three (3) years on request.
+this repository at [`SINGBOX_VERSION`](SINGBOX_VERSION). Android's same-runtime
+AAR also includes the first-party NAT-punch client under `android/punchbridge`.
+The build paths (`android/build-libbox-release.sh` and
+`ios/ThirdParty/README.md`) and per-release procedure in [`RELEASE.md`](RELEASE.md)
+make both artifacts reproducible. Record/verify the sing-box pin and release tag
+against every shipped binary. OpenRung will provide the corresponding source
+for at least three (3) years on request.
 
 ---
 

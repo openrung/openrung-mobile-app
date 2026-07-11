@@ -18,6 +18,13 @@
     <string name="log_connecting_relay">connecting to relay %1$s</string>
     <string name="log_trying_relay">trying relay %1$s at %2$s:%3$d</string>
     <string name="log_checking_relay_reachability">checking relay TCP reachability</string>
+    <string name="log_punch_attempting">attempting a direct path to the volunteer</string>
+    <string name="log_punch_failed">direct path unavailable (%1$s); using RelayHub</string>
+    <string name="log_punch_succeeded">direct path established (peer %1$s, NAT %2$s)</string>
+    <string name="log_punch_transport_failed">direct path stopped during tunnel startup; retrying this volunteer through RelayHub</string>
+    <string name="log_punch_path_lost">direct path lost (%1$s); reconnecting with fresh relay data</string>
+    <string name="log_punch_recovery_scheduled">direct path recovery attempt %1$d will start in %2$d seconds</string>
+    <string name="log_punch_circuit_open">direct path kept failing; switching this volunteer to RelayHub in %1$d seconds</string>
     <string name="log_verifying_internet">verifying internet access through the VPN</string>
     <string name="log_internet_verified">internet access verified in %1$d ms</string>
     <string name="log_relay_failed">relay %1$s failed: %2$s</string>

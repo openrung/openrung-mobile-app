@@ -68,6 +68,10 @@ side-by-side with them.
 - 🌃 **Terminal cyberpunk theme** — the production green-on-black palette
   (`#65F58A` on `#030604`), all-monospace type, neon glows and HUD accents.
 - 🌍 **10 locales** — persisted per-app language selection.
+- 🕳️ **Direct CGNAT volunteers on Android** — NAT punching establishes a
+  client↔volunteer QUIC path and keeps RelayHub out of the data plane whenever
+  both NATs permit it, with certificate-pinned coordination, end-to-end health
+  monitoring, and automatic hub fallback otherwise.
 - 🧪 **Demoable without a native build** — a scripted mock engine drives the UI
   through the full connect lifecycle so you can develop and demo with no device.
 
@@ -78,9 +82,9 @@ side-by-side with them.
   + GeoIP grouping, speed test, and language selection.
 - **Android native (`android/`)** — the production `VpnService` connect path
   (package `com.openrung.*`): broker relay fetch, relay selection + TCP
-  reachability, sing-box/libbox engine, TUN + DNS, internet probe, connection-failure
-  handling, heartbeat telemetry, plus the `OpenRungVpn` React Native module that
-  bridges it.
+  reachability, direct NAT punching for CGNAT volunteers, sing-box/libbox engine,
+  TUN + DNS, internet probe, connection-failure handling, heartbeat telemetry,
+  plus the `OpenRungVpn` React Native module that bridges it.
 - **iOS native (`ios/`)** — the production `NEPacketTunnelProvider` extension,
   shared Swift sources compiled into both targets, and an `OpenRungVpnModule`
   bridging `NETunnelProviderManager` + app-group shared state to React Native.
@@ -105,6 +109,7 @@ src/screens/         Main, Settings, Debug, Licenses, LicenseText.
 src/components/      Map, status chip, recents, panels, header.
 src/licenses/        Bundled license text for the in-app screen.
 android/             RN Android app + ported VPN service and bridge.
+  punchbridge/       Go punch client injected into the generated libbox AAR.
 ios/                 RN iOS app + PacketTunnel extension (xcodegen).
 docs/                CONTRACT.md (binding), ARCHITECTURE.md (overview).
 ```
@@ -127,14 +132,23 @@ android/app/libs/libbox.aar
 ```
 
 The AAR is intentionally ignored by Git because it is generated and large. Build
-it from the pinned sing-box revision (in `SINGBOX_VERSION`) with
+it from the pinned sing-box revision (in `SINGBOX_VERSION`) plus the committed
+Android NAT-punch source (`android/punchbridge`) with
 [`android/build-libbox-release.sh`](android/build-libbox-release.sh) — it needs
 JDK 17, the Android SDK + NDK `29.0.14206865`, and Go on `PATH`. The sing-box
-revision is the GPL §6 corresponding source for the shipped engine; the
-per-release pin procedure is in [`RELEASE.md`](RELEASE.md).
+revision and this repository commit together are the GPL §6 corresponding source
+for the shipped native engine; the per-release procedure is in
+[`RELEASE.md`](RELEASE.md).
 
-Without the AAR the app still compiles; the connect path fails at engine start
-with a clear "engine not linked" error.
+Install sing-box's pinned gomobile fork before the first native build:
+
+```sh
+go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.12
+go install github.com/sagernet/gomobile/cmd/gobind@v0.1.12
+```
+
+The native Android source set requires this generated AAR. Jest/Metro UI work can
+still use the mock module without building it.
 
 You also need `android/local.properties` with your SDK path
 (`sdk.dir=/Users/<you>/Library/Android/sdk`), or `ANDROID_HOME` exported. Build
@@ -211,6 +225,7 @@ mock simulator — useful for UI work and demos, but no traffic is routed.
 - In-app language switch does not relayout RTL (fa/ar) without an app restart.
 - iOS simulator: UI + map + directory work; connect fails by design
   (NetworkExtension requires a signed device build).
+- iOS does not yet consume `punch_capable`; CGNAT volunteers use RelayHub there.
 - Telemetry from TypeScript covers only speed-test events; the native connect
   path keeps full production telemetry.
 

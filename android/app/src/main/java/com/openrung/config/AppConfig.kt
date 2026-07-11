@@ -71,6 +71,21 @@ object AppConfig {
     const val DISCOVERY_STAGGER_MS = 2_500L
 
     /**
+     * SHA-256 pins for self-signed punch-coordinator leaf certificates, keyed by the exact host in
+     * the signed relay descriptor. A bare-IP coordinator is accepted only when it appears here;
+     * hostname coordinators not listed here use Android/Go's normal public CA validation. The pin
+     * authenticates the response that supplies UDP targets, the punch token, and the ephemeral QUIC
+     * certificate fingerprint. It is deliberately scoped to the embedded punch HTTP transport.
+     *
+     * Rotation: deploy a second certificate/endpoint and app pin before switching descriptors. This
+     * certificate is valid through 2036-06-29 and covers both current RelayHub IPv4 addresses.
+     */
+    val PUNCH_COORDINATOR_CERT_SHA256_BY_HOST: Map<String, String> = mapOf(
+        "43.201.124.63" to "70c3a26b9ac7315d1975f417eb9eabbecc98ec0e2d5baadb6c224e87fd99c8b5",
+        "43.201.172.102" to "70c3a26b9ac7315d1975f417eb9eabbecc98ec0e2d5baadb6c224e87fd99c8b5",
+    )
+
+    /**
      * Ordered Ed25519 public keys (raw 32-byte keys as lowercase hex) trusted to sign the relay
      * list (SPEC v1 §4.2): the active broker key first, then the offline standby that a routine
      * rotation promotes. Signing detaches relay-list authenticity from the transport — a valid

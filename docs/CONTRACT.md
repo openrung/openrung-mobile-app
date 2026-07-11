@@ -4,7 +4,7 @@ This document is the binding contract between the TypeScript shell and the two
 native implementations. Every implementer follows it exactly; deviations must be
 recorded here.
 
-Reference implementation: `/opt/projects/openrung` (the production Android app in
+Reference implementation: the OpenRung repository (the production Android app in
 `android/`, the production iOS app in `ios/`). This prototype models its UI and
 functionality 1:1 unless noted.
 
@@ -13,7 +13,7 @@ functionality 1:1 unless noted.
 **Native (Kotlin service / Swift NEPacketTunnelProvider extension)** owns the whole
 connect path, exactly as in the production apps:
 broker relay fetch (connect path), relay selection, TCP reachability, sing-box
-(libbox) engine lifecycle, TUN + DNS config, internet probe, connection-failure
+(libbox) engine lifecycle, Android NAT punching, TUN + DNS config, internet probe, connection-failure
 handling, heartbeat telemetry, VPN permission + background lifecycle, recents
 recording, status/log persistence.
 
@@ -196,11 +196,11 @@ Ported from the production app with packages renamed
 `com.openrung.client.*` → `com.openrung.*`; UI/Compose/directory code is NOT
 ported (that lives in TS now). Files:
 
-- `vpn/OpenRungVpnService.kt`, `vpn/ProxyEngine.kt` — verbatim port (connect flow,
-  connection-failure handling, notification id 2001 channel `openrung_vpn`,
-  heartbeat 50–70s).
+- `vpn/OpenRungVpnService.kt`, `vpn/ProxyEngine.kt` — connect flow including
+  Android NAT-punch-first/RelayHub fallback, connection-failure handling,
+  notification id 2001 channel `openrung_vpn`, heartbeat 50–70s.
 - `net/` BrokerClient, GeoIpClient, InternetProbe, RelayReachability,
-  SingBoxConfiguration; `model/` RelayDescriptor, RelaySelector, CountryGeo,
+  SingBoxConfiguration, NatPunchClient; `model/` RelayDescriptor, RelaySelector, CountryGeo,
   RecentNode; `telemetry/` all four files; `config/AppConfig.kt`.
 - `state/ConnectionStatus.kt`, `state/OpenRungStatusStore.kt` — trimmed: drop
   directory fields/refresh (TS owns), keep status/relay/error/logs/recents +
@@ -219,6 +219,24 @@ ported (that lives in TS now). Files:
   kotlinx-coroutines-android 1.9.0, conditional `implementation(files("libs/libbox.aar"))`
   (file is copied locally, git-ignored). Status strings the service logs live in
   `res/values*/strings.xml` (ported subset, all 10 locales).
+- `android/punchbridge/` is copied into sing-box's temporary
+  `experimental/libbox` tree by `build-libbox-release.sh`, so punch and libbox
+  share one gomobile runtime/AAR. The Go UDP fd must be accepted by
+  `VpnService.protect` before discovery begins; failure falls back to RelayHub.
+- The signed descriptor must advertise an explicit HTTPS punch endpoint. Bare-IP
+  self-signed coordinators are accepted only when their exact certificate SHA-256
+  appears in `AppConfig.PUNCH_COORDINATOR_CERT_SHA256_BY_HOST`; hostname endpoints
+  use normal public-CA validation. Redirects and cleartext are always rejected.
+- After a direct connection reaches CONNECTED, Android races native QUIC closure
+  against a jittered end-to-end health monitor. Three failed tunnel sweeps plus a
+  successful physical-network broker probe trigger fresh discovery/re-punch and
+  RelayHub fallback. Native path loss waits for a reachable physical network, so
+  a local outage leaves the foreground service CONNECTING instead of failing it.
+- Direct-path recovery is bounded per relay. Losses before five minutes use
+  jittered exponential backoff; the third rapid loss opens a circuit for the
+  current user connection, so fresh discovery still runs but that volunteer is
+  reached through RelayHub. A real physical-network outage does not increment the
+  breaker, and an explicit connect/disconnect resets it.
 - `ProxyEngineFactory` returns a `StubProxyEngine` (throws "engine not linked")
   when libbox is absent at runtime — compile-time guarded the same way the
   original handles a missing AAR (reflection-free: source set always compiled,
@@ -258,6 +276,8 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
 - In-app language switch does not relayout RTL (fa/ar) without app restart.
 - iOS simulator: UI + map + directory work; connect fails by design
   (NetworkExtension requires a signed device build).
+- iOS does not yet consume the optional punch metadata and uses RelayHub for
+  tunnel-transport volunteers.
 - Telemetry from TS covers only speed-test events; the native connect path keeps
   full production telemetry.
 - License: GPL-3.0-or-later (statically links sing-box), same as production.
