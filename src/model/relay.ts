@@ -24,6 +24,9 @@ export interface RelayDescriptor {
   max_sessions: number;
   max_mbps: number;
   volunteer_version: string;
+  transport?: 'direct' | 'tunnel';
+  punch_capable?: boolean;
+  punch_endpoint?: string;
   registered_at: string; // ISO instant
   last_heartbeat_at: string;
   expires_at: string;

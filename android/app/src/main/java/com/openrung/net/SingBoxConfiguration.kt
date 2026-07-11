@@ -14,6 +14,9 @@ import kotlinx.serialization.json.put
 
 data class SingBoxConfiguration(
     val relay: RelayDescriptor,
+    /** Loopback TCP bridge exposed by the NAT-punch client. Empty means use the relay endpoint. */
+    val bridgeHost: String = "",
+    val bridgePort: Int = 0,
     val tunnelIPv4Address: String = "172.19.0.1/30",
     val tunnelIPv6Address: String = "fdfe:dcba:9876::1/126",
     val dnsServers: List<String> = listOf("1.1.1.1", "8.8.8.8"),
@@ -27,6 +30,14 @@ data class SingBoxConfiguration(
     fun makeJsonObject(): JsonObject {
         require(mtu > 0) { "mtu must be positive" }
         validateRelay()
+        val usePunchBridge = bridgeHost.isNotBlank() || bridgePort != 0
+        if (usePunchBridge) {
+            require(bridgeHost.isNotBlank() && bridgePort in 1..65535) {
+                "punch bridge requires a host and valid port"
+            }
+        }
+        val outboundHost = if (usePunchBridge) bridgeHost else relay.publicHost
+        val outboundPort = if (usePunchBridge) bridgePort else relay.publicPort
 
         val tunInbound = mutableMapOf<String, JsonElement>(
             "type" to JsonPrimitive("tun"),
@@ -39,8 +50,10 @@ data class SingBoxConfiguration(
             "dns_mode" to JsonPrimitive("hijack"),
             "endpoint_independent_nat" to JsonPrimitive(true),
         )
-        relayRouteExcludeAddress(relay.publicHost)?.let {
-            tunInbound["route_exclude_address"] = JsonArray(listOf(JsonPrimitive(it)))
+        if (!usePunchBridge) {
+            relayRouteExcludeAddress(relay.publicHost)?.let {
+                tunInbound["route_exclude_address"] = JsonArray(listOf(JsonPrimitive(it)))
+            }
         }
 
         return buildJsonObject {
@@ -66,8 +79,8 @@ data class SingBoxConfiguration(
                 add(buildJsonObject {
                     put("type", "vless")
                     put("tag", "proxy")
-                    put("server", relay.publicHost)
-                    put("server_port", relay.publicPort)
+                    put("server", outboundHost)
+                    put("server_port", outboundPort)
                     put("uuid", relay.clientId)
                     put("flow", relay.flow)
                     put("network", "tcp")

@@ -38,6 +38,14 @@ data class RelayDescriptor(
     val maxMbps: Int,
     @SerialName("volunteer_version")
     val volunteerVersion: String,
+    /** "direct" for ordinary volunteers, "tunnel" when publicHost is a RelayHub. */
+    val transport: String = "",
+    /** Whether the tunnel volunteer and its hub negotiated direct NAT punching. */
+    @SerialName("punch_capable")
+    val punchCapable: Boolean = false,
+    /** HTTPS base URL of the hub's punch coordinator; supplied by the signed directory. */
+    @SerialName("punch_endpoint")
+    val punchEndpoint: String = "",
     @SerialName("registered_at")
     val registeredAt: String,
     @SerialName("last_heartbeat_at")

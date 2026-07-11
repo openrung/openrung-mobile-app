@@ -15,7 +15,7 @@ TypeScript through one small bridge module, `OpenRungVpn`.
 
 **Native owns the connect path** (exactly as in the production apps):
 broker relay fetch for connecting, relay selection, TCP reachability,
-sing-box (libbox) engine lifecycle, TUN + DNS configuration, internet probe,
+Android NAT punching, sing-box (libbox) engine lifecycle, TUN + DNS configuration, internet probe,
 connection-failure handling, heartbeat telemetry, VPN permission and background
 lifecycle, recents recording, and status/log persistence. If the RN process
 dies, the tunnel keeps running.
@@ -74,6 +74,7 @@ without leaving a leaky tunnel — not that traffic is blocked. See CONTRACT.md 
   |  iOS:     PacketTunnel extension (NEPacketTunnelProvider)           |
   |                                                                     |
   |  broker fetch -> relay selection -> TCP reachability                |
+  |     -> Android: optional NAT punch -> loopback QUIC bridge          |
   |     -> sing-box config -> libbox engine + TUN + DNS                 |
   |     -> internet probe -> geo label -> heartbeat telemetry           |
   |     -> report failure if no relay works                             |
@@ -95,12 +96,16 @@ layer: iOS runs default App Transport Security (no exceptions), and the Android
 `network_security_config.xml` denies cleartext for all hosts. There is no `http://`
 endpoint anywhere in the app.
 
-- **Relay discovery** — `https://broker.openrung.org/` only. This is the
-  censorship-critical, pre-tunnel path, and the relay list it returns is *unsigned*,
-  so it must only ever be fetched over a TLS-authenticated channel: a forged list
-  would repoint the whole tunnel at an attacker's exit. There is deliberately **no**
-  raw-IP fallback — a blocked edge fails discovery closed (offline), never open to an
-  injected relay.
+- **Relay discovery** — independent HTTPS fronts return an Ed25519-signed relay
+  list. Native and TypeScript clients verify the raw response bytes against the
+  pinned operator keys before accepting any relay or punch endpoint.
+- **Android punch coordination** — a punch-capable relay advertises an explicit
+  `https://...` coordinator in that signed list. The deployed bare-IP endpoint
+  has a self-signed certificate whose exact SHA-256 leaf pin is built into the
+  app; unpinned IP endpoints, redirects, and cleartext endpoints are rejected.
+  Future hostname endpoints use normal CA/hostname validation. The authenticated
+  response supplies a separate per-session QUIC certificate pin, while
+  VLESS/Reality remains the end-to-end authentication and encryption boundary.
 - **Telemetry / heartbeat / speed-test** — currently also `https://broker.openrung.org/`
   (the same Cloudflare-fronted broker); see the trade-off below.
 - **Geo lookup** (`https://ipwho.is/`) and **connectivity probes**
@@ -184,8 +189,12 @@ The production connect-path packages are ported with only the package rename
 are not ported (TS owns them). Key pieces:
 
 - `vpn/OpenRungVpnService.kt` + `vpn/ProxyEngine.kt` — the whole connect
-  flow, connection-failure handling, notification id 2001 on channel `openrung_vpn`,
-  heartbeat every 50–70 s.
+  flow, NAT-punch-first/RelayHub-fallback ladder, connection-failure handling,
+  notification id 2001 on channel `openrung_vpn`, heartbeat every 50–70 s.
+- `net/NatPunchClient.kt` + `android/punchbridge/` — a cancelable gomobile
+  binding compiled into the same AAR/Go runtime as libbox. It protects the
+  retained UDP fd with `VpnService.protect`, then exposes a loopback TCP bridge
+  that sing-box uses without changing the volunteer's Reality identity.
 - `net/`, `model/`, `telemetry/`, `config/AppConfig.kt` — verbatim.
 - `state/OpenRungStatusStore.kt` — trimmed to status/relay/error/logs/recents
   (directory state removed), still persisted in SharedPreferences
@@ -234,6 +243,7 @@ LICENSE_TEXT) with hardware-back mapping — no navigation library.
 - In-app language switch does not relayout RTL (fa/ar) without app restart.
 - iOS simulator: UI + map + directory work; connect fails by design
   (NetworkExtension requires a signed device build).
+- NAT punching is currently Android-only; iOS uses the advertised RelayHub path.
 - Telemetry from TS covers only speed-test events; the native connect path
   keeps full production telemetry.
 - License: GPL-3.0-or-later (statically links sing-box), same as production.

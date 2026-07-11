@@ -9,7 +9,7 @@ satisfiable. Do all of it before tagging a release.
 
 ## 1. Pin the sing-box revision
 
-The engine revision is pinned in [`SINGBOX_VERSION`](SINGBOX_VERSION) as a Go
+The sing-box engine revision is pinned in [`SINGBOX_VERSION`](SINGBOX_VERSION) as a Go
 pseudo-version (`v0.0.0-<utc>-<12-char-commit>`; the trailing 12 characters are
 the upstream commit SHA). Both build paths consume it:
 
@@ -21,21 +21,34 @@ the upstream commit SHA). Both build paths consume it:
 When you move to a newer sing-box, update `SINGBOX_VERSION` **only**, rebuild
 both artifacts from it, and commit the new pin in the same change.
 
-## 2. Rebuild both engine artifacts from the pin
+Android additionally compiles the first-party punch client committed under
+[`android/punchbridge`](android/punchbridge) into the same gomobile AAR. Its pin
+is therefore the repository commit/tag being released, not a separate version.
+
+## 2. Rebuild both engine artifacts from their corresponding source
 
 Both are git-ignored (large, generated). Rebuild from the pinned revision:
 
 ```sh
-# Android → android/app/libs/libbox.aar
+# One-time Android build tools (the fork/version pinned by sing-box).
+go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.12
+go install github.com/sagernet/gomobile/cmd/gobind@v0.1.12
+
+# Android → android/app/libs/libbox.aar (sing-box + android/punchbridge)
 ./android/build-libbox-release.sh
 
 # iOS → ios/ThirdParty/Libbox.xcframework
 #   follow ios/ThirdParty/README.md (it checks out the pinned commit)
 ```
 
-The pin **must** match the binary you ship. If you build the engine from a
-different commit than `SINGBOX_VERSION` records, the corresponding source is
-wrong — treat that as a release blocker.
+The sing-box pin **and the tagged `android/punchbridge` source** must match the
+binary you ship. A stale cached AAR is a release blocker; release CI hashes both
+native source inputs and the build script.
+
+For Android releases, also verify every live bare-IP punch coordinator's leaf
+SHA-256 against `AppConfig.PUNCH_COORDINATOR_CERT_SHA256_BY_HOST`. Coordinate
+certificate rotation by shipping the replacement pin before the broker starts
+advertising the replacement endpoint/certificate.
 
 ## 3. Verify the license surfaces are current
 
@@ -62,8 +75,8 @@ engine out-of-process. Google Play does not have the equivalent conflict.
 ## 5. Retention
 
 OpenRung provides the corresponding source for at least **three (3) years**
-after distribution. Keep the tagged commit + the matching `SINGBOX_VERSION`
-reachable for that long.
+after distribution. Keep the tagged commit (including `android/punchbridge`) +
+the matching `SINGBOX_VERSION` reachable for that long.
 
 ## 6. Bumping the app version
 

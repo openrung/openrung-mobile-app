@@ -6,6 +6,9 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.net.VpnService
 import android.os.Build
 import android.os.SystemClock
@@ -20,6 +23,9 @@ import com.openrung.model.RelaySelector
 import com.openrung.net.BrokerClient
 import com.openrung.net.GeoIpClient
 import com.openrung.net.InternetProbe
+import com.openrung.net.NatPunchClient
+import com.openrung.net.NatPunchResult
+import com.openrung.net.NatPunchSession
 import com.openrung.net.RelayReachability
 import com.openrung.net.SingBoxConfiguration
 import com.openrung.state.ConnectionStatus
@@ -37,6 +43,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.URL
 import kotlin.coroutines.coroutineContext
 import kotlin.random.Random
 
@@ -45,9 +55,13 @@ class OpenRungVpnService : VpnService() {
     private val relaySelector = RelaySelector()
     private var connectJob: Job? = null
     private var heartbeatJob: Job? = null
+    private var punchMonitorJob: Job? = null
     private var engine: ProxyEngine? = null
+    private var punchSession: NatPunchSession? = null
     private var brokerUrl: String = AppConfig.DEFAULT_BROKER_URL
     private var activeRelayId: String? = null
+    private var requestedTargetCountry: String? = null
+    private var requestedTargetRelayId: String? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -63,6 +77,8 @@ class OpenRungVpnService : VpnService() {
                 val targetCountry = intent.getStringExtra(EXTRA_TARGET_COUNTRY)?.takeIf { it.isNotBlank() }
                 val targetRelayId = intent.getStringExtra(EXTRA_TARGET_RELAY_ID)?.takeIf { it.isNotBlank() }
                 heartbeatJob?.cancel()
+                punchMonitorJob?.cancel()
+                punchMonitorJob = null
                 connectJob?.cancel()
                 connectJob = serviceScope.launch {
                     connect(brokerUrl.ifBlank { AppConfig.DEFAULT_BROKER_URL }, targetCountry, targetRelayId)
@@ -95,6 +111,8 @@ class OpenRungVpnService : VpnService() {
         targetRelayId: String? = null,
     ) {
         this.brokerUrl = brokerUrl
+        requestedTargetCountry = targetCountry
+        requestedTargetRelayId = targetRelayId
         // Tear down any existing tunnel first so tapping a different location cleanly switches relays.
         cleanupActiveTunnel()
         // Telemetry/heartbeat go DIRECT to the origin IP, not the Cloudflare-fronted discovery broker,
@@ -206,11 +224,14 @@ class OpenRungVpnService : VpnService() {
                     "relay_attempts" to connectedRelay.attempts.toLong(),
                 ),
             )
-            runCatching { TelemetryManager.flush(AppConfig.TELEMETRY_BROKER_URL) }
-            // The flush above swallows cancellation (runCatching), so re-check: a disconnect that
-            // raced in during it must not leave a heartbeat loop running after teardown.
+            // Promote liveness monitoring before the best-effort telemetry upload. A slow upload
+            // must never leave a newly-dead direct path claiming CONNECTED for its HTTP timeout.
             coroutineContext.ensureActive()
             startHeartbeatLoop()
+            startPunchMonitor(relay, coroutineContext[Job])
+            // This is deliberately the final operation. runCatching can swallow cancellation, so
+            // no stateful work may follow it; disconnect/recovery own the already-running jobs.
+            runCatching { TelemetryManager.flush(AppConfig.TELEMETRY_BROKER_URL) }
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {
@@ -256,37 +277,45 @@ class OpenRungVpnService : VpnService() {
                         error,
                     )
                 }
-                val config = SingBoxConfiguration(relay = relay).encodedJsonString()
-                val proxyEngine = ProxyEngineFactory.create()
-                val tunnelStarted = SystemClock.elapsedRealtime()
-                // Tag an engine start/liveness failure as EngineStartException so it classifies as
-                // process_exited (the embedded-engine analogue of the Go clients' sing-box subprocess
-                // dying). The original error is kept as the cause so a more specific signal in its
-                // chain still wins over process_exited.
-                try {
-                    proxyEngine.start(
-                        relay = relay,
-                        configJson = config,
-                        vpnService = this,
-                    )
-                } catch (error: CancellationException) {
-                    throw error
-                } catch (error: Throwable) {
-                    throw EngineStartException(error.message, error)
+                val punched = attemptDirectPunch(relay)
+                if (punched != null) {
+                    try {
+                        return startTunnel(
+                            relay = relay,
+                            config = SingBoxConfiguration(
+                                relay = relay,
+                                bridgeHost = punched.bridgeHost,
+                                bridgePort = punched.bridgePort,
+                            ),
+                            tcpLatencyMs = tcpLatencyMs,
+                            attempt = index + 1,
+                        )
+                    } catch (error: CancellationException) {
+                        throw error
+                    } catch (error: Throwable) {
+                        // QUIC was established but the VLESS/Reality tunnel or end-to-end probe
+                        // failed. Tear it down in engine -> bridge order, then retry this SAME
+                        // volunteer through RelayHub before moving down the candidate ladder.
+                        TelemetryManager.record(
+                            event = "punch_fallback",
+                            relayId = relay.id,
+                            attributes = buildMap {
+                                FailureClassifier.classify(error).takeIf { it.isNotBlank() }
+                                    ?.let { put("failure_reason", it) }
+                                FailureClassifier.detail(error).takeIf { it.isNotBlank() }
+                                    ?.let { put("failure_detail", it) }
+                            },
+                        )
+                        OpenRungStatusStore.appendLog(getString(R.string.log_punch_transport_failed))
+                        cleanupActiveTunnel()
+                    }
                 }
-                val tunnelStartMs = SystemClock.elapsedRealtime() - tunnelStarted
-                engine = proxyEngine
-                OpenRungStatusStore.appendLog(getString(R.string.log_verifying_internet))
-                val internetProbe = InternetProbe(applicationContext).verify()
-                OpenRungStatusStore.appendLog(
-                    getString(R.string.log_internet_verified, internetProbe.durationMs),
-                )
-                return ConnectedRelay(
+
+                return startTunnel(
                     relay = relay,
+                    config = SingBoxConfiguration(relay = relay),
                     tcpLatencyMs = tcpLatencyMs,
-                    tunnelStartMs = tunnelStartMs,
-                    internetProbeMs = internetProbe.durationMs,
-                    attempts = index + 1,
+                    attempt = index + 1,
                 )
             } catch (error: CancellationException) {
                 throw error
@@ -327,6 +356,126 @@ class OpenRungVpnService : VpnService() {
         )
     }
 
+    /** Attempts the signaling/UDP/QUIC path and leaves a live loopback bridge on success. */
+    private suspend fun attemptDirectPunch(relay: RelayDescriptor): NatPunchResult? {
+        if (!relay.punchCapable) return null
+
+        TelemetryManager.record("punch_attempted", relayId = relay.id)
+        OpenRungStatusStore.appendLog(getString(R.string.log_punch_attempting))
+        val session = NatPunchClient.create(this, relay)
+        if (session == null) {
+            recordPunchFailure(relay, reason = "endpoint", natClass = "", detail = "")
+            OpenRungStatusStore.appendLog(getString(R.string.log_punch_failed, "endpoint"))
+            return null
+        }
+
+        punchSession = session
+        val result = try {
+            session.establish()
+        } catch (error: CancellationException) {
+            closePunchSession(session)
+            throw error
+        } catch (error: Throwable) {
+            closePunchSession(session)
+            recordPunchFailure(
+                relay,
+                reason = "client",
+                natClass = "",
+                detail = error.message.orEmpty(),
+            )
+            OpenRungStatusStore.appendLog(getString(R.string.log_punch_failed, "client"))
+            return null
+        }
+        try {
+            coroutineContext.ensureActive()
+        } catch (error: CancellationException) {
+            closePunchSession(session)
+            throw error
+        }
+
+        if (!result.succeeded) {
+            closePunchSession(session)
+            val reason = result.reason.ifBlank { "unknown" }
+            recordPunchFailure(relay, reason, result.natClass, result.errorText)
+            OpenRungStatusStore.appendLog(getString(R.string.log_punch_failed, reason))
+            return null
+        }
+
+        TelemetryManager.record(
+            event = "punch_succeeded",
+            relayId = relay.id,
+            attributes = buildMap {
+                if (result.natClass.isNotBlank()) put("nat_class", result.natClass)
+            },
+            measurements = mapOf("punch_rtt_ms" to result.rttMillis),
+        )
+        OpenRungStatusStore.appendLog(
+            getString(
+                R.string.log_punch_succeeded,
+                result.peerIp,
+                result.natClass.ifBlank { "unknown" },
+            ),
+        )
+        return result
+    }
+
+    private fun recordPunchFailure(
+        relay: RelayDescriptor,
+        reason: String,
+        natClass: String,
+        detail: String,
+    ) {
+        TelemetryManager.record(
+            event = "punch_failed",
+            relayId = relay.id,
+            attributes = buildMap {
+                put("reason", reason)
+                if (natClass.isNotBlank()) put("nat_class", natClass)
+                if (detail.isNotBlank()) put("failure_detail", detail.take(256))
+            },
+        )
+    }
+
+    private suspend fun startTunnel(
+        relay: RelayDescriptor,
+        config: SingBoxConfiguration,
+        tcpLatencyMs: Long,
+        attempt: Int,
+    ): ConnectedRelay {
+        val configJson = config.encodedJsonString()
+        val proxyEngine = ProxyEngineFactory.create()
+        val tunnelStarted = SystemClock.elapsedRealtime()
+        // Tag an engine start/liveness failure as EngineStartException so it classifies as
+        // process_exited. Stop the local instance explicitly if startup only partially succeeds.
+        try {
+            proxyEngine.start(
+                relay = relay,
+                configJson = configJson,
+                vpnService = this,
+            )
+        } catch (error: CancellationException) {
+            proxyEngine.stop()
+            throw error
+        } catch (error: Throwable) {
+            proxyEngine.stop()
+            throw EngineStartException(error.message, error)
+        }
+        val tunnelStartMs = SystemClock.elapsedRealtime() - tunnelStarted
+        engine = proxyEngine
+        OpenRungStatusStore.appendLog(getString(R.string.log_verifying_internet))
+        val internetProbe = InternetProbe(applicationContext).verify()
+        OpenRungStatusStore.appendLog(
+            getString(R.string.log_internet_verified, internetProbe.durationMs),
+        )
+        return ConnectedRelay(
+            relay = relay,
+            tcpLatencyMs = tcpLatencyMs,
+            tunnelStartMs = tunnelStartMs,
+            internetProbeMs = internetProbe.durationMs,
+            attempts = attempt,
+        )
+    }
+
     /**
      * Keeps only candidates whose broker-served country matches [countryCode]. Relays the broker
      * hasn't geolocated yet are excluded so a targeted connect never silently lands in the wrong
@@ -344,6 +493,8 @@ class OpenRungVpnService : VpnService() {
     private fun disconnect() {
         heartbeatJob?.cancel()
         heartbeatJob = null
+        punchMonitorJob?.cancel()
+        punchMonitorJob = null
         OpenRungStatusStore.setStatus(ConnectionStatus.DISCONNECTING)
         connectJob?.cancel()
         cleanupActiveTunnel()
@@ -396,10 +547,173 @@ class OpenRungVpnService : VpnService() {
         }
     }
 
+    /**
+     * Watches both the native QUIC connection and end-to-end traffic after CONNECTED. NAT mappings
+     * are tied to the underlying network, while a volunteer-side Xray/stream failure can leave QUIC
+     * itself alive. Either signal retires the dead path and reruns discovery so the app can re-punch
+     * with fresh metadata or use RelayHub.
+     */
+    private fun startPunchMonitor(relay: RelayDescriptor, ownerJob: Job?) {
+        val session = punchSession ?: return
+        if (punchMonitorJob !== ownerJob) punchMonitorJob?.cancel()
+        punchMonitorJob = serviceScope.launch {
+            val failure = try {
+                awaitPunchFailure(session)
+            } catch (error: CancellationException) {
+                return@launch
+            }
+            val reason = failure.reason
+            // Close and callback can race across the Go/Java boundary. Only the still-current,
+            // already-promoted session is allowed to initiate recovery.
+            if (punchSession !== session || activeRelayId != relay.id) return@launch
+
+            OpenRungStatusStore.appendLog(getString(R.string.log_punch_path_lost, reason.take(160)))
+            TelemetryManager.record(
+                event = "punch_path_lost",
+                relayId = relay.id,
+                attributes = mapOf("reason" to reason.take(256)),
+            )
+            try {
+                val country = requestedTargetCountry
+                val relayID = requestedTargetRelayId
+                // Publish the state transition before stopping the engine. Recovery may involve
+                // network timeouts, and the UI must never claim CONNECTED while no TUN is active.
+                OpenRungStatusStore.setStatus(
+                    ConnectionStatus.CONNECTING,
+                    relayLabel = null,
+                    lastError = null,
+                )
+                updateNotification(getString(R.string.status_connecting))
+                heartbeatJob?.cancel()
+                heartbeatJob = null
+                cleanupActiveTunnel()
+                activeRelayId = null
+                TelemetryManager.endSession("punch_path_lost")
+                coroutineContext.ensureActive()
+                if (failure.waitForPhysicalNetwork) {
+                    // A QUIC idle timeout commonly means Wi-Fi/cellular disappeared. Do not turn
+                    // that local outage into a terminal broker failure: keep the foreground VPN in
+                    // CONNECTING and wait until an independent broker front is reachable again.
+                    awaitPhysicalNetworkAlive()
+                }
+                // A long-lived descriptor can expire or move to another hub. Run the complete
+                // discovery + punch-first ladder again so recovery gets fresh signed metadata,
+                // repunches on the new network when possible, and uses RelayHub otherwise.
+                connect(brokerUrl, country, relayID)
+            } finally {
+                if (punchMonitorJob === coroutineContext[Job]) punchMonitorJob = null
+            }
+        }
+    }
+
+    private suspend fun awaitPunchFailure(session: NatPunchSession): PunchPathFailure = coroutineScope {
+        val nativeFailure = async { session.awaitFailure() }
+        val healthFailure = async { awaitPunchHealthFailure() }
+        try {
+            select {
+                nativeFailure.onAwait {
+                    PunchPathFailure(reason = it, waitForPhysicalNetwork = true)
+                }
+                healthFailure.onAwait {
+                    // The health loop already proved a broker front is reachable on a physical
+                    // Network, so it can re-ladder immediately.
+                    PunchPathFailure(reason = it, waitForPhysicalNetwork = false)
+                }
+            }
+        } finally {
+            nativeFailure.cancel()
+            healthFailure.cancel()
+        }
+    }
+
+    /**
+     * Mirrors the desktop client's thresholded through-tunnel health monitor. Only after repeated
+     * VPN failures do we probe the broker fronts on a physical Android [Network]; a local outage is
+     * left alone, while a reachable front proves that the direct tunnel itself needs recovery.
+     */
+    private suspend fun awaitPunchHealthFailure(): String {
+        var failures = 0
+        while (true) {
+            delay(Random.nextLong(PUNCH_HEALTH_MIN_DELAY_MS, PUNCH_HEALTH_MAX_DELAY_MS + 1))
+            try {
+                InternetProbe(applicationContext).verifyOnce()
+                failures = 0
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                failures++
+                if (failures < PUNCH_HEALTH_FAILURE_THRESHOLD) continue
+                if (!physicalNetworkAlive()) continue
+                return "end-to-end tunnel health probe failed $failures times: " +
+                    (error.message ?: error::class.java.simpleName)
+            }
+        }
+    }
+
+    private suspend fun physicalNetworkAlive(): Boolean {
+        val connectivity = getSystemService(ConnectivityManager::class.java)
+        val physicalNetworks = connectivity.allNetworks.filter { network ->
+            connectivity.getNetworkCapabilities(network)?.let { capabilities ->
+                !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
+                    capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            } == true
+        }
+        if (physicalNetworks.isEmpty()) return false
+
+        val fronts = AppConfig.brokerCandidates(brokerUrl).urls
+        for (network in physicalNetworks) {
+            for (front in fronts) {
+                if (probePhysicalNetwork(network, front)) return true
+            }
+        }
+        return false
+    }
+
+    private suspend fun awaitPhysicalNetworkAlive() {
+        while (!physicalNetworkAlive()) {
+            delay(PHYSICAL_NETWORK_RETRY_DELAY_MS)
+        }
+    }
+
+    private suspend fun probePhysicalNetwork(network: Network, front: String): Boolean =
+        withContext(Dispatchers.IO) {
+            val connection = runCatching {
+                network.openConnection(URL(front)) as HttpURLConnection
+            }.getOrNull() ?: return@withContext false
+            try {
+                connection.requestMethod = "HEAD"
+                connection.connectTimeout = PHYSICAL_NETWORK_PROBE_TIMEOUT_MS
+                connection.readTimeout = PHYSICAL_NETWORK_PROBE_TIMEOUT_MS
+                connection.instanceFollowRedirects = false
+                connection.useCaches = false
+                // Any HTTP response proves the physical path is alive; authentication and body
+                // semantics are irrelevant here because this request never supplies identity data.
+                connection.responseCode > 0
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Throwable) {
+                false
+            } finally {
+                connection.disconnect()
+            }
+        }
+
     private fun cleanupActiveTunnel() {
         engine?.stop()
         engine = null
+        punchSession?.close()
+        punchSession = null
     }
+
+    private fun closePunchSession(session: NatPunchSession) {
+        if (punchSession === session) punchSession = null
+        session.close()
+    }
+
+    private data class PunchPathFailure(
+        val reason: String,
+        val waitForPhysicalNetwork: Boolean,
+    )
 
     private data class ConnectedRelay(
         val relay: RelayDescriptor,
@@ -453,6 +767,11 @@ class OpenRungVpnService : VpnService() {
         private const val NOTIFICATION_ID = 2001
         internal const val HEARTBEAT_MIN_DELAY_MS = 50_000L
         internal const val HEARTBEAT_MAX_DELAY_MS = 70_000L
+        internal const val PUNCH_HEALTH_MIN_DELAY_MS = 25_000L
+        internal const val PUNCH_HEALTH_MAX_DELAY_MS = 35_000L
+        internal const val PUNCH_HEALTH_FAILURE_THRESHOLD = 3
+        private const val PHYSICAL_NETWORK_PROBE_TIMEOUT_MS = 3_000
+        private const val PHYSICAL_NETWORK_RETRY_DELAY_MS = 5_000L
 
         fun connectIntent(
             context: Context,

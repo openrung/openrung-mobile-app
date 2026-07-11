@@ -56,6 +56,30 @@ class InternetProbe(context: Context) {
         )
     }
 
+    /** One no-retry sweep used by the long-lived tunnel health monitor. */
+    suspend fun verifyOnce(): InternetProbeResult {
+        val started = SystemClock.elapsedRealtime()
+        val vpnNetwork = currentVpnNetwork() ?: throw IOException("VPN network is unavailable")
+        var lastError: Throwable? = null
+        for (endpoint in ENDPOINTS) {
+            try {
+                probe(vpnNetwork, endpoint)
+                return InternetProbeResult(
+                    endpoint = endpoint,
+                    durationMs = SystemClock.elapsedRealtime() - started,
+                )
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                lastError = error
+            }
+        }
+        throw IOException(
+            "tunnel health probe failed" + (lastError?.message?.let { ": $it" } ?: ""),
+            lastError,
+        )
+    }
+
     private fun currentVpnNetwork(): Network? =
         connectivityManager.allNetworks.firstOrNull { network ->
             connectivityManager.getNetworkCapabilities(network)
