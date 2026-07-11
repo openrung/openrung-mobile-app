@@ -12,9 +12,30 @@
  * While the directory is empty the panel mirrors the status chip's states:
  * loading, failed (tap to retry), and loaded-but-empty (tap to retry) each
  * render as a single centered status line.
+ *
+ * Once populated, a deliberate pull-down forces a broker re-fetch (the same
+ * forced refresh as tap-to-retry); the spinner tracks the in-flight load. On
+ * iOS the pull must pass a distance threshold before it engages — the native
+ * RefreshControl triggers too eagerly, so an incidental drag while scrolling
+ * the list would re-fetch. Android keeps the platform RefreshControl (it has
+ * no rubber-band overscroll to measure, and its trigger distance is fine).
  */
-import React, { useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, StyleProp, Text, View, ViewStyle } from 'react-native';
+import React, { useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  FlatList,
+  Image,
+  Platform,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  StyleProp,
+  Text,
+  View,
+  ViewStyle,
+} from 'react-native';
+import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 
 import { useStrings } from '../i18n';
 import { relayDisplayName } from '../model/exitNode';
@@ -22,12 +43,35 @@ import type { DirectoryStatus, ExitNodeRegion, ExitNodeRelay } from '../model/ex
 import { monoFont, palette, tokens } from '../theme';
 import { countryFlag } from './countryFlag';
 
+/**
+ * Overscroll distance (px) a pull must reach before it engages a refresh, set
+ * well beyond the iOS default (~60–80px) so a deliberate tug is needed. iOS
+ * only — Android uses its RefreshControl.
+ */
+const PULL_TO_REFRESH_THRESHOLD_PX = 120;
+
+/**
+ * Pull-to-refresh easter egg, shown (untranslated, every locale) while the
+ * list is dragged: Sun Yat-sen's political testament — "The revolution has
+ * not yet succeeded; comrades, you must carry on the effort." — as brush
+ * calligraphy signed 孫文, tinted the terminal green at render time (the
+ * PNG itself is monochrome-on-transparent). Deliberately NOT in the i18n
+ * string tables: it's a wink to Chinese-reading users of an anti-censorship
+ * tunnel, and it reads the same in every UI language.
+ */
+const PULL_QUOTE_IMAGE = require('../assets/pull-quote-calligraphy.png');
+/** Plain-text rendering of the calligraphy, for assistive tech. */
+const PULL_QUOTE_A11Y = '革命尚未成功，同志仍須努力 - 孫中山';
+
 export interface RelayListProps {
   regions: ExitNodeRegion[];
   directoryStatus: DirectoryStatus;
   /** Connect to one specific volunteer relay (picked from an expanded location). */
   onRelayPress: (relayId: string, countryCode: string) => void;
+  /** Forced broker re-fetch: tap-to-retry on the empty panel AND pull-to-refresh on the list. */
   onRetry: () => void;
+  /** True while a directory load is in flight; keeps the pull-to-refresh spinner up. */
+  refreshing?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -44,10 +88,29 @@ export function RelayList({
   directoryStatus,
   onRelayPress,
   onRetry,
+  refreshing = false,
   style,
 }: RelayListProps): React.JSX.Element {
   const s = useStrings();
   const [expandedKeys, setExpandedKeys] = useState<ReadonlySet<string>>(new Set());
+
+  // iOS custom pull-to-refresh: track overscroll so the indicator can reveal as
+  // the list is dragged and the release can be measured against the threshold.
+  // `pulling` gates mounting the indicator so it costs nothing (and stays out of
+  // the tree) at rest; setState from the scroll listener no-ops until the bool
+  // actually flips, so it is not a per-frame render.
+  const [pulling, setPulling] = useState(false);
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const handleScroll = useMemo(
+    () =>
+      Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+        useNativeDriver: false,
+        listener: (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+          setPulling(event.nativeEvent.contentOffset.y < -8);
+        },
+      }),
+    [scrollY],
+  );
 
   const rows = useMemo<Row[]>(() => {
     const sorted = [...regions].sort(
@@ -104,6 +167,22 @@ export function RelayList({
     });
   };
 
+  const isIOS = Platform.OS === 'ios';
+  // The quote fades in over the pull, reaching full opacity exactly at the
+  // threshold — fully legible reads as "release to refresh".
+  const pullOpacity = scrollY.interpolate({
+    inputRange: [-PULL_TO_REFRESH_THRESHOLD_PX, 0],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+  // Fire the forced refresh only if the finger lifts while still past the
+  // threshold (pulling back up before release cancels, like the native control).
+  const onPullRelease = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (!refreshing && event.nativeEvent.contentOffset.y <= -PULL_TO_REFRESH_THRESHOLD_PX) {
+      onRetry();
+    }
+  };
+
   return (
     <View style={[styles.panel, style]}>
       <FlatList
@@ -146,7 +225,44 @@ export function RelayList({
         }}
         ItemSeparatorComponent={RowDivider}
         showsVerticalScrollIndicator={false}
+        {...(isIOS
+          ? {
+              onScroll: handleScroll,
+              scrollEventThrottle: 16,
+              onScrollEndDrag: onPullRelease,
+              // Hold the rows down under the spinner while the fetch is in flight,
+              // mirroring how the native control parks the content.
+              contentContainerStyle: refreshing ? styles.listContentRefreshing : undefined,
+            }
+          : {
+              refreshControl: (
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRetry}
+                  tintColor={palette.terminalGreen}
+                  colors={[palette.terminalGreen]}
+                  progressBackgroundColor={palette.screen}
+                />
+              ),
+            })}
       />
+      {isIOS && (pulling || refreshing) && (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.pullIndicator, { opacity: refreshing ? 1 : pullOpacity }]}
+        >
+          {refreshing ? (
+            <ActivityIndicator size="small" color={palette.terminalGreen} />
+          ) : (
+            <Image
+              source={PULL_QUOTE_IMAGE}
+              style={styles.pullQuote}
+              resizeMode="contain"
+              accessibilityLabel={PULL_QUOTE_A11Y}
+            />
+          )}
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -167,6 +283,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
+  },
+  // iOS pull-to-refresh indicator, overlaid in the gap the pull/refresh opens
+  // above the first row (Android's spinner is the RefreshControl's own).
+  pullIndicator: {
+    position: 'absolute',
+    top: 14,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  pullQuote: {
+    // 3:2 like the source PNG; sized to sit inside the gap a full 120px pull
+    // opens above the first row. tintColor recolors the brushstrokes.
+    width: 132,
+    height: 88,
+    tintColor: palette.terminalGreen,
+  },
+  listContentRefreshing: {
+    paddingTop: 40,
   },
   statusText: {
     color: palette.bodyText,

@@ -10,7 +10,7 @@
  */
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { Text } from 'react-native';
+import { ActivityIndicator, FlatList, Text } from 'react-native';
 
 // Pulled in via RelayList -> i18n -> store; an in-memory stand-in keeps Jest off the native module.
 jest.mock('@react-native-async-storage/async-storage', () => {
@@ -199,6 +199,74 @@ describe('RelayList', () => {
       findPressables(tree)[2].props.onPress();
     });
     expect(findPressables(tree)).toHaveLength(3);
+    tree.unmount();
+  });
+
+  it('engages a directory re-fetch only when the pull passes the threshold', async () => {
+    const onRetry = jest.fn();
+    const tree = await render(
+      <RelayList
+        regions={REGIONS}
+        directoryStatus="loaded"
+        onRelayPress={jest.fn()}
+        onRetry={onRetry}
+        refreshing={false}
+      />,
+    );
+    const list = tree.root.findByType(FlatList);
+    // Dragging into overscroll reveals the easter-egg calligraphy (Sun
+    // Yat-sen's testament), which doubles as the pull indicator.
+    await ReactTestRenderer.act(async () => {
+      list.props.onScroll({ nativeEvent: { contentOffset: { y: -40 } } });
+    });
+    tree.root.findByProps({ accessibilityLabel: '革命尚未成功，同志仍須努力 - 孫中山' });
+    // A shallow drag — the kind an incidental overscroll produces — is ignored.
+    await ReactTestRenderer.act(async () => {
+      list.props.onScrollEndDrag({ nativeEvent: { contentOffset: { y: -40 } } });
+    });
+    expect(onRetry).not.toHaveBeenCalled();
+    // Only a deliberate pull past the threshold fires the forced refresh.
+    await ReactTestRenderer.act(async () => {
+      list.props.onScrollEndDrag({ nativeEvent: { contentOffset: { y: -160 } } });
+    });
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    tree.unmount();
+  });
+
+  it('shows a spinner while refreshing and ignores further pulls', async () => {
+    const onRetry = jest.fn();
+    const tree = await render(
+      <RelayList
+        regions={REGIONS}
+        directoryStatus="loaded"
+        onRelayPress={jest.fn()}
+        onRetry={onRetry}
+        refreshing={false}
+      />,
+    );
+    expect(tree.root.findAllByType(ActivityIndicator)).toHaveLength(0);
+
+    // The spinner is driven by the store's load status, passed back in as `refreshing`.
+    await ReactTestRenderer.act(async () => {
+      tree.update(
+        <RelayList
+          regions={REGIONS}
+          directoryStatus="loading"
+          onRelayPress={jest.fn()}
+          onRetry={onRetry}
+          refreshing
+        />,
+      );
+    });
+    expect(tree.root.findAllByType(ActivityIndicator)).toHaveLength(1);
+
+    // A pull while the fetch is already in flight must not queue a second one.
+    await ReactTestRenderer.act(async () => {
+      tree.root
+        .findByType(FlatList)
+        .props.onScrollEndDrag({ nativeEvent: { contentOffset: { y: -200 } } });
+    });
+    expect(onRetry).not.toHaveBeenCalled();
     tree.unmount();
   });
 

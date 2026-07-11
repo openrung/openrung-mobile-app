@@ -168,6 +168,7 @@ export function MainScreen(): React.JSX.Element {
             directoryStatus={directoryStatus}
             onRelayPress={onConnectRelay}
             onRetry={onRetryDirectory}
+            refreshing={directoryStatus === 'loading'}
             style={styles.list}
           />
         ) : (
