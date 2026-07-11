@@ -1,13 +1,14 @@
 # Release checklist — license & corresponding-source obligations
 
 The OpenRung mobile app statically links **sing-box / libbox**, which is
-**GPL-3.0-or-later**. That makes the whole app GPL-3.0-or-later and imposes a
-GPL §6 obligation: anyone you distribute a build to (TestFlight, Play, direct
-APK) must be able to obtain the *complete corresponding source* for that exact
-binary. This file is the per-release procedure that keeps that obligation
+**GPL-3.0-or-later**, and (on Android) the **openrung** NAT hole-punch client,
+which is also **GPL-3.0-or-later**. That makes the whole app GPL-3.0-or-later and
+imposes a GPL §6 obligation: anyone you distribute a build to (TestFlight, Play,
+direct APK) must be able to obtain the *complete corresponding source* for that
+exact binary. This file is the per-release procedure that keeps that obligation
 satisfiable. Do all of it before tagging a release.
 
-## 1. Pin the sing-box revision
+## 1. Pin the engine + punch revisions
 
 The engine revision is pinned in [`SINGBOX_VERSION`](SINGBOX_VERSION) as a Go
 pseudo-version (`v0.0.0-<utc>-<12-char-commit>`; the trailing 12 characters are
@@ -18,8 +19,17 @@ the upstream commit SHA). Both build paths consume it:
 - iOS — [`ios/ThirdParty/README.md`](ios/ThirdParty/README.md) checks out that
   commit before building `Libbox.xcframework`.
 
-When you move to a newer sing-box, update `SINGBOX_VERSION` **only**, rebuild
-both artifacts from it, and commit the new pin in the same change.
+On Android the same AAR also embeds the openrung punch client
+(`openrung/mobile/orpunch`), pinned in [`OPENRUNG_VERSION`](OPENRUNG_VERSION).
+Because the openrung module path has no VCS host, the build wires it in from a
+local checkout via a go.mod `replace` (`OPENRUNG_SRC`); check that tree out at the
+`OPENRUNG_VERSION` commit before a release build so the corresponding source
+matches the binary. (iOS has no punch support yet, so `OPENRUNG_VERSION` is
+Android-only.)
+
+When you move to a newer sing-box (or openrung), update `SINGBOX_VERSION` /
+`OPENRUNG_VERSION` **only**, rebuild both artifacts from them, and commit the new
+pins in the same change.
 
 ## 2. Rebuild both engine artifacts from the pin
 

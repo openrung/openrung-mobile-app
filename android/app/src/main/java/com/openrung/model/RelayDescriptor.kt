@@ -8,6 +8,9 @@ object RelayConstants {
     const val PROTOCOL_VLESS_REALITY_VISION = "vless-reality-vision"
     const val FLOW_VISION = "xtls-rprx-vision"
     const val EXIT_MODE_DIRECT = "direct"
+
+    /** Hub punch coordinator port assumed when a relay advertises no punch_endpoint. */
+    const val DEFAULT_PUNCH_PORT = 9444
 }
 
 @Serializable
@@ -53,6 +56,17 @@ data class RelayDescriptor(
     val countryCode: String = "",
     val latitude: Double? = null,
     val longitude: Double? = null,
+    // NAT hole-punch fields, sent only by punch-capable tunnel (CGNAT) volunteers; absent on
+    // older brokers and on direct relays. They ride inside the Ed25519-signed relay list, so they
+    // cannot be injected on-path. When punchCapable is true the client may try a direct
+    // NAT-punched path to the volunteer (via the hub's punch coordinator) before falling back to
+    // the relay hub — never a usability gate, purely an accelerator (see isUsable).
+    @SerialName("punch_capable")
+    val punchCapable: Boolean = false,
+    // Hub punch coordinator base URL (e.g. http://hub:9444). Empty means derive it from publicHost
+    // and DEFAULT_PUNCH_PORT (mirrors the desktop client's punchBaseURL resolution).
+    @SerialName("punch_endpoint")
+    val punchEndpoint: String = "",
 ) {
     fun isUsable(now: Instant): Boolean {
         val expires = runCatching { Instant.parse(expiresAt) }.getOrNull() ?: return false
@@ -70,6 +84,17 @@ data class RelayDescriptor(
 
     /** Human-readable exit location such as "Tokyo, Japan", or "" while the broker has no geo. */
     fun locationLabel(): String = listOf(city, country).filter { it.isNotBlank() }.joinToString(", ")
+
+    /**
+     * Hub punch coordinator base URL: the advertised [punchEndpoint] verbatim, else a derived
+     * `http://<publicHost>:9444` (IPv6 literals bracketed). Mirrors the desktop client's
+     * punchBaseURL fallback (cmd/client/main.go). Only meaningful when [punchCapable].
+     */
+    fun punchBaseUrl(): String {
+        if (punchEndpoint.isNotBlank()) return punchEndpoint
+        val host = if (publicHost.contains(":") && !publicHost.startsWith("[")) "[$publicHost]" else publicHost
+        return "http://$host:${RelayConstants.DEFAULT_PUNCH_PORT}"
+    }
 }
 
 @Serializable

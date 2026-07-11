@@ -18,6 +18,15 @@ data class SingBoxConfiguration(
     val tunnelIPv6Address: String = "fdfe:dcba:9876::1/126",
     val dnsServers: List<String> = listOf("1.1.1.1", "8.8.8.8"),
     val mtu: Int = 1400,
+    // Punch-mode overrides. When [bridgeHost]/[bridgePort] are set, the VLESS outbound dials the
+    // local punch bridge (127.0.0.1:bridgePort) instead of the relay's public endpoint — the
+    // Reality identity fields are unchanged, so the end-to-end target is still the real volunteer.
+    // [punchPeerExcludeAddress] is the volunteer's reflexive UDP IP, which MUST be excluded from the
+    // TUN routes or the punched QUIC datagrams would be captured by auto_route/strict_route and loop
+    // back into the tunnel. Mirrors the desktop client's BuildSingBoxConfig punch inputs.
+    val bridgeHost: String? = null,
+    val bridgePort: Int? = null,
+    val punchPeerExcludeAddress: String? = null,
 ) {
     fun encodedJsonString(): String {
         validateRelay()
@@ -39,8 +48,15 @@ data class SingBoxConfiguration(
             "dns_mode" to JsonPrimitive("hijack"),
             "endpoint_independent_nat" to JsonPrimitive(true),
         )
-        relayRouteExcludeAddress(relay.publicHost)?.let {
-            tunInbound["route_exclude_address"] = JsonArray(listOf(JsonPrimitive(it)))
+        // Exclude the real transport peers from the TUN so their packets are not captured by
+        // auto_route/strict_route. On the direct path that is the relay hub's public IP; on the
+        // punch path it is additionally the volunteer's reflexive UDP IP the QUIC socket talks to.
+        // Hostnames (non-literal publicHost) yield no exclusion; the loopback bridge needs none.
+        val excludeAddresses = listOfNotNull(relay.publicHost, punchPeerExcludeAddress)
+            .mapNotNull { relayRouteExcludeAddress(it) }
+            .distinct()
+        if (excludeAddresses.isNotEmpty()) {
+            tunInbound["route_exclude_address"] = JsonArray(excludeAddresses.map { JsonPrimitive(it) })
         }
 
         return buildJsonObject {
@@ -66,8 +82,12 @@ data class SingBoxConfiguration(
                 add(buildJsonObject {
                     put("type", "vless")
                     put("tag", "proxy")
-                    put("server", relay.publicHost)
-                    put("server_port", relay.publicPort)
+                    // On the punch path sing-box dials the loopback bridge; TLS/Reality identity
+                    // (server_name, public_key, short_id, uuid) stays the volunteer's, so Reality
+                    // still validates end-to-end and the bridge is a transparent TCP hop.
+                    val usingBridge = bridgeHost != null && (bridgePort ?: 0) > 0
+                    put("server", if (usingBridge) bridgeHost else relay.publicHost)
+                    put("server_port", if (usingBridge) bridgePort!! else relay.publicPort)
                     put("uuid", relay.clientId)
                     put("flow", relay.flow)
                     put("network", "tcp")

@@ -96,6 +96,23 @@ object AppConfig {
     const val STATUS_PREFS = "openrung_status"
 
     /**
+     * When true, the connect path tries a direct NAT-hole-punched path to a punch-capable
+     * (CGNAT) volunteer before falling back to routing through the relay hub — matching the
+     * desktop client's `-punch` default. On any punch failure the outcome is never worse than
+     * the hub relay path. Set false to force all traffic through the hub.
+     */
+    const val PUNCH_ENABLED = true
+
+    /**
+     * Skip TLS verification of the hub punch coordination HTTP endpoint only (for a volunteer-run
+     * hub serving a self-signed cert on a bare IP). This weakens ONLY the coordination channel: the
+     * punched QUIC data path still pins the volunteer's per-session cert by fingerprint and the
+     * tunnel is VLESS+REALITY, so a hub MITM can at worst force a fallback to the relay path. Keep
+     * false in production; the desktop exposes this as `-punch-insecure` for testing.
+     */
+    const val PUNCH_HUB_INSECURE = false
+
+    /**
      * Relay fetch used to populate the exit-node map directory (the connect path still uses
      * [RELAY_LIMIT]). This is the broker's maximum allowed page size — the broker rejects anything
      * larger with HTTP 400 — so it captures the full set of currently-advertised relays.

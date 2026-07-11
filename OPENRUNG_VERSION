@@ -1,0 +1,13 @@
+# Pinned openrung revision for the NAT hole-punch client (openrung/mobile/orpunch)
+# bound into android/app/libs/libbox.aar. openrung is GPL-3.0, so this commit is
+# the GPL §6 corresponding source for the punch portion of a shipped build — keep
+# it in lockstep with the AAR you distribute (see RELEASE.md §1).
+#
+# The openrung Go module path is "openrung" (no VCS host), so the build wires it in
+# via a go.mod `replace` to a local checkout (android/build-libbox-release.sh,
+# OPENRUNG_SRC). For a reproducible release build, check that local tree out at the
+# commit recorded below before running the build.
+#
+# Until the punch binding lands on openrung's main branch, this points at the
+# feature branch; update to the merged commit SHA at release time.
+branch:claude/mobile-punch-binding

@@ -133,8 +133,17 @@ JDK 17, the Android SDK + NDK `29.0.14206865`, and Go on `PATH`. The sing-box
 revision is the GPL §6 corresponding source for the shipped engine; the
 per-release pin procedure is in [`RELEASE.md`](RELEASE.md).
 
+The same AAR also bundles the OpenRung NAT hole-punch client
+(`io.nekohasekai.orpunch`, from the `openrung/mobile/orpunch` Go package) so the
+app can connect directly to a CGNAT volunteer, bypassing the relay hub's data
+path (Android only; iOS still always routes through the hub). The build wires the
+openrung module in from a local checkout via `OPENRUNG_SRC` (default: a sibling
+`openrung/` checkout; the pinned revision lives in `OPENRUNG_VERSION`). Set
+`OPENRUNG_SRC=/path/to/openrung` if your checkout is elsewhere (e.g. a worktree).
+
 Without the AAR the app still compiles; the connect path fails at engine start
-with a clear "engine not linked" error.
+with a clear "engine not linked" error, and NAT punching is silently skipped (the
+app routes through the hub as before).
 
 You also need `android/local.properties` with your SDK path
 (`sdk.dir=/Users/<you>/Library/Android/sdk`), or `ANDROID_HOME` exported. Build

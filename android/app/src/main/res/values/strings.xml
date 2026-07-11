@@ -18,6 +18,8 @@
     <string name="log_connecting_relay">connecting to relay %1$s</string>
     <string name="log_trying_relay">trying relay %1$s at %2$s:%3$d</string>
     <string name="log_checking_relay_reachability">checking relay TCP reachability</string>
+    <string name="log_punch_direct">punched a direct path to the volunteer (peer %1$s, NAT %2$s)</string>
+    <string name="log_punch_fallback">direct path to %1$s did not come up; retrying over the relay hub</string>
     <string name="log_verifying_internet">verifying internet access through the VPN</string>
     <string name="log_internet_verified">internet access verified in %1$d ms</string>
     <string name="log_relay_failed">relay %1$s failed: %2$s</string>

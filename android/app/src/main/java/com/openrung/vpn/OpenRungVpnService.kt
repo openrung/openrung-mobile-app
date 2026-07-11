@@ -46,6 +46,7 @@ class OpenRungVpnService : VpnService() {
     private var connectJob: Job? = null
     private var heartbeatJob: Job? = null
     private var engine: ProxyEngine? = null
+    private var activePunch: PunchOutcome? = null
     private var brokerUrl: String = AppConfig.DEFAULT_BROKER_URL
     private var activeRelayId: String? = null
 
@@ -238,81 +239,114 @@ class OpenRungVpnService : VpnService() {
     private suspend fun connectFirstAvailable(candidates: List<RelayDescriptor>): ConnectedRelay {
         var lastError: Throwable? = null
         for ((index, relay) in candidates.withIndex()) {
-            try {
-                OpenRungStatusStore.appendLog(
-                    getString(R.string.log_trying_relay, relay.id, relay.publicHost, relay.publicPort),
-                )
-                OpenRungStatusStore.appendLog(getString(R.string.log_checking_relay_reachability))
-                val tcpLatencyMs = try {
-                    RelayReachability.checkTcp(relay)
-                } catch (error: CancellationException) {
-                    // A racing disconnect cancels this coroutine; let cancellation propagate instead
-                    // of masking it as an "unreachable" failure, which would keep trying relays and
-                    // could bring a tunnel up after teardown.
-                    throw error
-                } catch (error: Throwable) {
-                    throw IllegalStateException(
-                        getString(R.string.error_relay_unreachable, relay.publicHost, relay.publicPort),
-                        error,
-                    )
-                }
-                val config = SingBoxConfiguration(relay = relay).encodedJsonString()
-                val proxyEngine = ProxyEngineFactory.create()
-                val tunnelStarted = SystemClock.elapsedRealtime()
-                // Tag an engine start/liveness failure as EngineStartException so it classifies as
-                // process_exited (the embedded-engine analogue of the Go clients' sing-box subprocess
-                // dying). The original error is kept as the cause so a more specific signal in its
-                // chain still wins over process_exited.
+            // Each relay gets at most two attempts: a direct NAT-punched path (for punch-capable
+            // volunteers), then, if that path fails to bring up a working tunnel, the ordinary relay
+            // hub path. This guarantees enabling punch is never worse than not punching — a relay the
+            // hub could have reached is not skipped just because its direct path degraded.
+            var allowPunch = true
+            while (true) {
                 try {
-                    proxyEngine.start(
+                    OpenRungStatusStore.appendLog(
+                        getString(R.string.log_trying_relay, relay.id, relay.publicHost, relay.publicPort),
+                    )
+                    OpenRungStatusStore.appendLog(getString(R.string.log_checking_relay_reachability))
+                    val tcpLatencyMs = try {
+                        RelayReachability.checkTcp(relay)
+                    } catch (error: CancellationException) {
+                        // A racing disconnect cancels this coroutine; let cancellation propagate instead
+                        // of masking it as an "unreachable" failure, which would keep trying relays and
+                        // could bring a tunnel up after teardown.
+                        throw error
+                    } catch (error: Throwable) {
+                        throw IllegalStateException(
+                            getString(R.string.error_relay_unreachable, relay.publicHost, relay.publicPort),
+                            error,
+                        )
+                    }
+                    // Try a direct NAT-punched path to a punch-capable volunteer before falling back to
+                    // routing through the relay hub. On success sing-box dials the loopback bridge and the
+                    // volunteer's reflexive IP is excluded from the TUN; on any failure maybePunch returns
+                    // null and this stays the ordinary hub path. Tracked as a service field so
+                    // cleanupActiveTunnel() releases the punched socket on teardown.
+                    val punch = if (allowPunch) PunchClient.maybePunch(relay, this) else null
+                    activePunch = punch
+                    punch?.let {
+                        OpenRungStatusStore.appendLog(getString(R.string.log_punch_direct, it.peerIp, it.natClass))
+                    }
+                    val config = SingBoxConfiguration(
                         relay = relay,
-                        configJson = config,
-                        vpnService = this,
+                        bridgeHost = punch?.bridgeHost,
+                        bridgePort = punch?.bridgePort,
+                        punchPeerExcludeAddress = punch?.peerIp,
+                    ).encodedJsonString()
+                    val proxyEngine = ProxyEngineFactory.create()
+                    val tunnelStarted = SystemClock.elapsedRealtime()
+                    // Tag an engine start/liveness failure as EngineStartException so it classifies as
+                    // process_exited (the embedded-engine analogue of the Go clients' sing-box subprocess
+                    // dying). The original error is kept as the cause so a more specific signal in its
+                    // chain still wins over process_exited.
+                    try {
+                        proxyEngine.start(
+                            relay = relay,
+                            configJson = config,
+                            vpnService = this,
+                        )
+                    } catch (error: CancellationException) {
+                        throw error
+                    } catch (error: Throwable) {
+                        throw EngineStartException(error.message, error)
+                    }
+                    val tunnelStartMs = SystemClock.elapsedRealtime() - tunnelStarted
+                    engine = proxyEngine
+                    OpenRungStatusStore.appendLog(getString(R.string.log_verifying_internet))
+                    val internetProbe = InternetProbe(applicationContext).verify()
+                    OpenRungStatusStore.appendLog(
+                        getString(R.string.log_internet_verified, internetProbe.durationMs),
+                    )
+                    return ConnectedRelay(
+                        relay = relay,
+                        tcpLatencyMs = tcpLatencyMs,
+                        tunnelStartMs = tunnelStartMs,
+                        internetProbeMs = internetProbe.durationMs,
+                        attempts = index + 1,
                     )
                 } catch (error: CancellationException) {
                     throw error
                 } catch (error: Throwable) {
-                    throw EngineStartException(error.message, error)
+                    // Read before cleanupActiveTunnel(), which nulls activePunch.
+                    val punchWasActive = activePunch != null
+                    lastError = error
+                    val attemptReason = FailureClassifier.classify(error)
+                    val attemptDetail = FailureClassifier.detail(error)
+                    TelemetryManager.record(
+                        event = "relay_attempt_failed",
+                        relayId = relay.id,
+                        attributes = buildMap {
+                            // Kept alongside failure_reason for continuity with older app versions.
+                            put("error_type", error::class.java.simpleName)
+                            if (attemptReason.isNotBlank()) put("failure_reason", attemptReason)
+                            if (attemptDetail.isNotBlank()) put("failure_detail", attemptDetail)
+                            if (punchWasActive) put("path", "punch")
+                        },
+                        measurements = mapOf("attempt" to (index + 1).toLong()),
+                    )
+                    OpenRungStatusStore.appendLog(
+                        getString(
+                            R.string.log_relay_failed,
+                            relay.id,
+                            error.message ?: error::class.java.simpleName,
+                        ),
+                    )
+                    cleanupActiveTunnel()
+                    if (allowPunch && punchWasActive) {
+                        // The punched path came up but failed to carry traffic; retry this same relay
+                        // over the plain hub path before moving on (never worse than not punching).
+                        allowPunch = false
+                        OpenRungStatusStore.appendLog(getString(R.string.log_punch_fallback, relay.id))
+                        continue
+                    }
+                    break
                 }
-                val tunnelStartMs = SystemClock.elapsedRealtime() - tunnelStarted
-                engine = proxyEngine
-                OpenRungStatusStore.appendLog(getString(R.string.log_verifying_internet))
-                val internetProbe = InternetProbe(applicationContext).verify()
-                OpenRungStatusStore.appendLog(
-                    getString(R.string.log_internet_verified, internetProbe.durationMs),
-                )
-                return ConnectedRelay(
-                    relay = relay,
-                    tcpLatencyMs = tcpLatencyMs,
-                    tunnelStartMs = tunnelStartMs,
-                    internetProbeMs = internetProbe.durationMs,
-                    attempts = index + 1,
-                )
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Throwable) {
-                lastError = error
-                val attemptReason = FailureClassifier.classify(error)
-                val attemptDetail = FailureClassifier.detail(error)
-                TelemetryManager.record(
-                    event = "relay_attempt_failed",
-                    relayId = relay.id,
-                    attributes = buildMap {
-                        // Kept alongside failure_reason for continuity with older app versions.
-                        put("error_type", error::class.java.simpleName)
-                        if (attemptReason.isNotBlank()) put("failure_reason", attemptReason)
-                        if (attemptDetail.isNotBlank()) put("failure_detail", attemptDetail)
-                    },
-                    measurements = mapOf("attempt" to (index + 1).toLong()),
-                )
-                OpenRungStatusStore.appendLog(
-                    getString(
-                        R.string.log_relay_failed,
-                        relay.id,
-                        error.message ?: error::class.java.simpleName,
-                    ),
-                )
-                cleanupActiveTunnel()
             }
         }
 
@@ -399,6 +433,10 @@ class OpenRungVpnService : VpnService() {
     private fun cleanupActiveTunnel() {
         engine?.stop()
         engine = null
+        // Close the punched path after the engine so sing-box stops dialing the loopback bridge
+        // before its QUIC connection and UDP socket are released.
+        activePunch?.close()
+        activePunch = null
     }
 
     private data class ConnectedRelay(
