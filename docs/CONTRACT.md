@@ -4,7 +4,7 @@ This document is the binding contract between the TypeScript shell and the two
 native implementations. Every implementer follows it exactly; deviations must be
 recorded here.
 
-Reference implementation: `/opt/projects/openrung` (the production Android app in
+Reference implementation: the OpenRung repository (the production Android app in
 `android/`, the production iOS app in `ios/`). This prototype models its UI and
 functionality 1:1 unless noted.
 

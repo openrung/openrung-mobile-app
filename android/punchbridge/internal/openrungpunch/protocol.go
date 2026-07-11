@@ -1,6 +1,6 @@
 // Package openrungpunch is the mobile client half of OpenRung's NAT-punch
-// protocol. It is kept wire-compatible with /opt/projects/openrung/internal/punch
-// and compiled into the existing libbox gomobile runtime.
+// protocol. It is kept wire-compatible with internal/punch in the OpenRung
+// repository and compiled into the existing libbox gomobile runtime.
 package openrungpunch
 
 import (
