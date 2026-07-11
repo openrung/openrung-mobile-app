@@ -232,6 +232,11 @@ ported (that lives in TS now). Files:
   successful physical-network broker probe trigger fresh discovery/re-punch and
   RelayHub fallback. Native path loss waits for a reachable physical network, so
   a local outage leaves the foreground service CONNECTING instead of failing it.
+- Direct-path recovery is bounded per relay. Losses before five minutes use
+  jittered exponential backoff; the third rapid loss opens a circuit for the
+  current user connection, so fresh discovery still runs but that volunteer is
+  reached through RelayHub. A real physical-network outage does not increment the
+  breaker, and an explicit connect/disconnect resets it.
 - `ProxyEngineFactory` returns a `StubProxyEngine` (throws "engine not linked")
   when libbox is absent at runtime — compile-time guarded the same way the
   original handles a missing AAR (reflection-free: source set always compiled,

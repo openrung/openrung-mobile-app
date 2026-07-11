@@ -53,6 +53,7 @@ import kotlin.random.Random
 class OpenRungVpnService : VpnService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val relaySelector = RelaySelector()
+    private val punchRecoveryCircuitBreaker = PunchRecoveryCircuitBreaker()
     private var connectJob: Job? = null
     private var heartbeatJob: Job? = null
     private var punchMonitorJob: Job? = null
@@ -80,6 +81,9 @@ class OpenRungVpnService : VpnService() {
                 punchMonitorJob?.cancel()
                 punchMonitorJob = null
                 connectJob?.cancel()
+                // A user-initiated connect starts a new recovery epoch. Recursive recovery calls
+                // connect() directly and deliberately keep the breaker state that led to them.
+                punchRecoveryCircuitBreaker.reset()
                 connectJob = serviceScope.launch {
                     connect(brokerUrl.ifBlank { AppConfig.DEFAULT_BROKER_URL }, targetCountry, targetRelayId)
                 }
@@ -359,6 +363,14 @@ class OpenRungVpnService : VpnService() {
     /** Attempts the signaling/UDP/QUIC path and leaves a live loopback bridge on success. */
     private suspend fun attemptDirectPunch(relay: RelayDescriptor): NatPunchResult? {
         if (!relay.punchCapable) return null
+        if (!punchRecoveryCircuitBreaker.allowsDirectPunch(relay.id)) {
+            TelemetryManager.record(
+                event = "punch_skipped",
+                relayId = relay.id,
+                attributes = mapOf("reason" to "recovery_circuit_open"),
+            )
+            return null
+        }
 
         TelemetryManager.record("punch_attempted", relayId = relay.id)
         OpenRungStatusStore.appendLog(getString(R.string.log_punch_attempting))
@@ -495,6 +507,7 @@ class OpenRungVpnService : VpnService() {
         heartbeatJob = null
         punchMonitorJob?.cancel()
         punchMonitorJob = null
+        punchRecoveryCircuitBreaker.reset()
         OpenRungStatusStore.setStatus(ConnectionStatus.DISCONNECTING)
         connectJob?.cancel()
         cleanupActiveTunnel()
@@ -556,6 +569,7 @@ class OpenRungVpnService : VpnService() {
     private fun startPunchMonitor(relay: RelayDescriptor, ownerJob: Job?) {
         val session = punchSession ?: return
         if (punchMonitorJob !== ownerJob) punchMonitorJob?.cancel()
+        punchRecoveryCircuitBreaker.markDirectConnected(relay.id, SystemClock.elapsedRealtime())
         punchMonitorJob = serviceScope.launch {
             val failure = try {
                 awaitPunchFailure(session)
@@ -563,6 +577,7 @@ class OpenRungVpnService : VpnService() {
                 return@launch
             }
             val reason = failure.reason
+            val pathLostAtMs = SystemClock.elapsedRealtime()
             // Close and callback can race across the Go/Java boundary. Only the still-current,
             // already-promoted session is allowed to initiate recovery.
             if (punchSession !== session || activeRelayId != relay.id) return@launch
@@ -588,14 +603,60 @@ class OpenRungVpnService : VpnService() {
                 heartbeatJob = null
                 cleanupActiveTunnel()
                 activeRelayId = null
+                coroutineContext.ensureActive()
+                val physicalNetworkWasUnavailable =
+                    failure.waitForPhysicalNetwork && !physicalNetworkAlive()
+                val recoveryDecision = punchRecoveryCircuitBreaker.onDirectPathLost(
+                    relayId = relay.id,
+                    nowElapsedMs = pathLostAtMs,
+                    countTowardBreaker = !physicalNetworkWasUnavailable,
+                )
+                when (recoveryDecision) {
+                    is PunchRecoveryDecision.RetryDirect -> {
+                        if (recoveryDecision.delayMs > 0) {
+                            OpenRungStatusStore.appendLog(
+                                getString(
+                                    R.string.log_punch_recovery_scheduled,
+                                    recoveryDecision.rapidFailureCount,
+                                    recoveryDecision.delayMs.toDisplaySeconds(),
+                                ),
+                            )
+                        }
+                    }
+                    is PunchRecoveryDecision.UseRelayHub -> {
+                        OpenRungStatusStore.appendLog(
+                            getString(
+                                R.string.log_punch_circuit_open,
+                                recoveryDecision.delayMs.toDisplaySeconds(),
+                            ),
+                        )
+                        TelemetryManager.record(
+                            event = "punch_fallback",
+                            relayId = relay.id,
+                            attributes = mapOf(
+                                "failure_reason" to "unstable_direct_path",
+                                "failure_detail" to reason.take(256),
+                            ),
+                            measurements = mapOf(
+                                "rapid_failure_count" to recoveryDecision.rapidFailureCount.toLong(),
+                                "direct_uptime_ms" to recoveryDecision.directUptimeMs,
+                                "recovery_delay_ms" to recoveryDecision.delayMs,
+                            ),
+                        )
+                    }
+                }
                 TelemetryManager.endSession("punch_path_lost")
                 coroutineContext.ensureActive()
-                if (failure.waitForPhysicalNetwork) {
+                if (physicalNetworkWasUnavailable) {
                     // A QUIC idle timeout commonly means Wi-Fi/cellular disappeared. Do not turn
                     // that local outage into a terminal broker failure: keep the foreground VPN in
                     // CONNECTING and wait until an independent broker front is reachable again.
                     awaitPhysicalNetworkAlive()
                 }
+                // delay() remains owned by punchMonitorJob, so disconnect or a manual connection
+                // cancels pending backoff before another discovery or engine start can occur.
+                recoveryDecision.awaitBackoff()
+                coroutineContext.ensureActive()
                 // A long-lived descriptor can expire or move to another hub. Run the complete
                 // discovery + punch-first ladder again so recovery gets fresh signed metadata,
                 // repunches on the new network when possible, and uses RelayHub otherwise.
@@ -714,6 +775,8 @@ class OpenRungVpnService : VpnService() {
         val reason: String,
         val waitForPhysicalNetwork: Boolean,
     )
+
+    private fun Long.toDisplaySeconds(): Long = (this + 999) / 1_000
 
     private data class ConnectedRelay(
         val relay: RelayDescriptor,

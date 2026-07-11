@@ -106,6 +106,9 @@ endpoint anywhere in the app.
   Future hostname endpoints use normal CA/hostname validation. The authenticated
   response supplies a separate per-session QUIC certificate pin, while
   VLESS/Reality remains the end-to-end authentication and encryption boundary.
+  Repeated short-lived direct paths recover with jittered exponential backoff;
+  after three rapid losses Android keeps the selected volunteer but routes it
+  through RelayHub for the rest of that user connection.
 - **Telemetry / heartbeat / speed-test** — currently also `https://broker.openrung.org/`
   (the same Cloudflare-fronted broker); see the trade-off below.
 - **Geo lookup** (`https://ipwho.is/`) and **connectivity probes**
