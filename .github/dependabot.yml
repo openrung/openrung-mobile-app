@@ -1,0 +1,16 @@
+# Auto-opens the punchcore pin-bump PR when the openrung repo tags a new
+# punchcore/vX.Y.Z (see RELEASE.md "Bumping the punchcore pin"). Scoped to that
+# one module on purpose: sing-box pins its own dependency set (SINGBOX_VERSION
+# is the source of truth for the native engine), so generic bumps here would
+# fight the graft. The bump PR path-matches android-punch-check.yml, which
+# rebuilds the AAR from scratch and runs the Android unit tests against it.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /android/punchbridge
+    schedule:
+      interval: daily
+    allow:
+      - dependency-name: github.com/openrung/openrung/punchcore
+    commit-message:
+      prefix: punchcore

@@ -38,14 +38,20 @@ A punch wire/protocol change flows like this:
 1. The change lands in the `openrung/openrung` repository (its hub, volunteers,
    and desktop client consume `punchcore/` via an in-repo `replace`, so the
    servers and desktop stay atomically consistent).
-2. After that PR merges, a `punchcore/vX.Y.Z` tag is pushed on its `main`.
-   Push the tag **before** anything fetches it: if `proxy.golang.org` was asked
-   for the version early, it negative-caches the miss — wait a few minutes for
-   the cache TTL to expire and re-run the fetch.
-3. This repository bumps the require in `android/punchbridge/go.mod`
-   (`go get github.com/openrung/openrung/punchcore@vX.Y.Z` inside
-   `android/punchbridge`, which also updates `go.sum`). The bump automatically
-   busts the AAR CI caches (both cache keys hash `go.mod`/`go.sum`).
+2. That PR bumps `punchcore/VERSION`; on merge, the openrung repo's
+   `punchcore-tag.yml` workflow tags `punchcore/v$(VERSION)` on the merge
+   commit automatically (a PR check there enforces the bump). If a tag is
+   ever pushed by hand instead, push it **before** anything fetches the
+   version: if `proxy.golang.org` was asked early, it negative-caches the
+   miss — wait a few minutes for the cache TTL to expire and re-fetch.
+3. Dependabot ([`.github/dependabot.yml`](.github/dependabot.yml), scoped to
+   the punchcore module only) opens the bump PR here — the require in
+   `android/punchbridge/go.mod` plus `go.sum`. Manual fallback:
+   `go get github.com/openrung/openrung/punchcore@vX.Y.Z` inside
+   `android/punchbridge`. Either way the bump automatically busts the AAR CI
+   caches (both cache keys hash `go.mod`/`go.sum`), and the bump PR itself
+   rebuilds the AAR and runs the Android unit tests via
+   `android-punch-check.yml`.
 4. Rebuild the AAR via `android/build-libbox-release.sh` and ship.
 
 For local cross-repo development against an untagged punchcore checkout, use an
