@@ -78,6 +78,10 @@ yarn-error.log
 android/app/libs/libbox.aar
 ios/ThirdParty/Libbox.xcframework/
 
+# Go workspace files (local cross-repo punchcore development only; never commit)
+go.work
+go.work.sum
+
 # Cloudflare Wrangler (local miniflare state / R2 dev bucket; can hold large release artifacts)
 .wrangler/
 

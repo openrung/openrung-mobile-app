@@ -1,3 +1,6 @@
+// Package openrungpunch is the sagernet-QUIC session, transport and bridge
+// layer of the OpenRung mobile NAT-punch client, over the shared protocol core
+// github.com/openrung/openrung/punchcore.
 package openrungpunch
 
 import (
@@ -7,25 +10,30 @@ import (
 	"fmt"
 	"net"
 	"time"
+
+	"github.com/openrung/openrung/punchcore"
 )
 
 const (
-	DefaultTTL           = 6 * time.Second
 	maxPunchTTL          = 15 * time.Second
 	maxReflectorCount    = 4
 	quicHandshakeTimeout = 5 * time.Second
 )
 
+// mobilePolicy is the hardened punchcore candidate/gather profile the Android
+// client always runs in production.
+var mobilePolicy = punchcore.MobilePolicy()
+
 type Dialer struct {
-	Hub           HubClient
+	Hub           punchcore.HubClient
 	RelayID       string
 	ProtectSocket func(fd int64) bool
 
 	// Nil selects the hardened production candidate policy. These unexported
 	// seams let hermetic package tests substitute loopback tuples without
 	// weakening the public-address checks used by Android builds.
-	gatherCandidates     func(context.Context, *net.UDPConn, []string, []byte) ([]Endpoint, string, error)
-	selectPeerCandidates func(PunchResponse) []Endpoint
+	gatherCandidates     func(context.Context, *net.UDPConn, []string, []byte) ([]punchcore.Endpoint, string, error)
+	selectPeerCandidates func(punchcore.PunchResponse) []punchcore.Endpoint
 }
 
 type Establishment struct {
@@ -69,18 +77,18 @@ func socketFD(socket *net.UDPConn) (int64, error) {
 	return descriptor, nil
 }
 
-// Establish runs the same client flow as the desktop client. The one UDP
-// socket is retained from reflector discovery through the lifetime of QUIC.
-func (d *Dialer) Establish(ctx context.Context) (*Establishment, PunchResult, error) {
+// Establish runs the shared punchcore client flow. The one UDP socket is
+// retained from reflector discovery through the lifetime of QUIC.
+func (d *Dialer) Establish(ctx context.Context) (*Establishment, punchcore.PunchResult, error) {
 	started := time.Now()
-	result := PunchResult{}
+	result := punchcore.PunchResult{}
 
 	config, err := d.Hub.FetchConfig(ctx)
 	if err != nil {
 		result.Reason = "config"
 		return nil, result, err
 	}
-	if config.ALPN != "" && config.ALPN != ALPN {
+	if config.ALPN != "" && config.ALPN != punchcore.ALPN {
 		result.Reason = "config"
 		return nil, result, fmt.Errorf("unsupported punch ALPN %q", config.ALPN)
 	}
@@ -107,7 +115,7 @@ func (d *Dialer) Establish(ctx context.Context) (*Establishment, PunchResult, er
 		return nil, result, errors.New("VpnService rejected punch socket protection")
 	}
 
-	nonceHex, nonceRaw, err := GenerateNonce()
+	nonceHex, nonceRaw, err := punchcore.GenerateNonce()
 	if err != nil {
 		result.Reason = "nonce"
 		return nil, result, err
@@ -116,7 +124,7 @@ func (d *Dialer) Establish(ctx context.Context) (*Establishment, PunchResult, er
 	if len(reflectors) > maxReflectorCount {
 		reflectors = reflectors[:maxReflectorCount]
 	}
-	gatherCandidates := Gather
+	gatherCandidates := mobilePolicy.Gather
 	if d.gatherCandidates != nil {
 		gatherCandidates = d.gatherCandidates
 	}
@@ -130,13 +138,13 @@ func (d *Dialer) Establish(ctx context.Context) (*Establishment, PunchResult, er
 		return nil, result, gatherError
 	}
 
-	response, err := d.Hub.RequestPunch(ctx, PunchRequest{
+	response, err := d.Hub.RequestPunch(ctx, punchcore.PunchRequest{
 		RelayID:         d.RelayID,
 		ClientNonce:     nonceHex,
 		ClientReflexive: reflexive,
 		ClientClass:     natClass,
-		QUICALPN:        ALPN,
-		ProtoVersion:    ProtoVersion,
+		QUICALPN:        punchcore.ALPN,
+		ProtoVersion:    punchcore.ProtoVersion,
 	})
 	if err != nil {
 		result.Reason = "request"
@@ -152,18 +160,18 @@ func (d *Dialer) Establish(ctx context.Context) (*Establishment, PunchResult, er
 		return nil, result, errors.New("hub returned an invalid punch session id")
 	}
 
-	token, err := DecodeToken(response.PunchToken)
+	token, err := punchcore.DecodeToken(response.PunchToken)
 	if err != nil {
 		result.Reason = "token"
 		return nil, result, err
 	}
-	if fingerprint, decodeErr := hex.DecodeString(response.CertFingerprint); decodeErr != nil || len(fingerprint) != tokenLen {
+	if fingerprint, decodeErr := hex.DecodeString(response.CertFingerprint); decodeErr != nil || len(fingerprint) != punchcore.TokenLen {
 		result.Reason = "certificate"
 		return nil, result, errors.New("hub returned an invalid punch certificate fingerprint")
 	}
 	ttl := time.Duration(response.TTLMillis) * time.Millisecond
 	if ttl <= 0 {
-		ttl = DefaultTTL
+		ttl = punchcore.DefaultTTL
 	} else if ttl > maxPunchTTL {
 		ttl = maxPunchTTL
 	}
@@ -172,11 +180,11 @@ func (d *Dialer) Establish(ctx context.Context) (*Establishment, PunchResult, er
 	// direct probes at another device on the phone's LAN. Same-LAN peers can still
 	// meet through their public tuple when hairpinning works and otherwise retain
 	// the normal RelayHub fallback.
-	peers := append([]Endpoint{}, response.VolunteerReflexive...)
+	peers := append([]punchcore.Endpoint{}, response.VolunteerReflexive...)
 	if d.selectPeerCandidates != nil {
-		peers = append([]Endpoint{}, d.selectPeerCandidates(response)...)
+		peers = append([]punchcore.Endpoint{}, d.selectPeerCandidates(response)...)
 	}
-	confirmed, err := Attempt(ctx, socket, peers, response.SessionID, token, time.Now().Add(ttl))
+	confirmed, err := mobilePolicy.Attempt(ctx, socket, peers, response.SessionID, token, time.Now().Add(ttl))
 	if err != nil {
 		result.Reason = "punch"
 		return nil, result, err

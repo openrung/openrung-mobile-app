@@ -10,6 +10,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/openrung/openrung/punchcore"
 	"github.com/sagernet/quic-go"
 )
 
@@ -26,7 +27,7 @@ func clientTLSConfig(fingerprint string) *tls.Config {
 	return &tls.Config{
 		InsecureSkipVerify: true, // Verified by the per-session fingerprint below.
 		MinVersion:         tls.VersionTLS13,
-		NextProtos:         []string{ALPN},
+		NextProtos:         []string{punchcore.ALPN},
 		VerifyPeerCertificate: func(rawCertificates [][]byte, _ [][]*x509.Certificate) error {
 			if len(rawCertificates) == 0 {
 				return errors.New("punch peer presented no certificate")

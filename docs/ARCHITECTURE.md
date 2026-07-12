@@ -195,9 +195,11 @@ are not ported (TS owns them). Key pieces:
   flow, NAT-punch-first/RelayHub-fallback ladder, connection-failure handling,
   notification id 2001 on channel `openrung_vpn`, heartbeat every 50–70 s.
 - `net/NatPunchClient.kt` + `android/punchbridge/` — a cancelable gomobile
-  binding compiled into the same AAR/Go runtime as libbox. It protects the
-  retained UDP fd with `VpnService.protect`, then exposes a loopback TCP bridge
-  that sing-box uses without changing the volunteer's Reality identity.
+  binding over the shared `github.com/openrung/openrung/punchcore` module
+  (pinned in `punchbridge/go.mod`), compiled into the same AAR/Go runtime as
+  libbox. It protects the retained UDP fd with `VpnService.protect`, then
+  exposes a loopback TCP bridge that sing-box uses without changing the
+  volunteer's Reality identity.
 - `net/`, `model/`, `telemetry/`, `config/AppConfig.kt` — verbatim.
 - `state/OpenRungStatusStore.kt` — trimmed to status/relay/error/logs/recents
   (directory state removed), still persisted in SharedPreferences

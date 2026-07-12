@@ -20,7 +20,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/openrung/openrung/punchcore"
 	upstreamquic "github.com/quic-go/quic-go"
+)
+
+// Private copies of the reflector wire framing. This is a cross-fork
+// wire-compatibility test, so the literal bytes are a feature: the test must
+// keep speaking the frozen wire format independently of the punchcore module
+// it exercises.
+const (
+	integrationReflectMagicRequest = "ORPUNCHRQ"
+	integrationReflectMagicReply   = "ORPUNCHRS"
+	integrationReflectNonceLen     = 16
+	integrationReflectMinRequest   = 64
 )
 
 // TestAndroidPunchFlowEndToEnd exercises Dialer.Establish in the same order as
@@ -46,13 +58,13 @@ func TestAndroidPunchFlowEndToEnd(t *testing.T) {
 		relayID   = "relay-android-integration"
 		sessionID = "session-android-integration"
 	)
-	token := bytes.Repeat([]byte{0x6d}, tokenLen)
+	token := bytes.Repeat([]byte{0x6d}, punchcore.TokenLen)
 	certificate, certificateFingerprint := testCertificate(t)
 
 	reflectionDone := make(chan integrationReflection, 1)
 	go serveOneIntegrationReflection(ctx, reflector, reflectionDone)
 
-	requestSeen := make(chan PunchRequest, 1)
+	requestSeen := make(chan punchcore.PunchRequest, 1)
 	volunteerReady := make(chan struct{})
 	volunteerDone := make(chan error, 1)
 	var startVolunteer sync.Once
@@ -61,16 +73,16 @@ func TestAndroidPunchFlowEndToEnd(t *testing.T) {
 	coordinator := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set("Content-Type", "application/json")
 		switch {
-		case request.Method == http.MethodGet && request.URL.Path == PathPunchConfig:
+		case request.Method == http.MethodGet && request.URL.Path == punchcore.PathPunchConfig:
 			configCalls.Add(1)
-			_ = json.NewEncoder(writer).Encode(PunchConfig{
+			_ = json.NewEncoder(writer).Encode(punchcore.PunchConfig{
 				ReflectorAddrs: []string{reflector.LocalAddr().String()},
-				ALPN:           ALPN,
+				ALPN:           punchcore.ALPN,
 				TTLMillis:      3_000,
 			})
-		case request.Method == http.MethodPost && request.URL.Path == PathPunchRequest:
+		case request.Method == http.MethodPost && request.URL.Path == punchcore.PathPunchRequest:
 			requestCalls.Add(1)
-			var punchRequest PunchRequest
+			var punchRequest punchcore.PunchRequest
 			if err := json.NewDecoder(request.Body).Decode(&punchRequest); err != nil {
 				http.Error(writer, err.Error(), http.StatusBadRequest)
 				return
@@ -101,16 +113,18 @@ func TestAndroidPunchFlowEndToEnd(t *testing.T) {
 					volunteerDone,
 				)
 			})
-			_ = json.NewEncoder(writer).Encode(PunchResponse{
+			volunteerAddress := volunteer.LocalAddr().(*net.UDPAddr)
+			_ = json.NewEncoder(writer).Encode(punchcore.PunchResponse{
 				OK:        true,
 				SessionID: sessionID,
 				// Loopback is advertised as a host candidate only for this
 				// hermetic test. Production coordinators provide a public srflx.
-				VolunteerLocal: []Endpoint{endpointFromUDP(
-					volunteer.LocalAddr().(*net.UDPAddr),
-					KindHost,
-				)},
-				VolunteerClass:  ClassEIM,
+				VolunteerLocal: []punchcore.Endpoint{{
+					IP:   volunteerAddress.IP.String(),
+					Port: volunteerAddress.Port,
+					Kind: punchcore.KindHost,
+				}},
+				VolunteerClass:  punchcore.ClassEIM,
 				PunchToken:      hex.EncodeToString(token),
 				CertFingerprint: certificateFingerprint,
 				TTLMillis:       3_000,
@@ -124,7 +138,7 @@ func TestAndroidPunchFlowEndToEnd(t *testing.T) {
 	var protectedCalls atomic.Int32
 	var protectedFD atomic.Int64
 	dialer := Dialer{
-		Hub:     HubClient{BaseURL: coordinator.URL},
+		Hub:     punchcore.HubClient{BaseURL: coordinator.URL, HTTPClient: punchcore.HardenedHTTPClient()},
 		RelayID: relayID,
 		ProtectSocket: func(fd int64) bool {
 			protectedCalls.Add(1)
@@ -136,17 +150,17 @@ func TestAndroidPunchFlowEndToEnd(t *testing.T) {
 			socket *net.UDPConn,
 			reflectorAddresses []string,
 			nonce []byte,
-		) ([]Endpoint, string, error) {
+		) ([]punchcore.Endpoint, string, error) {
 			if len(reflectorAddresses) != 1 {
-				return nil, ClassUnknown, fmt.Errorf("reflectors = %v, want one", reflectorAddresses)
+				return nil, punchcore.ClassUnknown, fmt.Errorf("reflectors = %v, want one", reflectorAddresses)
 			}
 			candidate, err := gatherIntegrationLoopback(ctx, socket, reflectorAddresses[0], nonce)
 			if err != nil {
-				return nil, ClassUnknown, err
+				return nil, punchcore.ClassUnknown, err
 			}
-			return []Endpoint{candidate}, ClassUnknown, nil
+			return []punchcore.Endpoint{candidate}, punchcore.ClassUnknown, nil
 		},
-		selectPeerCandidates: func(response PunchResponse) []Endpoint {
+		selectPeerCandidates: func(response punchcore.PunchResponse) []punchcore.Endpoint {
 			return response.VolunteerLocal
 		},
 	}
@@ -192,7 +206,7 @@ func TestAndroidPunchFlowEndToEnd(t *testing.T) {
 	select {
 	case punchRequest := <-requestSeen:
 		if punchRequest.RelayID != relayID || punchRequest.ClientNonce != hex.EncodeToString(observedNonce) ||
-			punchRequest.QUICALPN != ALPN || punchRequest.ProtoVersion != ProtoVersion {
+			punchRequest.QUICALPN != punchcore.ALPN || punchRequest.ProtoVersion != punchcore.ProtoVersion {
 			t.Fatalf("unexpected coordinator request: %+v", punchRequest)
 		}
 		if len(punchRequest.ClientReflexive) != 1 || punchRequest.ClientReflexive[0].Port != clientUDPPort {
@@ -254,12 +268,12 @@ func serveOneIntegrationReflection(ctx context.Context, reflector *net.UDPConn, 
 		return
 	}
 	request := buffer[:count]
-	if len(request) < reflectMinRequest || !bytes.HasPrefix(request, []byte(reflectMagicRequest)) {
+	if len(request) < integrationReflectMinRequest || !bytes.HasPrefix(request, []byte(integrationReflectMagicRequest)) {
 		done <- integrationReflection{err: errors.New("invalid reflector request")}
 		return
 	}
-	nonceOffset := len(reflectMagicRequest)
-	nonce := append([]byte(nil), request[nonceOffset:nonceOffset+reflectNonceLen]...)
+	nonceOffset := len(integrationReflectMagicRequest)
+	nonce := append([]byte(nil), request[nonceOffset:nonceOffset+integrationReflectNonceLen]...)
 	reply := integrationReflectReply(nonce, source)
 	if _, err := reflector.WriteToUDP(reply, source); err != nil {
 		done <- integrationReflection{err: err}
@@ -268,35 +282,44 @@ func serveOneIntegrationReflection(ctx context.Context, reflector *net.UDPConn, 
 	done <- integrationReflection{nonce: nonce, source: source}
 }
 
-func gatherIntegrationLoopback(ctx context.Context, socket *net.UDPConn, reflectorAddress string, nonce []byte) (Endpoint, error) {
+func gatherIntegrationLoopback(ctx context.Context, socket *net.UDPConn, reflectorAddress string, nonce []byte) (punchcore.Endpoint, error) {
 	reflector, err := net.ResolveUDPAddr("udp4", reflectorAddress)
 	if err != nil {
-		return Endpoint{}, err
+		return punchcore.Endpoint{}, err
 	}
-	if _, err := socket.WriteToUDP(buildReflectRequest(nonce), reflector); err != nil {
-		return Endpoint{}, err
+	if _, err := socket.WriteToUDP(integrationReflectRequest(nonce), reflector); err != nil {
+		return punchcore.Endpoint{}, err
 	}
 	_ = socket.SetReadDeadline(deadlineFromContext(ctx, 3*time.Second))
 	buffer := make([]byte, 1500)
 	count, source, err := socket.ReadFromUDP(buffer)
 	_ = socket.SetReadDeadline(time.Time{})
 	if err != nil {
-		return Endpoint{}, err
+		return punchcore.Endpoint{}, err
 	}
 	if !source.IP.Equal(reflector.IP) || source.Port != reflector.Port {
-		return Endpoint{}, fmt.Errorf("reflection reply source = %v, want %v", source, reflector)
+		return punchcore.Endpoint{}, fmt.Errorf("reflection reply source = %v, want %v", source, reflector)
 	}
-	replyNonce, observed, valid := parseReflectReply(buffer[:count])
+	replyNonce, observed, valid := integrationParseReflectReply(buffer[:count])
 	if !valid || !bytes.Equal(replyNonce, nonce) {
-		return Endpoint{}, errors.New("invalid reflection response")
+		return punchcore.Endpoint{}, errors.New("invalid reflection response")
 	}
-	return endpointFromUDP(observed, KindHost), nil
+	return punchcore.Endpoint{IP: observed.IP.String(), Port: observed.Port, Kind: punchcore.KindHost}, nil
+}
+
+// integrationReflectRequest builds a reflector request frame: magic + nonce,
+// zero-padded to the anti-amplification floor.
+func integrationReflectRequest(nonce []byte) []byte {
+	request := make([]byte, integrationReflectMinRequest)
+	copy(request, integrationReflectMagicRequest)
+	copy(request[len(integrationReflectMagicRequest):], nonce)
+	return request
 }
 
 func integrationReflectReply(nonce []byte, observed *net.UDPAddr) []byte {
 	ip := observed.IP.To4()
-	reply := make([]byte, 0, len(reflectMagicReply)+reflectNonceLen+1+net.IPv4len+2)
-	reply = append(reply, reflectMagicReply...)
+	reply := make([]byte, 0, len(integrationReflectMagicReply)+integrationReflectNonceLen+1+net.IPv4len+2)
+	reply = append(reply, integrationReflectMagicReply...)
 	reply = append(reply, nonce...)
 	reply = append(reply, byte(net.IPv4len))
 	reply = append(reply, ip...)
@@ -304,6 +327,38 @@ func integrationReflectReply(nonce []byte, observed *net.UDPAddr) []byte {
 	binary.BigEndian.PutUint16(port[:], uint16(observed.Port))
 	reply = append(reply, port[:]...)
 	return reply
+}
+
+// integrationParseReflectReply parses a reflector reply frame: magic + echoed
+// nonce + one address-family byte (4 or 6) + IP + big-endian port.
+func integrationParseReflectReply(data []byte) (nonce []byte, observed *net.UDPAddr, ok bool) {
+	offset := len(integrationReflectMagicReply)
+	if len(data) < offset+integrationReflectNonceLen+1 {
+		return nil, nil, false
+	}
+	if string(data[:offset]) != integrationReflectMagicReply {
+		return nil, nil, false
+	}
+	nonce = append([]byte(nil), data[offset:offset+integrationReflectNonceLen]...)
+	offset += integrationReflectNonceLen
+	var ipLen int
+	switch data[offset] {
+	case 4:
+		ipLen = net.IPv4len
+	case 6:
+		ipLen = net.IPv6len
+	default:
+		return nil, nil, false
+	}
+	offset++
+	if len(data) < offset+ipLen+2 {
+		return nil, nil, false
+	}
+	ip := make(net.IP, ipLen)
+	copy(ip, data[offset:offset+ipLen])
+	offset += ipLen
+	port := binary.BigEndian.Uint16(data[offset : offset+2])
+	return nonce, &net.UDPAddr{IP: ip, Port: int(port)}, true
 }
 
 func runIntegrationVolunteer(
@@ -317,10 +372,14 @@ func runIntegrationVolunteer(
 	ready chan<- struct{},
 	done chan<- error,
 ) {
-	confirmed, err := Attempt(
+	confirmed, err := punchcore.MobilePolicy().Attempt(
 		ctx,
 		socket,
-		[]Endpoint{endpointFromUDP(clientAddress, KindHost)},
+		[]punchcore.Endpoint{{
+			IP:   clientAddress.IP.String(),
+			Port: clientAddress.Port,
+			Kind: punchcore.KindHost,
+		}},
 		sessionID,
 		token,
 		time.Now().Add(3*time.Second),
@@ -336,7 +395,7 @@ func runIntegrationVolunteer(
 	listener, err := upstreamquic.Listen(socket, &tls.Config{
 		Certificates: []tls.Certificate{certificate},
 		MinVersion:   tls.VersionTLS13,
-		NextProtos:   []string{ALPN},
+		NextProtos:   []string{punchcore.ALPN},
 	}, integrationUpstreamQUICConfig())
 	if err != nil {
 		done <- err
@@ -358,7 +417,7 @@ func runIntegrationVolunteer(
 	}
 	defer stream.Close()
 
-	streamToken := make([]byte, tokenLen)
+	streamToken := make([]byte, punchcore.TokenLen)
 	_ = stream.SetReadDeadline(deadlineFromContext(ctx, 3*time.Second))
 	if _, err := io.ReadFull(stream, streamToken); err != nil {
 		done <- err

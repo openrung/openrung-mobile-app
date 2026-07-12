@@ -167,12 +167,17 @@ scripts — is available from the app's source repository:
 
 The apps statically link a specific sing-box commit. That commit is pinned in
 this repository at [`SINGBOX_VERSION`](SINGBOX_VERSION). Android's same-runtime
-AAR also includes the first-party NAT-punch client under `android/punchbridge`.
-The build paths (`android/build-libbox-release.sh` and
-`ios/ThirdParty/README.md`) and per-release procedure in [`RELEASE.md`](RELEASE.md)
-make both artifacts reproducible. Record/verify the sing-box pin and release tag
-against every shipped binary. OpenRung will provide the corresponding source
-for at least three (3) years on request.
+AAR also includes (a) the first-party NAT-punch gomobile binding under
+`android/punchbridge` and (b) the shared OpenRung punch core, consumed as the
+Go module `github.com/openrung/openrung/punchcore` at the version pinned in
+`android/punchbridge/go.mod`. The punch core is first-party GPL-3.0-or-later
+code (not a third-party component); its complete source is available from
+**https://github.com/openrung/openrung**, which this offer also covers. The
+build paths (`android/build-libbox-release.sh` and `ios/ThirdParty/README.md`)
+and per-release procedure in [`RELEASE.md`](RELEASE.md) make both artifacts
+reproducible. Record/verify the sing-box pin, the punchcore module version, and
+the release tag against every shipped binary. OpenRung will provide the
+corresponding source for at least three (3) years on request.
 
 ---
 
