@@ -37,13 +37,30 @@ if [ -z "$punchcore_version" ]; then
   exit 1
 fi
 
+if [ -n "${PUNCHCORE_SRC:-}" ]; then
+  # Dev mode resolves punchcore from a local checkout. Absolutize once, then
+  # write an explicit workspace used for the test step below: tests and the
+  # graft build must see the SAME punchcore tree, and an ambient developer
+  # go.work (which may point at a different checkout) is never consulted.
+  PUNCHCORE_SRC="$(cd "$PUNCHCORE_SRC" && pwd)"
+  dev_workspace="$work_dir/punchcore-dev.work"
+  cat > "$dev_workspace" <<EOF
+go 1.25.0
+
+use $punch_source
+
+replace github.com/openrung/openrung/punchcore => $PUNCHCORE_SRC
+EOF
+fi
+
 echo "Testing the OpenRung NAT-punch binding"
 (
   cd "$punch_source"
   if [ -n "${PUNCHCORE_SRC:-}" ]; then
-    # Dev mode: pre-tag punchcore work resolves the module through the
-    # developer's (uncommitted) go.work, so leave GOWORK ambient here.
-    go test ./...
+    # Dev mode: test through the explicit workspace so the tested punchcore is
+    # exactly the tree the graft will build ($PUNCHCORE_SRC), regardless of
+    # any ambient go.work.
+    GOWORK="$dev_workspace" go test ./...
   else
     # Release mode: force workspace mode off so a stray developer go.work can
     # never make the tested code differ from the pinned punchcore module the
@@ -83,7 +100,7 @@ done
 (
   cd "$work_dir/source"
   if [ -n "${PUNCHCORE_SRC:-}" ]; then
-    PUNCHCORE_SRC="$(cd "$PUNCHCORE_SRC" && pwd)"
+    # (already absolutized next to the dev workspace above)
     echo "==============================================================" >&2
     echo "WARNING: PUNCHCORE_SRC is set — building against the local" >&2
     echo "punchcore checkout at $PUNCHCORE_SRC." >&2
