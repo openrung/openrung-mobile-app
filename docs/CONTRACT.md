@@ -219,9 +219,16 @@ ported (that lives in TS now). Files:
   kotlinx-coroutines-android 1.9.0, conditional `implementation(files("libs/libbox.aar"))`
   (file is copied locally, git-ignored). Status strings the service logs live in
   `res/values*/strings.xml` (ported subset, all 10 locales).
-- `android/punchbridge/` is copied into sing-box's temporary
-  `experimental/libbox` tree by `build-libbox-release.sh`, so punch and libbox
-  share one gomobile runtime/AAR. The Go UDP fd must be accepted by
+- `android/punchbridge/` (the gomobile `binding.go` plus its sagernet-QUIC
+  session/transport/bridge layer, tests excluded) is copied into sing-box's
+  temporary `experimental/libbox` tree by `build-libbox-release.sh`, so punch
+  and libbox share one gomobile runtime/AAR. The shared punch protocol core is
+  not copied: it is resolved as the `github.com/openrung/openrung/punchcore`
+  Go module at the version pinned in `android/punchbridge/go.mod`, which the
+  script injects into the grafted sing-box `go.mod` via
+  `go get github.com/openrung/openrung/punchcore@<pinned version>`
+  (`PUNCHCORE_SRC` swaps in a local-checkout `replace` for development only —
+  never for releases). The Go UDP fd must be accepted by
   `VpnService.protect` before discovery begins; failure falls back to RelayHub.
 - The signed descriptor must advertise an explicit HTTPS punch endpoint. Bare-IP
   self-signed coordinators are accepted only when their exact certificate SHA-256

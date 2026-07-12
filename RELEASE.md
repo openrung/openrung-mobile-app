@@ -21,9 +21,38 @@ the upstream commit SHA). Both build paths consume it:
 When you move to a newer sing-box, update `SINGBOX_VERSION` **only**, rebuild
 both artifacts from it, and commit the new pin in the same change.
 
-Android additionally compiles the first-party punch client committed under
-[`android/punchbridge`](android/punchbridge) into the same gomobile AAR. Its pin
-is therefore the repository commit/tag being released, not a separate version.
+Android additionally compiles the first-party punch client into the same
+gomobile AAR. It has two pins: the gomobile binding and its QUIC session layer
+are committed under [`android/punchbridge`](android/punchbridge) and pinned by
+the repository commit/tag being released, while the shared punch protocol core
+is consumed as the Go module `github.com/openrung/openrung/punchcore` at the
+version pinned in [`android/punchbridge/go.mod`](android/punchbridge/go.mod),
+with `go.sum` recording its hash once the tagged version has been fetched.
+Bumping the core is a `go.mod`/`go.sum` edit committed like a
+`SINGBOX_VERSION` bump: rebuild the AAR in the same change.
+
+### Bumping the punchcore pin
+
+A punch wire/protocol change flows like this:
+
+1. The change lands in the `openrung/openrung` repository (its hub, volunteers,
+   and desktop client consume `punchcore/` via an in-repo `replace`, so the
+   servers and desktop stay atomically consistent).
+2. After that PR merges, a `punchcore/vX.Y.Z` tag is pushed on its `main`.
+   Push the tag **before** anything fetches it: if `proxy.golang.org` was asked
+   for the version early, it negative-caches the miss — wait a few minutes for
+   the cache TTL to expire and re-run the fetch.
+3. This repository bumps the require in `android/punchbridge/go.mod`
+   (`go get github.com/openrung/openrung/punchcore@vX.Y.Z` inside
+   `android/punchbridge`, which also updates `go.sum`). The bump automatically
+   busts the AAR CI caches (both cache keys hash `go.mod`/`go.sum`).
+4. Rebuild the AAR via `android/build-libbox-release.sh` and ship.
+
+For local cross-repo development against an untagged punchcore checkout, use an
+uncommitted `go.work` (see `.gitignore`) and/or
+`PUNCHCORE_SRC=/path/to/openrung/punchcore android/build-libbox-release.sh`.
+Both are **dev-only**: never commit a `replace`, and never release an AAR built
+with `PUNCHCORE_SRC` set.
 
 ## 2. Rebuild both engine artifacts from their corresponding source
 
@@ -31,19 +60,25 @@ Both are git-ignored (large, generated). Rebuild from the pinned revision:
 
 ```sh
 # One-time Android build tools (the fork/version pinned by sing-box).
+# The build script also needs python3 on PATH (parses the punchcore pin).
 go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.12
 go install github.com/sagernet/gomobile/cmd/gobind@v0.1.12
 
-# Android → android/app/libs/libbox.aar (sing-box + android/punchbridge)
+# Android → android/app/libs/libbox.aar
+#   (sing-box + android/punchbridge binding + pinned punchcore module)
 ./android/build-libbox-release.sh
 
 # iOS → ios/ThirdParty/Libbox.xcframework
 #   follow ios/ThirdParty/README.md (it checks out the pinned commit)
 ```
 
-The sing-box pin **and the tagged `android/punchbridge` source** must match the
-binary you ship. A stale cached AAR is a release blocker; release CI hashes both
-native source inputs and the build script.
+The sing-box pin, **the tagged `android/punchbridge` source**, and the punchcore
+module version pinned in `android/punchbridge/go.mod` must match the binary you
+ship — three native source inputs, not two. A stale cached AAR is a release
+blocker; release CI hashes all native source inputs and the build script. Note
+that for the punch core CI hashes the *pin* (`go.mod`/`go.sum`), not the source
+itself — the source lives in the `openrung/openrung` repository at that version,
+so the pinned version, not the hash key, is what makes the build reproducible.
 
 For Android releases, also verify every live bare-IP punch coordinator's leaf
 SHA-256 against `AppConfig.PUNCH_COORDINATOR_CERT_SHA256_BY_HOST`. Coordinate
@@ -76,7 +111,11 @@ engine out-of-process. Google Play does not have the equivalent conflict.
 
 OpenRung provides the corresponding source for at least **three (3) years**
 after distribution. Keep the tagged commit (including `android/punchbridge`) +
-the matching `SINGBOX_VERSION` reachable for that long.
+the matching `SINGBOX_VERSION` + the pinned
+`github.com/openrung/openrung/punchcore` version (the `punchcore/vX.Y.Z` tag in
+the `openrung/openrung` repository recorded in `android/punchbridge/go.mod`)
+reachable for that long. This extends the 3-year retention promise to the
+`openrung/openrung` repository's tagged history.
 
 ## 6. Bumping the app version
 

@@ -3,6 +3,7 @@ module github.com/sagernet/sing-box/experimental/libbox
 go 1.25.0
 
 require (
+	github.com/openrung/openrung/punchcore v0.1.0
 	github.com/quic-go/quic-go v0.60.0
 	github.com/sagernet/quic-go v0.59.0-sing-box-mod.4
 )

@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/openrung/openrung/punchcore"
 	"github.com/sagernet/sing-box/experimental/libbox/internal/openrungpunch"
 )
 
@@ -142,7 +143,7 @@ func NewOpenRungPunchClient(
 	}
 }
 
-// Establish tries the desktop-compatible reflector -> rendezvous -> UDP punch
+// Establish tries the shared punchcore reflector -> rendezvous -> UDP punch
 // -> QUIC -> loopback bridge flow. Every failure is returned as data so Android
 // can record the precise reason and continue through the existing hub endpoint.
 func (c *OpenRungPunchClient) Establish() *OpenRungPunchResult {
@@ -174,7 +175,7 @@ func (c *OpenRungPunchClient) Establish() *OpenRungPunchResult {
 	}
 
 	dialer := &openrungpunch.Dialer{
-		Hub: openrungpunch.HubClient{
+		Hub: punchcore.HubClient{
 			BaseURL:    baseURL,
 			HTTPClient: httpClient,
 		},
@@ -272,7 +273,9 @@ func openRungPunchHTTPClient(insecure bool, fingerprint string) (*http.Client, e
 		return nil, errors.New("self-signed punch coordinator requires a SHA-256 certificate pin")
 	}
 	if !insecure && len(pin) == 0 {
-		return nil, nil
+		// Preserves the historical hardened default for public-CA coordinators:
+		// 10s timeout, redirects refused, keep-alives disabled.
+		return punchcore.HardenedHTTPClient(), nil
 	}
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
 	if len(pin) != 0 {

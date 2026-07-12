@@ -109,7 +109,9 @@ src/screens/         Main, Settings, Debug, Licenses, LicenseText.
 src/components/      Map, status chip, recents, panels, header.
 src/licenses/        Bundled license text for the in-app screen.
 android/             RN Android app + ported VPN service and bridge.
-  punchbridge/       Go punch client injected into the generated libbox AAR.
+  punchbridge/       Go gomobile punch binding over the shared punch core
+                     (github.com/openrung/openrung/punchcore, pinned in its
+                     go.mod), injected into the generated libbox AAR.
 ios/                 RN iOS app + PacketTunnel extension (xcodegen).
 docs/                CONTRACT.md (binding), ARCHITECTURE.md (overview).
 ```
@@ -132,13 +134,16 @@ android/app/libs/libbox.aar
 ```
 
 The AAR is intentionally ignored by Git because it is generated and large. Build
-it from the pinned sing-box revision (in `SINGBOX_VERSION`) plus the committed
-Android NAT-punch source (`android/punchbridge`) with
+it from the pinned sing-box revision (in `SINGBOX_VERSION`), the committed
+Android NAT-punch binding (`android/punchbridge`), and the shared punch core
+consumed as the `github.com/openrung/openrung/punchcore` Go module at the
+version pinned in `android/punchbridge/go.mod`, with
 [`android/build-libbox-release.sh`](android/build-libbox-release.sh) — it needs
-JDK 17, the Android SDK + NDK `29.0.14206865`, and Go on `PATH`. The sing-box
-revision and this repository commit together are the GPL §6 corresponding source
-for the shipped native engine; the per-release procedure is in
-[`RELEASE.md`](RELEASE.md).
+JDK 17, the Android SDK + NDK `29.0.14206865`, and Go and `python3` on `PATH`
+(python3 extracts the punchcore pin from `go.mod`). The sing-box
+revision, this repository commit, and the pinned punchcore module version
+together are the GPL §6 corresponding source for the shipped native engine; the
+per-release procedure is in [`RELEASE.md`](RELEASE.md).
 
 Install sing-box's pinned gomobile fork before the first native build:
 

@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/openrung/openrung/punchcore"
 	"github.com/sagernet/quic-go"
 )
 
@@ -29,7 +30,7 @@ func TestClientBridgeCarriesOpaqueBytesOverQUIC(t *testing.T) {
 	listener, err := quic.Listen(serverSocket, &tls.Config{
 		Certificates: []tls.Certificate{certificate},
 		MinVersion:   tls.VersionTLS13,
-		NextProtos:   []string{ALPN},
+		NextProtos:   []string{punchcore.ALPN},
 	}, quicConfig())
 	if err != nil {
 		t.Fatal(err)
@@ -38,7 +39,7 @@ func TestClientBridgeCarriesOpaqueBytesOverQUIC(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	token := make([]byte, tokenLen)
+	token := make([]byte, punchcore.TokenLen)
 	_, _ = rand.Read(token)
 	serverError := make(chan error, 1)
 	go func() {
@@ -53,7 +54,7 @@ func TestClientBridgeCarriesOpaqueBytesOverQUIC(t *testing.T) {
 			serverError <- err
 			return
 		}
-		header := make([]byte, tokenLen)
+		header := make([]byte, punchcore.TokenLen)
 		if _, err := io.ReadFull(stream, header); err != nil {
 			serverError <- err
 			return
