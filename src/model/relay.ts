@@ -100,8 +100,11 @@ export function serverTimeMs(response: RelayListResponse): number {
 }
 
 /**
- * `RelaySelector.orderedCandidates`: no client-side scoring — filter to usable relays preserving
- * broker order. Freshness is judged against broker server time, not the device clock.
+ * `RelaySelector.orderedCandidates`: score-free filter to usable relays preserving broker order.
+ * Freshness is judged against broker server time, not the device clock. (The native connect path
+ * may afterwards reorder — never shrink — the ladder by this client's measured TCP latency; see
+ * `RelayRanker` on Android/iOS. That is a separate, fail-open stage: the filter itself stays
+ * score-free.)
  */
 export function orderedCandidates(relays: RelayDescriptor[], nowMs: number): RelayDescriptor[] {
   return relays.filter(relay => isUsable(relay, nowMs));

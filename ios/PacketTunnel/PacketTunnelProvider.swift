@@ -150,8 +150,23 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 targetedCandidates = candidates
             }
 
+            // Reorder (never shrink) the ladder by this client's measured TCP latency. Broker
+            // order already scores load headroom / success rate / latency / speed from the
+            // broker's vantage, so RelayRanker only overrides it across latency buckets — within
+            // a bucket the broker's load balancing still decides. A pinned relay skips ranking:
+            // there is exactly one candidate and the user chose it.
+            let rankedCandidates: [RelayRanker.RankedRelay]
+            if targetRelayID == nil, targetedCandidates.count > 1 {
+                failureStage = "relay_rank"
+                let probeCount = min(targetedCandidates.count, RelayRanker.defaultMaxProbes)
+                SharedConnectionState.appendLog("measuring TCP latency to \(probeCount) relays")
+                rankedCandidates = await RelayRanker.rankByTcpLatency(targetedCandidates)
+            } else {
+                rankedCandidates = targetedCandidates.map { .init(relay: $0, probeMs: nil) }
+            }
+
             failureStage = "relay_connect"
-            let connected = try await connectFirstAvailableRelay(targetedCandidates)
+            let connected = try await connectFirstAvailableRelay(rankedCandidates.map(\.relay))
 
             // A stop may have arrived while we were connecting. Don't publish .connected or start
             // the heartbeat for a tunnel that's being torn down; stopTunnel awaited this task and
@@ -163,16 +178,25 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             TelemetryManager.markConnected(relayId: relay.id)
             SharedConnectionState.setStatus(.connected, clearRelayLabel: true, clearError: true)
             applyRelayLocation(relay)
+            var successMeasurements: [String: Int64] = [
+                "broker_fetch_ms": brokerFetchMs,
+                "relay_tcp_ms": connected.tcpLatencyMs,
+                "tunnel_start_ms": connected.tunnelStartMs,
+                "internet_probe_ms": connected.internetProbeMs,
+                "relay_attempts": Int64(connected.attempts),
+            ]
+            // Rank observability: where the connected relay sat in broker order before ranking,
+            // and its probe latency when it was probed — the pair that shows whether client-side
+            // ranking actually beats broker order on tunnel_start_ms.
+            successMeasurements["relay_broker_index"] =
+                Int64(targetedCandidates.firstIndex { $0.id == relay.id } ?? -1)
+            if let probeMs = rankedCandidates.first(where: { $0.relay.id == relay.id })?.probeMs {
+                successMeasurements["relay_probe_ms"] = probeMs
+            }
             TelemetryManager.record(
                 "connection_succeeded",
                 relayId: relay.id,
-                measurements: [
-                    "broker_fetch_ms": brokerFetchMs,
-                    "relay_tcp_ms": connected.tcpLatencyMs,
-                    "tunnel_start_ms": connected.tunnelStartMs,
-                    "internet_probe_ms": connected.internetProbeMs,
-                    "relay_attempts": Int64(connected.attempts),
-                ]
+                measurements: successMeasurements
             )
             try? await TelemetryManager.flush(brokerURL: AppConfig.telemetryBrokerURL.absoluteString)
             startHeartbeatLoop()
