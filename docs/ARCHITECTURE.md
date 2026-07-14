@@ -81,7 +81,7 @@ without leaving a leaky tunnel — not that traffic is blocked. See CONTRACT.md 
   +-----|---------------------------------------------------------------+
         v
      libbox (sing-box, statically linked)
-        -> VLESS + REALITY + Vision -> volunteer relay -> open internet
+        -> VLESS + REALITY + Vision -> relay -> open internet
 ```
 
 State flows one way: native emits a full `NativeVpnState` snapshot on every
@@ -107,7 +107,7 @@ endpoint anywhere in the app.
   response supplies a separate per-session QUIC certificate pin, while
   VLESS/Reality remains the end-to-end authentication and encryption boundary.
   Repeated short-lived direct paths recover with jittered exponential backoff;
-  after three rapid losses Android keeps the selected volunteer but routes it
+  after three rapid losses Android keeps the selected relay but routes it
   through RelayHub for the rest of that user connection.
 - **Telemetry / heartbeat / speed-test** — currently also `https://broker.openrung.org/`
   (the same Cloudflare-fronted broker); see the trade-off below.
@@ -198,8 +198,8 @@ are not ported (TS owns them). Key pieces:
   binding over the shared `github.com/openrung/openrung/punchcore` module
   (pinned in `punchbridge/go.mod`), compiled into the same AAR/Go runtime as
   libbox. It protects the retained UDP fd with `VpnService.protect`, then
-  exposes a loopback TCP bridge that sing-box uses without changing the
-  volunteer's Reality identity.
+  exposes a loopback TCP bridge that sing-box uses without changing the relay's
+  Reality identity.
 - `net/`, `model/`, `telemetry/`, `config/AppConfig.kt` — verbatim.
 - `state/OpenRungStatusStore.kt` — trimmed to status/relay/error/logs/recents
   (directory state removed), still persisted in SharedPreferences

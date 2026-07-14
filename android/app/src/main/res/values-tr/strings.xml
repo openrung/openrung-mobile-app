@@ -19,7 +19,7 @@
     <string name="log_error_prefix">hata: %1$s</string>
     <string name="error_no_usable_relay">Kullanılabilir VLESS Reality Vision doğrudan çıkış rölesi yok.</string>
     <string name="error_vpn_connection_failed">VPN bağlantısı başarısız oldu</string>
-    <string name="error_relay_unreachable">%1$s:%2$d rölesine bu Android cihazdan erişilemiyor. Bu bir emülatörse IPv4/çift yığın gönüllü uç noktası veya IPv6 destekli emülatör ağı kullanın.</string>
+    <string name="error_relay_unreachable">%1$s:%2$d rölesine bu Android cihazdan erişilemiyor. Bu bir emülatörse IPv4/çift yığın röle uç noktası veya IPv6 destekli emülatör ağı kullanın.</string>
     <string name="error_all_relays_failed">Tüm röle bağlantı denemeleri başarısız oldu. Son hata: %1$s</string>
     <string name="error_unknown">bilinmiyor</string>
 </resources>

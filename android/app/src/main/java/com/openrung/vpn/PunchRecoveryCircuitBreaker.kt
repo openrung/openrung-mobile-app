@@ -25,7 +25,7 @@ internal sealed interface PunchRecoveryDecision {
 /**
  * Bounds recovery churn from a direct path that repeatedly reaches CONNECTED and then dies.
  *
- * State is per relay so one unstable volunteer does not disable direct paths to other volunteers.
+ * State is per relay so one unstable relay does not disable direct paths to other relays.
  * The service owns this object on its Main dispatcher; no internal synchronization is needed.
  */
 internal class PunchRecoveryCircuitBreaker(

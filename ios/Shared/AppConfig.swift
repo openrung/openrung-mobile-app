@@ -1,7 +1,9 @@
 import Foundation
 
 enum AppConfig {
-    static let vpnProfileName = "OpenRung Volunteer VPN"
+    static let vpnProfileName = "OpenRung VPN"
+    // Recognized only to adopt an existing pre-rename profile without creating a duplicate.
+    static let legacyVPNProfileName = "OpenRung Volunteer VPN"
     static let appGroupIdentifier = "group.com.openrung.mobile"
     static let packetTunnelBundleIdentifier = "com.openrung.mobile.PacketTunnel"
     static let providerBrokerURLKey = "broker_url"

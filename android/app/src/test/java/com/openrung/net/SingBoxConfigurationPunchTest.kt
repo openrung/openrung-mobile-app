@@ -76,7 +76,7 @@ class SingBoxConfigurationPunchTest {
         exitMode = "direct",
         maxSessions = 8,
         maxMbps = 100,
-        volunteerVersion = "1.0.0",
+        relayVersion = "1.0.0",
         transport = "tunnel",
         punchCapable = true,
         punchEndpoint = "https://203.0.113.10:9444",

@@ -9,11 +9,11 @@ export const ru: Partial<Strings> = {
   relayLocationUnknown: 'Неизвестное местоположение',
   actionConnect: 'ПОДКЛЮЧИТЬ',
   actionDisconnect: 'ОТКЛЮЧИТЬ',
-  readyLog: 'готово. нажмите «подключить», чтобы пройти через волонтёрский ретранслятор.',
+  readyLog: 'готово. нажмите «подключить», чтобы пройти через ретранслятор.',
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
   trafficRouteConnected:
-    'маршрут трафика: устройство -> OpenRung VPN -> добровольный ретранслятор',
+    'маршрут трафика: устройство -> OpenRung VPN -> ретранслятор',
   trafficRouteDisconnected: 'vpn работает fail-closed: нет ретранслятора, нет подключения.',
   settingsContentDescription: 'Открыть настройки',
   settingsTitle: 'Настройки',
@@ -58,17 +58,17 @@ export const ru: Partial<Strings> = {
   // Content description (open action).
   openContentDescription: 'Открыть',
 
-  // Volunteer speed test (diagnostics).
-  speedTestSettingTitle: 'Волонтёрский тест скорости',
-  speedTestReady: 'Загрузить 10 MB через активный волонтёрский ретранслятор и показать результат.',
-  speedTestRequiresConnection: 'Перед запуском теста скорости подключитесь к волонтёрскому ретранслятору.',
-  speedTestRunning: 'Проверка скорости загрузки через волонтёрский ретранслятор…',
+  // Relay speed test (diagnostics).
+  speedTestSettingTitle: 'Тест скорости ретранслятора',
+  speedTestReady: 'Загрузить 10 MB через активный ретранслятор и показать результат.',
+  speedTestRequiresConnection: 'Перед запуском теста скорости подключитесь к ретранслятору.',
+  speedTestRunning: 'Проверка скорости загрузки через ретранслятор…',
   speedTestResult: (mbps: number) => `Скорость загрузки: ${mbps.toFixed(1)} Mbps`,
   speedTestError: (error: string) => `Ошибка теста скорости: ${error}`,
   speedTestAction: 'ЗАПУСК',
 
   // Map view (exit-node overview).
-  mapContentDescription: 'Карта доступных волонтёрских выходных узлов в Азиатско-Тихоокеанском регионе',
+  mapContentDescription: 'Карта доступных выходных узлов в Азиатско-Тихоокеанском регионе',
   mapLoading: 'поиск доступных выходных узлов…',
   mapFailed: 'не удалось загрузить выходные узлы — нажмите, чтобы повторить',
   mapNodesAvailable: (count: number) => `доступно локаций: ${count}`,
@@ -79,7 +79,7 @@ export const ru: Partial<Strings> = {
   recentsEmpty: 'Пока нет недавних локаций.',
   viewToggleMap: 'Карта',
   viewToggleList: 'Список',
-  listContentDescription: 'Список доступных волонтёрских выходных узлов',
+  listContentDescription: 'Список доступных выходных узлов',
   listRelayCount: (count: number) => (count === 1 ? '1 реле' : `${count} реле`),
 
   // Debug console (diagnostics).
@@ -99,14 +99,14 @@ export const ru: Partial<Strings> = {
   licensesComponentsHeader: 'Компоненты',
 
   // Home overlay / about screen.
-  homeTagline: 'волонтёрская сеть ретрансляторов',
+  homeTagline: 'сеть ретрансляторов',
   aboutMissionBody:
-    'OpenRung направляет ваш трафик через ретрансляторы, которыми управляют волонтёры по всему миру, сохраняя открытый интернет доступным, когда сети фильтруются. Без аккаунтов, без рекламы, без слежки — просто люди, делящиеся пропускной способностью.',
+    'OpenRung направляет ваш трафик через ретрансляторы по всему миру, сохраняя открытый интернет доступным, когда сети фильтруются. Аккаунт не нужен, рекламы нет. Во время раннего тестирования OpenRung собирает диагностические метаданные соединений для повышения надёжности.',
   aboutHowHeader: 'Как это работает',
   aboutProjectHeader: 'Проект',
-  aboutHow1Title: 'Волонтёры делятся пропускной способностью',
+  aboutHow1Title: 'Операторы ретрансляторов предоставляют ресурсы',
   aboutHow1Body:
-    'Люди по всему миру запускают небольшие узлы-ретрансляторы на собственных подключениях и регистрируют их в сети.',
+    'Фонд OpenRung и волонтёры сообщества запускают ретрансляторы и регистрируют их в сети.',
   aboutHow2Title: 'Брокер находит ваш ретранслятор',
   aboutHow2Body:
     'Когда вы подключаетесь, брокер передаёт вашему устройству короткий список работающих ретрансляторов, и приложение выбирает первый ответивший.',

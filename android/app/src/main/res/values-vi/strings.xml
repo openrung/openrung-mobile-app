@@ -19,7 +19,7 @@
     <string name="log_error_prefix">lỗi: %1$s</string>
     <string name="error_no_usable_relay">Không có relay thoát trực tiếp VLESS Reality Vision nào dùng được.</string>
     <string name="error_vpn_connection_failed">Kết nối VPN thất bại</string>
-    <string name="error_relay_unreachable">Không thể truy cập relay %1$s:%2$d từ thiết bị Android này. Nếu đây là trình giả lập, hãy dùng endpoint tình nguyện IPv4/dual-stack hoặc mạng giả lập hỗ trợ IPv6.</string>
+    <string name="error_relay_unreachable">Không thể truy cập relay %1$s:%2$d từ thiết bị Android này. Nếu đây là trình giả lập, hãy dùng endpoint relay IPv4/dual-stack hoặc mạng giả lập hỗ trợ IPv6.</string>
     <string name="error_all_relays_failed">Tất cả lần thử kết nối relay đều thất bại. Lỗi cuối: %1$s</string>
     <string name="error_unknown">không xác định</string>
 </resources>

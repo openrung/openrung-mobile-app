@@ -1,5 +1,5 @@
 /**
- * MapLibre-backed map of available volunteer exit nodes. Port of the
+ * MapLibre-backed map of available relay exit nodes. Port of the
  * production Android ExitNodeMap.kt onto @maplibre/maplibre-react-native v11:
  *
  *  - custom "openrung-neon" style JSON around the MapLibre demo vector tiles
@@ -15,7 +15,7 @@
  *    [0, -1.6]) and a "City, Country" label below the dot (10pt, hidden on
  *    collision so dense clusters stay readable);
  *  - tapping a marker (28px-padded hitbox) reports the region's ISO country
- *    code so the caller can connect to a volunteer there;
+ *    code so the caller can connect to a relay there;
  *  - `children` are rendered inside the map above the node layers, for
  *    map-space annotations (e.g. the ocean telemetry panel).
  */

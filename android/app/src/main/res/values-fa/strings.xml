@@ -19,7 +19,7 @@
     <string name="log_error_prefix">خطا: %1$s</string>
     <string name="error_no_usable_relay">هیچ رله خروج مستقیم VLESS Reality Vision قابل استفاده‌ای موجود نیست.</string>
     <string name="error_vpn_connection_failed">اتصال VPN ناموفق بود</string>
-    <string name="error_relay_unreachable">رله %1$s:%2$d از این دستگاه Android قابل دسترسی نیست. اگر این شبیه‌ساز است، از یک نقطه پایانی داوطلب IPv4/دوپشته یا شبکه شبیه‌ساز دارای IPv6 استفاده کنید.</string>
+    <string name="error_relay_unreachable">رله %1$s:%2$d از این دستگاه Android قابل دسترسی نیست. اگر این شبیه‌ساز است، از یک نقطه پایانی رله IPv4/دوپشته یا شبکه شبیه‌ساز دارای IPv6 استفاده کنید.</string>
     <string name="error_all_relays_failed">همه تلاش‌های اتصال به رله ناموفق بود. آخرین خطا: %1$s</string>
     <string name="error_unknown">نامشخص</string>
 </resources>

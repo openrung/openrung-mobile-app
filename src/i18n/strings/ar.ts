@@ -9,10 +9,10 @@ export const ar: Partial<Strings> = {
   relayLocationUnknown: 'موقع غير معروف',
   actionConnect: 'اتصال',
   actionDisconnect: 'قطع الاتصال',
-  readyLog: 'جاهز. اضغط على «اتصال» للتوجيه عبر مُرحّل متطوّع.',
+  readyLog: 'جاهز. اضغط على «اتصال» للتوجيه عبر مُرحّل.',
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
-  trafficRouteConnected: 'مسار المرور: الجهاز -> OpenRung VPN -> مرحل متطوع',
+  trafficRouteConnected: 'مسار المرور: الجهاز -> OpenRung VPN -> مرحل',
   trafficRouteDisconnected: 'يعمل VPN بوضع fail-closed: لا مرحل، لا اتصال.',
   settingsContentDescription: 'فتح الإعدادات',
   settingsTitle: 'الإعدادات',
@@ -57,19 +57,19 @@ export const ar: Partial<Strings> = {
   // Content description (accessibility).
   openContentDescription: 'فتح',
 
-  // Volunteer speed test (settings + diagnostics).
-  speedTestSettingTitle: 'اختبار سرعة المُرحّل المتطوّع',
+  // Relay speed test (settings + diagnostics).
+  speedTestSettingTitle: 'اختبار سرعة المُرحّل',
   speedTestReady:
-    'تنزيل 10 MB عبر المُرحّل المتطوّع النشط والإبلاغ عن النتيجة.',
-  speedTestRequiresConnection: 'اتصل بمُرحّل متطوّع قبل إجراء اختبار السرعة.',
-  speedTestRunning: 'جار اختبار سرعة التنزيل عبر المُرحّل المتطوّع…',
+    'تنزيل 10 MB عبر المُرحّل النشط والإبلاغ عن النتيجة.',
+  speedTestRequiresConnection: 'اتصل بمُرحّل قبل إجراء اختبار السرعة.',
+  speedTestRunning: 'جار اختبار سرعة التنزيل عبر المُرحّل…',
   speedTestResult: (mbps: number) => `سرعة التنزيل: ${mbps.toFixed(1)} Mbps`,
   speedTestError: (error: string) => `فشل اختبار السرعة: ${error}`,
   speedTestAction: 'تشغيل',
 
-  // Map view (volunteer exit nodes).
+  // Map view (relay exit nodes).
   mapContentDescription:
-    'خريطة عقد الخروج المتطوّعة المتاحة في منطقة آسيا والمحيط الهادئ',
+    'خريطة عقد الخروج المتاحة في منطقة آسيا والمحيط الهادئ',
   mapLoading: 'جار تحديد مواقع عقد الخروج المتاحة…',
   mapFailed: 'تعذّر تحميل عقد الخروج — اضغط لإعادة المحاولة',
   mapNodesAvailable: (count: number) => `${count} موقع متاح`,
@@ -80,7 +80,7 @@ export const ar: Partial<Strings> = {
   recentsEmpty: 'لا توجد مواقع حديثة بعد.',
   viewToggleMap: 'خريطة',
   viewToggleList: 'قائمة',
-  listContentDescription: 'قائمة عقد الخروج المتطوّعة المتاحة',
+  listContentDescription: 'قائمة عقد الخروج المتاحة',
   listRelayCount: (count: number) =>
     count === 1 ? 'مُرحّل واحد' : `${count} مُرحّلات`,
 
@@ -101,14 +101,14 @@ export const ar: Partial<Strings> = {
   licensesComponentsHeader: 'المكوّنات',
 
   // Home overlay and about screen.
-  homeTagline: 'شبكة المُرحّلات المتطوّعة',
+  homeTagline: 'شبكة المُرحّلات',
   aboutMissionBody:
-    'يوجّه OpenRung حركة مرورك عبر مُرحّلات يُشغّلها متطوّعون حول العالم، مع إبقاء الإنترنت المفتوح في المتناول عند تصفية الشبكات. بلا حسابات، بلا إعلانات، بلا تتبّع — مجرّد أشخاص يتشاركون عرض النطاق.',
+    'يوجّه OpenRung حركة مرورك عبر مُرحّلات حول العالم، مع إبقاء الإنترنت المفتوح في المتناول عند تصفية الشبكات. لا حاجة إلى حساب ولا توجد إعلانات. خلال مرحلة الاختبار المبكر، يجمع OpenRung بيانات وصفية تشخيصية عن الاتصال لتحسين الموثوقية.',
   aboutHowHeader: 'كيف يعمل',
   aboutProjectHeader: 'المشروع',
-  aboutHow1Title: 'المتطوّعون يتشاركون عرض النطاق',
+  aboutHow1Title: 'مشغّلو المُرحّلات يوفّرون السعة',
   aboutHow1Body:
-    'يُشغّل أشخاص في كل مكان عُقد ترحيل صغيرة على اتصالاتهم الخاصة ويُسجّلونها لدى الشبكة.',
+    'تشغّل مؤسسة OpenRung ومتطوّعو المجتمع مُرحِّلات ويسجّلونها في الشبكة.',
   aboutHow2Title: 'الوسيط يعثر على مُرحّلك',
   aboutHow2Body:
     'عند الاتصال، يُسلّم الوسيط جهازك قائمة قصيرة بالمُرحّلات السليمة، ويختار التطبيق أوّل مُرحّل يستجيب.',

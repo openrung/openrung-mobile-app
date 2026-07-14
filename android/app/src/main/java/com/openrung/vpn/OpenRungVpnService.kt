@@ -299,7 +299,7 @@ class OpenRungVpnService : VpnService() {
                     } catch (error: Throwable) {
                         // QUIC was established but the VLESS/Reality tunnel or end-to-end probe
                         // failed. Tear it down in engine -> bridge order, then retry this SAME
-                        // volunteer through RelayHub before moving down the candidate ladder.
+                        // relay through RelayHub before moving down the candidate ladder.
                         TelemetryManager.record(
                             event = "punch_fallback",
                             relayId = relay.id,
@@ -562,7 +562,7 @@ class OpenRungVpnService : VpnService() {
 
     /**
      * Watches both the native QUIC connection and end-to-end traffic after CONNECTED. NAT mappings
-     * are tied to the underlying network, while a volunteer-side Xray/stream failure can leave QUIC
+     * are tied to the underlying network, while a relay-side Xray/stream failure can leave QUIC
      * itself alive. Either signal retires the dead path and reruns discovery so the app can re-punch
      * with fresh metadata or use RelayHub.
      */

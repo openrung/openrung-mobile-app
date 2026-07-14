@@ -44,7 +44,7 @@ const (
 // tuples. A hermetic test cannot own a public address, so the Dialer's two
 // unexported candidate-policy seams substitute loopback host tuples here. The
 // client remains the Android github.com/sagernet/quic-go fork while the test
-// volunteer uses the desktop's upstream github.com/quic-go/quic-go, exercising
+// relay uses the desktop's upstream github.com/quic-go/quic-go, exercising
 // their wire compatibility rather than linking both ends to the same stack.
 func TestAndroidPunchFlowEndToEnd(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -52,7 +52,7 @@ func TestAndroidPunchFlowEndToEnd(t *testing.T) {
 
 	targetAddress := startIntegrationEchoServer(t)
 	reflector := listenIntegrationUDP(t)
-	volunteer := listenIntegrationUDP(t)
+	relay := listenIntegrationUDP(t)
 
 	const (
 		relayID   = "relay-android-integration"
@@ -65,9 +65,9 @@ func TestAndroidPunchFlowEndToEnd(t *testing.T) {
 	go serveOneIntegrationReflection(ctx, reflector, reflectionDone)
 
 	requestSeen := make(chan punchcore.PunchRequest, 1)
-	volunteerReady := make(chan struct{})
-	volunteerDone := make(chan error, 1)
-	var startVolunteer sync.Once
+	relayReady := make(chan struct{})
+	relayDone := make(chan error, 1)
+	var startRelay sync.Once
 	var configCalls atomic.Int32
 	var requestCalls atomic.Int32
 	coordinator := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -100,28 +100,28 @@ func TestAndroidPunchFlowEndToEnd(t *testing.T) {
 				http.Error(writer, err.Error(), http.StatusBadRequest)
 				return
 			}
-			startVolunteer.Do(func() {
-				go runIntegrationVolunteer(
+			startRelay.Do(func() {
+				go runIntegrationRelay(
 					ctx,
-					volunteer,
+					relay,
 					clientAddress,
 					sessionID,
 					token,
 					certificate,
 					targetAddress,
-					volunteerReady,
-					volunteerDone,
+					relayReady,
+					relayDone,
 				)
 			})
-			volunteerAddress := volunteer.LocalAddr().(*net.UDPAddr)
+			relayAddress := relay.LocalAddr().(*net.UDPAddr)
 			_ = json.NewEncoder(writer).Encode(punchcore.PunchResponse{
 				OK:        true,
 				SessionID: sessionID,
 				// Loopback is advertised as a host candidate only for this
 				// hermetic test. Production coordinators provide a public srflx.
 				VolunteerLocal: []punchcore.Endpoint{{
-					IP:   volunteerAddress.IP.String(),
-					Port: volunteerAddress.Port,
+					IP:   relayAddress.IP.String(),
+					Port: relayAddress.Port,
 					Kind: punchcore.KindHost,
 				}},
 				VolunteerClass:  punchcore.ClassEIM,
@@ -173,8 +173,8 @@ func TestAndroidPunchFlowEndToEnd(t *testing.T) {
 	if !result.OK || result.SessionID != sessionID || establishment.SessionID != sessionID {
 		t.Fatalf("unexpected establishment/result: establishment=%+v result=%+v", establishment, result)
 	}
-	if establishment.PeerIP != volunteer.LocalAddr().(*net.UDPAddr).IP.String() {
-		t.Fatalf("peer IP = %q, want %q", establishment.PeerIP, volunteer.LocalAddr().(*net.UDPAddr).IP)
+	if establishment.PeerIP != relay.LocalAddr().(*net.UDPAddr).IP.String() {
+		t.Fatalf("peer IP = %q, want %q", establishment.PeerIP, relay.LocalAddr().(*net.UDPAddr).IP)
 	}
 	if protectedCalls.Load() != 1 || protectedFD.Load() < 0 {
 		t.Fatalf("socket protection calls=%d fd=%d", protectedCalls.Load(), protectedFD.Load())
@@ -185,7 +185,7 @@ func TestAndroidPunchFlowEndToEnd(t *testing.T) {
 	payload := []byte("opaque-vless-reality-over-android-punch")
 	bridgeAddress := net.JoinHostPort(establishment.BridgeHost, strconv.Itoa(establishment.BridgePort))
 	if err := integrationEchoRoundTrip(ctx, bridgeAddress, payload); err != nil {
-		t.Fatalf("echo through loopback TCP -> cross-fork QUIC -> volunteer: %v", err)
+		t.Fatalf("echo through loopback TCP -> cross-fork QUIC -> relay: %v", err)
 	}
 
 	clientUDPPort := establishment.Bridge.connection.LocalAddr().(*net.UDPAddr).Port
@@ -220,21 +220,21 @@ func TestAndroidPunchFlowEndToEnd(t *testing.T) {
 		t.Fatalf("coordinator calls: config=%d request=%d", configCalls.Load(), requestCalls.Load())
 	}
 	select {
-	case <-volunteerReady:
+	case <-relayReady:
 	default:
-		t.Fatal("upstream quic-go volunteer never reached its listener")
+		t.Fatal("upstream quic-go relay never reached its listener")
 	}
 
 	if err := establishment.Close(); err != nil {
 		t.Fatalf("close establishment: %v", err)
 	}
 	select {
-	case err := <-volunteerDone:
+	case err := <-relayDone:
 		if err != nil && !errors.Is(err, context.Canceled) {
-			t.Fatalf("volunteer bridge: %v", err)
+			t.Fatalf("relay bridge: %v", err)
 		}
 	case <-time.After(2 * time.Second):
-		t.Fatal("volunteer did not finish after client bridge closed")
+		t.Fatal("relay did not finish after client bridge closed")
 	}
 	select {
 	case <-bridgeDone:
@@ -361,7 +361,7 @@ func integrationParseReflectReply(data []byte) (nonce []byte, observed *net.UDPA
 	return nonce, &net.UDPAddr{IP: ip, Port: int(port)}, true
 }
 
-func runIntegrationVolunteer(
+func runIntegrationRelay(
 	ctx context.Context,
 	socket *net.UDPConn,
 	clientAddress *net.UDPAddr,
@@ -385,11 +385,11 @@ func runIntegrationVolunteer(
 		time.Now().Add(3*time.Second),
 	)
 	if err != nil {
-		done <- fmt.Errorf("volunteer UDP punch: %w", err)
+		done <- fmt.Errorf("relay UDP punch: %w", err)
 		return
 	}
 	if confirmed.Port != clientAddress.Port {
-		done <- fmt.Errorf("volunteer confirmed %v, want %v", confirmed, clientAddress)
+		done <- fmt.Errorf("relay confirmed %v, want %v", confirmed, clientAddress)
 		return
 	}
 	listener, err := upstreamquic.Listen(socket, &tls.Config{
@@ -424,7 +424,7 @@ func runIntegrationVolunteer(
 		return
 	}
 	if subtle.ConstantTimeCompare(streamToken, token) != 1 {
-		done <- errors.New("volunteer rejected unauthenticated stream")
+		done <- errors.New("relay rejected unauthenticated stream")
 		return
 	}
 	_ = stream.SetReadDeadline(time.Time{})

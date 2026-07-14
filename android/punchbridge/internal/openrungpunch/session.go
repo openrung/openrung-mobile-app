@@ -176,7 +176,7 @@ func (d *Dialer) Establish(ctx context.Context) (*Establishment, punchcore.Punch
 		ttl = maxPunchTTL
 	}
 	// Only reflector-observed public tuples are actionable on mobile. Accepting
-	// coordinator-provided RFC1918 host candidates would let a malicious volunteer
+	// coordinator-provided RFC1918 host candidates would let a malicious relay operator
 	// direct probes at another device on the phone's LAN. Same-LAN peers can still
 	// meet through their public tuple when hairpinning works and otherwise retain
 	// the normal RelayHub fallback.

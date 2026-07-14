@@ -35,7 +35,7 @@ Bumping the core is a `go.mod`/`go.sum` edit committed like a
 
 A punch wire/protocol change flows like this:
 
-1. The change lands in the `openrung/openrung` repository (its hub, volunteers,
+1. The change lands in the `openrung/openrung` repository (its hub, relays,
    and desktop client consume `punchcore/` via an in-repo `replace`, so the
    servers and desktop stay atomically consistent).
 2. That PR bumps `punchcore/VERSION`; on merge, the openrung repo's

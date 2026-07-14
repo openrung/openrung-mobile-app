@@ -14,6 +14,7 @@ class RelayDescriptorPunchTest {
         val relay = json.decodeFromString<RelayDescriptor>(descriptorJson(
             """"transport":"tunnel","punch_capable":true,"punch_endpoint":"https://43.201.124.63:9444",""",
         ))
+        assertEquals("1.0.0", relay.relayVersion)
         assertEquals("tunnel", relay.transport)
         assertTrue(relay.punchCapable)
         assertEquals("https://43.201.124.63:9444", relay.punchEndpoint)

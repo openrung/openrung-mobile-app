@@ -222,7 +222,7 @@ describe('OceanTelemetry', () => {
     }
   });
 
-  it('shows the volunteer name of the relay the tunnel dialled, only while connected', async () => {
+  it('shows the friendly name of the relay the tunnel dialled, only while connected', async () => {
     jest.useFakeTimers();
     try {
       const logLines = ['[09:00:00] trying relay relay_jp1 at 203.0.113.10:443'];
@@ -247,7 +247,7 @@ describe('OceanTelemetry', () => {
     }
   });
 
-  it('falls back to the bare relay id when the volunteer never chose a name', async () => {
+  it('falls back to the bare relay id when the relay has no friendly name', async () => {
     jest.useFakeTimers();
     try {
       const tree = await render(

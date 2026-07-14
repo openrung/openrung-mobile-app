@@ -11,7 +11,7 @@ import (
 )
 
 // ClientBridge turns each loopback TCP connection from sing-box into one QUIC
-// stream. The volunteer sees the original opaque VLESS/Reality byte stream.
+// stream. The relay sees the original opaque VLESS/Reality byte stream.
 type ClientBridge struct {
 	connection *quic.Conn
 	token      []byte

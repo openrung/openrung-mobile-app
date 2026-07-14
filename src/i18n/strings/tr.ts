@@ -9,10 +9,10 @@ export const tr: Partial<Strings> = {
   relayLocationUnknown: 'Bilinmeyen konum',
   actionConnect: 'BAĞLAN',
   actionDisconnect: 'BAĞLANTIYI KES',
-  readyLog: "hazır. gönüllü röle üzerinden yönlendirmek için bağlan'a dokunun.",
+  readyLog: "hazır. röle üzerinden yönlendirmek için bağlan'a dokunun.",
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
-  trafficRouteConnected: 'trafik yolu: cihaz -> OpenRung VPN -> gönüllü röle',
+  trafficRouteConnected: 'trafik yolu: cihaz -> OpenRung VPN -> röle',
   trafficRouteDisconnected: 'vpn fail-closed çalışır: röle yoksa bağlantı yok.',
   settingsContentDescription: 'Ayarları aç',
   settingsTitle: 'Ayarlar',
@@ -57,17 +57,17 @@ export const tr: Partial<Strings> = {
   // Content description for the open action.
   openContentDescription: 'Aç',
 
-  // Volunteer speed test (diagnostics).
-  speedTestSettingTitle: 'Gönüllü hız testi',
-  speedTestReady: 'Aktif gönüllü röle üzerinden 10 MB indirin ve sonucu bildirin.',
-  speedTestRequiresConnection: 'Hız testini çalıştırmadan önce bir gönüllü röleye bağlanın.',
-  speedTestRunning: 'Gönüllü röle üzerinden indirme hızı test ediliyor…',
+  // Relay speed test (diagnostics).
+  speedTestSettingTitle: 'Röle hız testi',
+  speedTestReady: 'Aktif röle üzerinden 10 MB indirin ve sonucu bildirin.',
+  speedTestRequiresConnection: 'Hız testini çalıştırmadan önce bir röleye bağlanın.',
+  speedTestRunning: 'Röle üzerinden indirme hızı test ediliyor…',
   speedTestResult: (mbps: number) => `İndirme hızı: ${mbps.toFixed(1)} Mbps`,
   speedTestError: (error: string) => `Hız testi başarısız: ${error}`,
   speedTestAction: 'ÇALIŞTIR',
 
   // Exit node map view.
-  mapContentDescription: 'Asya-Pasifik bölgesindeki mevcut gönüllü çıkış düğümlerinin haritası',
+  mapContentDescription: 'Asya-Pasifik bölgesindeki mevcut çıkış düğümlerinin haritası',
   mapLoading: 'mevcut çıkış düğümleri bulunuyor…',
   mapFailed: 'çıkış düğümleri yüklenemedi — yeniden denemek için dokunun',
   mapNodesAvailable: (count: number) => `${count} konum mevcut`,
@@ -82,7 +82,7 @@ export const tr: Partial<Strings> = {
   viewToggleList: 'Liste',
 
   // Exit node list view.
-  listContentDescription: 'Mevcut gönüllü çıkış düğümlerinin listesi',
+  listContentDescription: 'Mevcut çıkış düğümlerinin listesi',
   listRelayCount: (count: number) => (count === 1 ? '1 röle' : `${count} röle`),
 
   // Debug console (diagnostics).
@@ -102,16 +102,16 @@ export const tr: Partial<Strings> = {
   licensesComponentsHeader: 'Bileşenler',
 
   // Home overlay tagline.
-  homeTagline: 'gönüllü röle ağı',
+  homeTagline: 'röle ağı',
 
   // About screen (mission, how it works, project).
   aboutMissionBody:
-    'OpenRung, trafiğinizi dünyanın dört bir yanındaki gönüllülerin çalıştırdığı röleler üzerinden yönlendirir; böylece ağlar filtrelendiğinde açık internet erişilebilir kalır. Hesap yok, reklam yok, takip yok — yalnızca bant genişliğini paylaşan insanlar.',
+    'OpenRung, trafiğinizi dünyanın dört bir yanındaki röleler üzerinden yönlendirir; böylece ağlar filtrelendiğinde açık internet erişilebilir kalır. Hesap gerekmez ve reklam yoktur. Erken test sırasında OpenRung, güvenilirliği artırmak için tanısal bağlantı meta verileri toplar.',
   aboutHowHeader: 'Nasıl çalışır',
   aboutProjectHeader: 'Proje',
-  aboutHow1Title: 'Gönüllüler bant genişliği paylaşır',
+  aboutHow1Title: 'Röle operatörleri kapasite sağlar',
   aboutHow1Body:
-    'Dünyanın her yerindeki insanlar kendi bağlantıları üzerinde küçük röle düğümleri çalıştırır ve bunları ağa kaydeder.',
+    'OpenRung Foundation ve topluluk gönüllüleri röleleri çalıştırıp bunları ağa kaydeder.',
   aboutHow2Title: 'Aracı rölenizi bulur',
   aboutHow2Body:
     'Bağlandığınızda aracı, cihazınıza sağlıklı rölelerden oluşan kısa bir liste verir ve uygulama yanıt veren ilk röleyi seçer.',

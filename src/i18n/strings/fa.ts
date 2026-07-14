@@ -9,10 +9,10 @@ export const fa: Partial<Strings> = {
   relayLocationUnknown: 'موقعیت نامشخص',
   actionConnect: 'اتصال',
   actionDisconnect: 'قطع اتصال',
-  readyLog: 'آماده است. برای عبور از رله داوطلب، روی اتصال ضربه بزنید.',
+  readyLog: 'آماده است. برای عبور از رله، روی اتصال ضربه بزنید.',
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
-  trafficRouteConnected: 'مسیر ترافیک: دستگاه -> OpenRung VPN -> رله داوطلب',
+  trafficRouteConnected: 'مسیر ترافیک: دستگاه -> OpenRung VPN -> رله',
   trafficRouteDisconnected: 'VPN در حالت fail-closed است: بدون رله، اتصال برقرار نمی‌شود.',
   settingsContentDescription: 'باز کردن تنظیمات',
   settingsTitle: 'تنظیمات',
@@ -57,17 +57,17 @@ export const fa: Partial<Strings> = {
   // Content descriptions.
   openContentDescription: 'باز کردن',
 
-  // Volunteer speed test.
-  speedTestSettingTitle: 'تست سرعت داوطلب',
-  speedTestReady: 'از طریق رله داوطلب فعال، 10 MB دانلود می‌کند و نتیجه را گزارش می‌دهد.',
-  speedTestRequiresConnection: 'پیش از اجرای تست سرعت، به یک رله داوطلب متصل شوید.',
-  speedTestRunning: 'در حال تست سرعت دانلود از طریق رله داوطلب…',
+  // Relay speed test.
+  speedTestSettingTitle: 'تست سرعت رله',
+  speedTestReady: 'از طریق رله فعال، 10 MB دانلود می‌کند و نتیجه را گزارش می‌دهد.',
+  speedTestRequiresConnection: 'پیش از اجرای تست سرعت، به یک رله متصل شوید.',
+  speedTestRunning: 'در حال تست سرعت دانلود از طریق رله…',
   speedTestResult: (mbps: number) => `سرعت دانلود: ${mbps.toFixed(1)} Mbps`,
   speedTestError: (error: string) => `تست سرعت ناموفق بود: ${error}`,
   speedTestAction: 'اجرا',
 
   // Map view (exit nodes).
-  mapContentDescription: 'نقشهٔ گره‌های خروجی داوطلب موجود در سراسر منطقهٔ آسیا-اقیانوسیه',
+  mapContentDescription: 'نقشهٔ گره‌های خروجی موجود در سراسر منطقهٔ آسیا-اقیانوسیه',
   mapLoading: 'در حال یافتن گره‌های خروجی موجود…',
   mapFailed: 'بارگذاری گره‌های خروجی ناموفق بود — برای تلاش دوباره ضربه بزنید',
   mapNodesAvailable: (count: number) => `${count} مکان موجود`,
@@ -80,7 +80,7 @@ export const fa: Partial<Strings> = {
   // Map / list toggle.
   viewToggleMap: 'نقشه',
   viewToggleList: 'فهرست',
-  listContentDescription: 'فهرست گره‌های خروجی داوطلب موجود',
+  listContentDescription: 'فهرست گره‌های خروجی موجود',
   listRelayCount: (count: number) => (count === 1 ? '1 رله' : `${count} رله`),
 
   // Debug console.
@@ -100,14 +100,14 @@ export const fa: Partial<Strings> = {
   licensesComponentsHeader: 'مؤلفه‌ها',
 
   // Home tagline + about screen.
-  homeTagline: 'شبکهٔ رله‌های داوطلب',
+  homeTagline: 'شبکهٔ رله‌ها',
   aboutMissionBody:
-    'OpenRung ترافیک شما را از طریق رله‌هایی که داوطلبان در سراسر جهان اجرا می‌کنند هدایت می‌کند و دسترسی به اینترنت آزاد را هنگام فیلتر شدن شبکه‌ها حفظ می‌کند. بدون حساب کاربری، بدون تبلیغات، بدون ردیابی — فقط مردمی که پهنای باند خود را به اشتراک می‌گذارند.',
+    'OpenRung ترافیک شما را از طریق رله‌های سراسر جهان هدایت می‌کند و دسترسی به اینترنت آزاد را هنگام فیلتر شدن شبکه‌ها حفظ می‌کند. نیازی به حساب کاربری نیست و تبلیغی وجود ندارد. در دورهٔ آزمایش اولیه، OpenRung برای بهبود پایداری، فرادادهٔ تشخیصی اتصال را جمع‌آوری می‌کند.',
   aboutHowHeader: 'چگونه کار می‌کند',
   aboutProjectHeader: 'پروژه',
-  aboutHow1Title: 'داوطلبان پهنای باند را به اشتراک می‌گذارند',
+  aboutHow1Title: 'اپراتورهای رله ظرفیت فراهم می‌کنند',
   aboutHow1Body:
-    'مردم در همه‌جا گره‌های رلهٔ کوچکی را روی اتصال‌های خود اجرا می‌کنند و آن‌ها را در شبکه ثبت می‌کنند.',
+    'بنیاد OpenRung و داوطلبان جامعه رله‌ها را اجرا و در شبکه ثبت می‌کنند.',
   aboutHow2Title: 'کارگزار رلهٔ شما را پیدا می‌کند',
   aboutHow2Body:
     'هنگامی که متصل می‌شوید، کارگزار فهرست کوتاهی از رله‌های سالم را به دستگاه شما می‌دهد و برنامه اولین رله‌ای را که پاسخ دهد انتخاب می‌کند.',

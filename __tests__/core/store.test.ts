@@ -55,7 +55,7 @@ const RELAY_LIST = {
   server_time: '2026-01-01T00:00:00Z',
   relays: [
     {
-      id: 'tokyo-volunteer-1',
+      id: 'tokyo-relay-1',
       public_host: '203.0.113.10',
       public_port: 443,
       // Broker-served exit location — the app never geolocates relay IPs itself.
@@ -118,7 +118,7 @@ describe('refreshDirectory', () => {
         latitude: 35.6895, // the broker's coordinate, no client-side geo lookup
         longitude: 139.6917,
         nodeCount: 1,
-        relays: [{ id: 'tokyo-volunteer-1', label: null }],
+        relays: [{ id: 'tokyo-relay-1', label: null }],
       },
     ]);
     expect(relayFetches).toBe(1);
