@@ -19,7 +19,7 @@
     <string name="log_error_prefix">ошибка: %1$s</string>
     <string name="error_no_usable_relay">Нет пригодного ретранслятора прямого выхода VLESS Reality Vision.</string>
     <string name="error_vpn_connection_failed">Не удалось подключить VPN</string>
-    <string name="error_relay_unreachable">Ретранслятор %1$s:%2$d недоступен с этого Android-устройства. Если это эмулятор, используйте IPv4/dual-stack endpoint добровольца или сеть эмулятора с IPv6.</string>
+    <string name="error_relay_unreachable">Ретранслятор %1$s:%2$d недоступен с этого Android-устройства. Если это эмулятор, используйте IPv4/dual-stack endpoint ретранслятора или сеть эмулятора с IPv6.</string>
     <string name="error_all_relays_failed">Все попытки подключения к ретрансляторам не удались. Последняя ошибка: %1$s</string>
     <string name="error_unknown">неизвестно</string>
 </resources>

@@ -140,7 +140,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 targetedCandidates = matched
             } else if let targetCountry {
                 let countryName = CountryGeo.displayName(targetCountry) ?? targetCountry
-                SharedConnectionState.appendLog("connecting to a volunteer in \(countryName)")
+                SharedConnectionState.appendLog("connecting to a relay in \(countryName)")
                 failureStage = "relay_geo_filter"
                 targetedCandidates = filterByCountry(candidates, countryCode: targetCountry)
                 guard targetedCandidates.isEmpty == false else {

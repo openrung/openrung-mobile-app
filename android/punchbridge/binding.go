@@ -31,7 +31,7 @@ type OpenRungPunchProtector interface {
 }
 
 // OpenRungPunchListener reports loss of an already-established direct path.
-// Android handles the callback asynchronously and switches the same volunteer
+// Android handles the callback asynchronously and switches the same relay
 // to its RelayHub endpoint; it must not call Close re-entrantly from here.
 type OpenRungPunchListener interface {
 	Closed(reason string)

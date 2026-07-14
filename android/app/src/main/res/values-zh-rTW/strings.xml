@@ -19,7 +19,7 @@
     <string name="log_error_prefix">錯誤：%1$s</string>
     <string name="error_no_usable_relay">沒有可用的 VLESS Reality Vision 直連出口中繼。</string>
     <string name="error_vpn_connection_failed">VPN 連線失敗</string>
-    <string name="error_relay_unreachable">此 Android 裝置無法連到中繼 %1$s:%2$d。如果這是模擬器，請使用 IPv4/雙棧志願者端點，或支援 IPv6 的模擬器網路。</string>
+    <string name="error_relay_unreachable">此 Android 裝置無法連到中繼 %1$s:%2$d。如果這是模擬器，請使用 IPv4/雙棧中繼端點，或支援 IPv6 的模擬器網路。</string>
     <string name="error_all_relays_failed">所有中繼連線嘗試均失敗。最後錯誤：%1$s</string>
     <string name="error_unknown">未知</string>
 </resources>

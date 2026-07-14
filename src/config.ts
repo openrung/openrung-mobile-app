@@ -100,7 +100,7 @@ export const AppConfig = {
   ],
 
   RELAY_LIMIT: 5,
-  VPN_SESSION_NAME: 'OpenRung Volunteer VPN',
+  VPN_SESSION_NAME: 'OpenRung VPN',
   STATUS_PREFS: 'openrung_status',
 
   /**

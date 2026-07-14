@@ -18,7 +18,7 @@ enum PacketTunnelError: LocalizedError {
         case .noUsableRelay:
             return "No usable VLESS Reality Vision direct-exit relay is available."
         case .noRelayInCountry(let countryName):
-            return "No volunteer relay available in \(countryName) right now."
+            return "No relay available in \(countryName) right now."
         case .relayNotAvailable:
             return "The selected relay is no longer available."
         case .relayUnreachable(let host, let port, _):

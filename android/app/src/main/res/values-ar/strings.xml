@@ -19,7 +19,7 @@
     <string name="log_error_prefix">خطأ: %1$s</string>
     <string name="error_no_usable_relay">لا يوجد مرحل خروج مباشر VLESS Reality Vision صالح للاستخدام.</string>
     <string name="error_vpn_connection_failed">فشل اتصال VPN</string>
-    <string name="error_relay_unreachable">لا يمكن الوصول إلى المرحل %1$s:%2$d من جهاز Android هذا. إذا كان هذا محاكيا، فاستخدم نقطة نهاية متطوع IPv4/مزدوجة المكدس أو شبكة محاكي تدعم IPv6.</string>
+    <string name="error_relay_unreachable">لا يمكن الوصول إلى المرحل %1$s:%2$d من جهاز Android هذا. إذا كان هذا محاكيا، فاستخدم نقطة نهاية مرحل IPv4/مزدوجة المكدس أو شبكة محاكي تدعم IPv6.</string>
     <string name="error_all_relays_failed">فشلت كل محاولات الاتصال بالمرحلات. آخر خطأ: %1$s</string>
     <string name="error_unknown">غير معروف</string>
 </resources>

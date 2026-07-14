@@ -9,10 +9,10 @@ export const zhCN: Partial<Strings> = {
   relayLocationUnknown: '未知位置',
   actionConnect: '连接',
   actionDisconnect: '断开连接',
-  readyLog: '就绪。点按"连接"即可通过志愿者中继路由。',
+  readyLog: '就绪。点按"连接"即可通过中继路由。',
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
-  trafficRouteConnected: '流量路径：设备 -> OpenRung VPN -> 志愿者中继',
+  trafficRouteConnected: '流量路径：设备 -> OpenRung VPN -> 中继',
   trafficRouteDisconnected: 'VPN 采用失败关闭：没有中继，就不连接。',
   settingsContentDescription: '打开设置',
   settingsTitle: '设置',
@@ -57,17 +57,17 @@ export const zhCN: Partial<Strings> = {
   // Generic open affordance (accessibility).
   openContentDescription: '打开',
 
-  // Volunteer speed test (settings screen).
-  speedTestSettingTitle: '志愿者测速',
-  speedTestReady: '通过当前活动的志愿者中继下载 10 MB 并报告结果。',
-  speedTestRequiresConnection: '请先连接志愿者中继，再运行测速。',
-  speedTestRunning: '正在通过志愿者中继测试下载速度…',
+  // Relay speed test (settings screen).
+  speedTestSettingTitle: '中继测速',
+  speedTestReady: '通过当前活动的中继下载 10 MB 并报告结果。',
+  speedTestRequiresConnection: '请先连接中继，再运行测速。',
+  speedTestRunning: '正在通过中继测试下载速度…',
   speedTestResult: (mbps: number) => `下载速度：${mbps.toFixed(1)} Mbps`,
   speedTestError: (error: string) => `测速失败：${error}`,
   speedTestAction: '运行',
 
-  // Map view (volunteer exit nodes).
-  mapContentDescription: '亚太地区可用志愿者出口节点的地图',
+  // Map view (relay exit nodes).
+  mapContentDescription: '亚太地区可用出口节点的地图',
   mapLoading: '正在定位可用的出口节点…',
   mapFailed: '无法加载出口节点 — 点按重试',
   mapNodesAvailable: (count: number) => `${count} 个地点可用`,
@@ -81,8 +81,8 @@ export const zhCN: Partial<Strings> = {
   viewToggleMap: '地图',
   viewToggleList: '列表',
 
-  // List view (volunteer exit nodes).
-  listContentDescription: '可用志愿者出口节点列表',
+  // List view (relay exit nodes).
+  listContentDescription: '可用出口节点列表',
   listRelayCount: (count: number) => (count === 1 ? '1 个中继' : `${count} 个中继`),
 
   // Debug console (diagnostics).
@@ -102,14 +102,14 @@ export const zhCN: Partial<Strings> = {
   licensesComponentsHeader: '组件',
 
   // Home tagline and about screen.
-  homeTagline: '志愿者中继网络',
+  homeTagline: '中继网络',
   aboutMissionBody:
-    'OpenRung 通过世界各地志愿者运行的中继来路由你的流量，在网络被过滤时依然让开放互联网保持可达。没有账户、没有广告、没有追踪 — 只有人们共享带宽。',
+    'OpenRung 通过世界各地的中继来路由你的流量，在网络被过滤时依然让开放互联网保持可达。无需账户，也没有广告。在早期测试期间，OpenRung 会收集诊断性连接元数据，以提升可靠性。',
   aboutHowHeader: '工作原理',
   aboutProjectHeader: '项目',
-  aboutHow1Title: '志愿者共享带宽',
+  aboutHow1Title: '中继运营者提供网络容量',
   aboutHow1Body:
-    '世界各地的人们在自己的网络连接上运行小型中继节点，并将其注册到网络中。',
+    'OpenRung 基金会和社区志愿者运行中继，并将其注册到网络中。',
   aboutHow2Title: '中介为你找到中继',
   aboutHow2Body:
     '当你连接时，中介会向你的设备提供一份健康中继的简短列表，应用会选择第一个响应的中继。',

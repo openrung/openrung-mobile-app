@@ -86,7 +86,7 @@ export function MainScreen(): React.JSX.Element {
         // Failures surface through the mirrored native state / debug console.
       });
     } else {
-      // null target country = let the broker pick any volunteer.
+      // null target country = let the broker pick any relay.
       prepareAndConnect(null).catch(() => {
         // Same: connect failures are reported via openrungStateChanged events.
       });

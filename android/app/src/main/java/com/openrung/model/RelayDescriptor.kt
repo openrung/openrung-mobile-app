@@ -13,7 +13,7 @@ object RelayConstants {
 @Serializable
 data class RelayDescriptor(
     val id: String,
-    /** Volunteer-chosen relay name (e.g. "silly-lemur"); empty on older brokers. */
+    /** Friendly relay name (operator-supplied or generated); empty on older brokers. */
     val label: String = "",
     @SerialName("public_host")
     val publicHost: String,
@@ -36,11 +36,12 @@ data class RelayDescriptor(
     val maxSessions: Int,
     @SerialName("max_mbps")
     val maxMbps: Int,
+    /** Software version for any relay class; serialized name preserves the legacy broker wire field. */
     @SerialName("volunteer_version")
-    val volunteerVersion: String,
-    /** "direct" for ordinary volunteers, "tunnel" when publicHost is a RelayHub. */
+    val relayVersion: String,
+    /** "direct" when clients reach this relay directly, "tunnel" when publicHost is a RelayHub. */
     val transport: String = "",
-    /** Whether the tunnel volunteer and its hub negotiated direct NAT punching. */
+    /** Whether the tunnel relay and its hub negotiated direct NAT punching. */
     @SerialName("punch_capable")
     val punchCapable: Boolean = false,
     /** HTTPS base URL of the hub's punch coordinator; supplied by the signed directory. */

@@ -4,7 +4,7 @@ import React
 
 /// React Native bridge for the OpenRung VPN (contract §3). Port of the manager/state half of the
 /// production `AppViewModel`: owns the `NETunnelProviderManager` (found by localizedDescription
-/// "OpenRung Volunteer VPN"), mirrors the rich connection state the PacketTunnel extension
+/// "OpenRung VPN"), mirrors the rich connection state the PacketTunnel extension
 /// publishes via `SharedConnectionState` (re-read on a Darwin notification), watches
 /// `.NEVPNStatusDidChange`, and reports every change to JS as an `openrungStateChanged` event.
 @objc(OpenRungVpn)
@@ -174,7 +174,16 @@ final class OpenRungVpnModule: RCTEventEmitter {
 
     private func loadOrCreateManager() async throws -> NETunnelProviderManager {
         let managers = try await NETunnelProviderManager.loadAllFromPreferences()
-        if let existing = managers.first(where: { $0.localizedDescription == AppConfig.vpnProfileName }) {
+        if let existing = managers.first(where: {
+            $0.localizedDescription == AppConfig.vpnProfileName
+        }) {
+            return existing
+        }
+        if let existing = managers.first(where: {
+            $0.localizedDescription == AppConfig.legacyVPNProfileName
+        }) {
+            // The next configure/save migrates profiles created before the terminology change.
+            existing.localizedDescription = AppConfig.vpnProfileName
             return existing
         }
         let manager = NETunnelProviderManager()

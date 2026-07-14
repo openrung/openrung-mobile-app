@@ -9,10 +9,10 @@ export const zhTW: Partial<Strings> = {
   relayLocationUnknown: '未知位置',
   actionConnect: '連線',
   actionDisconnect: '中斷連線',
-  readyLog: '就緒。點選「連線」即可透過志工中繼路由。',
+  readyLog: '就緒。點選「連線」即可透過中繼路由。',
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
-  trafficRouteConnected: '流量路徑：裝置 -> OpenRung VPN -> 志願者中繼',
+  trafficRouteConnected: '流量路徑：裝置 -> OpenRung VPN -> 中繼',
   trafficRouteDisconnected: 'VPN 採用失敗關閉：沒有中繼，就不連線。',
   settingsContentDescription: '開啟設定',
   settingsTitle: '設定',
@@ -54,18 +54,18 @@ export const zhTW: Partial<Strings> = {
   telemetryCountriesLabel: '國家',
   telemetryUptimeLabel: '連線時長',
 
-  // Open control + volunteer speed test.
+  // Open control + relay speed test.
   openContentDescription: '開啟',
-  speedTestSettingTitle: '志願者速度測試',
-  speedTestReady: '透過使用中的志願者中繼下載 10 MB 並回報結果。',
-  speedTestRequiresConnection: '執行速度測試前，請先連線至志願者中繼。',
-  speedTestRunning: '正在透過志願者中繼測試下載速度…',
+  speedTestSettingTitle: '中繼速度測試',
+  speedTestReady: '透過使用中的中繼下載 10 MB 並回報結果。',
+  speedTestRequiresConnection: '執行速度測試前，請先連線至中繼。',
+  speedTestRunning: '正在透過中繼測試下載速度…',
   speedTestResult: (mbps: number) => `下載速度：${mbps.toFixed(1)} Mbps`,
   speedTestError: (error: string) => `速度測試失敗：${error}`,
   speedTestAction: '執行',
 
   // Map / list views.
-  mapContentDescription: '橫跨亞太地區的可用志願者出口節點地圖',
+  mapContentDescription: '橫跨亞太地區的可用出口節點地圖',
   mapLoading: '正在尋找可用的出口節點…',
   mapFailed: '無法載入出口節點 — 點選以重試',
   mapNodesAvailable: (count: number) => `${count} 個地點可用`,
@@ -74,7 +74,7 @@ export const zhTW: Partial<Strings> = {
   recentsEmpty: '尚無最近使用的地點。',
   viewToggleMap: '地圖',
   viewToggleList: '清單',
-  listContentDescription: '可用志願者出口節點的清單',
+  listContentDescription: '可用出口節點的清單',
   listRelayCount: (count: number) => (count === 1 ? '1 個中繼' : `${count} 個中繼`),
 
   // Debug console.
@@ -94,14 +94,14 @@ export const zhTW: Partial<Strings> = {
   licensesComponentsHeader: '元件',
 
   // Home tagline + about screen.
-  homeTagline: '志願者中繼網路',
+  homeTagline: '中繼網路',
   aboutMissionBody:
-    'OpenRung 會透過世界各地志願者營運的中繼路由你的流量，在網路遭到過濾時，仍讓開放的網際網路保持可連線。沒有帳號、沒有廣告、沒有追蹤 — 只有人們彼此分享頻寬。',
+    'OpenRung 會透過世界各地的中繼路由你的流量，在網路遭到過濾時，仍讓開放的網際網路保持可連線。不需要帳號，也沒有廣告。在早期測試期間，OpenRung 會收集診斷性的連線中繼資料，以提升可靠性。',
   aboutHowHeader: '運作方式',
   aboutProjectHeader: '專案',
-  aboutHow1Title: '志願者分享頻寬',
+  aboutHow1Title: '中繼營運者提供網路容量',
   aboutHow1Body:
-    '世界各地的人們會在自己的網路連線上架設小型中繼節點，並向網路註冊。',
+    'OpenRung 基金會與社群志願者營運中繼，並向網路註冊。',
   aboutHow2Title: '中介為你找到中繼',
   aboutHow2Body:
     '當你連線時，中介會將一份簡短的健康中繼清單交給你的裝置，而應用程式會挑選第一個有回應的中繼。',

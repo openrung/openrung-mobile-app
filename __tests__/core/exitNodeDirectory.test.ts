@@ -68,7 +68,7 @@ describe('loadExitNodeDirectory', () => {
         latitude: 35.6895,
         longitude: 139.6917,
         nodeCount: 2,
-        // Broker order, with the volunteer-chosen labels the list picker shows.
+        // Broker order, with the friendly labels the list picker shows.
         relays: [
           { id: 'a', label: 'silly-lemur' },
           { id: 'b', label: 'swift-harbor' },

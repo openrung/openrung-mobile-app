@@ -8,7 +8,7 @@ public enum RelayConstants {
 
 public struct RelayDescriptor: Codable, Equatable, Identifiable, Sendable {
     public let id: String
-    /// Volunteer-chosen relay name (e.g. "silly-lemur"); absent on older brokers.
+    /// Friendly relay name (operator-supplied or generated); absent on older brokers.
     public let label: String?
     public let publicHost: String
     public let publicPort: Int
@@ -21,7 +21,8 @@ public struct RelayDescriptor: Codable, Equatable, Identifiable, Sendable {
     public let exitMode: String
     public let maxSessions: Int
     public let maxMbps: Int
-    public let volunteerVersion: String
+    /// Software version for any relay class; coding key preserves the legacy broker wire field.
+    public let relayVersion: String
     public let registeredAt: Date
     public let lastHeartbeatAt: Date
     public let expiresAt: Date
@@ -48,7 +49,7 @@ public struct RelayDescriptor: Codable, Equatable, Identifiable, Sendable {
         exitMode: String,
         maxSessions: Int,
         maxMbps: Int,
-        volunteerVersion: String,
+        relayVersion: String,
         registeredAt: Date,
         lastHeartbeatAt: Date,
         expiresAt: Date,
@@ -71,7 +72,7 @@ public struct RelayDescriptor: Codable, Equatable, Identifiable, Sendable {
         self.exitMode = exitMode
         self.maxSessions = maxSessions
         self.maxMbps = maxMbps
-        self.volunteerVersion = volunteerVersion
+        self.relayVersion = relayVersion
         self.registeredAt = registeredAt
         self.lastHeartbeatAt = lastHeartbeatAt
         self.expiresAt = expiresAt
@@ -96,7 +97,7 @@ public struct RelayDescriptor: Codable, Equatable, Identifiable, Sendable {
         case exitMode = "exit_mode"
         case maxSessions = "max_sessions"
         case maxMbps = "max_mbps"
-        case volunteerVersion = "volunteer_version"
+        case relayVersion = "volunteer_version"
         case registeredAt = "registered_at"
         case lastHeartbeatAt = "last_heartbeat_at"
         case expiresAt = "expires_at"

@@ -1,5 +1,5 @@
 /**
- * Volunteer speed test, ported from the production `net/SpeedTestClient.kt`.
+ * Relay speed test, ported from the production `net/SpeedTestClient.kt`.
  *
  * DOCUMENTED LIMITATION (contract §8): React Native's `fetch` cannot stream the response body
  * progressively, so unlike production (which times from just before the response headers to the

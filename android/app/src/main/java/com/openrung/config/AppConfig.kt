@@ -107,7 +107,7 @@ object AppConfig {
     )
 
     const val RELAY_LIMIT = 5
-    const val VPN_SESSION_NAME = "OpenRung Volunteer VPN"
+    const val VPN_SESSION_NAME = "OpenRung VPN"
     const val STATUS_PREFS = "openrung_status"
 
     /**

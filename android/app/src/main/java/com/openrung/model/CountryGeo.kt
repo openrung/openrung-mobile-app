@@ -2,7 +2,7 @@ package com.openrung.model
 
 /**
  * Static country centroid + display-name table used to place exit-node markers on the map without a
- * per-host geocoding round trip. Asia-Pacific is covered densely (the volunteer network's focus);
+ * per-host geocoding round trip. Asia-Pacific is covered densely (the relay network's focus);
  * common VPN-exit countries elsewhere are included so a stray relay still lands somewhere sensible.
  *
  * Coordinates are approximate country centroids (latitude, longitude in degrees).

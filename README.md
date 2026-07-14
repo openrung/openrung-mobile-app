@@ -12,8 +12,9 @@ The OpenRung cross-platform mobile client: a React Native control shell on top
 of a **production-equivalent native VPN path** — Android `VpnService` and iOS
 `NEPacketTunnelProvider`, both driving the sing-box/libbox engine.
 
-OpenRung is a volunteer-powered relay network that helps people living behind
-internet censorship reach blocked websites and apps.
+OpenRung is a nonprofit relay network with relays operated by its Foundation
+and community volunteers. It helps people living behind internet censorship
+reach blocked websites and apps.
 
 [![Website](https://img.shields.io/badge/website-openrung.org-1d8a4f)](https://openrung.org)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
@@ -43,11 +44,11 @@ flowchart LR
     ui["📱 React Native shell<br/>(map · directory · connect UI)"]
     bridge["🔌 Native module<br/>(OpenRungVpn)"]
     engine["🛡️ sing-box / libbox<br/>(VpnService · PacketTunnel)"]
-    volunteer["🙋 Volunteer relay"]
+    relay["🌐 Relay"]
 
     ui == "connect / disconnect" ==> bridge
     bridge == "TUN + DNS" ==> engine
-    engine == "VLESS + REALITY + Vision" ==> volunteer
+    engine == "VLESS + REALITY + Vision" ==> relay
 ```
 
 The broker URL, relay selection rules (`vless-reality-vision`,
@@ -61,15 +62,15 @@ side-by-side with them.
 - 🗺️ **Full-screen exit-node map** — the MapLibre map *is* the home screen:
   crisp in the center, dissolving into the dark backdrop toward the edges, and
   pannable/pinch-zoomable throughout. Tap a country marker to connect through a
-  volunteer there.
+  relay there.
 - 🪟 **Floating connect card** — a glass panel with a live status row (pulsing
   indicator + relay location) and the primary CONNECT/DISCONNECT action.
 - 🧭 **Translucent tab bar** — Home / Settings / About us, floating over the map.
 - 🌃 **Terminal cyberpunk theme** — the production green-on-black palette
   (`#65F58A` on `#030604`), all-monospace type, neon glows and HUD accents.
 - 🌍 **10 locales** — persisted per-app language selection.
-- 🕳️ **Direct CGNAT volunteers on Android** — NAT punching establishes a
-  client↔volunteer QUIC path and keeps RelayHub out of the data plane whenever
+- 🕳️ **Direct volunteer-run CGNAT relays on Android** — NAT punching establishes
+  a client↔relay QUIC path and keeps RelayHub out of the data plane whenever
   both NATs permit it, with certificate-pinned coordination, end-to-end health
   monitoring, and automatic hub fallback otherwise.
 - 🧪 **Demoable without a native build** — a scripted mock engine drives the UI
@@ -82,7 +83,8 @@ side-by-side with them.
   + GeoIP grouping, speed test, and language selection.
 - **Android native (`android/`)** — the production `VpnService` connect path
   (package `com.openrung.*`): broker relay fetch, relay selection + TCP
-  reachability, direct NAT punching for CGNAT volunteers, sing-box/libbox engine,
+  reachability, direct NAT punching for volunteer-run CGNAT relays,
+  sing-box/libbox engine,
   TUN + DNS, internet probe, connection-failure handling, heartbeat telemetry,
   plus the `OpenRungVpn` React Native module that bridges it.
 - **iOS native (`ios/`)** — the production `NEPacketTunnelProvider` extension,
@@ -230,7 +232,8 @@ mock simulator — useful for UI work and demos, but no traffic is routed.
 - In-app language switch does not relayout RTL (fa/ar) without an app restart.
 - iOS simulator: UI + map + directory work; connect fails by design
   (NetworkExtension requires a signed device build).
-- iOS does not yet consume `punch_capable`; CGNAT volunteers use RelayHub there.
+- iOS does not yet consume `punch_capable`; volunteer-run CGNAT relays use
+  RelayHub there.
 - Telemetry from TypeScript covers only speed-test events; the native connect
   path keeps full production telemetry.
 

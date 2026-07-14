@@ -9,10 +9,10 @@ export const vi: Partial<Strings> = {
   relayLocationUnknown: 'Vị trí không xác định',
   actionConnect: 'KẾT NỐI',
   actionDisconnect: 'NGẮT KẾT NỐI',
-  readyLog: 'sẵn sàng. nhấn kết nối để định tuyến qua relay tình nguyện.',
+  readyLog: 'sẵn sàng. nhấn kết nối để định tuyến qua relay.',
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
-  trafficRouteConnected: 'đường đi lưu lượng: thiết bị -> OpenRung VPN -> relay tình nguyện',
+  trafficRouteConnected: 'đường đi lưu lượng: thiết bị -> OpenRung VPN -> relay',
   trafficRouteDisconnected: 'vpn ở chế độ fail-closed: không có relay, không kết nối.',
   settingsContentDescription: 'Mở cài đặt',
   settingsTitle: 'Cài đặt',
@@ -57,18 +57,18 @@ export const vi: Partial<Strings> = {
   // Content description (open action).
   openContentDescription: 'Mở',
 
-  // Volunteer speed test (diagnostics).
-  speedTestSettingTitle: 'Kiểm tra tốc độ relay tình nguyện',
-  speedTestReady: 'Tải xuống 10 MB qua relay tình nguyện đang hoạt động và báo cáo kết quả.',
-  speedTestRequiresConnection: 'Kết nối với relay tình nguyện trước khi chạy kiểm tra tốc độ.',
-  speedTestRunning: 'Đang kiểm tra tốc độ tải xuống qua relay tình nguyện…',
+  // Relay speed test (diagnostics).
+  speedTestSettingTitle: 'Kiểm tra tốc độ relay',
+  speedTestReady: 'Tải xuống 10 MB qua relay đang hoạt động và báo cáo kết quả.',
+  speedTestRequiresConnection: 'Kết nối với relay trước khi chạy kiểm tra tốc độ.',
+  speedTestRunning: 'Đang kiểm tra tốc độ tải xuống qua relay…',
   speedTestResult: (mbps: number) => `Tốc độ tải xuống: ${mbps.toFixed(1)} Mbps`,
   speedTestError: (error: string) => `Kiểm tra tốc độ thất bại: ${error}`,
   speedTestAction: 'CHẠY',
 
   // Map and list views (exit nodes).
   mapContentDescription:
-    'Bản đồ các nút thoát tình nguyện khả dụng khắp khu vực Châu Á - Thái Bình Dương',
+    'Bản đồ các nút thoát khả dụng khắp khu vực Châu Á - Thái Bình Dương',
   mapLoading: 'đang định vị các nút thoát khả dụng…',
   mapFailed: 'không tải được các nút thoát — nhấn để thử lại',
   mapNodesAvailable: (count: number) => `${count} địa điểm khả dụng`,
@@ -77,7 +77,7 @@ export const vi: Partial<Strings> = {
   recentsEmpty: 'Chưa có địa điểm gần đây.',
   viewToggleMap: 'Bản đồ',
   viewToggleList: 'Danh sách',
-  listContentDescription: 'Danh sách các nút thoát tình nguyện khả dụng',
+  listContentDescription: 'Danh sách các nút thoát khả dụng',
   listRelayCount: (count: number) => (count === 1 ? '1 relay' : `${count} relay`),
 
   // Debug console (diagnostics).
@@ -97,14 +97,14 @@ export const vi: Partial<Strings> = {
   licensesComponentsHeader: 'Thành phần',
 
   // Home overlay and about screen.
-  homeTagline: 'mạng lưới relay tình nguyện',
+  homeTagline: 'mạng lưới relay',
   aboutMissionBody:
-    'OpenRung định tuyến lưu lượng của bạn qua các relay do tình nguyện viên khắp thế giới vận hành, giữ cho internet mở luôn truy cập được khi mạng bị lọc chặn. Không tài khoản, không quảng cáo, không theo dõi — chỉ là những người chia sẻ băng thông.',
+    'OpenRung định tuyến lưu lượng của bạn qua các relay trên khắp thế giới, giữ cho internet mở luôn truy cập được khi mạng bị lọc chặn. Không cần tài khoản và không có quảng cáo. Trong giai đoạn thử nghiệm sớm, OpenRung thu thập siêu dữ liệu chẩn đoán kết nối để cải thiện độ tin cậy.',
   aboutHowHeader: 'Cách hoạt động',
   aboutProjectHeader: 'Dự án',
-  aboutHow1Title: 'Tình nguyện viên chia sẻ băng thông',
+  aboutHow1Title: 'Nhà vận hành relay cung cấp năng lực',
   aboutHow1Body:
-    'Mọi người khắp nơi vận hành các nút relay nhỏ trên kết nối của chính họ và đăng ký chúng với mạng lưới.',
+    'OpenRung Foundation và các tình nguyện viên cộng đồng vận hành các relay và đăng ký chúng với mạng lưới.',
   aboutHow2Title: 'Bộ điều phối tìm relay cho bạn',
   aboutHow2Body:
     'Khi bạn kết nối, bộ điều phối trao cho thiết bị của bạn một danh sách ngắn các relay khỏe mạnh và ứng dụng chọn relay đầu tiên phản hồi.',

@@ -43,7 +43,7 @@ NOT that the OS blocks traffic while the VPN is down.
 | iOS app bundle id | `com.openrung.mobile` |
 | iOS extension bundle id | `com.openrung.mobile.PacketTunnel` |
 | iOS app group | `group.com.openrung.mobile` |
-| iOS VPN profile localizedDescription | `OpenRung Volunteer VPN` |
+| iOS VPN profile localizedDescription | `OpenRung VPN` |
 | iOS deployment target | 16.0 |
 | DEVELOPMENT_TEAM | `9VLV9A7KS9` |
 | Darwin notification (ext→app) | `com.openrung.mobile.state-changed` |
@@ -241,7 +241,7 @@ ported (that lives in TS now). Files:
   a local outage leaves the foreground service CONNECTING instead of failing it.
 - Direct-path recovery is bounded per relay. Losses before five minutes use
   jittered exponential backoff; the third rapid loss opens a circuit for the
-  current user connection, so fresh discovery still runs but that volunteer is
+  current user connection, so fresh discovery still runs but that relay is
   reached through RelayHub. A real physical-network outage does not increment the
   breaker, and an explicit connect/disconnect resets it.
 - `ProxyEngineFactory` returns a `StubProxyEngine` (throws "engine not linked")
@@ -284,7 +284,7 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
 - iOS simulator: UI + map + directory work; connect fails by design
   (NetworkExtension requires a signed device build).
 - iOS does not yet consume the optional punch metadata and uses RelayHub for
-  tunnel-transport volunteers.
+  volunteer-run tunnel-transport relays.
 - Telemetry from TS covers only speed-test events; the native connect path keeps
   full production telemetry.
 - License: GPL-3.0-or-later (statically links sing-box), same as production.

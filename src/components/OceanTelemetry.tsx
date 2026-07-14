@@ -12,7 +12,7 @@
  *  - LINK: the connection lifecycle — status dot + label, the relay line
  *    (resolved exit location while connected, the "auto relay" target
  *    otherwise, mirroring the connect card's status row), the connected
- *    relay's volunteer name mined from the native log (see
+ *    relay's friendly name mined from the native log (see
  *    lastDialledRelay), a ticking session-uptime clock while connected, and
  *    the already-localized native `lastError` line when the tunnel failed
  *    (elsewhere that detail only surfaces in the debug console).
@@ -127,7 +127,7 @@ export function OceanTelemetry({
 }: OceanTelemetryProps): React.JSX.Element {
   const s = useStrings();
 
-  // Volunteer name of the connected relay. Held in a ref for the lifetime of
+  // Friendly name of the connected relay. Held in a ref for the lifetime of
   // the connected session so it survives the "trying relay" line scrolling
   // out of the 80-line native log; cleared the moment the tunnel leaves
   // connected (a relay switch re-resolves from the fresh log lines).

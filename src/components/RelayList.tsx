@@ -4,8 +4,8 @@
  * (flag + "City, Country" + relay count), sorted by country then city so
  * neighbouring exits group together.
  *
- * Every location row expands on tap into one indented child row per volunteer
- * relay, shown by its volunteer-chosen label ("silly-lemur"); tapping a child
+ * Every location row expands on tap into one indented child row per relay,
+ * shown by its friendly label ("silly-lemur"); tapping a child
  * connects to that specific relay. (The map markers keep the broker-picks
  * country flow; the list is the precise picker.)
  *
@@ -66,7 +66,7 @@ const PULL_QUOTE_A11Y = '革命尚未成功，同志仍須努力 - 孫中山';
 export interface RelayListProps {
   regions: ExitNodeRegion[];
   directoryStatus: DirectoryStatus;
-  /** Connect to one specific volunteer relay (picked from an expanded location). */
+  /** Connect to one specific relay (picked from an expanded location). */
   onRelayPress: (relayId: string, countryCode: string) => void;
   /** Forced broker re-fetch: tap-to-retry on the empty panel AND pull-to-refresh on the list. */
   onRetry: () => void;

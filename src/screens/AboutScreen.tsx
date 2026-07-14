@@ -1,6 +1,6 @@
 /**
  * About us tab: wordmark hero with version pill, mission paragraph, a
- * numbered "how it works" walkthrough (volunteers -> broker -> encrypted
+ * numbered "how it works" walkthrough (relay operators -> broker -> encrypted
  * tunnel), then source-code / open-source-licenses panels and the GPL
  * footnote. Version and licensing moved here from Settings so the Settings
  * tab stays purely operational.

@@ -11,7 +11,7 @@ export const RelayConstants = {
 
 export interface RelayDescriptor {
   id: string;
-  label?: string; // volunteer-chosen relay name (e.g. "silly-lemur"); absent on older brokers
+  label?: string; // friendly relay name (operator-supplied or generated); absent on older brokers
   public_host: string;
   public_port: number;
   protocol: string;
@@ -23,6 +23,7 @@ export interface RelayDescriptor {
   exit_mode: string;
   max_sessions: number;
   max_mbps: number;
+  // Legacy broker wire name; this reports the software version for every relay class.
   volunteer_version: string;
   transport?: 'direct' | 'tunnel';
   punch_capable?: boolean;

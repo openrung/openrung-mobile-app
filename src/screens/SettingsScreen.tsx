@@ -1,6 +1,6 @@
 /**
  * Settings tab. Large title (it's a root tab now — no back arrow), then
- * sectioned panels: GENERAL (language) and DIAGNOSTICS (volunteer speed test,
+ * sectioned panels: GENERAL (language) and DIAGNOSTICS (relay speed test,
  * debug console). Version and licenses live on the About tab. The language
  * picker mirrors the production dropdown semantics with a dark-styled modal
  * list; the speed test RUN button is enabled only while connected and not

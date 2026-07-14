@@ -10,7 +10,7 @@ render these notices in the in-app "Open Source Licenses" screen
 (`src/licenses/notices.ts` is generated from this file plus `LICENSE`).
 
 This repository ships only the two mobile apps (Android APK, iOS app +
-PacketTunnel extension). Server-side components (broker, volunteer, relay hub)
+PacketTunnel extension). Server-side components (broker, relay, relay hub)
 live in the production OpenRung repository and carry their own notices there.
 
 > Maintenance: when a dependency that ships to users is added, removed, or

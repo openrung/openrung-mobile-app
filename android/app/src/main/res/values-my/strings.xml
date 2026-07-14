@@ -19,7 +19,7 @@
     <string name="log_error_prefix">အမှား: %1$s</string>
     <string name="error_no_usable_relay">အသုံးပြုနိုင်သော VLESS Reality Vision direct-exit relay မရှိပါ။</string>
     <string name="error_vpn_connection_failed">VPN ချိတ်ဆက်မှု မအောင်မြင်ပါ</string>
-    <string name="error_relay_unreachable">ဤ Android စက်မှ relay %1$s:%2$d သို့ မရောက်နိုင်ပါ။ emulator ဖြစ်ပါက IPv4/dual-stack volunteer endpoint သို့မဟုတ် IPv6 အသုံးပြုနိုင်သော emulator network ကို သုံးပါ။</string>
+    <string name="error_relay_unreachable">ဤ Android စက်မှ relay %1$s:%2$d သို့ မရောက်နိုင်ပါ။ emulator ဖြစ်ပါက IPv4/dual-stack relay endpoint သို့မဟုတ် IPv6 အသုံးပြုနိုင်သော emulator network ကို သုံးပါ။</string>
     <string name="error_all_relays_failed">relay ချိတ်ဆက်ရန် ကြိုးစားမှုအားလုံး မအောင်မြင်ပါ။ နောက်ဆုံး အမှား: %1$s</string>
     <string name="error_unknown">မသိပါ</string>
 </resources>

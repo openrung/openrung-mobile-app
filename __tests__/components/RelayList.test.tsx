@@ -1,7 +1,7 @@
 /**
  * Home relay-directory list + view toggle behaviour:
  *  - RelayList sorts rows country-then-city; every location row expands into
- *    per-relay child rows (volunteer labels) whose taps report the exact
+ *    per-relay child rows (friendly labels) whose taps report the exact
  *    relay id — location rows themselves never connect;
  *  - the empty panel mirrors the status chip (loading / failed / no-nodes,
  *    the latter two tappable to retry);
