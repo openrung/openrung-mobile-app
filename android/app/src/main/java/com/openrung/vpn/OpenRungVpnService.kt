@@ -26,6 +26,7 @@ import com.openrung.net.InternetProbe
 import com.openrung.net.NatPunchClient
 import com.openrung.net.NatPunchResult
 import com.openrung.net.NatPunchSession
+import com.openrung.net.RelayRanker
 import com.openrung.net.RelayReachability
 import com.openrung.net.SingBoxConfiguration
 import com.openrung.state.ConnectionStatus
@@ -201,8 +202,26 @@ class OpenRungVpnService : VpnService() {
                 candidates
             }
 
+            // Reorder (never shrink) the ladder by this client's measured TCP latency. Broker
+            // order already scores load headroom / success rate / latency / speed from the
+            // broker's vantage, so RelayRanker only overrides it across latency buckets — within
+            // a bucket the broker's load balancing still decides. A pinned relay skips ranking:
+            // there is exactly one candidate and the user chose it.
+            val rankedCandidates = if (targetRelayId == null && targetedCandidates.size > 1) {
+                failureStage = "relay_rank"
+                OpenRungStatusStore.appendLog(
+                    getString(
+                        R.string.log_rank_probing,
+                        minOf(targetedCandidates.size, RelayRanker.DEFAULT_MAX_PROBES),
+                    ),
+                )
+                RelayRanker.rankByTcpLatency(targetedCandidates)
+            } else {
+                targetedCandidates.map { RelayRanker.RankedRelay(it, null) }
+            }
+
             failureStage = "relay_connect"
-            val connectedRelay = connectFirstAvailable(targetedCandidates)
+            val connectedRelay = connectFirstAvailable(rankedCandidates.map { it.relay })
             // If a disconnect raced in while we were connecting, don't publish CONNECTED for a
             // tunnel that's being torn down. Stopping the engine is owned by disconnect()/a new
             // connect (both call cleanupActiveTunnel); we just must not commit CONNECTED here.
@@ -220,13 +239,23 @@ class OpenRungVpnService : VpnService() {
             TelemetryManager.record(
                 event = "connection_succeeded",
                 relayId = relay.id,
-                measurements = mapOf(
-                    "broker_fetch_ms" to brokerFetchMs,
-                    "relay_tcp_ms" to connectedRelay.tcpLatencyMs,
-                    "tunnel_start_ms" to connectedRelay.tunnelStartMs,
-                    "internet_probe_ms" to connectedRelay.internetProbeMs,
-                    "relay_attempts" to connectedRelay.attempts.toLong(),
-                ),
+                measurements = buildMap {
+                    put("broker_fetch_ms", brokerFetchMs)
+                    put("relay_tcp_ms", connectedRelay.tcpLatencyMs)
+                    put("tunnel_start_ms", connectedRelay.tunnelStartMs)
+                    put("internet_probe_ms", connectedRelay.internetProbeMs)
+                    put("relay_attempts", connectedRelay.attempts.toLong())
+                    // Rank observability: where the connected relay sat in broker order before
+                    // ranking, and its probe latency when it was probed — the pair that shows
+                    // whether client-side ranking actually beats broker order on tunnel_start_ms.
+                    put(
+                        "relay_broker_index",
+                        targetedCandidates.indexOfFirst { it.id == relay.id }.toLong(),
+                    )
+                    rankedCandidates.firstOrNull { it.relay.id == relay.id }
+                        ?.probeMs
+                        ?.let { put("relay_probe_ms", it) }
+                },
             )
             // Promote liveness monitoring before the best-effort telemetry upload. A slow upload
             // must never leave a newly-dead direct path claiming CONNECTED for its HTTP timeout.

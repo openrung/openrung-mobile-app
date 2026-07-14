@@ -114,13 +114,15 @@ targets:
 
   # Hostless logic-test bundle. It compiles the units under test and their source closure directly
   # into the test module (rather than @testable-importing the app/extension), so the suites build and
-  # run without the app, CocoaPods, or Libbox. Three suites live here:
+  # run without the app, CocoaPods, or Libbox. Four suites live here:
   #   - FailureClassifierTests: FailureClassifier + the small error types it maps.
   #   - BrokerClientTests: the broker discovery flow (staggered race + override-first).
   #   - RelayListVerifierTests: RelayListVerifier, plus AppConfig and its compile closure
   #     (BrokerClient/RelayDescriptor/DeviceAttributes/NetworkPathMonitor/BrokerEndpoint) so the §11
   #     pinned-key CI guard verifies the committed rotation vectors against the REAL
   #     AppConfig.relaySigningKeys constant — a typo'd pin fails CI here, not on rotation day.
+  #   - RelayRankerTests: the latency-bucket ladder reorder (RelayRanker + RelayReachability,
+  #     which its default probe closure references).
   # All sources are Foundation/UIKit/Network/CryptoKit only (no CocoaPods, no Libbox).
   OpenRungTests:
     type: bundle.unit-test
@@ -137,6 +139,8 @@ targets:
       - path: Shared/DeviceAttributes.swift
       - path: Shared/NetworkPathMonitor.swift
       - path: Shared/RelayDescriptor.swift
+      - path: Shared/RelayRanker.swift
+      - path: Shared/RelayReachability.swift
       - path: Shared/RelayReachabilityError.swift
       - path: Shared/RelayListVerifier.swift
     settings:

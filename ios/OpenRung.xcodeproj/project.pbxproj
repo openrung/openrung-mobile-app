@@ -18,6 +18,7 @@
 		0FECF7EABB4F538A378ECDFF /* RelayListVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = B42983C9E84DBA57FA9C2AA4 /* RelayListVerifier.swift */; };
 		1001D8102F7EA1A694366DFF /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A9B3E3F0BA7E28C5D05A1731 /* Images.xcassets */; };
 		101812ACF2D87E69B666B516 /* DeviceAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4E77D10C22E8939116D44BD /* DeviceAttributes.swift */; };
+		14A31DB460F1128BDFCECBE9 /* RelayReachability.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5AFE2F1F1556F9E70F0AC99 /* RelayReachability.swift */; };
 		160F427AA318BEC6A772654F /* SpeedTestClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A57C8F876ACF0B8B9BC73749 /* SpeedTestClient.swift */; };
 		1688E26406D6F8E93575AFCA /* CountryGeo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2570C01745DA49558877810 /* CountryGeo.swift */; };
 		2226FA02DA3CF06280AA3D27 /* CountryGeo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2570C01745DA49558877810 /* CountryGeo.swift */; };
@@ -38,6 +39,7 @@
 		3D8CFD33EED8FE7AE1FB3299 /* TelemetryEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49C9C9695B7E93F7A4F5460B /* TelemetryEvent.swift */; };
 		3E600B1A4A0F6A075AB8D6E7 /* FailureClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E89C58EA730C659109459911 /* FailureClassifierTests.swift */; };
 		4AF8C7F150317AC00E8B27FA /* PacketTunnel.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1EAA8B2F5746A87534F0C87B /* PacketTunnel.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		4B33639315FF6460341572DA /* RelayRanker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69D27334571CA6F3A5CEB1BD /* RelayRanker.swift */; };
 		4F5E5D33E5E0532AB1153B1C /* PacketTunnelProxyEngineError.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A0014BD8DAE8D1AB0AA819 /* PacketTunnelProxyEngineError.swift */; };
 		523936029217C10BD01D40DC /* ActivityLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C27022D3D9D7FEEC839F406 /* ActivityLog.swift */; };
 		597C72F1F64C95B607D0F5BD /* TelemetryOutboxState.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFA54F7B4B2DCC1F8706FD7C /* TelemetryOutboxState.swift */; };
@@ -63,6 +65,7 @@
 		A2BD7C4271FDE1F796CA7E77 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4783169BE46FEE9B0472504 /* AppConfig.swift */; };
 		A456EFF327FBA312F10D2DDA /* ActivityLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C27022D3D9D7FEEC839F406 /* ActivityLog.swift */; };
 		A47671E4D8F1625738EA3742 /* RelayReachability.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5AFE2F1F1556F9E70F0AC99 /* RelayReachability.swift */; };
+		A8F913880F45765F628CA0BE /* RelayRanker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69D27334571CA6F3A5CEB1BD /* RelayRanker.swift */; };
 		AAD6ED5EDDC44F6648B06B22 /* TelemetryOutboxState.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFA54F7B4B2DCC1F8706FD7C /* TelemetryOutboxState.swift */; };
 		ADCA603D15EE662D1B0A279C /* RelayReachabilityError.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8FF4517B34B4819F6DCD4D1 /* RelayReachabilityError.swift */; };
 		B466AFF5D620F556EA05524F /* RelaySelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD9B5CA88D770C6F0A9597FE /* RelaySelector.swift */; };
@@ -77,7 +80,9 @@
 		C43600EFCA0F80A743A653C5 /* RelayListVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = B42983C9E84DBA57FA9C2AA4 /* RelayListVerifier.swift */; };
 		C4B31101802A2AE5B0E26703 /* LibboxPacketTunnelPlatformInterface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97D23B885595CDD6DD259A85 /* LibboxPacketTunnelPlatformInterface.swift */; };
 		C98C9E042E602DF887F4B995 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A025739761D97ABD7227B8DA /* PrivacyInfo.xcprivacy */; };
+		CA3379CA0C7E8B6506A3861C /* RelayRankerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE70163A0AFAFED70BA816C7 /* RelayRankerTests.swift */; };
 		CCB2C474FEDC465EA9762C71 /* TelemetryClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4254868EF5882AD951E8D23B /* TelemetryClient.swift */; };
+		CDEAE1A5C571C1C12B15F55C /* RelayRanker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69D27334571CA6F3A5CEB1BD /* RelayRanker.swift */; };
 		CE5FF08F60EA9B59A3FAD581 /* RelayReachabilityError.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8FF4517B34B4819F6DCD4D1 /* RelayReachabilityError.swift */; };
 		D095482C735B4750F9AC99BB /* RelayDescriptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC6AEF8D510DD407C368119F /* RelayDescriptor.swift */; };
 		D222D8CD2611D57559062B89 /* NetworkPathMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C127CAD14278743A1BD298 /* NetworkPathMonitor.swift */; };
@@ -136,6 +141,7 @@
 		4B9BA54065E95B7262DA7A95 /* TunnelDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelDiagnostics.swift; sourceTree = "<group>"; };
 		584A04475F28B3CAC39B501E /* ConnectionStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStatus.swift; sourceTree = "<group>"; };
 		683F07997A392045B7540E47 /* BrokerClientError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrokerClientError.swift; sourceTree = "<group>"; };
+		69D27334571CA6F3A5CEB1BD /* RelayRanker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayRanker.swift; sourceTree = "<group>"; };
 		6A5299A99DA8ED8C75B1E25B /* TelemetrySession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetrySession.swift; sourceTree = "<group>"; };
 		719ACF45718CBF52773FCD6C /* OpenRungVpnModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRungVpnModule.swift; sourceTree = "<group>"; };
 		7A07146C137269D283F062DB /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -150,6 +156,7 @@
 		A57C8F876ACF0B8B9BC73749 /* SpeedTestClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeedTestClient.swift; sourceTree = "<group>"; };
 		A9B3E3F0BA7E28C5D05A1731 /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Images.xcassets; sourceTree = "<group>"; };
 		AB117725DF8A60D9A23412CC /* PacketTunnel.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PacketTunnel.entitlements; sourceTree = "<group>"; };
+		AE70163A0AFAFED70BA816C7 /* RelayRankerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayRankerTests.swift; sourceTree = "<group>"; };
 		B0C127CAD14278743A1BD298 /* NetworkPathMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkPathMonitor.swift; sourceTree = "<group>"; };
 		B3A0014BD8DAE8D1AB0AA819 /* PacketTunnelProxyEngineError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProxyEngineError.swift; sourceTree = "<group>"; };
 		B42983C9E84DBA57FA9C2AA4 /* RelayListVerifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayListVerifier.swift; sourceTree = "<group>"; };
@@ -224,6 +231,7 @@
 				B0C127CAD14278743A1BD298 /* NetworkPathMonitor.swift */,
 				DC6AEF8D510DD407C368119F /* RelayDescriptor.swift */,
 				B42983C9E84DBA57FA9C2AA4 /* RelayListVerifier.swift */,
+				69D27334571CA6F3A5CEB1BD /* RelayRanker.swift */,
 				D5AFE2F1F1556F9E70F0AC99 /* RelayReachability.swift */,
 				D8FF4517B34B4819F6DCD4D1 /* RelayReachabilityError.swift */,
 				FD9B5CA88D770C6F0A9597FE /* RelaySelector.swift */,
@@ -248,6 +256,7 @@
 				9771BD2BC7057921FF185C4C /* BrokerClientTests.swift */,
 				E89C58EA730C659109459911 /* FailureClassifierTests.swift */,
 				28939B9F48E675DE2070E2F5 /* RelayListVerifierTests.swift */,
+				AE70163A0AFAFED70BA816C7 /* RelayRankerTests.swift */,
 			);
 			path = OpenRungTests;
 			sourceTree = "<group>";
@@ -465,6 +474,7 @@
 				4F5E5D33E5E0532AB1153B1C /* PacketTunnelProxyEngineError.swift in Sources */,
 				D095482C735B4750F9AC99BB /* RelayDescriptor.swift in Sources */,
 				0FECF7EABB4F538A378ECDFF /* RelayListVerifier.swift in Sources */,
+				A8F913880F45765F628CA0BE /* RelayRanker.swift in Sources */,
 				C1A6F6AC896E2EE68FCD7AC9 /* RelayReachability.swift in Sources */,
 				CE5FF08F60EA9B59A3FAD581 /* RelayReachabilityError.swift in Sources */,
 				024B9A8C62881E530EB591B4 /* RelaySelector.swift in Sources */,
@@ -500,6 +510,9 @@
 				EB4BB9C6B76C65809224DF35 /* RelayDescriptor.swift in Sources */,
 				C43600EFCA0F80A743A653C5 /* RelayListVerifier.swift in Sources */,
 				D278AC91827C1FECF92B8E0E /* RelayListVerifierTests.swift in Sources */,
+				4B33639315FF6460341572DA /* RelayRanker.swift in Sources */,
+				CA3379CA0C7E8B6506A3861C /* RelayRankerTests.swift in Sources */,
+				14A31DB460F1128BDFCECBE9 /* RelayReachability.swift in Sources */,
 				E6799BE42347DC306ADF2213 /* RelayReachabilityError.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -525,6 +538,7 @@
 				F82F4E03FAD0D3DFDB106718 /* OpenRungVpnModule.swift in Sources */,
 				7AD3CF8197D457CDDC3CCBCE /* RelayDescriptor.swift in Sources */,
 				BAF6846398D40CC0F5AB1023 /* RelayListVerifier.swift in Sources */,
+				CDEAE1A5C571C1C12B15F55C /* RelayRanker.swift in Sources */,
 				A47671E4D8F1625738EA3742 /* RelayReachability.swift in Sources */,
 				ADCA603D15EE662D1B0A279C /* RelayReachabilityError.swift in Sources */,
 				B466AFF5D620F556EA05524F /* RelaySelector.swift in Sources */,
@@ -661,7 +675,7 @@
 					"\"$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)\"",
 					"\"$(inherited)\"",
 				);
-				MARKETING_VERSION = 0.2.7;
+				MARKETING_VERSION = "${APP_VERSION}";
 				MTL_ENABLE_DEBUG_INFO = YES;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -803,7 +817,7 @@
 					"\"$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)\"",
 					"\"$(inherited)\"",
 				);
-				MARKETING_VERSION = 0.2.7;
+				MARKETING_VERSION = "${APP_VERSION}";
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				OTHER_CPLUSPLUSFLAGS = (

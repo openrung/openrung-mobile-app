@@ -16,6 +16,7 @@
     <string name="log_broker_returned">broker returned %1$d relays; %2$d usable</string>
     <string name="log_connecting_country">connecting to a relay in %1$s</string>
     <string name="log_connecting_relay">connecting to relay %1$s</string>
+    <string name="log_rank_probing">measuring TCP latency to %1$d relays</string>
     <string name="log_trying_relay">trying relay %1$s at %2$s:%3$d</string>
     <string name="log_checking_relay_reachability">checking relay TCP reachability</string>
     <string name="log_punch_attempting">attempting a direct path to the relay</string>
