@@ -99,6 +99,13 @@ export const ar: Partial<Strings> = {
   licensesFullTextTitle: 'نصوص التراخيص الكاملة',
   licensesFullTextSubtitle: 'GNU GPL-3.0 وإشعارات الجهات الخارجية.',
   licensesComponentsHeader: 'المكوّنات',
+  shareApkTitle: 'مشاركة OpenRung دون اتصال',
+  shareApkSubtitle: 'أرسل ملف APK هذا إلى هاتف Android قريب دون إنترنت.',
+  shareApkErrorTitle: 'تعذّرت مشاركة OpenRung',
+  shareApkErrorBody:
+    'تعذّرت مشاركة ملف APK. أبقِ OpenRung مفتوحًا وحاول مرة أخرى.',
+  shareApkSplitInstallError:
+    'ثُبّتت هذه النسخة من عدة ملفات APK ولا يمكن مشاركتها بأمان. ثبّت ملف APK المستقل لـ OpenRung لاستخدام المشاركة دون اتصال.',
 
   // Home overlay and about screen.
   homeTagline: 'شبكة المُرحّلات',

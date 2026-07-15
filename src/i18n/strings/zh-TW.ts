@@ -92,6 +92,12 @@ export const zhTW: Partial<Strings> = {
   licensesFullTextTitle: '完整授權條款全文',
   licensesFullTextSubtitle: 'GNU GPL-3.0 與第三方聲明。',
   licensesComponentsHeader: '元件',
+  shareApkTitle: '離線分享 OpenRung',
+  shareApkSubtitle: '無需網際網路，將此 APK 傳送到附近的 Android 手機。',
+  shareApkErrorTitle: '無法分享 OpenRung',
+  shareApkErrorBody: '無法分享 APK。請保持 OpenRung 開啟並再試一次。',
+  shareApkSplitInstallError:
+    '此版本由多個 APK 檔案安裝，無法安全分享。請安裝 OpenRung 獨立 APK 後使用離線分享。',
 
   // Home tagline + about screen.
   homeTagline: '中繼網路',

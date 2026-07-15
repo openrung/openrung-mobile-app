@@ -108,6 +108,14 @@ export const my: Partial<Strings> = {
   licensesFullTextTitle: 'လိုင်စင် စာသားအပြည့်အစုံ',
   licensesFullTextSubtitle: 'GNU GPL-3.0 နှင့် ပြင်ပ အသိပေးချက်များ။',
   licensesComponentsHeader: 'အစိတ်အပိုင်းများ',
+  shareApkTitle: 'OpenRung ကို အင်တာနက်မလိုဘဲ မျှဝေပါ',
+  shareApkSubtitle:
+    'ဤ APK ကို အင်တာနက်မလိုဘဲ အနီးရှိ Android ဖုန်းသို့ ပို့ပါ။',
+  shareApkErrorTitle: 'OpenRung ကို မျှဝေ၍မရပါ',
+  shareApkErrorBody:
+    'APK ကို မျှဝေ၍မရပါ။ OpenRung ကို ဖွင့်ထားပြီး ထပ်မံကြိုးစားပါ။',
+  shareApkSplitInstallError:
+    'ဤမိတ္တူကို APK ဖိုင်များစွာဖြင့် ထည့်သွင်းထားသဖြင့် လုံခြုံစွာ မျှဝေ၍မရပါ။ အင်တာနက်မလိုဘဲ မျှဝေရန် OpenRung ၏ သီးခြား APK ကို ထည့်သွင်းပါ။',
 
   // Home overlay tagline.
   homeTagline: 'ရီလေး ကွန်ရက်',

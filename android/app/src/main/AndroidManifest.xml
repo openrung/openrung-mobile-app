@@ -29,6 +29,12 @@
         </intent-filter>
       </activity>
 
+      <provider
+        android:name=".share.InstalledApkProvider"
+        android:authorities="${applicationId}.apk-share"
+        android:exported="false"
+        android:grantUriPermissions="true" />
+
       <service
         android:name=".vpn.OpenRungVpnService"
         android:exported="false"

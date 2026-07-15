@@ -95,6 +95,14 @@ export const vi: Partial<Strings> = {
   licensesFullTextTitle: 'Toàn văn giấy phép',
   licensesFullTextSubtitle: 'GNU GPL-3.0 và thông báo của bên thứ ba.',
   licensesComponentsHeader: 'Thành phần',
+  shareApkTitle: 'Chia sẻ OpenRung ngoại tuyến',
+  shareApkSubtitle:
+    'Gửi APK này đến một điện thoại Android ở gần mà không cần Internet.',
+  shareApkErrorTitle: 'Không thể chia sẻ OpenRung',
+  shareApkErrorBody:
+    'Không thể chia sẻ APK. Hãy giữ OpenRung đang mở và thử lại.',
+  shareApkSplitInstallError:
+    'Bản này được cài bằng nhiều tệp APK nên không thể chia sẻ an toàn. Hãy cài APK OpenRung độc lập để dùng tính năng chia sẻ ngoại tuyến.',
 
   // Home overlay and about screen.
   homeTagline: 'mạng lưới relay',

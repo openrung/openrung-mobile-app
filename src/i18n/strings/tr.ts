@@ -100,6 +100,13 @@ export const tr: Partial<Strings> = {
   licensesFullTextTitle: 'Tam lisans metinleri',
   licensesFullTextSubtitle: 'GNU GPL-3.0 ve üçüncü taraf bildirimleri.',
   licensesComponentsHeader: 'Bileşenler',
+  shareApkTitle: "OpenRung'u çevrimdışı paylaş",
+  shareApkSubtitle:
+    "Bu APK'yı internet olmadan yakındaki bir Android telefona gönderin.",
+  shareApkErrorTitle: 'OpenRung paylaşılamıyor',
+  shareApkErrorBody: "APK paylaşılamadı. OpenRung'u açık tutup tekrar deneyin.",
+  shareApkSplitInstallError:
+    "Bu kopya birden fazla APK dosyasıyla yüklendiği için güvenle paylaşılamaz. Çevrimdışı paylaşım için bağımsız OpenRung APK'sını yükleyin.",
 
   // Home overlay tagline.
   homeTagline: 'röle ağı',

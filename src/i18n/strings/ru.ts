@@ -97,6 +97,14 @@ export const ru: Partial<Strings> = {
   licensesFullTextTitle: 'Полные тексты лицензий',
   licensesFullTextSubtitle: 'GNU GPL-3.0 и уведомления третьих сторон.',
   licensesComponentsHeader: 'Компоненты',
+  shareApkTitle: 'Поделиться OpenRung офлайн',
+  shareApkSubtitle:
+    'Отправьте этот APK на ближайший Android-телефон без интернета.',
+  shareApkErrorTitle: 'Не удалось поделиться OpenRung',
+  shareApkErrorBody:
+    'Не удалось поделиться APK. Оставьте OpenRung открытым и повторите попытку.',
+  shareApkSplitInstallError:
+    'Эта копия установлена из нескольких APK и не может быть безопасно передана. Установите отдельный APK OpenRung, чтобы использовать офлайн-обмен.',
 
   // Home overlay / about screen.
   homeTagline: 'сеть ретрансляторов',

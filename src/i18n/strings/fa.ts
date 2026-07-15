@@ -98,6 +98,14 @@ export const fa: Partial<Strings> = {
   licensesFullTextTitle: 'متن کامل مجوزها',
   licensesFullTextSubtitle: 'GNU GPL-3.0 و اعلان‌های اشخاص ثالث.',
   licensesComponentsHeader: 'مؤلفه‌ها',
+  shareApkTitle: 'اشتراک‌گذاری آفلاین OpenRung',
+  shareApkSubtitle:
+    'این فایل APK را بدون اینترنت به یک گوشی Android نزدیک بفرستید.',
+  shareApkErrorTitle: 'اشتراک‌گذاری OpenRung ممکن نیست',
+  shareApkErrorBody:
+    'فایل APK قابل اشتراک‌گذاری نبود. OpenRung را باز نگه دارید و دوباره تلاش کنید.',
+  shareApkSplitInstallError:
+    'این نسخه با چند فایل APK نصب شده است و نمی‌توان آن را به‌طور امن به اشتراک گذاشت. برای اشتراک‌گذاری آفلاین، فایل APK مستقل OpenRung را نصب کنید.',
 
   // Home tagline + about screen.
   homeTagline: 'شبکهٔ رله‌ها',

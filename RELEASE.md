@@ -105,6 +105,18 @@ advertising the replacement endpoint/certificate.
   repository must be reachable by whoever receives the build (GPL §6). If the
   repo is private, publish it or a mirror before external distribution.
 
+### Android offline-sharing check
+
+Install the signed `assembleRelease` artifact on an Android device and confirm
+that Settings → General → "Share OpenRung offline" opens the system sharesheet
+with an `OpenRung-<version>.apk` attachment.
+`adb shell pm path com.openrung.mobile` must report exactly one APK path for the
+release used in this test. The app intentionally refuses installs with
+`splitSourceDirs`, because their `sourceDir` is only `base.apk` and cannot be
+installed independently on the receiving phone. Complete one offline
+phone-to-phone transfer and verify the received APK's SHA-256 and signing
+certificate against the original release artifact before publishing.
+
 ## 4. App Store / DRM caveat (must be resolved separately)
 
 Distributing a GPL-linked binary through the App Store (and likely external
