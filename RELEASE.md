@@ -51,7 +51,7 @@ A punch wire/protocol change flows like this:
    `android/punchbridge`. Either way the bump automatically busts the AAR CI
    caches (both cache keys hash `go.mod`/`go.sum`), and the bump PR itself
    rebuilds the AAR and runs the Android unit tests via
-   `android-punch-check.yml`.
+   `.github/workflows/android-unit-test.yml`.
 4. Rebuild the AAR via `android/build-libbox-release.sh` and ship.
 
 For local cross-repo development against an untagged punchcore checkout, use an
