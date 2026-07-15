@@ -2,8 +2,9 @@
 # punchcore/vX.Y.Z (see RELEASE.md "Bumping the punchcore pin"). Scoped to that
 # one module on purpose: sing-box pins its own dependency set (SINGBOX_VERSION
 # is the source of truth for the native engine), so generic bumps here would
-# fight the graft. The bump PR path-matches android-punch-check.yml, which
-# rebuilds the AAR from scratch and runs the Android unit tests against it.
+# fight the graft. The bump PR path-matches android-unit-test.yml; changes to
+# go.mod/go.sum invalidate the AAR cache, so CI rebuilds the AAR and runs the
+# Android unit tests against it.
 version: 2
 updates:
   - package-ecosystem: gomod
