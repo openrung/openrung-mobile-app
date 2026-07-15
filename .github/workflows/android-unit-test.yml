@@ -1,0 +1,68 @@
+name: Android app unit tests
+
+on:
+  pull_request:
+    paths:
+      - 'android/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'react-native.config.js'
+      - 'SINGBOX_VERSION'
+      - '.github/workflows/android-unit-test.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'react-native.config.js'
+      - 'SINGBOX_VERSION'
+      - '.github/workflows/android-unit-test.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+          cache-dependency-path: android/punchbridge/go.sum
+      - uses: android-actions/setup-android@v3
+      - name: Install Android NDKs
+        run: sdkmanager "ndk;29.0.14206865" "ndk;27.1.12297006"
+      - name: Cache combined libbox AAR
+        id: libbox
+        uses: actions/cache@v4
+        with:
+          path: android/app/libs/libbox.aar
+          key: libbox-${{ hashFiles('SINGBOX_VERSION', 'android/build-libbox-release.sh', 'android/punchbridge/**/*.go', 'android/punchbridge/go.mod', 'android/punchbridge/go.sum') }}
+      - name: Install gomobile
+        if: steps.libbox.outputs.cache-hit != 'true'
+        run: |
+          go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.12
+          go install github.com/sagernet/gomobile/cmd/gobind@v0.1.12
+      - name: Build combined libbox AAR
+        if: steps.libbox.outputs.cache-hit != 'true'
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/29.0.14206865"
+          export ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/29.0.14206865"
+          bash android/build-libbox-release.sh
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Compile app and run Android unit tests
+        working-directory: android
+        run: ./gradlew --no-daemon :app:testDebugUnitTest --stacktrace
