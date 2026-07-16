@@ -136,6 +136,7 @@ jest.mock('react-native-bottom-tabs', () => {
 });
 
 import App from '../App';
+import { AppConfig } from '../src/config';
 
 // Keep the directory refresh (broker fetch) off the real network: reject fast so
 // the store settles to 'failed' within the test instead of after teardown.
@@ -146,17 +147,26 @@ beforeAll(() => {
 });
 
 test('renders correctly', async () => {
+  jest.useFakeTimers();
   let tree: ReactTestRenderer.ReactTestRenderer | undefined;
-  await ReactTestRenderer.act(async () => {
-    tree = ReactTestRenderer.create(<App />);
-  });
-  // Let mount-time async work settle inside act: native getState() seed,
-  // language hydration, and the (stubbed, rejecting) directory load.
-  await ReactTestRenderer.act(async () => {
-    await Promise.resolve();
-  });
-  // Unmount so nothing can schedule React updates after the test ends.
-  await ReactTestRenderer.act(async () => {
-    tree?.unmount();
-  });
+  try {
+    await ReactTestRenderer.act(async () => {
+      tree = ReactTestRenderer.create(<App />);
+    });
+    // Let mount-time async work settle inside act: native getState() seed,
+    // language hydration, and every staggered broker candidate. The fetch mock
+    // rejects each candidate immediately, but later candidates still wait for
+    // the production stagger timer before joining the race.
+    await ReactTestRenderer.act(async () => {
+      await jest.advanceTimersByTimeAsync(
+        AppConfig.DISCOVERY_STAGGER_MS * AppConfig.DEFAULT_BROKER_URLS.length,
+      );
+    });
+  } finally {
+    // Unmount so component timers cannot schedule updates after the test ends.
+    await ReactTestRenderer.act(async () => {
+      tree?.unmount();
+    });
+    jest.useRealTimers();
+  }
 });
