@@ -69,6 +69,9 @@ side-by-side with them.
 - 🌃 **Terminal cyberpunk theme** — the production green-on-black palette
   (`#65F58A` on `#030604`), all-monospace type, neon glows and HUD accents.
 - 🌍 **10 locales** — persisted per-app language selection.
+- 📦 **Offline Android sharing** — send the installed, signed APK through the
+  system sharesheet to Quick Share or any compatible nearby-transfer app; no
+  network or storage permission is required.
 - 🕳️ **Direct volunteer-run CGNAT relays on Android** — NAT punching establishes
   a client↔relay QUIC path and keeps RelayHub out of the data plane whenever
   both NATs permit it, with certificate-pinned coordination, end-to-end health
@@ -86,7 +89,8 @@ side-by-side with them.
   reachability, direct NAT punching for volunteer-run CGNAT relays,
   sing-box/libbox engine,
   TUN + DNS, internet probe, connection-failure handling, heartbeat telemetry,
-  plus the `OpenRungVpn` React Native module that bridges it.
+  the `OpenRungVpn` React Native module that bridges it, and a separate
+  read-only installed-APK provider for offline sharing.
 - **iOS native (`ios/`)** — the production `NEPacketTunnelProvider` extension,
   shared Swift sources compiled into both targets, and an `OpenRungVpnModule`
   bridging `NETunnelProviderManager` + app-group shared state to React Native.
@@ -234,6 +238,9 @@ mock simulator — useful for UI work and demos, but no traffic is routed.
   (NetworkExtension requires a signed device build).
 - iOS does not yet consume `punch_capable`; volunteer-run CGNAT relays use
   RelayHub there.
+- Android offline sharing supports the monolithic APK produced by
+  `assembleRelease`. Installs made from split APKs are rejected because sharing
+  only their `base.apk` would produce an incomplete, un-installable copy.
 - Telemetry from TypeScript covers only speed-test events; the native connect
   path keeps full production telemetry.
 

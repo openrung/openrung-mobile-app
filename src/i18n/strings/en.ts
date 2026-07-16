@@ -72,6 +72,13 @@ export const en = {
   licensesFullTextTitle: 'Full license texts',
   licensesFullTextSubtitle: 'GNU GPL-3.0 and third-party notices.',
   licensesComponentsHeader: 'Components',
+  shareApkTitle: 'Share OpenRung offline',
+  shareApkSubtitle: 'Send this APK to a nearby Android phone without internet.',
+  shareApkErrorTitle: 'Unable to share OpenRung',
+  shareApkErrorBody:
+    'The APK could not be shared. Keep OpenRung open and try again.',
+  shareApkSplitInstallError:
+    'This copy was installed as multiple APK files and cannot be shared safely. Install the standalone OpenRung APK to use offline sharing.',
 
   // --- Redesigned shell (tabs, home overlay, about) ---
   tabHome: 'Home',

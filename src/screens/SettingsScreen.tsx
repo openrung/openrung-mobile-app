@@ -1,18 +1,23 @@
 /**
  * Settings tab. Large title (it's a root tab now — no back arrow), then
- * sectioned panels: GENERAL (language) and DIAGNOSTICS (relay speed test,
- * debug console). Version and licenses live on the About tab. The language
- * picker mirrors the production dropdown semantics with a dark-styled modal
- * list; the speed test RUN button is enabled only while connected and not
- * already running.
+ * sectioned panels: GENERAL (language and Android offline sharing) and
+ * DIAGNOSTICS (relay speed test, debug console). Version and licenses live on
+ * the About tab. The language picker mirrors the production dropdown semantics
+ * with a dark-styled modal list; the speed test RUN button is enabled only
+ * while connected and not already running.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SettingPanel } from '../components/SettingPanel';
 import { AppConfig } from '../config';
 import { languageOptions, useLanguage, useStrings } from '../i18n';
+import {
+  apkShareErrorCode,
+  isApkShareAvailable,
+  shareInstalledApk,
+} from '../native/OpenRungApkShare';
 import { OpenRungVpn } from '../native/OpenRungVpn';
 import { runSpeedTest, type SpeedTestResult } from '../net/speedTestClient';
 import {
@@ -61,6 +66,16 @@ export function SettingsScreen({ onOpenDebug }: SettingsScreenProps): React.JSX.
           : s.speedTestReady;
 
   const runEnabled = isConnected && !speedTestRunning;
+
+  const onShareApk = useCallback(() => {
+    shareInstalledApk(s.shareApkTitle).catch(error => {
+      const message =
+        apkShareErrorCode(error) === 'E_SPLIT_APK_INSTALL'
+          ? s.shareApkSplitInstallError
+          : s.shareApkErrorBody;
+      Alert.alert(s.shareApkErrorTitle, message);
+    });
+  }, [s]);
 
   const onRunSpeedTest = useCallback(() => {
     const controller = new AbortController();
@@ -140,6 +155,13 @@ export function SettingsScreen({ onOpenDebug }: SettingsScreenProps): React.JSX.
         subtitle={s.languageSettingSubtitle}
         trailing={<LanguagePicker />}
       />
+      {isApkShareAvailable ? (
+        <SettingPanel
+          title={s.shareApkTitle}
+          subtitle={s.shareApkSubtitle}
+          onPress={onShareApk}
+        />
+      ) : null}
 
       <Text style={styles.sectionHeader}>{s.settingsDiagnosticsHeader.toUpperCase()}</Text>
       <SettingPanel

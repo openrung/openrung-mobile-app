@@ -9,7 +9,9 @@ A React Native (TypeScript) shell owns all UI and the "app-process" logic of
 the production OpenRung clients, while the entire VPN connect path is a
 verbatim port of the production native code — a Kotlin `VpnService` on
 Android, a Swift `NEPacketTunnelProvider` extension on iOS — exposed to
-TypeScript through one small bridge module, `OpenRungVpn`.
+TypeScript through one small cross-platform bridge module, `OpenRungVpn`.
+Android-only OS integrations, such as installed-APK sharing, use separate
+modules so they do not widen the VPN contract.
 
 ## Division of responsibility
 
@@ -164,6 +166,21 @@ shape (the RN 0.86 bridgeless interop layer handles it):
 
 `src/native/types.ts` is the single source of truth for these types.
 
+### Android-only offline APK sharing
+
+The Settings tab's General section has a "Share OpenRung offline" row that calls
+the separate `OpenRungApkShare` native module. `InstalledApkProvider` exposes
+one exact, read-only `content://` URI for the package's own installed APK and
+the module opens the standard `ACTION_SEND` chooser with a temporary read
+grant. The provider streams `ApplicationInfo.sourceDir` directly, so sharing
+does not keep a second copy of the large APK in app storage.
+
+This path is enabled only for a monolithic installation. If
+`ApplicationInfo.splitSourceDirs` is non-empty, the module rejects the action:
+`sourceDir` is only `base.apk`, and sending it without its configuration splits
+would give the recipient an incomplete app. No storage or package-install
+permission is requested by the sender.
+
 ### The mock
 
 When `NativeModules.OpenRungVpn` is missing (Jest, or Metro attached to a
@@ -206,6 +223,9 @@ are not ported (TS owns them). Key pieces:
   (`openrung_status`).
 - `bridge/OpenRungVpnModule.kt` — implements the contract; collects the
   status store's flow, maps it to a WritableMap, emits events.
+- `bridge/OpenRungApkShareModule.kt` + `share/InstalledApkProvider.kt` —
+  Android-only sharesheet integration for streaming the installed monolithic
+  APK through a narrowly scoped, temporary URI grant.
 - libbox arrives as a git-ignored local AAR (`app/libs/libbox.aar`,
   conditional Gradle file dependency); a `StubProxyEngine` that throws
   "engine not linked" protects checkouts without the AAR.
