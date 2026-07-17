@@ -198,9 +198,9 @@ production app:
 | --- | --- | --- |
 | Android applicationId | `com.openrung.client` | `com.openrung.mobile` |
 | Kotlin root package | `com.openrung.client` | `com.openrung` |
-| iOS app / extension | `com.openrung.client(.PacketTunnel)` | `com.openrung.mobile(.PacketTunnel)` |
-| App group | `group.com.openrung.client` | `group.com.openrung.mobile` |
-| Darwin notification | `com.openrung.client.state-changed` | `com.openrung.mobile.state-changed` |
+| iOS app / extension | `com.openrung.client(.PacketTunnel)` | `com.openrung.app(.PacketTunnel)` |
+| App group | `group.com.openrung.client` | `group.com.openrung.app` |
+| Darwin notification | `com.openrung.client.state-changed` | `com.openrung.app.state-changed` |
 
 ## Android native (§6)
 

@@ -4,8 +4,8 @@ enum AppConfig {
     static let vpnProfileName = "OpenRung VPN"
     // Recognized only to adopt an existing pre-rename profile without creating a duplicate.
     static let legacyVPNProfileName = "OpenRung Volunteer VPN"
-    static let appGroupIdentifier = "group.com.openrung.mobile"
-    static let packetTunnelBundleIdentifier = "com.openrung.mobile.PacketTunnel"
+    static let appGroupIdentifier = "group.com.openrung.app"
+    static let packetTunnelBundleIdentifier = "com.openrung.app.PacketTunnel"
     static let providerBrokerURLKey = "broker_url"
     static let providerTargetCountryKey = "target_country"
     static let providerTargetRelayIDKey = "target_relay_id"
@@ -88,14 +88,14 @@ enum AppConfig {
     /// RN/Kotlin AppConfigs — the staggered-race semantics are identical across all four clients.
     static let discoveryStaggerMs: UInt64 = 2_500
 
-    static let loggingSubsystem = "com.openrung.mobile.PacketTunnel"
+    static let loggingSubsystem = "com.openrung.app.PacketTunnel"
     static let engineDirectoryName = "OpenRungPacketTunnel"
     static let relayLimit = 5
     static let directoryRelayLimit = 20
     static let maxRecents = 8
 
     // App ↔ extension shared-state plumbing.
-    static let darwinNotificationName = "com.openrung.mobile.state-changed"
+    static let darwinNotificationName = "com.openrung.app.state-changed"
     static let telemetryOutboxFilename = "outbox.json"
 
     // Heartbeat cadence (random in this range), matching Android.
