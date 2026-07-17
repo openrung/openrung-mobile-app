@@ -92,6 +92,9 @@ export const vi: Partial<Strings> = {
   licensesIntro:
     'OpenRung là phần mềm tự do được cấp phép theo GPL-3.0-or-later vì nó liên kết sing-box. Toàn bộ mã nguồn tương ứng của bản dựng này có sẵn tại liên kết bên dưới.',
   licensesSourceTitle: 'Mã nguồn',
+  privacyPolicyTitle: 'Chính sách quyền riêng tư',
+  privacyPolicySubtitle:
+    'Cách OpenRung xử lý dữ liệu chẩn đoán bản beta và thông tin cá nhân.',
   licensesFullTextTitle: 'Toàn văn giấy phép',
   licensesFullTextSubtitle: 'GNU GPL-3.0 và thông báo của bên thứ ba.',
   licensesComponentsHeader: 'Thành phần',

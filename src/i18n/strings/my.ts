@@ -105,6 +105,9 @@ export const my: Partial<Strings> = {
   licensesIntro:
     'OpenRung သည် sing-box ကို ချိတ်ဆက်အသုံးပြုသောကြောင့် GPL-3.0-or-later အောက်တွင် လိုင်စင်ရရှိထားသော အခမဲ့ဆော့ဖ်ဝဲ ဖြစ်သည်။ ဤ build အတွက် ပြည့်စုံသော သက်ဆိုင်ရာ အရင်းအမြစ်ကုဒ်ကို အောက်ပါ လင့်ခ်တွင် ရယူနိုင်သည်။',
   licensesSourceTitle: 'အရင်းအမြစ်ကုဒ်',
+  privacyPolicyTitle: 'ကိုယ်ရေးအချက်အလက် မူဝါဒ',
+  privacyPolicySubtitle:
+    'OpenRung သည် beta စမ်းသပ်မှုဆိုင်ရာ အမှားရှာဖွေဒေတာနှင့် ကိုယ်ရေးအချက်အလက်များကို ကိုင်တွယ်ပုံ။',
   licensesFullTextTitle: 'လိုင်စင် စာသားအပြည့်အစုံ',
   licensesFullTextSubtitle: 'GNU GPL-3.0 နှင့် ပြင်ပ အသိပေးချက်များ။',
   licensesComponentsHeader: 'အစိတ်အပိုင်းများ',

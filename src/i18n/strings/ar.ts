@@ -96,6 +96,9 @@ export const ar: Partial<Strings> = {
   licensesIntro:
     'OpenRung برمجية حرة مُرخّصة بموجب GPL-3.0-or-later لأنها ترتبط بـ sing-box. الكود المصدري الكامل المقابل لهذا الإصدار متاح عبر الرابط أدناه.',
   licensesSourceTitle: 'الكود المصدري',
+  privacyPolicyTitle: 'سياسة الخصوصية',
+  privacyPolicySubtitle:
+    'كيفية تعامل OpenRung مع بيانات تشخيص النسخة التجريبية والمعلومات الشخصية.',
   licensesFullTextTitle: 'نصوص التراخيص الكاملة',
   licensesFullTextSubtitle: 'GNU GPL-3.0 وإشعارات الجهات الخارجية.',
   licensesComponentsHeader: 'المكوّنات',

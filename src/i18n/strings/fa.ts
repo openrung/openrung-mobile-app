@@ -95,6 +95,9 @@ export const fa: Partial<Strings> = {
   licensesIntro:
     'OpenRung نرم‌افزار آزاد است و چون به sing-box پیوند می‌خورد، تحت مجوز GPL-3.0-or-later منتشر شده است. کد منبع کامل و متناظر این نسخه از طریق پیوند زیر در دسترس است.',
   licensesSourceTitle: 'کد منبع',
+  privacyPolicyTitle: 'سیاست حفظ حریم خصوصی',
+  privacyPolicySubtitle:
+    'نحوهٔ مدیریت داده‌های تشخیصی نسخهٔ آزمایشی و اطلاعات شخصی توسط OpenRung.',
   licensesFullTextTitle: 'متن کامل مجوزها',
   licensesFullTextSubtitle: 'GNU GPL-3.0 و اعلان‌های اشخاص ثالث.',
   licensesComponentsHeader: 'مؤلفه‌ها',

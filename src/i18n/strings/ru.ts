@@ -94,6 +94,9 @@ export const ru: Partial<Strings> = {
   licensesIntro:
     'OpenRung — свободное программное обеспечение под лицензией GPL-3.0-or-later, поскольку использует sing-box. Полный соответствующий исходный код этой сборки доступен по ссылке ниже.',
   licensesSourceTitle: 'Исходный код',
+  privacyPolicyTitle: 'Политика конфиденциальности',
+  privacyPolicySubtitle:
+    'Как OpenRung обрабатывает диагностические данные бета-версии и персональную информацию.',
   licensesFullTextTitle: 'Полные тексты лицензий',
   licensesFullTextSubtitle: 'GNU GPL-3.0 и уведомления третьих сторон.',
   licensesComponentsHeader: 'Компоненты',

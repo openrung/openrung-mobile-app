@@ -69,6 +69,8 @@ export const en = {
   licensesIntro:
     'OpenRung is free software licensed under GPL-3.0-or-later because it links sing-box. The complete corresponding source for this build is available at the link below.',
   licensesSourceTitle: 'Source code',
+  privacyPolicyTitle: 'Privacy policy',
+  privacyPolicySubtitle: 'How OpenRung handles beta diagnostics and personal information.',
   licensesFullTextTitle: 'Full license texts',
   licensesFullTextSubtitle: 'GNU GPL-3.0 and third-party notices.',
   licensesComponentsHeader: 'Components',

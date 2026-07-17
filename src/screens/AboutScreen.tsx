@@ -39,6 +39,12 @@ export function AboutScreen({ onOpenLicenses }: AboutScreenProps): React.JSX.Ele
     });
   }, []);
 
+  const onOpenPrivacy = useCallback(() => {
+    Linking.openURL(AppConfig.PRIVACY_URL).catch(() => {
+      // Ignore: no browser available.
+    });
+  }, []);
+
   return (
     <ScrollView
       style={styles.root}
@@ -81,6 +87,11 @@ export function AboutScreen({ onOpenLicenses }: AboutScreenProps): React.JSX.Ele
         title={s.licensesSourceTitle}
         subtitle={AppConfig.SOURCE_URL}
         onPress={onOpenSource}
+      />
+      <SettingPanel
+        title={s.privacyPolicyTitle}
+        subtitle={s.privacyPolicySubtitle}
+        onPress={onOpenPrivacy}
       />
       <SettingPanel
         title={s.licensesSettingTitle}

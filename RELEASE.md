@@ -117,7 +117,29 @@ installed independently on the receiving phone. Complete one offline
 phone-to-phone transfer and verify the received APK's SHA-256 and signing
 certificate against the original release artifact before publishing.
 
-## 4. App Store / DRM caveat (must be resolved separately)
+## 4. Verify Apple privacy disclosures
+
+Before every TestFlight or App Store submission, confirm the public policy at
+`https://www.openrung.org/privacy` still matches the shipping iOS telemetry.
+Then update and publish the App Privacy answers in App Store Connect. The
+answers must match [`ios/OpenRung/PrivacyInfo.xcprivacy`](ios/OpenRung/PrivacyInfo.xcprivacy):
+
+| App Store Connect data type | Current iOS beta data | Linked to user | Purposes |
+| --- | --- | --- | --- |
+| Coarse Location | IP-derived country and city | Yes | App Functionality; Analytics |
+| Device ID | Persistent installation ID plus connection/session/event IDs linked to it | Yes | App Functionality; Analytics |
+| Product Interaction | Connection attempts and outcomes, relay choice, manual speed tests | Yes | App Functionality; Analytics |
+| Other Usage Data | Session/connection duration, heartbeats, and cumulative traffic totals | Yes | App Functionality; Analytics |
+| Performance Data | Broker, relay, tunnel, probe, and speed-test timings | Yes | App Functionality; Analytics |
+| Other Diagnostic Data | Failure details plus app, OS, device, and network diagnostics | Yes | App Functionality; Analytics |
+| Other Data Types | Public/source IP, provider/organization/ASN, locale, time zone, and network state | Yes | App Functionality; Analytics |
+
+All current types are **not used for tracking**. Also set the App Store Connect
+Privacy Policy URL to `https://www.openrung.org/privacy`. If the telemetry
+schema changes, update the manifest, this table, the public policy, and App
+Store Connect together before distributing the new build.
+
+## 5. App Store / DRM caveat (must be resolved separately)
 
 Distributing a GPL-linked binary through the App Store (and likely external
 TestFlight) conflicts with Apple's Usage Rules / DRM under GPL §6/§10. This is
@@ -125,7 +147,7 @@ TestFlight) conflicts with Apple's Usage Rules / DRM under GPL §6/§10. This is
 either obtain a licensing exception from SagerNet for sing-box or move the
 engine out-of-process. Google Play does not have the equivalent conflict.
 
-## 5. Retention
+## 6. Retention
 
 OpenRung provides the corresponding source for at least **three (3) years**
 after distribution. Keep the tagged commit (including `android/punchbridge`) +
@@ -135,7 +157,7 @@ the `openrung/openrung` repository recorded in `android/punchbridge/go.mod`)
 reachable for that long. This extends the 3-year retention promise to the
 `openrung/openrung` repository's tagged history.
 
-## 6. Bumping the app version
+## 7. Bumping the app version
 
 The version **string** lives in exactly one place — `version` in
 [`package.json`](package.json). Everything else derives from it, so never edit
