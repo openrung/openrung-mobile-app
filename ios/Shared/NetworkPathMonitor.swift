@@ -16,7 +16,7 @@ public final class NetworkPathMonitor: @unchecked Sendable {
     public static let shared = NetworkPathMonitor()
 
     private let monitor = NWPathMonitor()
-    private let queue = DispatchQueue(label: "com.openrung.mobile.networkpath")
+    private let queue = DispatchQueue(label: "com.openrung.app.networkpath")
     private let lock = NSLock()
     private var snapshot: NetworkPathSnapshot = .unknown
     private var started = false

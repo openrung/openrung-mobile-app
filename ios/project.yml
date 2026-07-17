@@ -14,7 +14,7 @@ settings:
     # Injected from package.json by scripts/generate-project.sh (the app version string is
     # single-sourced there; check-versions.mjs enforces the baked pbxproj value matches).
     MARKETING_VERSION: "${APP_VERSION}"
-    CURRENT_PROJECT_VERSION: "6"
+    CURRENT_PROJECT_VERSION: "8"
     DEVELOPMENT_TEAM: 9VLV9A7KS9
     CODE_SIGN_STYLE: Automatic
     # The RN bundle phase writes outside the sandbox; Xcode 15+ would block it otherwise.
@@ -62,7 +62,7 @@ targets:
       - target: PacketTunnel
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.openrung.mobile
+        PRODUCT_BUNDLE_IDENTIFIER: com.openrung.app
         PRODUCT_NAME: OpenRung
         INFOPLIST_FILE: OpenRung/Info.plist
         CODE_SIGN_ENTITLEMENTS: OpenRung/OpenRung.entitlements
@@ -107,7 +107,7 @@ targets:
       - sdk: libresolv.tbd
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.openrung.mobile.PacketTunnel
+        PRODUCT_BUNDLE_IDENTIFIER: com.openrung.app.PacketTunnel
         INFOPLIST_FILE: PacketTunnel/Info.plist
         CODE_SIGN_ENTITLEMENTS: PacketTunnel/PacketTunnel.entitlements
         APPLICATION_EXTENSION_API_ONLY: "YES"
@@ -145,7 +145,7 @@ targets:
       - path: Shared/RelayListVerifier.swift
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.openrung.mobile.OpenRungTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.openrung.app.OpenRungTests
         GENERATE_INFOPLIST_FILE: "YES"
         CODE_SIGNING_ALLOWED: "NO"
 

@@ -8,7 +8,7 @@
 	</array>
 	<key>com.apple.security.application-groups</key>
 	<array>
-		<string>group.com.openrung.mobile</string>
+		<string>group.com.openrung.app</string>
 	</array>
 </dict>
 </plist>

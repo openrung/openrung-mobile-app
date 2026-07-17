@@ -20,7 +20,7 @@ public enum RelayReachability {
         }
 
         let connection = NWConnection(host: NWEndpoint.Host(host), port: nwPort, using: .tcp)
-        let queue = DispatchQueue(label: "com.openrung.mobile.reachability")
+        let queue = DispatchQueue(label: "com.openrung.app.reachability")
         let startedNs = DispatchTime.now().uptimeNanoseconds
 
         final class ResumeGuard: @unchecked Sendable {

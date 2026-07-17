@@ -40,13 +40,13 @@ NOT that the OS blocks traffic while the VPN is down.
 | Android applicationId | `com.openrung.mobile` |
 | Android namespace / Kotlin root package | `com.openrung` |
 | Android minSdk / compile / target | 26 / 36 / 36 (minSdk raised from RN default 24) |
-| iOS app bundle id | `com.openrung.mobile` |
-| iOS extension bundle id | `com.openrung.mobile.PacketTunnel` |
-| iOS app group | `group.com.openrung.mobile` |
+| iOS app bundle id | `com.openrung.app` |
+| iOS extension bundle id | `com.openrung.app.PacketTunnel` |
+| iOS app group | `group.com.openrung.app` |
 | iOS VPN profile localizedDescription | `OpenRung VPN` |
 | iOS deployment target | 16.0 |
 | DEVELOPMENT_TEAM | `9VLV9A7KS9` |
-| Darwin notification (ext→app) | `com.openrung.mobile.state-changed` |
+| Darwin notification (ext→app) | `com.openrung.app.state-changed` |
 
 The production identifiers (`com.openrung.client`, `group.com.openrung.client`,
 `com.openrung.client.state-changed`) are NOT reused so both apps install
