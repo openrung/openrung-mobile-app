@@ -97,6 +97,8 @@ export const zhCN: Partial<Strings> = {
   licensesIntro:
     'OpenRung 是自由软件，依据 GPL-3.0-or-later 授权，因为它链接了 sing-box。本次构建的完整对应源代码可通过下方链接获取。',
   licensesSourceTitle: '源代码',
+  privacyPolicyTitle: '隐私政策',
+  privacyPolicySubtitle: 'OpenRung 如何处理测试版诊断数据和个人信息。',
   licensesFullTextTitle: '完整许可文本',
   licensesFullTextSubtitle: 'GNU GPL-3.0 及第三方声明。',
   licensesComponentsHeader: '组件',

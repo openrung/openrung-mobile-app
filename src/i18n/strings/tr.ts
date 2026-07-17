@@ -97,6 +97,9 @@ export const tr: Partial<Strings> = {
   licensesIntro:
     "OpenRung, sing-box'a bağlandığı için GPL-3.0-or-later ile lisanslanan özgür bir yazılımdır. Bu derlemeye karşılık gelen eksiksiz kaynak kodu aşağıdaki bağlantıda mevcuttur.",
   licensesSourceTitle: 'Kaynak kodu',
+  privacyPolicyTitle: 'Gizlilik politikası',
+  privacyPolicySubtitle:
+    "OpenRung'un beta tanılama verilerini ve kişisel bilgileri nasıl işlediği.",
   licensesFullTextTitle: 'Tam lisans metinleri',
   licensesFullTextSubtitle: 'GNU GPL-3.0 ve üçüncü taraf bildirimleri.',
   licensesComponentsHeader: 'Bileşenler',

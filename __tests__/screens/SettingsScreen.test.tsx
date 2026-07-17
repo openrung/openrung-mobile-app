@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { Alert, Text } from 'react-native';
+import { Alert, Linking, Text } from 'react-native';
 
 const mockShareInstalledApk = jest.fn<Promise<void>, [string]>();
 
@@ -126,6 +126,27 @@ describe('SettingsScreen Android APK sharing', () => {
       .findAllByType(Text)
       .some(text => text.props.children === 'Share OpenRung offline');
     expect(hasShareAction).toBe(false);
+    await unmount(tree!);
+  });
+});
+
+describe('AboutScreen links', () => {
+  it('opens the privacy policy from the About tab', async () => {
+    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+    let tree: ReactTestRenderer.ReactTestRenderer | undefined;
+    await ReactTestRenderer.act(async () => {
+      tree = ReactTestRenderer.create(
+        <AboutScreen onOpenLicenses={jest.fn()} />,
+      );
+    });
+
+    await ReactTestRenderer.act(async () => {
+      findButton(tree!, 'Privacy policy').props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(openURL).toHaveBeenCalledWith('https://www.openrung.org/privacy');
+    openURL.mockRestore();
     await unmount(tree!);
   });
 });

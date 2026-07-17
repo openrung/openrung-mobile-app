@@ -119,6 +119,9 @@ export const AppConfig = {
    */
   SOURCE_URL: 'https://github.com/openrung/openrung-mobile-app',
 
+  /** Public policy covering app and network data handling. */
+  PRIVACY_URL: 'https://www.openrung.org/privacy',
+
   /**
    * Vector tiles + glyphs for the exit-node map. We build our own flat style around these MapLibre
    * demo tiles rather than using the demo *style*, which colour-codes every country. An operator
