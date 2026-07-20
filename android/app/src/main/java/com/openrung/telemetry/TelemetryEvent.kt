@@ -22,11 +22,10 @@ data class TelemetryEvent(
     val applicationPackage: String? = null,
     @SerialName("application_uid")
     val applicationUid: Int? = null,
-    @SerialName("destination_ip")
-    val destinationIp: String? = null,
-    @SerialName("destination_port")
-    val destinationPort: Int? = null,
-    val protocol: String? = null,
+    // destination_ip/destination_port/protocol were removed from the schema on purpose: the
+    // broker discards them, and pairing the client with every destination visited is a privacy
+    // hazard. Dropping the fields (with ignoreUnknownKeys on the outbox decoder) also scrubs
+    // any pre-upgrade backlog the outbox still holds. Do not reintroduce them.
     val attributes: Map<String, String> = emptyMap(),
     val measurements: Map<String, Long> = emptyMap(),
 )

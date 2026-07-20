@@ -18,9 +18,8 @@ export interface TelemetryEvent {
   relay_id?: string;
   application_package?: string;
   application_uid?: number;
-  destination_ip?: string;
-  destination_port?: number;
-  protocol?: string;
+  // destination_ip/destination_port/protocol were removed from the schema on purpose: the
+  // broker discards them, and they are a privacy hazard. Do not reintroduce them.
   attributes: Record<string, string>;
   measurements: Record<string, number>;
 }

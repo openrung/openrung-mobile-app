@@ -156,6 +156,11 @@ private final class TrafficStatusHandler: NSObject, LibboxCommandClientHandlerPr
 
     func updateClashMode(_ newMode: String?) {}
 
+    /// Deliberately dropped: per-flow connection events would pair the client with every
+    /// destination visited, and the broker keeps only an hourly per-application count of
+    /// `application_connection` events. If iOS ever reports application usage, aggregate
+    /// client-side like Android's `TelemetryManager.recordApplicationConnection` (skip DNS,
+    /// one event per app per window, no destination fields).
     func write(_ events: LibboxConnectionEvents?) {}
 
     func writeGroups(_ message: (any LibboxOutboundGroupIteratorProtocol)?) {}

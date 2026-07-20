@@ -201,7 +201,9 @@ ported (that lives in TS now). Files:
   notification id 2001 channel `openrung_vpn`, heartbeat 50–70s.
 - `net/` BrokerClient, GeoIpClient, InternetProbe, RelayReachability,
   SingBoxConfiguration, NatPunchClient; `model/` RelayDescriptor, RelaySelector, CountryGeo,
-  RecentNode; `telemetry/` all four files; `config/AppConfig.kt`.
+  RecentNode; `telemetry/` all four files (since diverged: `application_connection`
+  events are aggregated client-side by the added `ApplicationConnectionAggregator.kt`,
+  and the schema dropped destination ip/port/protocol); `config/AppConfig.kt`.
 - `state/ConnectionStatus.kt`, `state/OpenRungStatusStore.kt` — trimmed: drop
   directory fields/refresh (TS owns), keep status/relay/error/logs/recents +
   SharedPreferences persistence (`openrung_status`).
@@ -286,5 +288,7 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
 - iOS does not yet consume the optional punch metadata and uses RelayHub for
   volunteer-run tunnel-transport relays.
 - Telemetry from TS covers only speed-test events; the native connect path keeps
-  full production telemetry.
+  production telemetry except that `application_connection` is reduced client-side:
+  DNS flows are skipped, destination ip/port/protocol are never sent, and repeated
+  flows collapse into at most one event per application per 15 minutes.
 - License: GPL-3.0-or-later (statically links sing-box), same as production.
