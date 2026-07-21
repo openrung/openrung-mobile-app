@@ -121,13 +121,15 @@ endpoint anywhere in the app.
 
 Telemetry is higher-volume than discovery — heartbeats fire ~once/minute per
 connected user, plus per-app connection records (aggregated client-side: DNS
-flows are skipped, destination addresses are never sent, and repeated flows
-collapse into at most one `application_connection` event per app per 15
-minutes whose `connection_count` measurement carries the represented flow
-total, with each window's still-suppressed tail flushed when the session ends
-or is replaced; the
-broker's hourly per-application rollup sums these counts, treating legacy
-per-flow events as one each) — so its transport is a cost/security trade-off:
+flows are skipped; destination and client geo/device/network attributes are
+never sent; and repeated flows normally collapse into one
+`application_connection` event per app per 15 minutes whose `connection_count`
+measurement carries the represented flow total. Counts above 100,000 are split
+into bounded chunks and separated across HTTP batches to match the broker's
+per-app request budget, while each window's still-suppressed tail is flushed
+atomically when the session ends or is replaced. The broker's hourly
+per-application rollup sums these counts, treating legacy per-flow events as
+one each) — so its transport is a cost/security trade-off:
 
 - **Option B — current.** Send telemetry to the Cloudflare-fronted
   `https://broker.openrung.org/`, the same endpoint as discovery. TLS end-to-end with

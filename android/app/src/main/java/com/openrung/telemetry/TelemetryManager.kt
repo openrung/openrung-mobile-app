@@ -15,6 +15,9 @@ import java.util.Locale
 import java.util.TimeZone
 import java.util.UUID
 
+internal const val APPLICATION_CONNECTION_EVENT = "application_connection"
+internal const val APPLICATION_CONNECTION_COUNT_MEASUREMENT = "connection_count"
+
 object TelemetryManager {
     private const val PREFS = "openrung_telemetry"
     private const val KEY_OUTBOX = "outbox"
@@ -65,22 +68,68 @@ object TelemetryManager {
 
     fun beginSession(context: Context, brokerUrl: String): Session {
         initialize(context)
-        // A session can be replaced without ever ending (relay switch: ACTION_CONNECT while
-        // connected reaches here with the old session still active) — flush its pending flow
-        // tails under the outgoing session before the reset below would discard them.
-        flushPendingApplicationConnections()
-        appConnections.reset()
-        return Session(
-            id = UUID.randomUUID().toString(),
-            clientId = clientId(context),
-            brokerUrl = brokerUrl,
-            startedElapsedMs = SystemClock.elapsedRealtime(),
-        ).also {
-            synchronized(lock) {
-                activeSession = it
-                sessionTraffic = null
-            }
+        val nextClientId = clientId(context)
+        return synchronized(lock) {
+            // A session can be replaced without ever ending (relay switch: ACTION_CONNECT while
+            // connected reaches here with the old session still active). Draining and replacing
+            // under the same lock linearizes the transition with native flow callbacks.
+            activeSession?.let { outgoing ->
+                enqueueAllLocked(
+                    context.applicationContext,
+                    appConnections.drainPending().map { it.toEvent(outgoing) },
+                )
+            } ?: appConnections.reset()
+            val nextSession = Session(
+                id = UUID.randomUUID().toString(),
+                clientId = nextClientId,
+                brokerUrl = brokerUrl,
+                startedElapsedMs = SystemClock.elapsedRealtime(),
+            )
+            activeSession = nextSession
+            sessionTraffic = null
+            nextSession
         }
+    }
+
+    private fun ApplicationConnectionAggregator.PendingFlows.toEvent(session: Session): TelemetryEvent =
+        applicationConnectionEvent(
+            session = session,
+            packageName = packageName,
+            uid = uid,
+            flowCount = flows,
+        )
+
+    private fun applicationConnectionEvent(
+        session: Session,
+        packageName: String,
+        uid: Int,
+        flowCount: Long,
+    ): TelemetryEvent =
+        TelemetryEvent(
+            eventId = UUID.randomUUID().toString(),
+            event = APPLICATION_CONNECTION_EVENT,
+            occurredAt = Instant.now().toString(),
+            clientId = session.clientId,
+            sessionId = session.id,
+            relayId = session.relayId,
+            applicationPackage = packageName,
+            applicationUid = uid,
+            measurements = mapOf(APPLICATION_CONNECTION_COUNT_MEASUREMENT to flowCount),
+        )
+
+    private fun enqueueApplicationConnectionCountsLocked(
+        appContext: Context,
+        session: Session,
+        packageName: String,
+        uid: Int,
+        flowCounts: List<Long>,
+    ) {
+        enqueueAllLocked(
+            appContext,
+            flowCounts.map { flowCount ->
+                applicationConnectionEvent(session, packageName, uid, flowCount)
+            },
+        )
     }
 
     fun activeSession(): Session? = synchronized(lock) { activeSession }
@@ -121,10 +170,12 @@ object TelemetryManager {
             writeOutbox(
                 appContext,
                 readOutbox(appContext).map { event ->
-                    if (event.sessionId == session.id) {
-                        event.copy(attributes = event.attributes + geoAttributes)
-                    } else {
-                        event
+                    when {
+                        event.event == APPLICATION_CONNECTION_EVENT ->
+                            event.copy(attributes = emptyMap())
+                        event.sessionId == session.id ->
+                            event.copy(attributes = event.attributes + geoAttributes)
+                        else -> event
                     }
                 },
             )
@@ -161,9 +212,9 @@ object TelemetryManager {
      * payload, so the event carries just the application identity: destination address, port and
      * protocol are never put on the wire (the client's IP paired with every destination visited
      * is a privacy hazard, transmitted for nothing). DNS flows are skipped entirely, repeated
-     * flows collapse into at most one event per application per [APP_CONNECTION_WINDOW_MS]
-     * (the `connection_count` measurement carries the collapsed total), and a flow whose UID
-     * maps to several packages reports only the first external package — never one event each.
+     * flows normally collapse into one event per application per [APP_CONNECTION_WINDOW_MS]
+     * (larger totals split into broker-bounded chunks), and a flow whose UID maps to several
+     * packages reports only the first external package — never one event each.
      */
     fun recordApplicationConnection(
         uid: Int,
@@ -171,70 +222,42 @@ object TelemetryManager {
         destinationPort: Int,
     ) {
         if (destinationPort == DNS_PORT) return
-        val appContext = context ?: return
-        val session = activeSession() ?: return
+        val appContext = synchronized(lock) { context } ?: return
+        // PackageManager-backed lists can be slow or externally implemented. Resolve attribution
+        // before taking the session lock; the callback belongs to whichever session is active at
+        // the later atomic record point.
         val packageName = packages.firstOrNull { it != appContext.packageName } ?: return
-        val flowCount = appConnections.recordFlow(packageName, uid) ?: return
-        enqueueApplicationConnection(appContext, session, packageName, uid, flowCount)
-    }
-
-    /**
-     * Emits each application's still-suppressed flow count under the currently active session —
-     * the session the flows happened under. Called whenever that session goes away (endSession,
-     * or beginSession replacing it on a relay switch): the broker sums `connection_count`, so a
-     * tail dropped here would permanently undercount the top-applications rollup. Without an
-     * active session pending counts cannot be attributed and are left for reset() to discard.
-     */
-    private fun flushPendingApplicationConnections() {
-        val appContext = context ?: return
-        val session = activeSession() ?: return
-        appConnections.drainPending().forEach { pending ->
-            enqueueApplicationConnection(appContext, session, pending.packageName, pending.uid, pending.flows)
+        synchronized(lock) {
+            val currentContext = context ?: return
+            val session = activeSession ?: return
+            val flowCounts = appConnections.recordFlow(packageName, uid)
+            if (flowCounts.isEmpty()) return
+            enqueueApplicationConnectionCountsLocked(currentContext, session, packageName, uid, flowCounts)
         }
     }
 
-    private fun enqueueApplicationConnection(
-        appContext: Context,
-        session: Session,
-        packageName: String,
-        uid: Int,
-        flowCount: Long,
-    ) {
-        enqueue(
-            appContext,
-            TelemetryEvent(
-                eventId = UUID.randomUUID().toString(),
-                event = "application_connection",
-                occurredAt = Instant.now().toString(),
-                clientId = session.clientId,
-                sessionId = session.id,
-                relayId = session.relayId,
-                applicationPackage = packageName,
-                applicationUid = uid,
-                attributes = session.geoAttributes,
-                measurements = mapOf("connection_count" to flowCount),
-            ),
-        )
-    }
-
     fun endSession(reason: String) {
-        val session = activeSession() ?: return
-        flushPendingApplicationConnections()
-        val now = SystemClock.elapsedRealtime()
-        val measurements = mutableMapOf("session_duration_ms" to (now - session.startedElapsedMs))
-        session.connectedElapsedMs?.let { measurements["connection_duration_ms"] = now - it }
-        trafficCounters()?.let { measurements.putAll(it.measurements()) }
-        record(
-            event = "connection_ended",
-            relayId = session.relayId,
-            attributes = mapOf("reason" to reason),
-            measurements = measurements,
-        )
         synchronized(lock) {
-            if (activeSession?.id == session.id) {
-                activeSession = null
-                sessionTraffic = null
-            }
+            val appContext = context ?: return
+            val session = activeSession ?: return
+            val now = SystemClock.elapsedRealtime()
+            val measurements = mutableMapOf("session_duration_ms" to (now - session.startedElapsedMs))
+            session.connectedElapsedMs?.let { measurements["connection_duration_ms"] = now - it }
+            sessionTraffic?.let { measurements.putAll(it.measurements()) }
+            val endingEvents = appConnections.drainPending().map { it.toEvent(session) } +
+                TelemetryEvent(
+                    eventId = UUID.randomUUID().toString(),
+                    event = "connection_ended",
+                    occurredAt = Instant.now().toString(),
+                    clientId = session.clientId,
+                    sessionId = session.id,
+                    relayId = session.relayId,
+                    attributes = deviceAttributes(appContext) + session.geoAttributes + ("reason" to reason),
+                    measurements = measurements,
+                )
+            enqueueAllLocked(appContext, endingEvents)
+            activeSession = null
+            sessionTraffic = null
         }
     }
 
@@ -251,7 +274,9 @@ object TelemetryManager {
             attributes = deviceAttributes(appContext) + session.geoAttributes,
             trafficCounters = trafficCounters(),
         ) ?: return
-        val queued = synchronized(lock) { readOutbox(appContext).take(UPLOAD_BATCH_SIZE - 1) }
+        val queued = synchronized(lock) {
+            telemetryUploadBatch(readOutbox(appContext), UPLOAD_BATCH_SIZE - 1)
+        }
         TelemetryClient(session.brokerUrl).send(queued + event)
         if (queued.isNotEmpty()) {
             synchronized(lock) {
@@ -265,7 +290,9 @@ object TelemetryManager {
     suspend fun flush(brokerUrl: String) {
         val appContext = context ?: return
         while (true) {
-            val batch = synchronized(lock) { readOutbox(appContext).take(UPLOAD_BATCH_SIZE) }
+            val batch = synchronized(lock) {
+                telemetryUploadBatch(readOutbox(appContext), UPLOAD_BATCH_SIZE)
+            }
             if (batch.isEmpty()) return
             TelemetryClient(brokerUrl).send(batch)
             synchronized(lock) {
@@ -277,14 +304,24 @@ object TelemetryManager {
 
     private fun enqueue(context: Context, event: TelemetryEvent) {
         synchronized(lock) {
-            writeOutbox(context, (readOutbox(context) + event).takeLast(MAX_QUEUED_EVENTS))
+            enqueueAllLocked(context, listOf(event))
         }
+    }
+
+    private fun enqueueAllLocked(context: Context, events: List<TelemetryEvent>) {
+        if (events.isEmpty()) return
+        writeOutbox(
+            context,
+            (readOutbox(context) + events.map(::sanitizeTelemetryEvent)).takeLast(MAX_QUEUED_EVENTS),
+        )
     }
 
     private fun readOutbox(context: Context): List<TelemetryEvent> {
         val encoded = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_OUTBOX, null)
             ?: return emptyList()
-        return runCatching { json.decodeFromString<List<TelemetryEvent>>(encoded) }.getOrDefault(emptyList())
+        return runCatching { json.decodeFromString<List<TelemetryEvent>>(encoded) }
+            .getOrDefault(emptyList())
+            .map(::sanitizeTelemetryEvent)
     }
 
     private fun writeOutbox(context: Context, events: List<TelemetryEvent>) {
@@ -318,6 +355,56 @@ object TelemetryManager {
         capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "ethernet"
         else -> "other"
     }
+}
+
+/**
+ * Removes client metadata that the broker never retains from application-connection records.
+ * Applying this on every outbox read also scrubs events queued by an older app version before
+ * either upload path can put them on the wire.
+ */
+internal fun sanitizeTelemetryEvent(event: TelemetryEvent): TelemetryEvent =
+    if (event.event == APPLICATION_CONNECTION_EVENT && event.attributes.isNotEmpty()) {
+        event.copy(attributes = emptyMap())
+    } else {
+        event
+    }
+
+/**
+ * Selects one upload request while honoring the broker's 100,000 represented-flow budget per
+ * application. Events that would exceed an application's remaining budget are deferred along
+ * with later events for that application, preserving its FIFO order; unrelated events can still
+ * fill the request. The caller removes selected event IDs after a successful send.
+ */
+internal fun telemetryUploadBatch(events: List<TelemetryEvent>, limit: Int): List<TelemetryEvent> {
+    require(limit > 0) { "telemetry upload batch limit must be positive" }
+    val representedByApplication = mutableMapOf<String, Long>()
+    val deferredApplications = mutableSetOf<String>()
+    return buildList {
+        for (event in events) {
+            if (size >= limit) break
+            if (event.event != APPLICATION_CONNECTION_EVENT) {
+                add(event)
+                continue
+            }
+
+            val application = event.applicationPackage.orEmpty()
+            if (application in deferredApplications) continue
+            val count = event.brokerApplicationConnectionCount()
+            val used = representedByApplication[application] ?: 0L
+            if (count > ApplicationConnectionAggregator.MAX_REPORTED_FLOWS - used) {
+                deferredApplications += application
+                continue
+            }
+            representedByApplication[application] = used + count
+            add(event)
+        }
+    }
+}
+
+/** Mirrors the broker's compatibility behavior for missing or malformed typed counts. */
+internal fun TelemetryEvent.brokerApplicationConnectionCount(): Long {
+    val count = measurements[APPLICATION_CONNECTION_COUNT_MEASUREMENT] ?: return 1L
+    return if (count in 1..ApplicationConnectionAggregator.MAX_REPORTED_FLOWS) count else 1L
 }
 
 internal fun buildSessionHeartbeat(
