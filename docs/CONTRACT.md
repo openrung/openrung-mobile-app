@@ -289,9 +289,11 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   volunteer-run tunnel-transport relays.
 - Telemetry from TS covers only speed-test events; the native connect path keeps
   production telemetry except that `application_connection` is reduced client-side:
-  DNS flows are skipped, destination ip/port/protocol are never sent, and repeated
-  flows collapse into at most one event per application per 15 minutes carrying a
-  `connection_count` flow total (clamped to the broker's 100,000 cap), with the
-  still-suppressed tail flushed when the session ends or is replaced (relay
-  switch) so the broker's summed rollup stays accurate.
+  DNS flows are skipped; destination ip/port/protocol and client
+  geo/device/network attributes are never sent; and repeated flows normally collapse
+  into one event per application per 15 minutes carrying a `connection_count` flow
+  total. Totals above 100,000 are split without discarding the remainder and sent in
+  separate per-app HTTP-batch budgets, with the still-suppressed tail flushed atomically
+  when the session ends or is replaced (relay switch) so the broker's summed rollup
+  stays accurate within the existing bounded-outbox and at-least-once-delivery limits.
 - License: GPL-3.0-or-later (statically links sing-box), same as production.

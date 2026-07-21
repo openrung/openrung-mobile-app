@@ -3,7 +3,6 @@ package com.openrung.telemetry
 import com.openrung.telemetry.ApplicationConnectionAggregator.Companion.MAX_REPORTED_FLOWS
 import com.openrung.telemetry.ApplicationConnectionAggregator.PendingFlows
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ApplicationConnectionAggregatorTest {
@@ -12,40 +11,40 @@ class ApplicationConnectionAggregatorTest {
 
     @Test
     fun `first flow for an application emits with count one`() {
-        assertEquals(1L, aggregator.recordFlow("app.a", UID))
+        assertEquals(listOf(1L), aggregator.recordFlow("app.a", UID))
     }
 
     @Test
     fun `flows inside the window are suppressed`() {
         aggregator.recordFlow("app.a", UID)
-        assertNull(aggregator.recordFlow("app.a", UID))
+        assertEquals(emptyList<Long>(), aggregator.recordFlow("app.a", UID))
         nowMs += WINDOW_MS - 1
-        assertNull(aggregator.recordFlow("app.a", UID))
+        assertEquals(emptyList<Long>(), aggregator.recordFlow("app.a", UID))
     }
 
     @Test
     fun `first flow after the window emits the collapsed count and resets it`() {
         aggregator.recordFlow("app.a", UID)
-        repeat(41) { assertNull(aggregator.recordFlow("app.a", UID)) }
+        repeat(41) { assertEquals(emptyList<Long>(), aggregator.recordFlow("app.a", UID)) }
         nowMs += WINDOW_MS
-        assertEquals(42L, aggregator.recordFlow("app.a", UID))
+        assertEquals(listOf(42L), aggregator.recordFlow("app.a", UID))
         nowMs += WINDOW_MS
-        assertEquals(1L, aggregator.recordFlow("app.a", UID))
+        assertEquals(listOf(1L), aggregator.recordFlow("app.a", UID))
     }
 
     @Test
     fun `an idle window emits count one on the next flow`() {
         aggregator.recordFlow("app.a", UID)
         nowMs += WINDOW_MS * 3
-        assertEquals(1L, aggregator.recordFlow("app.a", UID))
+        assertEquals(listOf(1L), aggregator.recordFlow("app.a", UID))
     }
 
     @Test
     fun `applications are windowed independently`() {
-        assertEquals(1L, aggregator.recordFlow("app.a", UID))
-        assertEquals(1L, aggregator.recordFlow("app.b", UID))
-        assertNull(aggregator.recordFlow("app.a", UID))
-        assertNull(aggregator.recordFlow("app.b", UID))
+        assertEquals(listOf(1L), aggregator.recordFlow("app.a", UID))
+        assertEquals(listOf(1L), aggregator.recordFlow("app.b", UID))
+        assertEquals(emptyList<Long>(), aggregator.recordFlow("app.a", UID))
+        assertEquals(emptyList<Long>(), aggregator.recordFlow("app.b", UID))
     }
 
     @Test
@@ -59,22 +58,34 @@ class ApplicationConnectionAggregatorTest {
             aggregator.drainPending(),
         )
         // Drained state is gone: the same app emits again immediately, from one.
-        assertEquals(1L, aggregator.recordFlow("app.a", UID))
+        assertEquals(listOf(1L), aggregator.recordFlow("app.a", UID))
         assertEquals(emptyList<PendingFlows>(), aggregator.drainPending())
     }
 
     @Test
-    fun `emitted and drained counts clamp at the broker maximum`() {
+    fun `elapsed window splits totals above the broker maximum without losing flows`() {
         aggregator.recordFlow("app.a", UID)
         repeat((MAX_REPORTED_FLOWS + 5).toInt()) { aggregator.recordFlow("app.a", UID) }
         nowMs += WINDOW_MS
-        assertEquals(MAX_REPORTED_FLOWS, aggregator.recordFlow("app.a", UID))
+        val emitted = aggregator.recordFlow("app.a", UID)
 
+        assertEquals(listOf(MAX_REPORTED_FLOWS, 6L), emitted)
+        assertEquals(MAX_REPORTED_FLOWS + 7L, 1L + emitted.sum())
+    }
+
+    @Test
+    fun `drain splits pending totals above the broker maximum without losing flows`() {
+        aggregator.recordFlow("app.a", UID)
         repeat((MAX_REPORTED_FLOWS + 5).toInt()) { aggregator.recordFlow("app.a", UID) }
+
         assertEquals(
-            listOf(PendingFlows(packageName = "app.a", uid = UID, flows = MAX_REPORTED_FLOWS)),
+            listOf(
+                PendingFlows(packageName = "app.a", uid = UID, flows = MAX_REPORTED_FLOWS),
+                PendingFlows(packageName = "app.a", uid = UID, flows = 5L),
+            ),
             aggregator.drainPending(),
         )
+        assertEquals(emptyList<PendingFlows>(), aggregator.drainPending())
     }
 
     @Test
@@ -83,7 +94,7 @@ class ApplicationConnectionAggregatorTest {
         repeat(5) { aggregator.recordFlow("app.a", UID) }
         aggregator.reset()
         assertEquals(emptyList<PendingFlows>(), aggregator.drainPending())
-        assertEquals(1L, aggregator.recordFlow("app.a", UID))
+        assertEquals(listOf(1L), aggregator.recordFlow("app.a", UID))
     }
 
     private companion object {
