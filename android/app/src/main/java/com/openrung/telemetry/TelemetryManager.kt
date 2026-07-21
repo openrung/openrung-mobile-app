@@ -65,6 +65,10 @@ object TelemetryManager {
 
     fun beginSession(context: Context, brokerUrl: String): Session {
         initialize(context)
+        // A session can be replaced without ever ending (relay switch: ACTION_CONNECT while
+        // connected reaches here with the old session still active) — flush its pending flow
+        // tails under the outgoing session before the reset below would discard them.
+        flushPendingApplicationConnections()
         appConnections.reset()
         return Session(
             id = UUID.randomUUID().toString(),
@@ -170,8 +174,32 @@ object TelemetryManager {
         val appContext = context ?: return
         val session = activeSession() ?: return
         val packageName = packages.firstOrNull { it != appContext.packageName } ?: return
-        val flowCount = appConnections.recordFlow(packageName) ?: return
+        val flowCount = appConnections.recordFlow(packageName, uid) ?: return
+        enqueueApplicationConnection(appContext, session, packageName, uid, flowCount)
+    }
 
+    /**
+     * Emits each application's still-suppressed flow count under the currently active session —
+     * the session the flows happened under. Called whenever that session goes away (endSession,
+     * or beginSession replacing it on a relay switch): the broker sums `connection_count`, so a
+     * tail dropped here would permanently undercount the top-applications rollup. Without an
+     * active session pending counts cannot be attributed and are left for reset() to discard.
+     */
+    private fun flushPendingApplicationConnections() {
+        val appContext = context ?: return
+        val session = activeSession() ?: return
+        appConnections.drainPending().forEach { pending ->
+            enqueueApplicationConnection(appContext, session, pending.packageName, pending.uid, pending.flows)
+        }
+    }
+
+    private fun enqueueApplicationConnection(
+        appContext: Context,
+        session: Session,
+        packageName: String,
+        uid: Int,
+        flowCount: Long,
+    ) {
         enqueue(
             appContext,
             TelemetryEvent(
@@ -191,6 +219,7 @@ object TelemetryManager {
 
     fun endSession(reason: String) {
         val session = activeSession() ?: return
+        flushPendingApplicationConnections()
         val now = SystemClock.elapsedRealtime()
         val measurements = mutableMapOf("session_duration_ms" to (now - session.startedElapsedMs))
         session.connectedElapsedMs?.let { measurements["connection_duration_ms"] = now - it }

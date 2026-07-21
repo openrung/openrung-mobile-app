@@ -20,8 +20,9 @@ import org.robolectric.shadows.ShadowSystemClock
 /**
  * Covers the `application_connection` emission policy end to end: DNS flows and the app's own
  * traffic emit nothing, a multi-package UID emits a single event (no per-package fan-out), the
- * enqueued event carries the application identity but no destination data, and the 15-minute
- * production window is what actually gates re-emission.
+ * enqueued event carries the application identity but no destination data, the 15-minute
+ * production window is what actually gates re-emission, and session end flushes each window's
+ * still-suppressed tail (the broker sums `connection_count`, so dropped tails would undercount).
  *
  * `TelemetryManager` is a process-wide singleton; each test's `beginSession` resets the
  * aggregator windows, so tests are isolated without any cross-test bookkeeping.
@@ -30,13 +31,14 @@ import org.robolectric.shadows.ShadowSystemClock
 @Config(sdk = [34], application = Application::class)
 class TelemetryManagerApplicationConnectionTest {
     private lateinit var context: Context
+    private lateinit var session: TelemetryManager.Session
     private val json = Json { ignoreUnknownKeys = true }
 
     @Before
     fun setUp() {
         context = RuntimeEnvironment.getApplication()
         clearOutbox()
-        TelemetryManager.beginSession(context, "https://broker.invalid/")
+        session = TelemetryManager.beginSession(context, "https://broker.invalid/")
     }
 
     @After
@@ -80,9 +82,17 @@ class TelemetryManagerApplicationConnectionTest {
     }
 
     @Test
-    fun `repeated flows inside the window collapse into one event`() {
+    fun `repeated flows collapse into one event and the tail flushes at session end`() {
         repeat(25) { recordFlow(packageName = "com.example.repeated") }
         assertEquals(1, applicationConnectionEvents().size)
+
+        // The 24 still-suppressed flows drain as one final event, so the broker's summed
+        // per-app total (1 + 24) matches the flows that actually happened.
+        TelemetryManager.endSession("test_flush")
+        val events = applicationConnectionEvents()
+        assertEquals(2, events.size)
+        assertEquals(24L, events.last().measurements["connection_count"])
+        assertEquals(25L, events.sumOf { it.measurements["connection_count"] ?: 0L })
     }
 
     @Test
@@ -100,17 +110,36 @@ class TelemetryManagerApplicationConnectionTest {
     }
 
     @Test
-    fun `a new session resets the aggregation windows`() {
+    fun `session end flushes the tail under the ending session and the next session starts fresh`() {
         recordFlow(packageName = "com.example.newsession")
         recordFlow(packageName = "com.example.newsession")
         TelemetryManager.endSession("test_reconnect")
-        TelemetryManager.beginSession(context, "https://broker.invalid/")
-
+        val second = TelemetryManager.beginSession(context, "https://broker.invalid/")
         recordFlow(packageName = "com.example.newsession")
+
         val events = applicationConnectionEvents()
-        assertEquals(2, events.size)
-        // The suppressed flow from the previous session is not carried into this session's count.
-        assertEquals(1L, events.last().measurements["connection_count"])
+        assertEquals(3, events.size)
+        assertEquals(listOf(1L, 1L, 1L), events.map { it.measurements["connection_count"] })
+        // The drained tail is stamped with the session its flows happened under, and keeps
+        // the application identity.
+        assertEquals(listOf(session.id, session.id, second.id), events.map { it.sessionId })
+        assertEquals("com.example.newsession", events[1].applicationPackage)
+        assertEquals(10_001, events[1].applicationUid)
+    }
+
+    @Test
+    fun `replacing a session without ending it flushes the tail under the old session`() {
+        // The relay-switch path (ACTION_CONNECT while connected) calls beginSession with the
+        // old session still active — no endSession in between.
+        recordFlow(packageName = "com.example.switch")
+        recordFlow(packageName = "com.example.switch")
+        val second = TelemetryManager.beginSession(context, "https://broker.invalid/")
+        recordFlow(packageName = "com.example.switch")
+
+        val events = applicationConnectionEvents()
+        assertEquals(3, events.size)
+        assertEquals(listOf(session.id, session.id, second.id), events.map { it.sessionId })
+        assertEquals(listOf(1L, 1L, 1L), events.map { it.measurements["connection_count"] })
     }
 
     @Test
