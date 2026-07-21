@@ -12,9 +12,9 @@ public struct TelemetryEvent: Codable, Sendable, Equatable {
     public var relayId: String?
     public var applicationPackage: String?
     public var applicationUid: Int?
-    public var destinationIp: String?
-    public var destinationPort: Int?
-    public var ipProtocol: String?
+    // destination_ip/destination_port/protocol were removed from the schema on purpose: the
+    // broker discards them, and pairing the client with every destination visited is a privacy
+    // hazard. Do not reintroduce them (see Android `TelemetryEvent`).
     public var attributes: [String: String]
     public var measurements: [String: Int64]
 
@@ -28,9 +28,6 @@ public struct TelemetryEvent: Codable, Sendable, Equatable {
         case relayId = "relay_id"
         case applicationPackage = "application_package"
         case applicationUid = "application_uid"
-        case destinationIp = "destination_ip"
-        case destinationPort = "destination_port"
-        case ipProtocol = "protocol"
         case attributes
         case measurements
     }
@@ -45,9 +42,6 @@ public struct TelemetryEvent: Codable, Sendable, Equatable {
         relayId: String? = nil,
         applicationPackage: String? = nil,
         applicationUid: Int? = nil,
-        destinationIp: String? = nil,
-        destinationPort: Int? = nil,
-        ipProtocol: String? = nil,
         attributes: [String: String] = [:],
         measurements: [String: Int64] = [:]
     ) {
@@ -60,9 +54,6 @@ public struct TelemetryEvent: Codable, Sendable, Equatable {
         self.relayId = relayId
         self.applicationPackage = applicationPackage
         self.applicationUid = applicationUid
-        self.destinationIp = destinationIp
-        self.destinationPort = destinationPort
-        self.ipProtocol = ipProtocol
         self.attributes = attributes
         self.measurements = measurements
     }

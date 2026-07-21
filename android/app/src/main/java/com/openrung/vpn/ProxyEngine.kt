@@ -309,9 +309,7 @@ private class OpenRungLibboxPlatform(
             TelemetryManager.recordApplicationConnection(
                 uid = uid,
                 packages = packages,
-                destinationIp = destinationAddress,
                 destinationPort = destinationPort,
-                ipProtocol = ipProtocol,
             )
             ConnectionOwner().apply {
                 userId = uid

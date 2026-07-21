@@ -120,8 +120,14 @@ endpoint anywhere in the app.
 ### Telemetry transport: current (Option B) vs. future (Option A)
 
 Telemetry is higher-volume than discovery — heartbeats fire ~once/minute per
-connected user, plus per-app connection records — so its transport is a
-cost/security trade-off:
+connected user, plus per-app connection records (aggregated client-side: DNS
+flows are skipped, destination addresses are never sent, and repeated flows
+collapse into at most one `application_connection` event per app per 15
+minutes whose `connection_count` measurement carries the represented flow
+total, with each window's still-suppressed tail flushed when the session ends
+or is replaced; the
+broker's hourly per-application rollup sums these counts, treating legacy
+per-flow events as one each) — so its transport is a cost/security trade-off:
 
 - **Option B — current.** Send telemetry to the Cloudflare-fronted
   `https://broker.openrung.org/`, the same endpoint as discovery. TLS end-to-end with
@@ -217,7 +223,11 @@ are not ported (TS owns them). Key pieces:
   libbox. It protects the retained UDP fd with `VpnService.protect`, then
   exposes a loopback TCP bridge that sing-box uses without changing the relay's
   Reality identity.
-- `net/`, `model/`, `telemetry/`, `config/AppConfig.kt` — verbatim.
+- `net/`, `model/`, `config/AppConfig.kt` — verbatim. `telemetry/` — ported,
+  then diverged: `application_connection` flow events are aggregated
+  client-side (see "Telemetry transport" above) via the new
+  `ApplicationConnectionAggregator.kt`, and the telemetry schema no longer
+  carries destination ip/port/protocol.
 - `state/OpenRungStatusStore.kt` — trimmed to status/relay/error/logs/recents
   (directory state removed), still persisted in SharedPreferences
   (`openrung_status`).

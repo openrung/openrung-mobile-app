@@ -20,8 +20,14 @@ object TelemetryManager {
     private const val KEY_OUTBOX = "outbox"
     private const val MAX_QUEUED_EVENTS = 500
     private const val UPLOAD_BATCH_SIZE = 200
+    private const val DNS_PORT = 53
+    private const val APP_CONNECTION_WINDOW_MS = 15 * 60 * 1000L
 
     private val lock = Any()
+    private val appConnections = ApplicationConnectionAggregator(
+        windowMs = APP_CONNECTION_WINDOW_MS,
+        elapsedMs = SystemClock::elapsedRealtime,
+    )
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private var context: Context? = null
     private var activeSession: Session? = null
@@ -48,7 +54,10 @@ object TelemetryManager {
 
     fun initialize(context: Context) {
         synchronized(lock) {
-            if (this.context == null) this.context = context.applicationContext
+            // Unconditional: the application context is process-constant in production, and
+            // holding on to the first one seen keeps Robolectric tests (fresh Application per
+            // test method) writing to a stale instance's SharedPreferences.
+            this.context = context.applicationContext
         }
     }
 
@@ -56,6 +65,11 @@ object TelemetryManager {
 
     fun beginSession(context: Context, brokerUrl: String): Session {
         initialize(context)
+        // A session can be replaced without ever ending (relay switch: ACTION_CONNECT while
+        // connected reaches here with the old session still active) — flush its pending flow
+        // tails under the outgoing session before the reset below would discard them.
+        flushPendingApplicationConnections()
+        appConnections.reset()
         return Session(
             id = UUID.randomUUID().toString(),
             clientId = clientId(context),
@@ -141,41 +155,71 @@ object TelemetryManager {
         )
     }
 
+    /**
+     * Records a tunneled flow for the broker's per-application usage rollup. The broker keeps
+     * only an hourly per-application count of these events and discards everything else in the
+     * payload, so the event carries just the application identity: destination address, port and
+     * protocol are never put on the wire (the client's IP paired with every destination visited
+     * is a privacy hazard, transmitted for nothing). DNS flows are skipped entirely, repeated
+     * flows collapse into at most one event per application per [APP_CONNECTION_WINDOW_MS]
+     * (the `connection_count` measurement carries the collapsed total), and a flow whose UID
+     * maps to several packages reports only the first external package — never one event each.
+     */
     fun recordApplicationConnection(
         uid: Int,
         packages: List<String>,
-        destinationIp: String?,
         destinationPort: Int,
-        ipProtocol: Int,
     ) {
+        if (destinationPort == DNS_PORT) return
         val appContext = context ?: return
         val session = activeSession() ?: return
-        val externalPackages = packages.filterNot { it == appContext.packageName }
-        if (externalPackages.isEmpty()) return
+        val packageName = packages.firstOrNull { it != appContext.packageName } ?: return
+        val flowCount = appConnections.recordFlow(packageName, uid) ?: return
+        enqueueApplicationConnection(appContext, session, packageName, uid, flowCount)
+    }
 
-        externalPackages.forEach { packageName ->
-            enqueue(
-                appContext,
-                TelemetryEvent(
-                    eventId = UUID.randomUUID().toString(),
-                    event = "application_connection",
-                    occurredAt = Instant.now().toString(),
-                    clientId = session.clientId,
-                    sessionId = session.id,
-                    relayId = session.relayId,
-                    applicationPackage = packageName,
-                    applicationUid = uid,
-                    destinationIp = destinationIp,
-                    destinationPort = destinationPort,
-                    protocol = protocolName(ipProtocol),
-                    attributes = session.geoAttributes,
-                ),
-            )
+    /**
+     * Emits each application's still-suppressed flow count under the currently active session —
+     * the session the flows happened under. Called whenever that session goes away (endSession,
+     * or beginSession replacing it on a relay switch): the broker sums `connection_count`, so a
+     * tail dropped here would permanently undercount the top-applications rollup. Without an
+     * active session pending counts cannot be attributed and are left for reset() to discard.
+     */
+    private fun flushPendingApplicationConnections() {
+        val appContext = context ?: return
+        val session = activeSession() ?: return
+        appConnections.drainPending().forEach { pending ->
+            enqueueApplicationConnection(appContext, session, pending.packageName, pending.uid, pending.flows)
         }
+    }
+
+    private fun enqueueApplicationConnection(
+        appContext: Context,
+        session: Session,
+        packageName: String,
+        uid: Int,
+        flowCount: Long,
+    ) {
+        enqueue(
+            appContext,
+            TelemetryEvent(
+                eventId = UUID.randomUUID().toString(),
+                event = "application_connection",
+                occurredAt = Instant.now().toString(),
+                clientId = session.clientId,
+                sessionId = session.id,
+                relayId = session.relayId,
+                applicationPackage = packageName,
+                applicationUid = uid,
+                attributes = session.geoAttributes,
+                measurements = mapOf("connection_count" to flowCount),
+            ),
+        )
     }
 
     fun endSession(reason: String) {
         val session = activeSession() ?: return
+        flushPendingApplicationConnections()
         val now = SystemClock.elapsedRealtime()
         val measurements = mutableMapOf("session_duration_ms" to (now - session.startedElapsedMs))
         session.connectedElapsedMs?.let { measurements["connection_duration_ms"] = now - it }
@@ -273,12 +317,6 @@ object TelemetryManager {
         capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "cellular"
         capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "ethernet"
         else -> "other"
-    }
-
-    private fun protocolName(protocol: Int): String = when (protocol) {
-        6 -> "tcp"
-        17 -> "udp"
-        else -> protocol.toString()
     }
 }
 
