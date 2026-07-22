@@ -12,21 +12,20 @@ struct PhysicalNetworkFingerprint: Equatable, Sendable {
 }
 
 /// Pure initial-baseline/change detector used by the NWPath adapter and hostless tests.
-struct NetworkEpochTracker<Value: Sendable>: Sendable {
+struct NetworkEpochTracker<Value: Equatable & Sendable>: Sendable {
     private(set) var current: Value?
 
     mutating func absorb(_ value: Value) -> Bool {
         defer { current = value }
-        // NWPath does not expose route, gateway, DNS-server or Wi-Fi AP identity. Therefore two
-        // genuinely different physical paths can have identical visible fingerprints. Absorb only
-        // the initial baseline; every later NWPath callback is conservatively a new socket epoch.
-        return current != nil
+        guard let current else { return false }
+        return current != value
     }
 }
 
 /// A WSS connection is tied to the physical path on which its outer socket was established. This
-/// monitor treats every post-baseline NWPath callback as an epoch boundary; policy remains in the
-/// PacketTunnel provider rather than wsscore.
+/// monitor treats changes to NWPath's visible physical-path fingerprint as epoch boundaries. The
+/// first callback establishes a baseline and repeated callbacks for the same fingerprint are
+/// ignored. Device wake only resumes the engine; all recovery policy remains outside wsscore.
 final class PhysicalNetworkEpochMonitor: @unchecked Sendable {
     private let monitor = NWPathMonitor()
     private let queue = DispatchQueue(label: "com.openrung.app.wss-network-epoch")

@@ -131,10 +131,15 @@ weaken the production OS policy.
   and other CDNs retain ordinary URL-derived SNI. DNS can still expose the
   distribution hostname, and an ambiguous failure is never downgraded into a
   same-ticket retry with SNI. Ticket/CDN
-  failures are transport metrics, not extra relay-health penalties. A physical
-  network epoch change (including iOS `NWPath` change/wake) tears the entire
-  path down and recovery begins with fresh discovery and direct Reality, never
-  a reused ticket. On Android, the transport-independent libbox monitor covers
+  failures are transport metrics, not extra relay-health penalties. Once
+  connected, a native WSS close, the end-to-end health-failure threshold, or a
+  changed physical-network fingerprint tears the entire path down; recovery
+  begins with fresh discovery and direct Reality, never a reused ticket. On
+  iOS, the first `NWPath` fingerprint is the baseline and only a later,
+  different fingerprint is an epoch change. Repeated identical callbacks are
+  ignored, while device wake resumes the Reality engine without independently
+  retiring a healthy WSS session or minting a ticket. On Android, the
+  transport-independent libbox monitor covers
   direct, punched, and WSS sessions: unexpected engine exit is terminal and
   never starts WSS or reladdering. WSS network, adapter, or end-to-end
   path-health recovery cancels that monitor, stops libbox first, retires the

@@ -161,13 +161,17 @@ Roll out in this order:
    stage), `transport_path_lost`, and `connection_succeeded.transport`. Only the
    direct failure may affect relay health; ticket/CDN/front failures are
    transport-only signals. A rise in WSS failures must not quarantine the relay.
-   Also verify `NWPath` change and extension wake on iOS, and physical-network
-   epoch change on Android, stop the Reality engine before the WSS adapter and
-   recover through fresh signed discovery/direct-first/fresh-ticket policy. On
-   Android, verify unexpected libbox exit is terminal on direct, punched, and
-   WSS sessions: it must not reladder or request a ticket. WSS recovery must
-   cancel the engine monitor, stop libbox, close the epoch monitor, and then
-   close the WSS adapter before waiting for a usable physical network.
+   Also verify a changed physical-network fingerprint on iOS, and a
+   physical-network epoch change on Android, stop the Reality engine before the
+   WSS adapter and recover through fresh signed discovery, direct-first, and
+   fresh-ticket policy. Repeated identical `NWPath` callbacks and extension wake
+   alone must leave a healthy iOS WSS session in place and must not mint a ticket;
+   wake resumes the engine. A native WSS close or the configured end-to-end
+   health-failure threshold must still start recovery. On Android, verify
+   unexpected libbox exit is terminal on direct, punched, and WSS sessions: it
+   must not reladder or request a ticket. WSS recovery must cancel the engine
+   monitor, stop libbox, close the epoch monitor, and then close the WSS adapter
+   before waiting for a usable physical network.
 
 Rollback is descriptor-first: remove `wss_fronts` from newly signed relay lists
 to return new sessions to direct-only behavior, while keeping the ticket API and

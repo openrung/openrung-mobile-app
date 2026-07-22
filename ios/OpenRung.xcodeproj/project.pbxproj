@@ -13,6 +13,7 @@
 		02A118A7025D0906AAA606E1 /* NetworkPathMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C127CAD14278743A1BD298 /* NetworkPathMonitor.swift */; };
 		02E9AD5F4252406BE29B4B5D /* BrokerClientError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 683F07997A392045B7540E47 /* BrokerClientError.swift */; };
 		0483F1444764AB1812DC4A79 /* GeoIpClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 135777353E0B842A0E8E1A49 /* GeoIpClient.swift */; };
+		064EE332A9DA0543E819E36C /* EngineStopSignal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 007F9F5B484B9408D05F255E /* EngineStopSignal.swift */; };
 		069A422F72032F6301328723 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4783169BE46FEE9B0472504 /* AppConfig.swift */; };
 		0B37B967668B130238C8E4EF /* BrokerEndpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF772A16497903CC49D1F76D /* BrokerEndpoint.swift */; };
 		0FECF7EABB4F538A378ECDFF /* RelayListVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = B42983C9E84DBA57FA9C2AA4 /* RelayListVerifier.swift */; };
@@ -66,6 +67,7 @@
 		83EE6EF005FCAA047976FF9D /* TunnelDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B9BA54065E95B7262DA7A95 /* TunnelDiagnostics.swift */; };
 		89009F889ABE5BCFA7F125B2 /* TelemetrySessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42FBF71585756F18035DA71D /* TelemetrySessionStore.swift */; };
 		8D1616AEAACF90DD9E955B23 /* PacketTunnelInternetProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BEE51EC45A891A7FD184DFB /* PacketTunnelInternetProbe.swift */; };
+		8F139A6318A8DFB7DD1F9E1B /* EngineStopSignal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 007F9F5B484B9408D05F255E /* EngineStopSignal.swift */; };
 		91DF94A8B176C8B90DCFF6A5 /* EngineDirectories.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25CB8E64CF645C0DD1375294 /* EngineDirectories.swift */; };
 		94D05989D726F0125FC4CBDA /* WssFallbackPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6778C7AC035DF5A9549A7A2D /* WssFallbackPolicy.swift */; };
 		952EFF368D06083B89F5EE8D /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4783169BE46FEE9B0472504 /* AppConfig.swift */; };
@@ -147,6 +149,7 @@
 
 /* Begin PBXFileReference section */
 		005F1F59591EC44366AC6B21 /* InternetProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InternetProbe.swift; sourceTree = "<group>"; };
+		007F9F5B484B9408D05F255E /* EngineStopSignal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineStopSignal.swift; sourceTree = "<group>"; };
 		03703C68A02344020716751A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		135777353E0B842A0E8E1A49 /* GeoIpClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoIpClient.swift; sourceTree = "<group>"; };
 		174E944F053F54F691E59C74 /* OpenRungTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = OpenRungTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -311,6 +314,7 @@
 			isa = PBXGroup;
 			children = (
 				25CB8E64CF645C0DD1375294 /* EngineDirectories.swift */,
+				007F9F5B484B9408D05F255E /* EngineStopSignal.swift */,
 				C9F3B6378B98E464A9F306E7 /* FailureClassifier.swift */,
 				C28E2B488D1B810BD0BB8AA1 /* Info.plist */,
 				97D23B885595CDD6DD259A85 /* LibboxPacketTunnelPlatformInterface.swift */,
@@ -502,6 +506,7 @@
 				2226FA02DA3CF06280AA3D27 /* CountryGeo.swift in Sources */,
 				01FB4615E4C3105E861CBAA4 /* DeviceAttributes.swift in Sources */,
 				91DF94A8B176C8B90DCFF6A5 /* EngineDirectories.swift in Sources */,
+				064EE332A9DA0543E819E36C /* EngineStopSignal.swift in Sources */,
 				EAD1DFA9AB52E6A93CB60890 /* FailureClassifier.swift in Sources */,
 				352F6CA320938DBB039664C2 /* GeoIpClient.swift in Sources */,
 				9604E15625FCE8C234279160 /* InternetProbe.swift in Sources */,
@@ -546,6 +551,7 @@
 				3211CE2D43E97CFA91D9E7FF /* BrokerClientTests.swift in Sources */,
 				37E79B346F6A9846A9410761 /* BrokerEndpoint.swift in Sources */,
 				C434209DCAFA9B2D3BA91E84 /* DeviceAttributes.swift in Sources */,
+				8F139A6318A8DFB7DD1F9E1B /* EngineStopSignal.swift in Sources */,
 				2C3222CCA8C27C06BBA68F85 /* FailureClassifier.swift in Sources */,
 				3E600B1A4A0F6A075AB8D6E7 /* FailureClassifierTests.swift in Sources */,
 				837E14040DB7B0414964DCFC /* InternetProbe.swift in Sources */,

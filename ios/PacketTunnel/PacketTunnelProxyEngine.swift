@@ -9,6 +9,9 @@ protocol PacketTunnelProxyEngine: AnyObject {
         configuration: SingBoxConfiguration,
         tunnelProvider: NEPacketTunnelProvider
     ) async throws
+    /// Linearizes intentional teardown against an unexpected libbox-stop callback. Returns false
+    /// when the unexpected callback already won and terminal handling must take precedence.
+    func prepareForExpectedStop() -> Bool
     func stop()
     /// Pause the engine when the device sleeps and resume it on wake, so iOS doesn't terminate the
     /// extension for CPU/wakeups while the tunnel sits idle. Safe no-op before the engine starts.
@@ -18,55 +21,6 @@ protocol PacketTunnelProxyEngine: AnyObject {
     /// finishes the waiter without reporting a failure.
     func waitForUnexpectedStop() async -> String?
     var hasUnexpectedStop: Bool { get }
-}
-
-private final class EngineStopSignal: @unchecked Sendable {
-    private let lock = NSLock()
-    private let continuation: AsyncStream<String>.Continuation
-    let events: AsyncStream<String>
-    private var unexpectedReason: String?
-    private var finished = false
-
-    init() {
-        var captured: AsyncStream<String>.Continuation?
-        events = AsyncStream { captured = $0 }
-        continuation = captured!
-    }
-
-    var hasUnexpectedStop: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return unexpectedReason != nil
-    }
-
-    func reportUnexpected(_ reason: String) {
-        lock.lock()
-        guard finished == false else {
-            lock.unlock()
-            return
-        }
-        unexpectedReason = reason
-        finished = true
-        lock.unlock()
-        continuation.yield(reason)
-        continuation.finish()
-    }
-
-    func finishExpected() {
-        lock.lock()
-        guard finished == false else {
-            lock.unlock()
-            return
-        }
-        finished = true
-        lock.unlock()
-        continuation.finish()
-    }
-
-    func wait() async -> String? {
-        for await reason in events { return reason }
-        return nil
-    }
 }
 
 #if canImport(Libbox)
@@ -189,7 +143,7 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
     }
 
     func stop() {
-        stopSignal.finishExpected()
+        _ = prepareForExpectedStop()
         try? statusClient?.disconnect()
         statusClient = nil
         try? commandServer?.closeService()
@@ -199,6 +153,8 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
         platformInterface = nil
         activeRelay = nil
     }
+
+    func prepareForExpectedStop() -> Bool { stopSignal.finishExpected() }
 
     func pause() {
         commandServer?.pause()
@@ -290,9 +246,11 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
     }
 
     func stop() {
-        stopSignal.finishExpected()
+        _ = prepareForExpectedStop()
         activeRelay = nil
     }
+
+    func prepareForExpectedStop() -> Bool { stopSignal.finishExpected() }
 
     func pause() {}
     func wake() {}

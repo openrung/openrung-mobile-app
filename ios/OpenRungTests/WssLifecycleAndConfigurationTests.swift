@@ -2,6 +2,58 @@ import Foundation
 import XCTest
 
 final class WssLifecycleAndConfigurationTests: XCTestCase {
+    func testCancelledEngineStopWaitDoesNotConsumeSignalForNextMonitor() async throws {
+        let signal = EngineStopSignal()
+        let firstWaitStarted = expectation(description: "startup engine-stop wait started")
+        let firstWait = Task {
+            firstWaitStarted.fulfill()
+            return await signal.wait()
+        }
+        await fulfillment(of: [firstWaitStarted], timeout: 1)
+        try await Task.sleep(nanoseconds: 20_000_000)
+
+        firstWait.cancel()
+        let cancelledWaitResult = await firstWait.value
+        XCTAssertNil(cancelledWaitResult)
+
+        let monitorWaitStarted = expectation(description: "post-promotion engine monitor started")
+        let monitorWait = Task {
+            monitorWaitStarted.fulfill()
+            return await signal.wait()
+        }
+        await fulfillment(of: [monitorWaitStarted], timeout: 1)
+        await Task.yield()
+
+        signal.reportUnexpected("libbox exited")
+
+        let monitorResult = await monitorWait.value
+        XCTAssertEqual(monitorResult, "libbox exited")
+        XCTAssertTrue(signal.hasUnexpectedStop)
+        let replayedResult = await signal.wait()
+        XCTAssertEqual(replayedResult, "libbox exited", "terminal reasons must replay")
+    }
+
+    func testExpectedEngineStopClaimSuppressesLaterUnexpectedCallback() async {
+        let signal = EngineStopSignal()
+
+        XCTAssertTrue(signal.finishExpected())
+        signal.reportUnexpected("late libbox callback")
+
+        XCTAssertFalse(signal.hasUnexpectedStop)
+        let result = await signal.wait()
+        XCTAssertNil(result)
+    }
+
+    func testUnexpectedEngineStopWinsExpectedStopClaim() async {
+        let signal = EngineStopSignal()
+        signal.reportUnexpected("libbox exited")
+
+        XCTAssertFalse(signal.finishExpected())
+        XCTAssertTrue(signal.hasUnexpectedStop)
+        let result = await signal.wait()
+        XCTAssertEqual(result, "libbox exited")
+    }
+
     func testBridgeChangesOnlyRealityTransportEndpointAndKeepsLoopbackInsideTun() throws {
         let relay = makeWssTestRelay()
         let direct = SingBoxConfiguration(relay: relay).makeJSONObject()
@@ -65,17 +117,35 @@ final class WssLifecycleAndConfigurationTests: XCTestCase {
         )
     }
 
-    func testNetworkEpochTrackerIgnoresOnlyBaselineAndTreatsEveryLaterUpdateAsANewEpoch() {
+    func testNetworkEpochTrackerUsesInitialCallbackAsBaseline() {
+        var tracker = NetworkEpochTracker<PhysicalNetworkFingerprint>()
+        let wifi = fingerprint(interface: "en0:wifi:4", satisfied: true)
+
+        XCTAssertFalse(tracker.absorb(wifi))
+        XCTAssertEqual(tracker.current, wifi)
+    }
+
+    func testNetworkEpochTrackerIgnoresRepeatedIdenticalCallbacks() {
+        var tracker = NetworkEpochTracker<PhysicalNetworkFingerprint>()
+        let wifi = fingerprint(interface: "en0:wifi:4", satisfied: true)
+
+        XCTAssertFalse(tracker.absorb(wifi))
+        XCTAssertFalse(tracker.absorb(wifi))
+        XCTAssertFalse(tracker.absorb(wifi))
+    }
+
+    func testNetworkEpochTrackerEmitsOnlyForChangedFingerprints() {
         var tracker = NetworkEpochTracker<PhysicalNetworkFingerprint>()
         let wifi = fingerprint(interface: "en0:wifi:4", satisfied: true)
         let cellular = fingerprint(interface: "pdp_ip0:cellular:7", satisfied: true)
         let offline = fingerprint(interface: "", satisfied: false)
 
         XCTAssertFalse(tracker.absorb(wifi))
-        XCTAssertTrue(tracker.absorb(wifi))
         XCTAssertTrue(tracker.absorb(cellular))
+        XCTAssertFalse(tracker.absorb(cellular))
         XCTAssertTrue(tracker.absorb(offline))
-        XCTAssertTrue(tracker.absorb(offline))
+        XCTAssertFalse(tracker.absorb(offline))
+        XCTAssertTrue(tracker.absorb(wifi))
     }
 
     func testHealthThresholdRequiresThreeConsecutiveRemoteFailuresAndResetsOnSuccess() {

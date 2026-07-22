@@ -6,10 +6,35 @@ import OSLog
 /// per-relay reachability/engine/internet-probe flow, geo relay-label resolution, lifecycle
 /// telemetry, and the heartbeat loop. Rich state is published to the app via `SharedConnectionState`.
 final class PacketTunnelProvider: NEPacketTunnelProvider {
+    /// All fields describing the currently owned transport are confined to `lifecycleQueue`.
+    /// Keeping them in one tuple makes install, promotion, validation and teardown atomic across
+    /// NetworkExtension callbacks and Swift-concurrency tasks.
+    private struct ActiveTransportState {
+        var engine: (any PacketTunnelProxyEngine)? = nil
+        var wssSession: (any WssNativeSession)? = nil
+        var relayID: String? = nil
+        var accessTransport = AccessTransport.direct
+        var wssFrontID: String? = nil
+        var epoch: UUID? = nil
+    }
+
+    private struct ActiveTransportSnapshot {
+        let engine: (any PacketTunnelProxyEngine)?
+        let relayID: String?
+        let wssFrontID: String?
+        let epoch: UUID
+    }
+
+    private struct DetachedActiveTransport {
+        let engine: (any PacketTunnelProxyEngine)?
+        let wssSession: (any WssNativeSession)?
+        let relayID: String?
+        let networkMonitor: PhysicalNetworkEpochMonitor?
+    }
+
     private let logger = Logger(subsystem: AppConfig.loggingSubsystem, category: "PacketTunnel")
     private let selector = RelaySelector()
     private let wssFallbackPolicy = WssFallbackPolicy(validator: NativeWssFrontValidator())
-    private var engine: PacketTunnelProxyEngine?
     private var heartbeatTask: Task<Void, Never>?
     private var connectTask: Task<Void, Never>?
     private var engineMonitorTask: Task<Void, Never>?
@@ -17,10 +42,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     private var wssRecoveryTask: Task<Void, Never>?
     private var wssMonitorGeneration: UUID?
     private var physicalNetworkMonitor: PhysicalNetworkEpochMonitor?
-    private var wssSession: (any WssNativeSession)?
-    private var activeRelayID: String?
-    private var activeAccessTransport = AccessTransport.direct
-    private var activeWssFrontID: String?
+    private var activeTransport = ActiveTransportState()
     private var brokerURL = AppConfig.defaultBrokerURL
     /// Native-close, NWPath and health callbacks all enter this queue before they may mutate the
     /// provider's recovery state. WssRecoveryGate then lets only one callback claim an epoch.
@@ -80,13 +102,11 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             // recovery connect can corrupt libbox lifecycle state.
             await TunnelTransportCleanup.drain(pending.connectionOwners)
 
-            if let relayID = activeRelayID {
+            let detached = cleanupActiveTransport(cancelMonitor: false)
+            if let relayID = detached?.relayID {
                 TelemetryManager.record("tunnel_stopped", relayId: relayID)
             }
-            activeRelayID = nil
             TelemetryManager.endSession(reason: "disconnect")
-
-            cleanupActiveTransport(cancelMonitor: false)
             // Engine/WSS observer waits are unblocked by the ordered cleanup above.
             await TunnelTransportCleanup.drain(pending.observers)
             SharedConnectionState.setStatus(.disconnected, clearRelayLabel: true, clearError: true)
@@ -100,14 +120,19 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         // Pause the engine while the device sleeps so iOS doesn't terminate the extension for CPU
         // wakeups; libbox schedules its own auto-wake. Without this the extension can be silently
         // killed while SharedConnectionState still reports .connected.
-        engine?.pause()
+        lifecycleQueue.sync {
+            guard lifecycleIsStopping == false else { return }
+            activeTransport.engine?.pause()
+        }
         completionHandler()
     }
 
     override func wake() {
-        engine?.wake()
-        if let session = wssSession, activeAccessTransport == AccessTransport.wss {
-            requestWssRecovery(trigger: "wake", expectedSession: session)
+        // Waking the device is not itself a network epoch. Serialize engine wake with teardown;
+        // changed NWPath fingerprints, native close, and health probes own WSS recovery.
+        lifecycleQueue.sync {
+            guard lifecycleIsStopping == false else { return }
+            activeTransport.engine?.wake()
         }
     }
 
@@ -219,9 +244,19 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             try Task.checkCancellation()
 
             let relay = connected.relay
-            activeRelayID = relay.id
-            activeAccessTransport = connected.accessTransport
-            activeWssFrontID = connected.frontID
+            let promoted = lifecycleQueue.sync {
+                guard
+                    lifecycleIsStopping == false,
+                    activeTransport.epoch == connected.transportEpoch,
+                    activeTransport.engine === connected.engine,
+                    connected.wssSession == nil || activeTransport.wssSession === connected.wssSession
+                else { return false }
+                activeTransport.relayID = relay.id
+                activeTransport.accessTransport = connected.accessTransport
+                activeTransport.wssFrontID = connected.frontID
+                return true
+            }
+            guard promoted else { throw CancellationError() }
             TelemetryManager.markConnected(relayId: relay.id)
             SharedConnectionState.setStatus(.connected, clearRelayLabel: true, clearError: true)
             applyRelayLocation(relay)
@@ -253,7 +288,12 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 measurements: successMeasurements
             )
             try Task.checkCancellation()
-            guard engine?.hasUnexpectedStop != true else {
+            let engineStopped = lifecycleQueue.sync {
+                activeTransport.epoch != connected.transportEpoch
+                    || activeTransport.engine !== connected.engine
+                    || activeTransport.engine?.hasUnexpectedStop == true
+            }
+            guard engineStopped == false else {
                 throw LocalTunnelError(
                     stage: "active_tunnel_engine",
                     underlying: PacketTunnelProxyEngineError.engineStartFailed(
@@ -269,7 +309,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             // Completion is the linearization point. Active callbacks installed afterward may
             // report a later path loss, but can never race an outstanding start completion.
             startHeartbeatLoop()
-            startEngineMonitor(relay: relay)
+            startEngineMonitor(relay: relay, transportEpoch: connected.transportEpoch)
             if connected.accessTransport == AccessTransport.wss {
                 startWssMonitor(relay: relay)
             }
@@ -459,7 +499,24 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         } catch {
             throw LocalTunnelError(stage: "wss_client", underlying: error)
         }
-        wssSession = session
+        let transportEpoch = UUID()
+        let installed = lifecycleQueue.sync {
+            guard
+                lifecycleIsStopping == false,
+                activeTransport.engine == nil,
+                activeTransport.wssSession == nil
+            else { return false }
+            activeTransport.wssSession = session
+            activeTransport.relayID = nil
+            activeTransport.accessTransport = AccessTransport.direct
+            activeTransport.wssFrontID = nil
+            activeTransport.epoch = transportEpoch
+            return true
+        }
+        guard installed else {
+            session.close()
+            throw CancellationError()
+        }
         guard ticket.isFresh(at: Date()) else {
             closeWssSession(session)
             throw WssTransportError(
@@ -494,7 +551,9 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             tcpLatencyMs: nil,
             attempt: attempt,
             accessTransport: AccessTransport.wss,
-            frontID: front.id
+            frontID: front.id,
+            expectedWssSession: session,
+            expectedTransportEpoch: transportEpoch
         )
     }
 
@@ -504,21 +563,42 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         tcpLatencyMs: Int64?,
         attempt: Int,
         accessTransport: String,
-        frontID: String?
+        frontID: String?,
+        expectedWssSession: (any WssNativeSession)? = nil,
+        expectedTransportEpoch: UUID? = nil
     ) async throws -> ConnectedRelay {
         let proxyEngine = EmbeddedProxyEngine()
-        engine = proxyEngine
+        let transportEpoch: UUID? = lifecycleQueue.sync {
+            guard lifecycleIsStopping == false, activeTransport.engine == nil else { return nil }
+            if let expectedTransportEpoch {
+                guard
+                    activeTransport.epoch == expectedTransportEpoch,
+                    activeTransport.wssSession === expectedWssSession
+                else { return nil }
+                activeTransport.engine = proxyEngine
+                return expectedTransportEpoch
+            }
+            guard activeTransport.wssSession == nil else { return nil }
+            let epoch = UUID()
+            activeTransport.engine = proxyEngine
+            activeTransport.relayID = nil
+            activeTransport.accessTransport = AccessTransport.direct
+            activeTransport.wssFrontID = nil
+            activeTransport.epoch = epoch
+            return epoch
+        }
+        guard let transportEpoch else { throw CancellationError() }
         let tunnelStartedNs = DispatchTime.now().uptimeNanoseconds
         do {
             try await proxyEngine.start(relay: relay, configuration: configuration, tunnelProvider: self)
             try Task.checkCancellation()
         } catch is CancellationError {
             proxyEngine.stop()
-            if engine === proxyEngine { engine = nil }
+            removeEngineIfCurrent(proxyEngine, transportEpoch: transportEpoch)
             throw CancellationError()
         } catch {
             proxyEngine.stop()
-            if engine === proxyEngine { engine = nil }
+            removeEngineIfCurrent(proxyEngine, transportEpoch: transportEpoch)
             throw LocalTunnelError(stage: "engine_start", underlying: error)
         }
         let tunnelStartMs = Int64((DispatchTime.now().uptimeNanoseconds - tunnelStartedNs) / 1_000_000)
@@ -549,6 +629,18 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             guard isGenuineRemoteDataPathFailure(error) else {
                 throw LocalTunnelError(stage: "internet_probe", underlying: error)
             }
+            // Classifying this probe as a remote path failure unlocks direct-to-WSS fallback (and
+            // therefore ticket minting). Linearize that decision against libbox's stop callback:
+            // if the callback already won, this is a local engine failure; if teardown wins, a
+            // later callback is expected because this failed candidate is about to be replaced.
+            guard proxyEngine.prepareForExpectedStop() else {
+                throw LocalTunnelError(
+                    stage: "active_tunnel_engine",
+                    underlying: PacketTunnelProxyEngineError.engineStartFailed(
+                        "libbox stopped while classifying the startup path failure"
+                    )
+                )
+            }
             if accessTransport == AccessTransport.wss, let frontID {
                 throw WssTransportError(stage: "internet_probe", frontID: frontID, underlying: error)
             }
@@ -556,8 +648,6 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         }
         SharedConnectionState.appendLog("internet access verified in \(probe.durationMs) ms")
 
-        activeAccessTransport = accessTransport
-        activeWssFrontID = frontID
         return ConnectedRelay(
             relay: relay,
             tcpLatencyMs: tcpLatencyMs,
@@ -565,8 +655,27 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             internetProbeMs: probe.durationMs,
             attempts: attempt,
             accessTransport: accessTransport,
-            frontID: frontID
+            frontID: frontID,
+            engine: proxyEngine,
+            wssSession: expectedWssSession,
+            transportEpoch: transportEpoch
         )
+    }
+
+    private func removeEngineIfCurrent(
+        _ expected: any PacketTunnelProxyEngine,
+        transportEpoch: UUID
+    ) {
+        lifecycleQueue.sync {
+            guard
+                activeTransport.epoch == transportEpoch,
+                activeTransport.engine === expected
+            else { return }
+            activeTransport.engine = nil
+            if activeTransport.wssSession == nil {
+                activeTransport.epoch = nil
+            }
+        }
     }
 
     private func verifyStartupInternetPath(
@@ -641,10 +750,13 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
 
     /// Unexpected libbox exit is a local terminal failure under every access transport. In
     /// particular, it must beat a near-simultaneous WSS-close callback and never mint a ticket.
-    private func startEngineMonitor(relay: RelayDescriptor) {
-        guard let monitoredEngine = engine else { return }
+    private func startEngineMonitor(relay: RelayDescriptor, transportEpoch: UUID) {
         lifecycleQueue.sync {
-            guard lifecycleIsStopping == false, engine === monitoredEngine else { return }
+            guard
+                lifecycleIsStopping == false,
+                activeTransport.epoch == transportEpoch,
+                let monitoredEngine = activeTransport.engine
+            else { return }
             engineMonitorTask?.cancel()
             engineMonitorTask = Task { [weak self] in
                 guard let reason = await monitoredEngine.waitForUnexpectedStop() else { return }
@@ -652,6 +764,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 self?.requestEngineTermination(
                     relay: relay,
                     expectedEngine: monitoredEngine,
+                    transportEpoch: transportEpoch,
                     reason: reason
                 )
             }
@@ -661,14 +774,16 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     private func requestEngineTermination(
         relay: RelayDescriptor,
         expectedEngine: any PacketTunnelProxyEngine,
+        transportEpoch: UUID,
         reason: String
     ) {
         lifecycleQueue.async { [weak self] in
             guard
                 let self,
                 self.lifecycleIsStopping == false,
-                self.engine === expectedEngine,
-                self.activeRelayID == relay.id
+                self.activeTransport.epoch == transportEpoch,
+                self.activeTransport.engine === expectedEngine,
+                self.activeTransport.relayID == relay.id
             else { return }
             self.wssRecoveryGate.clear()
             self.wssMonitorTask?.cancel()
@@ -680,12 +795,15 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             let pendingRecovery = self.wssRecoveryTask
             pendingRecovery?.cancel()
             self.wssRecoveryTask = nil
-            self.terminalLifecycleTask?.cancel()
+            let pendingTerminal = self.terminalLifecycleTask
+            pendingTerminal?.cancel()
             self.terminalLifecycleTask = Task { [weak self] in
                 // If recovery was already inside noncancellable engine.start, let it unwind before
-                // the local terminal path tears down libbox.
+                // the local terminal path tears down libbox. A previous terminal owner may already
+                // have detached this epoch, so let it finish before attempting the same transition.
                 await pendingInitialConnect?.value
                 await pendingRecovery?.value
+                await pendingTerminal?.value
                 await self?.terminateForActiveLocalFailure(
                     LocalTunnelError(
                         stage: "active_tunnel_engine",
@@ -693,6 +811,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                     ),
                     relayID: relay.id,
                     expectedEngine: expectedEngine,
+                    expectedTransportEpoch: transportEpoch,
                     enforceExpectedState: false
                 )
             }
@@ -700,12 +819,12 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     }
 
     private func startWssMonitor(relay: RelayDescriptor) {
-        lifecycleQueue.sync {
+        let replacedMonitor: PhysicalNetworkEpochMonitor? = lifecycleQueue.sync {
             guard
                 lifecycleIsStopping == false,
-                let session = wssSession,
-                activeAccessTransport == AccessTransport.wss
-            else { return }
+                let session = activeTransport.wssSession,
+                activeTransport.accessTransport == AccessTransport.wss
+            else { return nil }
             wssMonitorTask?.cancel()
             wssRecoveryGate.arm(session)
 
@@ -716,7 +835,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                     reason: "physical network epoch changed"
                 )
             }
-            physicalNetworkMonitor?.close()
+            let replacedMonitor = physicalNetworkMonitor
             physicalNetworkMonitor = monitor
             wssMonitorTask = Task { [weak self] in
                 guard let event = await self?.awaitWssMonitorEvent(session: session, monitor: monitor) else {
@@ -734,7 +853,9 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                     self?.requestActiveWssLocalFailure(error, relay: relay, expectedSession: session)
                 }
             }
+            return replacedMonitor
         }
+        replacedMonitor?.close()
     }
 
     private func awaitWssMonitorEvent(
@@ -819,16 +940,18 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         expectedSession: any WssNativeSession,
         reason: String
     ) {
+        dispatchPrecondition(condition: .onQueue(lifecycleQueue))
         guard lifecycleIsStopping == false else { return }
-        guard wssRecoveryGate.claim(expectedSession) else { return }
         guard
-            let current = wssSession,
+            let current = activeTransport.wssSession,
             current === expectedSession,
-            activeAccessTransport == AccessTransport.wss
+            activeTransport.accessTransport == AccessTransport.wss
         else { return }
         // A genuine engine stop is local and terminal even if the WSS adapter reports closure at
-        // nearly the same time. The engine monitor has already queued the terminal path.
-        guard engine?.hasUnexpectedStop != true else { return }
+        // nearly the same time. Check it before claiming the one-shot recovery gate so the engine
+        // monitor retains terminal ownership even when both callbacks arrive together.
+        guard activeTransport.engine?.hasUnexpectedStop != true else { return }
+        guard wssRecoveryGate.claim(expectedSession) else { return }
 
         wssMonitorTask?.cancel()
         wssMonitorTask = nil
@@ -857,28 +980,32 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         lifecycleQueue.async { [weak self] in
             guard
                 let self,
-                self.lifecycleIsStopping == false,
-                self.wssRecoveryGate.claim(expectedSession)
+                self.lifecycleIsStopping == false
             else { return }
             guard
-                let current = self.wssSession,
+                let current = self.activeTransport.wssSession,
                 current === expectedSession,
-                self.activeRelayID == relay.id
+                self.activeTransport.relayID == relay.id
             else { return }
+            guard self.wssRecoveryGate.claim(expectedSession) else { return }
             self.wssMonitorTask?.cancel()
             self.wssMonitorTask = nil
             self.wssMonitorGeneration = nil
             let pendingInitialConnect = self.connectTask
             pendingInitialConnect?.cancel()
             self.connectTask = nil
-            let expectedEngine = self.engine
-            self.terminalLifecycleTask?.cancel()
+            let expectedEngine = self.activeTransport.engine
+            let expectedTransportEpoch = self.activeTransport.epoch
+            let pendingTerminal = self.terminalLifecycleTask
+            pendingTerminal?.cancel()
             self.terminalLifecycleTask = Task { [weak self] in
                 await pendingInitialConnect?.value
+                await pendingTerminal?.value
                 await self?.terminateForActiveLocalFailure(
                     error,
                     relayID: relay.id,
-                    expectedEngine: expectedEngine
+                    expectedEngine: expectedEngine,
+                    expectedTransportEpoch: expectedTransportEpoch
                 )
             }
         }
@@ -890,19 +1017,27 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         expectedSession: any WssNativeSession,
         generation: UUID
     ) async {
-        guard
-            Task.isCancelled == false,
-            lifecycleQueue.sync(execute: {
-                lifecycleIsStopping == false && wssMonitorGeneration == generation
-            }),
-            let current = wssSession,
-            current === expectedSession,
-            activeAccessTransport == AccessTransport.wss
-        else { return }
+        let snapshot: ActiveTransportSnapshot? = lifecycleQueue.sync {
+            guard
+                lifecycleIsStopping == false,
+                wssMonitorGeneration == generation,
+                let current = activeTransport.wssSession,
+                current === expectedSession,
+                activeTransport.accessTransport == AccessTransport.wss,
+                let epoch = activeTransport.epoch
+            else { return nil }
+            return ActiveTransportSnapshot(
+                engine: activeTransport.engine,
+                relayID: activeTransport.relayID,
+                wssFrontID: activeTransport.wssFrontID,
+                epoch: epoch
+            )
+        }
+        guard Task.isCancelled == false, let snapshot else { return }
         defer { finishWssRecovery(generation: generation) }
 
-        let relayID = activeRelayID
-        let frontID = activeWssFrontID
+        let relayID = snapshot.relayID
+        let frontID = snapshot.wssFrontID
         var attributes = [
             "transport": AccessTransport.wss,
             "trigger": trigger,
@@ -912,21 +1047,24 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         // A queued local engine-termination path has precedence. Returning here preserves the
         // active state for that owner; if it wins immediately after this check, it awaits this task
         // and then performs terminal cleanup without relying on the state below remaining intact.
-        guard Task.isCancelled == false, engine?.hasUnexpectedStop != true else { return }
+        guard Task.isCancelled == false, snapshot.engine?.hasUnexpectedStop != true else { return }
         TelemetryManager.record("transport_path_lost", relayId: relayID, attributes: attributes)
         SharedConnectionState.appendLog("WSS path ended; reconnecting direct-first")
         SharedConnectionState.setStatus(.connecting, clearRelayLabel: true, clearError: true)
         stopHeartbeatLoop()
 
         // The engine must release its Reality connection before the loopback adapter disappears.
-        cleanupActiveTransport(cancelMonitor: false)
-        activeRelayID = nil
+        guard cleanupActiveTransport(
+            cancelMonitor: false,
+            expectedTransportEpoch: snapshot.epoch,
+            abortIfUnexpectedEngineStopWon: true
+        ) != nil else { return }
         TelemetryManager.endSession(reason: "wss_path_lost")
 
         do {
             // Always re-observe a satisfied physical path after teardown. This is effectively
-            // immediate on a healthy path and prevents wake/path-transition races from running
-            // broker discovery while the device is transiently offline.
+            // immediate on a healthy path and prevents path-transition races from running broker
+            // discovery while the device is transiently offline.
             try await PhysicalNetworkAvailability.waitUntilSatisfied()
             try Task.checkCancellation()
             // Full signed discovery means the descriptor/front set is fresh. connect() always starts
@@ -951,15 +1089,24 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         _ error: LocalTunnelError,
         relayID: String,
         expectedEngine: (any PacketTunnelProxyEngine)?,
+        expectedTransportEpoch: UUID?,
         enforceExpectedState: Bool = true
     ) async {
         guard Task.isCancelled == false else { return }
-        if enforceExpectedState {
-            guard
-                activeRelayID == relayID,
-                expectedEngine == nil || engine === expectedEngine
-            else { return }
+        let transportEpoch: UUID? = lifecycleQueue.sync {
+            guard let currentEpoch = activeTransport.epoch else { return nil }
+            if let expectedTransportEpoch, currentEpoch != expectedTransportEpoch { return nil }
+            if enforceExpectedState {
+                guard
+                    activeTransport.relayID == relayID,
+                    expectedEngine == nil || activeTransport.engine === expectedEngine
+                else { return nil }
+            } else if let expectedEngine, activeTransport.engine !== expectedEngine {
+                return nil
+            }
+            return currentEpoch
         }
+        guard let transportEpoch else { return }
         stopHeartbeatLoop()
         let message = FailureClassifier.describe(error)
         TelemetryManager.record(
@@ -971,23 +1118,56 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 "failure_detail": FailureClassifier.detail(error),
             ]
         )
-        cleanupActiveTransport(cancelMonitor: false)
-        activeRelayID = nil
+        guard cleanupActiveTransport(
+            cancelMonitor: false,
+            expectedTransportEpoch: transportEpoch
+        ) != nil else { return }
         TelemetryManager.endSession(reason: "connection_failed")
         try? await TelemetryManager.flush(brokerURL: AppConfig.telemetryBrokerURL.absoluteString)
-        guard Task.isCancelled == false else { return }
+        // Successfully detaching the epoch transfers terminal ownership to this task. Internal
+        // replacement may cancel it after that point, but allowing cancellation to abandon the
+        // final provider error would leave a transport-less zombie tunnel. User shutdown still
+        // suppresses the error, and an unexpected newer epoch must never be terminated as stale.
+        let shouldPublishTerminalFailure = lifecycleQueue.sync {
+            lifecycleIsStopping == false && activeTransport.epoch == nil
+        }
+        guard shouldPublishTerminalFailure else { return }
         SharedConnectionState.fail(message)
         TunnelDiagnostics.recordError(message)
         cancelTunnelWithError(error)
     }
 
     private func closeWssSession(_ expected: any WssNativeSession) {
-        if let current = wssSession, current === expected { wssSession = nil }
+        lifecycleQueue.sync {
+            guard let current = activeTransport.wssSession, current === expected else { return }
+            activeTransport.wssSession = nil
+            if activeTransport.engine == nil {
+                activeTransport.relayID = nil
+                activeTransport.accessTransport = AccessTransport.direct
+                activeTransport.wssFrontID = nil
+                activeTransport.epoch = nil
+            }
+        }
         expected.close()
     }
 
-    private func cleanupActiveTransport(cancelMonitor: Bool = true) {
-        let activeNetworkMonitor = lifecycleQueue.sync {
+    @discardableResult
+    private func cleanupActiveTransport(
+        cancelMonitor: Bool = true,
+        expectedTransportEpoch: UUID? = nil,
+        abortIfUnexpectedEngineStopWon: Bool = false
+    ) -> DetachedActiveTransport? {
+        let detached: DetachedActiveTransport? = lifecycleQueue.sync {
+            if let expectedTransportEpoch, activeTransport.epoch != expectedTransportEpoch {
+                return nil
+            }
+            // This is the linearization point between WSS recovery and an unexpected libbox exit.
+            // Marking teardown expected suppresses a later close callback; if the callback already
+            // won, recovery leaves the epoch intact for the terminal engine owner.
+            let expectedStopClaimed = activeTransport.engine?.prepareForExpectedStop() ?? true
+            if abortIfUnexpectedEngineStopWon, expectedStopClaimed == false {
+                return nil
+            }
             if cancelMonitor {
                 wssMonitorTask?.cancel()
                 wssMonitorTask = nil
@@ -998,20 +1178,22 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             engineMonitorTask = nil
             let activeNetworkMonitor = physicalNetworkMonitor
             physicalNetworkMonitor = nil
-            return activeNetworkMonitor
+            let detached = DetachedActiveTransport(
+                engine: activeTransport.engine,
+                wssSession: activeTransport.wssSession,
+                relayID: activeTransport.relayID,
+                networkMonitor: activeNetworkMonitor
+            )
+            activeTransport = ActiveTransportState()
+            return detached
         }
-
-        let activeEngine = engine
-        engine = nil
-        let activeWss = wssSession
-        wssSession = nil
+        guard let detached else { return nil }
         TunnelTransportCleanup.run(
-            stopEngine: { activeEngine?.stop() },
-            closeNetworkMonitor: { activeNetworkMonitor?.close() },
-            closeWss: { activeWss?.close() }
+            stopEngine: { detached.engine?.stop() },
+            closeNetworkMonitor: { detached.networkMonitor?.close() },
+            closeWss: { detached.wssSession?.close() }
         )
-        activeAccessTransport = AccessTransport.direct
-        activeWssFrontID = nil
+        return detached
     }
 
     /**
@@ -1119,6 +1301,9 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         let attempts: Int
         let accessTransport: String
         let frontID: String?
+        let engine: any PacketTunnelProxyEngine
+        let wssSession: (any WssNativeSession)?
+        let transportEpoch: UUID
     }
 
     private enum AccessTransport {
@@ -1163,7 +1348,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     }
 }
 
-/// Thread-safe one-shot ownership for a promoted WSS epoch. Native adapter, NWPath, wake and
+/// Thread-safe one-shot ownership for a promoted WSS epoch. Native adapter, NWPath and
 /// end-to-end health signals may arrive concurrently; exactly one is allowed to launch recovery.
 private final class WssRecoveryGate: @unchecked Sendable {
     private let lock = NSLock()

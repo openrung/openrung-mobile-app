@@ -115,7 +115,8 @@ targets:
   # Hostless logic-test bundle. It compiles the units under test and their source closure directly
   # into the test module (rather than @testable-importing the app/extension), so the suites build and
   # run without the app, CocoaPods, or Libbox. The source closure also includes the pure WSS policy,
-  # ticket client, bridge config and network-epoch tracker for focused transport tests.
+  # ticket client, bridge config, network-epoch tracker, and the exact production EngineStopSignal
+  # so cancellation/re-wait behavior is exercised under Thread Sanitizer.
   #   - FailureClassifierTests: FailureClassifier + the small error types it maps.
   #   - BrokerClientTests: the broker discovery flow (staggered race + override-first).
   #   - RelayListVerifierTests: RelayListVerifier, plus AppConfig and its compile closure
@@ -130,6 +131,7 @@ targets:
     platform: iOS
     sources:
       - path: OpenRungTests
+      - path: PacketTunnel/EngineStopSignal.swift
       - path: PacketTunnel/FailureClassifier.swift
       - path: PacketTunnel/PhysicalNetworkEpochMonitor.swift
       - path: PacketTunnel/PacketTunnelError.swift

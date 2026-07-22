@@ -260,11 +260,15 @@ front-bound ticket.
 The first direct failure is the relay-health event. Ticket, CDN, handshake, and
 WSS-path failures emit transport-only telemetry (`transport_failed` with
 `transport=wss`, front ID, and stage) and MUST NOT add another relay penalty.
-Once connected, native WSS adapter loss, end-to-end path-health failure, or a
-physical network epoch change retires the session. Android treats
-route/interface/DNS changes as a new epoch; iOS does the same for `NWPath`
-changes and extension wake. An unexpected local Reality-engine exit is instead
-terminal: it never triggers reladdering, ticket acquisition, or WSS recovery.
+Once connected, native WSS adapter loss, the end-to-end path-health failure
+threshold, or a changed physical-network fingerprint retires the session.
+Android treats route/interface/DNS changes as a new epoch. On iOS, the first
+`NWPath` fingerprint establishes a baseline and only a later, different
+fingerprint is an epoch change; repeated identical callbacks are ignored.
+Extension wake resumes the Reality engine but is not itself an epoch change and
+MUST NOT retire a healthy WSS session or mint a ticket. An unexpected local
+Reality-engine exit is instead terminal: it never triggers reladdering, ticket
+acquisition, or WSS recovery.
 Cleanup clears ownership before close and always stops the Reality engine before
 the native WSS adapter. Recovery waits for a usable physical network, fetches
 fresh signed relay data, and starts again at direct Reality; single-use tickets
@@ -365,10 +369,12 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
 - `ios/Shared/WssTicketClient.swift` and `WssFallbackPolicy.swift` implement
   the shared §6 ticket and direct-first classification contract. PacketTunnel
   owns `WssNativeClient.swift`, the exact-front validator, and
-  `PhysicalNetworkEpochMonitor.swift`: adapter loss, `NWPath` change, or wake
-  stops Reality before the adapter, then performs fresh signed discovery,
-  direct Reality first, and a fresh ticket only if another eligible remote
-  failure occurs.
+  `PhysicalNetworkEpochMonitor.swift`: adapter loss, the health-failure
+  threshold, or a changed `NWPath` fingerprint stops Reality before the
+  adapter, then performs fresh signed discovery, direct Reality first, and a
+  fresh ticket only if another eligible remote failure occurs. An identical
+  `NWPath` callback is ignored, and wake only resumes the engine; neither event
+  alone retires a healthy WSS session.
 - `ios/OpenRung/OpenRungVpnModule.swift` + `OpenRungVpnModule.m`
   (RCT_EXTERN_MODULE) — implements §3 over NETunnelProviderManager +
   SharedConnectionState (Darwin observer + NEVPNStatusDidChange), including the
