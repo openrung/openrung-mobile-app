@@ -20,22 +20,31 @@ import com.openrung.model.CountryGeo
 import com.openrung.model.RecentNode
 import com.openrung.model.RelayDescriptor
 import com.openrung.model.RelaySelector
+import com.openrung.model.WssFrontDescriptor
 import com.openrung.net.BrokerClient
 import com.openrung.net.GeoIpClient
 import com.openrung.net.InternetProbe
 import com.openrung.net.NatPunchClient
 import com.openrung.net.NatPunchResult
 import com.openrung.net.NatPunchSession
+import com.openrung.net.NativeWssFrontSetValidator
+import com.openrung.net.PhysicalNetworkEpochMonitor
 import com.openrung.net.RelayRanker
 import com.openrung.net.RelayReachability
 import com.openrung.net.SingBoxConfiguration
+import com.openrung.net.WssClient
+import com.openrung.net.WssSession
+import com.openrung.net.WssTicketClient
 import com.openrung.state.ConnectionStatus
 import com.openrung.state.OpenRungStatusStore
 import com.openrung.telemetry.TelemetryManager
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
@@ -47,7 +56,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
+import java.io.IOException
+import java.net.InetAddress
 import java.net.URL
+import java.time.Instant
 import kotlin.coroutines.coroutineContext
 import kotlin.random.Random
 
@@ -55,11 +67,17 @@ class OpenRungVpnService : VpnService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val relaySelector = RelaySelector()
     private val punchRecoveryCircuitBreaker = PunchRecoveryCircuitBreaker()
+    private val wssFallbackPolicy = WssFallbackPolicy(NativeWssFrontSetValidator)
     private var connectJob: Job? = null
     private var heartbeatJob: Job? = null
+    private var engineMonitorJob: Job? = null
     private var punchMonitorJob: Job? = null
+    private var wssMonitorJob: Job? = null
     private var engine: ProxyEngine? = null
     private var punchSession: NatPunchSession? = null
+    private var wssSession: WssSession? = null
+    private val pendingWssCloses = LinkedHashSet<Deferred<Unit>>()
+    private var physicalNetworkMonitor: PhysicalNetworkEpochMonitor? = null
     private var brokerUrl: String = AppConfig.DEFAULT_BROKER_URL
     private var activeRelayId: String? = null
     private var requestedTargetCountry: String? = null
@@ -79,8 +97,12 @@ class OpenRungVpnService : VpnService() {
                 val targetCountry = intent.getStringExtra(EXTRA_TARGET_COUNTRY)?.takeIf { it.isNotBlank() }
                 val targetRelayId = intent.getStringExtra(EXTRA_TARGET_RELAY_ID)?.takeIf { it.isNotBlank() }
                 heartbeatJob?.cancel()
+                engineMonitorJob?.cancel()
+                engineMonitorJob = null
                 punchMonitorJob?.cancel()
                 punchMonitorJob = null
+                wssMonitorJob?.cancel()
+                wssMonitorJob = null
                 connectJob?.cancel()
                 // A user-initiated connect starts a new recovery epoch. Recursive recovery calls
                 // connect() directly and deliberately keep the breaker state that led to them.
@@ -239,9 +261,13 @@ class OpenRungVpnService : VpnService() {
             TelemetryManager.record(
                 event = "connection_succeeded",
                 relayId = relay.id,
+                attributes = buildMap {
+                    put("transport", connectedRelay.accessTransport)
+                    connectedRelay.frontId?.let { put("front_id", it) }
+                },
                 measurements = buildMap {
                     put("broker_fetch_ms", brokerFetchMs)
-                    put("relay_tcp_ms", connectedRelay.tcpLatencyMs)
+                    connectedRelay.tcpLatencyMs?.let { put("relay_tcp_ms", it) }
                     put("tunnel_start_ms", connectedRelay.tunnelStartMs)
                     put("internet_probe_ms", connectedRelay.internetProbeMs)
                     put("relay_attempts", connectedRelay.attempts.toLong())
@@ -261,14 +287,26 @@ class OpenRungVpnService : VpnService() {
             // must never leave a newly-dead direct path claiming CONNECTED for its HTTP timeout.
             coroutineContext.ensureActive()
             startHeartbeatLoop()
+            startTunnelEngineMonitor(relay, coroutineContext[Job])
             startPunchMonitor(relay, coroutineContext[Job])
+            startWssMonitor(relay, coroutineContext[Job])
             // This is deliberately the final operation. runCatching can swallow cancellation, so
             // no stateful work may follow it; disconnect/recovery own the already-running jobs.
             runCatching { TelemetryManager.flush(AppConfig.TELEMETRY_BROKER_URL) }
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {
+            heartbeatJob?.cancel()
+            heartbeatJob = null
+            val currentJob = coroutineContext[Job]
+            if (engineMonitorJob !== currentJob) engineMonitorJob?.cancel()
+            if (engineMonitorJob !== currentJob) engineMonitorJob = null
+            if (punchMonitorJob !== currentJob) punchMonitorJob?.cancel()
+            punchMonitorJob = null
+            if (wssMonitorJob !== currentJob) wssMonitorJob?.cancel()
+            if (wssMonitorJob !== currentJob) wssMonitorJob = null
             cleanupActiveTunnel()
+            activeRelayId = null
             val failureReason = FailureClassifier.classify(error)
             val failureDetail = FailureClassifier.detail(error)
             TelemetryManager.record(
@@ -293,80 +331,52 @@ class OpenRungVpnService : VpnService() {
         var lastError: Throwable? = null
         for ((index, relay) in candidates.withIndex()) {
             try {
-                OpenRungStatusStore.appendLog(
-                    getString(R.string.log_trying_relay, relay.id, relay.publicHost, relay.publicPort),
-                )
-                OpenRungStatusStore.appendLog(getString(R.string.log_checking_relay_reachability))
-                val tcpLatencyMs = try {
-                    RelayReachability.checkTcp(relay)
-                } catch (error: CancellationException) {
-                    // A racing disconnect cancels this coroutine; let cancellation propagate instead
-                    // of masking it as an "unreachable" failure, which would keep trying relays and
-                    // could bring a tunnel up after teardown.
-                    throw error
-                } catch (error: Throwable) {
-                    throw IllegalStateException(
-                        getString(R.string.error_relay_unreachable, relay.publicHost, relay.publicPort),
-                        error,
-                    )
-                }
-                val punched = attemptDirectPunch(relay)
-                if (punched != null) {
-                    try {
-                        return startTunnel(
-                            relay = relay,
-                            config = SingBoxConfiguration(
-                                relay = relay,
-                                bridgeHost = punched.bridgeHost,
-                                bridgePort = punched.bridgePort,
-                            ),
-                            tcpLatencyMs = tcpLatencyMs,
-                            attempt = index + 1,
-                        )
-                    } catch (error: CancellationException) {
-                        throw error
-                    } catch (error: Throwable) {
-                        // QUIC was established but the VLESS/Reality tunnel or end-to-end probe
-                        // failed. Tear it down in engine -> bridge order, then retry this SAME
-                        // relay through RelayHub before moving down the candidate ladder.
+                return wssFallbackPolicy.connect(
+                    relay = relay,
+                    attemptDirect = {
+                        attemptDirectCandidate(relay, index + 1)
+                    },
+                    attemptWss = { front ->
+                        attemptWssCandidate(relay, front, index + 1)
+                    },
+                    onDirectFallback = { directFailure ->
+                        // A failed post-ready direct attempt can still own a libbox engine. Stop it
+                        // before dialing the relay's loopback WSS adapter. Record this one genuine
+                        // direct failure exactly once; later ticket/CDN failures are transport-only.
+                        cleanupActiveTunnel()
+                        recordRelayAttemptFailure(relay, directFailure, index + 1)
                         TelemetryManager.record(
-                            event = "punch_fallback",
+                            event = "transport_fallback",
                             relayId = relay.id,
                             attributes = buildMap {
-                                FailureClassifier.classify(error).takeIf { it.isNotBlank() }
+                                put("from_transport", ACCESS_TRANSPORT_DIRECT)
+                                put("to_transport", ACCESS_TRANSPORT_WSS)
+                                FailureClassifier.classify(directFailure).takeIf { it.isNotBlank() }
                                     ?.let { put("failure_reason", it) }
-                                FailureClassifier.detail(error).takeIf { it.isNotBlank() }
-                                    ?.let { put("failure_detail", it) }
                             },
                         )
-                        OpenRungStatusStore.appendLog(getString(R.string.log_punch_transport_failed))
+                        OpenRungStatusStore.appendLog(getString(R.string.log_wss_fallback))
+                    },
+                    onWssFailure = { front, error ->
                         cleanupActiveTunnel()
-                    }
-                }
-
-                return startTunnel(
-                    relay = relay,
-                    config = SingBoxConfiguration(relay = relay),
-                    tcpLatencyMs = tcpLatencyMs,
-                    attempt = index + 1,
+                        recordWssTransportFailure(relay, front, error)
+                        OpenRungStatusStore.appendLog(
+                            getString(R.string.log_wss_front_failed, front.id, error.stage),
+                        )
+                    },
                 )
             } catch (error: CancellationException) {
                 throw error
+            } catch (error: LocalTunnelException) {
+                // The engine, configuration, permission and Android platform are common to every
+                // relay. They are not evidence against this relay and must never mint another ticket.
+                cleanupActiveTunnel()
+                throw error
             } catch (error: Throwable) {
                 lastError = error
-                val attemptReason = FailureClassifier.classify(error)
-                val attemptDetail = FailureClassifier.detail(error)
-                TelemetryManager.record(
-                    event = "relay_attempt_failed",
-                    relayId = relay.id,
-                    attributes = buildMap {
-                        // Kept alongside failure_reason for continuity with older app versions.
-                        put("error_type", error::class.java.simpleName)
-                        if (attemptReason.isNotBlank()) put("failure_reason", attemptReason)
-                        if (attemptDetail.isNotBlank()) put("failure_detail", attemptDetail)
-                    },
-                    measurements = mapOf("attempt" to (index + 1).toLong()),
-                )
+                if (!relayFailureAlreadyRecorded(error)) {
+                    recordRelayAttemptFailure(relay, error, index + 1)
+                }
                 OpenRungStatusStore.appendLog(
                     getString(
                         R.string.log_relay_failed,
@@ -387,6 +397,246 @@ class OpenRungVpnService : VpnService() {
             ),
             lastError,
         )
+    }
+
+    /** Existing direct Reality path, with only remote TCP/post-ready data failures typed for WSS. */
+    private suspend fun attemptDirectCandidate(relay: RelayDescriptor, attempt: Int): ConnectedRelay {
+        ensureLocalTunnelPreconditions(relay)
+        OpenRungStatusStore.appendLog(
+            getString(R.string.log_trying_relay, relay.id, relay.publicHost, relay.publicPort),
+        )
+        OpenRungStatusStore.appendLog(getString(R.string.log_checking_relay_reachability))
+        val tcpLatencyMs = try {
+            RelayReachability.checkTcp(relay)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            if (!isGenuineRemoteDataPathFailure(error)) {
+                throw LocalTunnelException("direct_socket", error)
+            }
+            throw DirectPathException("tcp", error)
+        }
+
+        val punched = attemptDirectPunch(relay)
+        if (punched != null) {
+            try {
+                return startTunnel(
+                    relay = relay,
+                    config = SingBoxConfiguration(
+                        relay = relay,
+                        bridgeHost = punched.bridgeHost,
+                        bridgePort = punched.bridgePort,
+                    ),
+                    tcpLatencyMs = tcpLatencyMs,
+                    attempt = attempt,
+                    accessTransport = ACCESS_TRANSPORT_PUNCH,
+                )
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: LocalTunnelException) {
+                throw error
+            } catch (error: Throwable) {
+                // A live punched QUIC path can still fail to carry Reality. Preserve the existing
+                // same-relay RelayHub rung, but never retry local engine/platform failures.
+                TelemetryManager.record(
+                    event = "punch_fallback",
+                    relayId = relay.id,
+                    attributes = buildMap {
+                        FailureClassifier.classify(error).takeIf { it.isNotBlank() }
+                            ?.let { put("failure_reason", it) }
+                        FailureClassifier.detail(error).takeIf { it.isNotBlank() }
+                            ?.let { put("failure_detail", it) }
+                    },
+                )
+                OpenRungStatusStore.appendLog(getString(R.string.log_punch_transport_failed))
+                cleanupActiveTunnel()
+            }
+        }
+
+        return startTunnel(
+            relay = relay,
+            config = SingBoxConfiguration(relay = relay),
+            tcpLatencyMs = tcpLatencyMs,
+            attempt = attempt,
+            accessTransport = ACCESS_TRANSPORT_DIRECT,
+        )
+    }
+
+    /** Fail local setup before a raw relay failure can authorize any ticket request. */
+    private fun ensureLocalTunnelPreconditions(relay: RelayDescriptor) {
+        if (VpnService.prepare(this) != null) {
+            throw LocalTunnelException(
+                "vpn_permission",
+                SecurityException("Android VPN permission is not granted"),
+            )
+        }
+        if (!ProxyEngineFactory.isAvailable()) {
+            throw LocalTunnelException(
+                "engine_unavailable",
+                IllegalStateException("libbox engine is not linked"),
+            )
+        }
+        try {
+            // Check both direct Reality and loopback-adapter graph shapes. Libbox.checkConfig is a
+            // pure parse/construct/close preflight; it starts no service, opens no TUN and performs
+            // no network I/O. The actual adapter port is immaterial to graph validation.
+            listOf(
+                SingBoxConfiguration(relay).encodedJsonString(),
+                SingBoxConfiguration(
+                    relay = relay,
+                    bridgeHost = "127.0.0.1",
+                    bridgePort = 1,
+                ).encodedJsonString(),
+            ).forEach(ProxyEngineFactory::preflight)
+        } catch (error: Throwable) {
+            throw LocalTunnelException("configuration", error)
+        }
+    }
+
+    /** Obtains one front-bound ticket, dials wsscore, then reuses the existing Reality client. */
+    private suspend fun attemptWssCandidate(
+        relay: RelayDescriptor,
+        front: WssFrontDescriptor,
+        attempt: Int,
+    ): ConnectedRelay {
+        val telemetrySession = TelemetryManager.activeSession()
+        val ticket = try {
+            WssTicketClient.requestWithFailover(
+                brokerUrls = wssTicketBrokerFronts(),
+                relayId = relay.id,
+                frontId = front.id,
+                clientId = telemetrySession?.clientId,
+                sessionId = telemetrySession?.id,
+            )
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            if (isLocalPlatformFailure(error)) {
+                throw LocalTunnelException("ticket_client", error)
+            }
+            throw WssTransportException("ticket", front.id, error)
+        }
+        if (ticket.url != front.url) {
+            throw WssTransportException(
+                "ticket_binding",
+                front.id,
+                IOException("WSS ticket URL does not match the signed relay front"),
+            )
+        }
+        if (!ticket.expiresAt.isAfter(Instant.now())) {
+            throw WssTransportException(
+                "ticket_expired",
+                front.id,
+                IOException("WSS ticket is already expired"),
+            )
+        }
+
+        val session = try {
+            WssClient.create(this, front.url, ticket.ticket)
+        } catch (error: Throwable) {
+            throw LocalTunnelException("wss_client", error)
+        }
+        wssSession = session
+        val result = try {
+            session.connect()
+        } catch (error: CancellationException) {
+            closeWssSession(session)
+            throw error
+        } catch (error: Throwable) {
+            closeWssSession(session)
+            if (isLocalPlatformFailure(error)) {
+                throw LocalTunnelException("wss_client", error)
+            }
+            throw WssTransportException("wss_handshake", front.id, error)
+        }
+        coroutineContext.ensureActive()
+        if (!result.succeeded) {
+            closeWssSession(session)
+            val failure = IOException(
+                result.errorText.ifBlank { "WSS connection failed (${result.reason.ifBlank { "unknown" }})" },
+            )
+            when (result.reason) {
+                "protect" -> throw LocalTunnelException("wss_socket_protect", failure)
+                "client", "front", "adapter" -> throw LocalTunnelException("wss_client", failure)
+            }
+            throw WssTransportException("wss_handshake", front.id, failure)
+        }
+        if (!isSafeLoopbackEndpoint(result.bridgeHost, result.bridgePort)) {
+            closeWssSession(session)
+            throw LocalTunnelException(
+                "local_adapter",
+                IOException("WSS adapter returned no safe loopback endpoint"),
+            )
+        }
+
+        OpenRungStatusStore.appendLog(getString(R.string.log_wss_connected, front.id))
+        return startTunnel(
+            relay = relay,
+            config = SingBoxConfiguration(
+                relay = relay,
+                bridgeHost = result.bridgeHost,
+                bridgePort = result.bridgePort,
+            ),
+            tcpLatencyMs = null,
+            attempt = attempt,
+            accessTransport = ACCESS_TRANSPORT_WSS,
+            frontId = front.id,
+        )
+    }
+
+    private fun recordRelayAttemptFailure(relay: RelayDescriptor, error: Throwable, attempt: Int) {
+        val attemptReason = FailureClassifier.classify(error)
+        val attemptDetail = FailureClassifier.detail(error)
+        TelemetryManager.record(
+            event = "relay_attempt_failed",
+            relayId = relay.id,
+            attributes = buildMap {
+                put("error_type", error::class.java.simpleName)
+                if (attemptReason.isNotBlank()) put("failure_reason", attemptReason)
+                if (attemptDetail.isNotBlank()) put("failure_detail", attemptDetail)
+            },
+            measurements = mapOf("attempt" to attempt.toLong()),
+        )
+    }
+
+    private fun recordWssTransportFailure(
+        relay: RelayDescriptor,
+        front: WssFrontDescriptor,
+        error: WssTransportException,
+    ) {
+        TelemetryManager.record(
+            event = "transport_failed",
+            relayId = relay.id,
+            attributes = buildMap {
+                put("transport", ACCESS_TRANSPORT_WSS)
+                put("failure_stage", error.stage)
+                put("front_id", front.id)
+                FailureClassifier.classify(error).takeIf { it.isNotBlank() }
+                    ?.let { put("failure_reason", it) }
+            },
+        )
+    }
+
+    private fun wssTicketBrokerFronts(): List<String> = buildList {
+        add(brokerUrl)
+        addAll(AppConfig.DEFAULT_BROKER_URLS)
+    }.map(String::trim).filter(String::isNotEmpty).distinct()
+
+    private fun isSafeLoopbackEndpoint(host: String, port: Int): Boolean {
+        if (port !in 1..65_535) return false
+        return runCatching { InetAddress.getByName(host).isLoopbackAddress }.getOrDefault(false)
+    }
+
+    /** Unchecked/platform failures are never evidence that a remote relay path is blocked. */
+    private fun isLocalPlatformFailure(error: Throwable): Boolean {
+        if (FailureClassifier.classify(error) == "permission_denied") return true
+        val seen = HashSet<Throwable>()
+        var current: Throwable? = error
+        while (current != null && seen.add(current)) {
+            if (current is RuntimeException || current is LinkageError) return true
+            current = current.cause
+        }
+        return false
     }
 
     /** Attempts the signaling/UDP/QUIC path and leaves a live loopback bridge on success. */
@@ -480,14 +730,30 @@ class OpenRungVpnService : VpnService() {
     private suspend fun startTunnel(
         relay: RelayDescriptor,
         config: SingBoxConfiguration,
-        tcpLatencyMs: Long,
+        tcpLatencyMs: Long?,
         attempt: Int,
+        accessTransport: String,
+        frontId: String? = null,
     ): ConnectedRelay {
-        val configJson = config.encodedJsonString()
-        val proxyEngine = ProxyEngineFactory.create()
+        val configJson = try {
+            config.encodedJsonString()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            throw LocalTunnelException("configuration", error)
+        }
+        val proxyEngine = try {
+            ProxyEngineFactory.create()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            throw LocalTunnelException("engine_create", error)
+        }
         val tunnelStarted = SystemClock.elapsedRealtime()
-        // Tag an engine start/liveness failure as EngineStartException so it classifies as
-        // process_exited. Stop the local instance explicitly if startup only partially succeeds.
+        // Configuration, engine construction, VPN permission, and platform startup failures are
+        // local. Stop a partially-started instance and keep them out of both WSS fallback and
+        // relay-health accounting. EngineStartException preserves the existing process_exited
+        // telemetry classification inside the local wrapper.
         try {
             proxyEngine.start(
                 relay = relay,
@@ -499,12 +765,35 @@ class OpenRungVpnService : VpnService() {
             throw error
         } catch (error: Throwable) {
             proxyEngine.stop()
-            throw EngineStartException(error.message, error)
+            throw LocalTunnelException(
+                "engine_start",
+                EngineStartException(error.message, error),
+            )
         }
         val tunnelStartMs = SystemClock.elapsedRealtime() - tunnelStarted
         engine = proxyEngine
         OpenRungStatusStore.appendLog(getString(R.string.log_verifying_internet))
-        val internetProbe = InternetProbe(applicationContext).verify()
+        val internetProbe = try {
+            awaitStartupProbeOrEngineStop(
+                probe = { InternetProbe(applicationContext).verify() },
+                awaitUnexpectedEngineStop = proxyEngine::awaitUnexpectedStop,
+            )
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            if (error is LocalTunnelException) throw error
+            if (!isGenuineRemoteDataPathFailure(error)) {
+                throw LocalTunnelException("internet_probe", error)
+            }
+            if (accessTransport == ACCESS_TRANSPORT_WSS) {
+                throw WssTransportException(
+                    stage = "internet_probe",
+                    frontId = checkNotNull(frontId) { "WSS transport requires a front id" },
+                    cause = error,
+                )
+            }
+            throw DirectPathException("internet_probe", error)
+        }
         OpenRungStatusStore.appendLog(
             getString(R.string.log_internet_verified, internetProbe.durationMs),
         )
@@ -514,6 +803,8 @@ class OpenRungVpnService : VpnService() {
             tunnelStartMs = tunnelStartMs,
             internetProbeMs = internetProbe.durationMs,
             attempts = attempt,
+            accessTransport = accessTransport,
+            frontId = frontId,
         )
     }
 
@@ -534,12 +825,16 @@ class OpenRungVpnService : VpnService() {
     private fun disconnect() {
         heartbeatJob?.cancel()
         heartbeatJob = null
+        engineMonitorJob?.cancel()
+        engineMonitorJob = null
         punchMonitorJob?.cancel()
         punchMonitorJob = null
+        wssMonitorJob?.cancel()
+        wssMonitorJob = null
         punchRecoveryCircuitBreaker.reset()
         OpenRungStatusStore.setStatus(ConnectionStatus.DISCONNECTING)
         connectJob?.cancel()
-        cleanupActiveTunnel()
+        beginCleanupActiveTunnel()
         activeRelayId?.let {
             TelemetryManager.record("tunnel_stopped", relayId = it)
         }
@@ -590,6 +885,76 @@ class OpenRungVpnService : VpnService() {
     }
 
     /**
+     * Watches the local libbox service independently of every access transport. A local engine
+     * crash is terminal: it must never be converted into relay failover or a new WSS ticket.
+     */
+    private fun startTunnelEngineMonitor(relay: RelayDescriptor, ownerJob: Job?) {
+        val tunnelEngine = engine ?: throw LocalTunnelException(
+            "engine_monitor",
+            IllegalStateException("connected tunnel has no active engine"),
+        )
+        if (engineMonitorJob !== ownerJob) engineMonitorJob?.cancel()
+        engineMonitorJob = serviceScope.launch {
+            val reason = try {
+                tunnelEngine.awaitUnexpectedStop()
+            } catch (error: CancellationException) {
+                return@launch
+            }
+            if (engine !== tunnelEngine || activeRelayId != relay.id) return@launch
+            try {
+                terminateForActiveLocalFailure(
+                    relay = relay,
+                    error = LocalTunnelException(
+                        "active_tunnel_engine",
+                        EngineStartException(reason, null),
+                    ),
+                    userMessage = getString(R.string.error_tunnel_engine_stopped),
+                    logMessage = getString(R.string.log_tunnel_engine_stopped),
+                )
+            } finally {
+                if (engineMonitorJob === coroutineContext[Job]) engineMonitorJob = null
+            }
+        }
+    }
+
+    private suspend fun terminateForActiveLocalFailure(
+        relay: RelayDescriptor,
+        error: LocalTunnelException,
+        userMessage: String = getString(R.string.error_vpn_connection_failed),
+        logMessage: String = error.message ?: getString(R.string.error_vpn_connection_failed),
+    ) {
+        if (activeRelayId != relay.id) return
+        OpenRungStatusStore.appendLog(logMessage.take(256))
+        TelemetryManager.record(
+            event = "connection_failed",
+            relayId = relay.id,
+            attributes = buildMap {
+                put("failure_stage", error.stage)
+                FailureClassifier.classify(error).takeIf { it.isNotBlank() }
+                    ?.let { put("failure_reason", it) }
+                FailureClassifier.detail(error).takeIf { it.isNotBlank() }
+                    ?.let { put("failure_detail", it.take(256)) }
+            },
+        )
+        val currentJob = coroutineContext[Job]
+        heartbeatJob?.cancel()
+        heartbeatJob = null
+        if (engineMonitorJob !== currentJob) engineMonitorJob?.cancel()
+        if (engineMonitorJob !== currentJob) engineMonitorJob = null
+        if (punchMonitorJob !== currentJob) punchMonitorJob?.cancel()
+        if (punchMonitorJob !== currentJob) punchMonitorJob = null
+        if (wssMonitorJob !== currentJob) wssMonitorJob?.cancel()
+        if (wssMonitorJob !== currentJob) wssMonitorJob = null
+        cleanupActiveTunnel()
+        activeRelayId = null
+        TelemetryManager.endSession("connection_failed")
+        runCatching { TelemetryManager.flush(AppConfig.TELEMETRY_BROKER_URL) }
+        OpenRungStatusStore.fail(userMessage)
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+    }
+
+    /**
      * Watches both the native QUIC connection and end-to-end traffic after CONNECTED. NAT mappings
      * are tied to the underlying network, while a relay-side Xray/stream failure can leave QUIC
      * itself alive. Either signal retires the dead path and reruns discovery so the app can re-punch
@@ -604,12 +969,22 @@ class OpenRungVpnService : VpnService() {
                 awaitPunchFailure(session)
             } catch (error: CancellationException) {
                 return@launch
+            } catch (error: LocalTunnelException) {
+                if (punchSession === session && activeRelayId == relay.id) {
+                    terminateForActiveLocalFailure(relay, error)
+                }
+                if (punchMonitorJob === coroutineContext[Job]) punchMonitorJob = null
+                return@launch
             }
             val reason = failure.reason
             val pathLostAtMs = SystemClock.elapsedRealtime()
             // Close and callback can race across the Go/Java boundary. Only the still-current,
             // already-promoted session is allowed to initiate recovery.
             if (punchSession !== session || activeRelayId != relay.id) return@launch
+            if (terminateIfActiveEngineStopped(relay)) {
+                if (punchMonitorJob === coroutineContext[Job]) punchMonitorJob = null
+                return@launch
+            }
 
             OpenRungStatusStore.appendLog(getString(R.string.log_punch_path_lost, reason.take(160)))
             TelemetryManager.record(
@@ -630,6 +1005,8 @@ class OpenRungVpnService : VpnService() {
                 updateNotification(getString(R.string.status_connecting))
                 heartbeatJob?.cancel()
                 heartbeatJob = null
+                engineMonitorJob?.cancel()
+                engineMonitorJob = null
                 cleanupActiveTunnel()
                 activeRelayId = null
                 coroutineContext.ensureActive()
@@ -696,9 +1073,135 @@ class OpenRungVpnService : VpnService() {
         }
     }
 
+    /**
+     * A WSS socket is bound to one Android physical-network epoch. Native adapter loss,
+     * end-to-end tunnel failure, or any physical route/interface/DNS change retires the whole
+     * session. Recovery always reruns signed discovery and direct Reality first; it never reuses
+     * the consumed ticket or assumes that WSS remains the preferred transport.
+     */
+    private fun startWssMonitor(relay: RelayDescriptor, ownerJob: Job?) {
+        val session = wssSession ?: return
+        if (wssMonitorJob !== ownerJob) wssMonitorJob?.cancel()
+
+        val networkChanged = CompletableDeferred<String>()
+        physicalNetworkMonitor?.close()
+        val networkMonitor = try {
+            PhysicalNetworkEpochMonitor(applicationContext) {
+                networkChanged.complete("physical network epoch changed")
+            }
+        } catch (error: Throwable) {
+            throw LocalTunnelException("network_monitor", error)
+        }
+        physicalNetworkMonitor = networkMonitor
+
+        wssMonitorJob = serviceScope.launch {
+            val failure = try {
+                awaitWssFailure(session, networkChanged)
+            } catch (error: CancellationException) {
+                return@launch
+            } catch (error: LocalTunnelException) {
+                if (wssSession === session && activeRelayId == relay.id) {
+                    terminateForActiveLocalFailure(relay, error)
+                }
+                if (wssMonitorJob === coroutineContext[Job]) wssMonitorJob = null
+                return@launch
+            }
+            // Close/callback/network events can race. Only the live, promoted WSS session may
+            // change status or begin another connection epoch.
+            if (wssSession !== session || activeRelayId != relay.id) return@launch
+            if (terminateIfActiveEngineStopped(relay)) {
+                if (wssMonitorJob === coroutineContext[Job]) wssMonitorJob = null
+                return@launch
+            }
+
+            try {
+                val reason = failure.reason.take(256)
+                OpenRungStatusStore.appendLog(getString(R.string.log_wss_path_lost, reason.take(160)))
+                TelemetryManager.record(
+                    event = "transport_path_lost",
+                    relayId = relay.id,
+                    attributes = mapOf(
+                        "transport" to ACCESS_TRANSPORT_WSS,
+                        "trigger" to failure.trigger,
+                        "reason" to reason,
+                    ),
+                )
+                val country = requestedTargetCountry
+                val relayID = requestedTargetRelayId
+                OpenRungStatusStore.setStatus(
+                    ConnectionStatus.CONNECTING,
+                    relayLabel = null,
+                    lastError = null,
+                )
+                updateNotification(getString(R.string.status_connecting))
+                heartbeatJob?.cancel()
+                heartbeatJob = null
+                engineMonitorJob?.cancel()
+                engineMonitorJob = null
+                // Engine first, then epoch callback and native adapter; see cleanupActiveTunnel.
+                cleanupActiveTunnel()
+                activeRelayId = null
+                TelemetryManager.endSession("wss_path_lost")
+                coroutineContext.ensureActive()
+
+                // A network transition can publish callbacks before the replacement network is
+                // usable. Keep the foreground VPN in CONNECTING until a broker front is reachable
+                // outside the TUN, then fetch fresh signed metadata and try direct Reality first.
+                if (!physicalNetworkAlive()) awaitPhysicalNetworkAlive()
+                coroutineContext.ensureActive()
+                connect(brokerUrl, country, relayID)
+            } finally {
+                if (wssMonitorJob === coroutineContext[Job]) wssMonitorJob = null
+                if (physicalNetworkMonitor === networkMonitor) {
+                    physicalNetworkMonitor = null
+                    networkMonitor.close()
+                }
+            }
+        }
+    }
+
+    /** Gives an already-published local engine stop priority over simultaneous path recovery. */
+    private suspend fun terminateIfActiveEngineStopped(relay: RelayDescriptor): Boolean {
+        val reason = engine?.unexpectedStopReason() ?: return false
+        terminateForActiveLocalFailure(
+            relay = relay,
+            error = LocalTunnelException(
+                "active_tunnel_engine",
+                EngineStartException(reason, null),
+            ),
+            userMessage = getString(R.string.error_tunnel_engine_stopped),
+            logMessage = getString(R.string.log_tunnel_engine_stopped),
+        )
+        return true
+    }
+
+    private suspend fun awaitWssFailure(
+        session: WssSession,
+        networkChanged: CompletableDeferred<String>,
+    ): WssPathFailure = coroutineScope {
+        val nativeFailure = async { session.awaitFailure() }
+        val healthFailure = async { awaitTunnelHealthFailure() }
+        try {
+            select {
+                networkChanged.onAwait {
+                    WssPathFailure(reason = it, trigger = "network_change")
+                }
+                nativeFailure.onAwait {
+                    WssPathFailure(reason = it, trigger = "native_adapter")
+                }
+                healthFailure.onAwait {
+                    WssPathFailure(reason = it, trigger = "tunnel_health")
+                }
+            }
+        } finally {
+            nativeFailure.cancel()
+            healthFailure.cancel()
+        }
+    }
+
     private suspend fun awaitPunchFailure(session: NatPunchSession): PunchPathFailure = coroutineScope {
         val nativeFailure = async { session.awaitFailure() }
-        val healthFailure = async { awaitPunchHealthFailure() }
+        val healthFailure = async { awaitTunnelHealthFailure() }
         try {
             select {
                 nativeFailure.onAwait {
@@ -721,7 +1224,7 @@ class OpenRungVpnService : VpnService() {
      * VPN failures do we probe the broker fronts on a physical Android [Network]; a local outage is
      * left alone, while a reachable front proves that the direct tunnel itself needs recovery.
      */
-    private suspend fun awaitPunchHealthFailure(): String {
+    private suspend fun awaitTunnelHealthFailure(): String {
         var failures = 0
         while (true) {
             delay(Random.nextLong(PUNCH_HEALTH_MIN_DELAY_MS, PUNCH_HEALTH_MAX_DELAY_MS + 1))
@@ -731,6 +1234,9 @@ class OpenRungVpnService : VpnService() {
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
+                if (!isGenuineRemoteDataPathFailure(error)) {
+                    throw LocalTunnelException("active_tunnel_health", error)
+                }
                 failures++
                 if (failures < PUNCH_HEALTH_FAILURE_THRESHOLD) continue
                 if (!physicalNetworkAlive()) continue
@@ -788,11 +1294,33 @@ class OpenRungVpnService : VpnService() {
             }
         }
 
-    private fun cleanupActiveTunnel() {
-        engine?.stop()
+    /**
+     * Detaches resources in routing order and starts WSS close without blocking Main. Lifecycle
+     * callbacks use this non-suspending half; recovery follows it with [awaitPendingWssCloses]
+     * before any new adapter is created.
+     */
+    private fun beginCleanupActiveTunnel() {
+        val activeEngine = engine
         engine = null
-        punchSession?.close()
+        runCatching { activeEngine?.stop() }
+
+        val activeNetworkMonitor = physicalNetworkMonitor
+        physicalNetworkMonitor = null
+        runCatching { activeNetworkMonitor?.close() }
+
+        val activePunchSession = punchSession
         punchSession = null
+        runCatching { activePunchSession?.close() }
+
+        val activeWssSession = wssSession
+        wssSession = null
+        activeWssSession?.let(::beginWssClose)
+    }
+
+    /** Engine is stopped first; reconnect cannot proceed until every native adapter close ends. */
+    private suspend fun cleanupActiveTunnel() {
+        beginCleanupActiveTunnel()
+        awaitPendingWssCloses()
     }
 
     private fun closePunchSession(session: NatPunchSession) {
@@ -800,19 +1328,59 @@ class OpenRungVpnService : VpnService() {
         session.close()
     }
 
+    private suspend fun closeWssSession(session: WssSession) {
+        if (wssSession === session) {
+            wssSession = null
+            physicalNetworkMonitor?.close()
+            physicalNetworkMonitor = null
+        }
+        beginWssClose(session)
+        awaitPendingWssCloses()
+    }
+
+    private fun beginWssClose(session: WssSession) {
+        runCatching { session.close() }
+            .getOrNull()
+            ?.let(pendingWssCloses::add)
+    }
+
+    private suspend fun awaitPendingWssCloses() {
+        val pending = pendingWssCloses.toList()
+        if (pending.isEmpty()) return
+        // Teardown owns completion once begun. A user cancellation may skip the remaining connect
+        // work, but it must not strand a native adapter or let recovery overlap its loopback port.
+        withContext(NonCancellable) {
+            pending.forEach { close ->
+                try {
+                    close.await()
+                } catch (_: Throwable) {
+                    // Native teardown is best-effort after ownership has already been detached.
+                }
+            }
+        }
+        pendingWssCloses.removeAll(pending.toSet())
+    }
+
     private data class PunchPathFailure(
         val reason: String,
         val waitForPhysicalNetwork: Boolean,
+    )
+
+    private data class WssPathFailure(
+        val reason: String,
+        val trigger: String,
     )
 
     private fun Long.toDisplaySeconds(): Long = (this + 999) / 1_000
 
     private data class ConnectedRelay(
         val relay: RelayDescriptor,
-        val tcpLatencyMs: Long,
+        val tcpLatencyMs: Long?,
         val tunnelStartMs: Long,
         val internetProbeMs: Long,
         val attempts: Int,
+        val accessTransport: String,
+        val frontId: String?,
     )
 
     private fun createNotificationChannel() {
@@ -864,6 +1432,9 @@ class OpenRungVpnService : VpnService() {
         internal const val PUNCH_HEALTH_FAILURE_THRESHOLD = 3
         private const val PHYSICAL_NETWORK_PROBE_TIMEOUT_MS = 3_000
         private const val PHYSICAL_NETWORK_RETRY_DELAY_MS = 5_000L
+        private const val ACCESS_TRANSPORT_DIRECT = "direct"
+        private const val ACCESS_TRANSPORT_PUNCH = "punch"
+        private const val ACCESS_TRANSPORT_WSS = "wss"
 
         fun connectIntent(
             context: Context,

@@ -1,21 +1,35 @@
 import Foundation
+import Network
 
 public struct InternetProbeResult: Sendable, Equatable {
     public let endpoint: String
     public let durationMs: Int64
 }
 
-public enum InternetProbeError: Error {
-    case unreachable(String?)
+public enum InternetProbeError: LocalizedError {
+    case unreachable(Error?)
+
+    public var errorDescription: String? {
+        switch self {
+        case .unreachable(let underlying):
+            let suffix = underlying.map { ": \($0.localizedDescription)" } ?? ""
+            return "VPN started, but the internet probe failed\(suffix)"
+        }
+    }
+
+    var underlyingError: Error? {
+        guard case .unreachable(let underlying) = self else { return nil }
+        return underlying
+    }
 }
 
 /// Verifies internet reachability through the active tunnel by hitting captive-portal
 /// `generate_204` endpoints. Port of Android `InternetProbe`.
 ///
-/// iOS divergence: the Android version binds requests to the VPN `Network`. iOS has no
-/// equivalent in-extension API, so a plain `URLSession` request is used — inside the
-/// PacketTunnel extension (after `setTunnelNetworkSettings`) that traffic egresses through
-/// the tun, which is the behaviour this probe is meant to confirm.
+/// This URLSession implementation is suitable for non-provider callers only. Apple deliberately
+/// excludes a PacketTunnelProvider's own URLSession traffic from its TUN; the extension therefore
+/// uses `PacketTunnelInternetProbe`, backed by `createTCPConnectionThroughTunnel`, whenever the
+/// result is used to classify a Reality/WSS path.
 public struct InternetProbe: Sendable {
     public static let defaultEndpoints = [
         "https://www.gstatic.com/generate_204",
@@ -53,7 +67,28 @@ public struct InternetProbe: Sendable {
             try await Task.sleep(nanoseconds: retryDelayNs)
         }
 
-        throw InternetProbeError.unreachable(lastError?.localizedDescription)
+        throw InternetProbeError.unreachable(lastError)
+    }
+
+    /// One no-retry sweep for long-lived tunnel health monitoring. Startup retains the bounded
+    /// retry loop above; health checks need individual outcomes so policy can apply a threshold.
+    public func verifyOnce() async throws -> InternetProbeResult {
+        let startedNs = DispatchTime.now().uptimeNanoseconds
+        var lastError: Error?
+        for endpoint in endpoints {
+            do {
+                try await probe(endpoint)
+                return InternetProbeResult(
+                    endpoint: endpoint,
+                    durationMs: Int64((DispatchTime.now().uptimeNanoseconds - startedNs) / 1_000_000)
+                )
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                lastError = error
+            }
+        }
+        throw InternetProbeError.unreachable(lastError)
     }
 
     public static func acceptsHTTPStatus(_ status: Int) -> Bool {
@@ -75,5 +110,88 @@ public struct InternetProbe: Sendable {
         guard InternetProbe.acceptsHTTPStatus(status) else {
             throw URLError(.badServerResponse)
         }
+    }
+}
+
+/// Positive allow-list for failures that actually demonstrate a remote network/data-path problem.
+/// Unknown, permission, configuration, runtime and platform errors fail local/closed and therefore
+/// can never unlock WSS fallback or advance to another signed front.
+func isGenuineRemoteDataPathFailure(_ error: Error, depth: Int = 0) -> Bool {
+    guard depth < 8 else { return false }
+    if let probeError = error as? InternetProbeError {
+        guard let underlying = probeError.underlyingError else { return false }
+        return isGenuineRemoteDataPathFailure(underlying, depth: depth + 1)
+    }
+    if let reachabilityError = error as? RelayReachabilityError {
+        return reachabilityError == .timeout
+    }
+    if let urlError = error as? URLError {
+        switch urlError.code {
+        case .timedOut, .cannotFindHost, .cannotConnectToHost, .networkConnectionLost,
+             .dnsLookupFailed, .notConnectedToInternet, .secureConnectionFailed,
+             .serverCertificateHasBadDate, .serverCertificateUntrusted,
+             .serverCertificateHasUnknownRoot, .serverCertificateNotYetValid,
+             .clientCertificateRejected, .clientCertificateRequired, .badServerResponse,
+             .zeroByteResource, .resourceUnavailable, .httpTooManyRedirects,
+             .redirectToNonExistentLocation, .cannotLoadFromNetwork,
+             .cannotDecodeRawData, .cannotDecodeContentData, .cannotParseResponse:
+            return true
+        default:
+            return false
+        }
+    }
+    if let networkError = error as? NWError {
+        switch networkError {
+        case .dns, .tls:
+            return true
+        case .posix(let code):
+            return isRemotePOSIXFailure(code)
+        case .wifiAware(_):
+            return false
+        @unknown default:
+            return false
+        }
+    }
+    if let posixError = error as? POSIXError {
+        return isRemotePOSIXFailure(posixError.code)
+    }
+    let nsError = error as NSError
+    if nsError.domain == NSPOSIXErrorDomain,
+       let code = POSIXErrorCode(rawValue: Int32(nsError.code)) {
+        return isRemotePOSIXFailure(code)
+    }
+    if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? Error {
+        return isGenuineRemoteDataPathFailure(underlying, depth: depth + 1)
+    }
+    return false
+}
+
+private func isRemotePOSIXFailure(_ code: POSIXErrorCode) -> Bool {
+    switch code {
+    case .ECONNABORTED, .ECONNREFUSED, .ECONNRESET, .EHOSTDOWN, .EHOSTUNREACH,
+         .ENETDOWN, .ENETRESET, .ENETUNREACH, .EPIPE, .ETIMEDOUT:
+        return true
+    default:
+        return false
+    }
+}
+
+/// Pure threshold state used by the active WSS health loop and hostless tests.
+struct TunnelHealthFailureThreshold: Equatable, Sendable {
+    let requiredFailures: Int
+    private(set) var consecutiveFailures = 0
+
+    init(requiredFailures: Int = 3) {
+        precondition(requiredFailures > 0)
+        self.requiredFailures = requiredFailures
+    }
+
+    mutating func recordSuccess() {
+        consecutiveFailures = 0
+    }
+
+    mutating func recordRemoteFailure() -> Bool {
+        consecutiveFailures = min(consecutiveFailures + 1, requiredFailures)
+        return consecutiveFailures >= requiredFailures
     }
 }

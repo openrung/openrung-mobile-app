@@ -117,6 +117,101 @@ final class FailureClassifierTests: XCTestCase {
         XCTAssertEqual(FailureClassifier.classify(NSError(domain: "com.example.other", code: 7)), "unknown")
     }
 
+    func testWssWrappersKeepLocalAndTransportClassificationSeparate() {
+        XCTAssertEqual(
+            FailureClassifier.classify(
+                DirectPathError(stage: "tcp", underlying: URLError(.timedOut))
+            ),
+            "timeout"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(
+                LocalTunnelError(stage: "permission", underlying: NSError(domain: NEVPNErrorDomain, code: 1))
+            ),
+            "permission_denied"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(
+                WssTransportError(stage: "ticket", frontID: "front-a", underlying: BrokerClientError.httpStatus(503))
+            ),
+            "http_503"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(
+                DirectPathError(
+                    stage: "internet_probe",
+                    underlying: InternetProbeError.unreachable(URLError(.dnsLookupFailed))
+                )
+            ),
+            "dns_failure"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(
+                WssTransportError(
+                    stage: "ticket",
+                    frontID: "front-a",
+                    underlying: WssTicketStatusError(status: 429, retryAfterMilliseconds: 1_000)
+                )
+            ),
+            "rate_limited"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(
+                WssTicketStatusError(status: 503, retryAfterMilliseconds: nil)
+            ),
+            "http_503"
+        )
+        XCTAssertEqual(
+            FailureClassifier.detail(
+                WssTransportError(
+                    stage: "ticket",
+                    frontID: "front-a",
+                    underlying: WssTicketStatusError(status: 503, retryAfterMilliseconds: nil)
+                )
+            ),
+            "WSS ticket HTTP status 503"
+        )
+    }
+
+    func testNativeWssErrorsUseBoundedSpecificReasons() {
+        XCTAssertEqual(FailureClassifier.classify(WssNativeClientError.unavailable), "wss_client_unavailable")
+        XCTAssertEqual(FailureClassifier.classify(WssNativeClientError.creationFailed), "wss_client_creation_failed")
+        XCTAssertEqual(
+            FailureClassifier.classify(WssNativeClientError.invalidLoopbackEndpoint),
+            "wss_invalid_loopback_endpoint"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(WssNativeClientError.connectionFailed(reason: "cancelled")),
+            "cancelled"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(WssNativeClientError.connectionFailed(reason: "client")),
+            "wss_client_failed"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(WssNativeClientError.connectionFailed(reason: "front")),
+            "wss_invalid_front"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(WssNativeClientError.connectionFailed(reason: "adapter")),
+            "wss_invalid_loopback_endpoint"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(WssNativeClientError.connectionFailed(reason: "protect")),
+            "wss_socket_protection_failed"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(WssNativeClientError.connectionFailed(reason: "transport")),
+            "wss_transport_failed"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(
+                WssNativeClientError.connectionFailed(reason: "opaque native detail must not escape")
+            ),
+            "wss_transport_failed"
+        )
+    }
+
     // MARK: - failure_detail truncation
 
     func testDetailTruncatesOnUTF8Boundary() {

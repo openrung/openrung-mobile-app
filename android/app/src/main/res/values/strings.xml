@@ -26,6 +26,11 @@
     <string name="log_punch_path_lost">direct path lost (%1$s); reconnecting with fresh relay data</string>
     <string name="log_punch_recovery_scheduled">direct path recovery attempt %1$d will start in %2$d seconds</string>
     <string name="log_punch_circuit_open">direct path kept failing; switching this relay to RelayHub in %1$d seconds</string>
+    <string name="log_wss_fallback">direct Reality path failed; trying the relay’s signed WSS fronts</string>
+    <string name="log_wss_front_failed">WSS front %1$s failed at %2$s; trying the next signed front</string>
+    <string name="log_wss_connected">WSS transport established through signed front %1$s</string>
+    <string name="log_wss_path_lost">WSS path lost (%1$s); reconnecting with fresh relay data</string>
+    <string name="log_tunnel_engine_stopped">the local tunnel engine stopped unexpectedly; WSS recovery was not attempted</string>
     <string name="log_verifying_internet">verifying internet access through the VPN</string>
     <string name="log_internet_verified">internet access verified in %1$d ms</string>
     <string name="log_relay_failed">relay %1$s failed: %2$s</string>
@@ -34,6 +39,7 @@
     <string name="error_no_relay_in_country">No relay available in %1$s right now.</string>
     <string name="error_relay_not_available">The selected relay is no longer available.</string>
     <string name="error_vpn_connection_failed">VPN connection failed</string>
+    <string name="error_tunnel_engine_stopped">The local VPN tunnel engine stopped unexpectedly.</string>
     <string name="error_relay_unreachable">Relay %1$s:%2$d is not reachable from this Android device. If this is the emulator, use an IPv4/dual-stack relay endpoint or an IPv6-capable emulator network.</string>
     <string name="error_all_relays_failed">All relay connection attempts failed. Last error: %1$s</string>
     <string name="error_unknown">unknown</string>

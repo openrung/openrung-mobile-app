@@ -77,6 +77,7 @@ without leaving a leaky tunnel — not that traffic is blocked. See CONTRACT.md 
   |                                                                     |
   |  broker fetch -> relay selection -> TCP reachability                |
   |     -> Android: optional NAT punch -> loopback QUIC bridge          |
+  |     -> native: on remote direct failure only, signed WSS/CDN front  |
   |     -> sing-box config -> libbox engine + TUN + DNS                 |
   |     -> internet probe -> geo label -> heartbeat telemetry           |
   |     -> report failure if no relay works                             |
@@ -93,10 +94,13 @@ other way as the five bridge methods (`prepare`, `connect`, `disconnect`,
 
 ## Network transport
 
-Every endpoint the app talks to is HTTPS. Both platforms enforce this at the OS
-layer: iOS runs default App Transport Security (no exceptions), and the Android
-`network_security_config.xml` denies cleartext for all hosts. There is no `http://`
-endpoint anywhere in the app.
+Every production endpoint the app talks to is HTTPS. Both platforms enforce
+this at the OS layer: iOS runs default App Transport Security (no exceptions),
+and the Android `network_security_config.xml` denies cleartext for all hosts.
+There is no `http://` production endpoint anywhere in the app. The WSS ticket
+URL parser has one code-level development allowance for an explicit
+literal-loopback HTTP base; it cannot authorize a remote cleartext endpoint or
+weaken the production OS policy.
 
 - **Relay discovery** — independent HTTPS fronts return an Ed25519-signed relay
   list. Native and TypeScript clients verify the raw response bytes against the
@@ -111,6 +115,40 @@ endpoint anywhere in the app.
   Repeated short-lived direct paths recover with jittered exponential backoff;
   after three rapid losses Android keeps the selected relay but routes it
   through RelayHub for the rest of that user connection.
+- **Native WSS/CDN access fallback** — only after a genuine remote direct
+  Reality failure, an eligible foundation relay's signed, wsscore-canonical
+  `wss_fronts` are tried in their advertised order. The client obtains a
+  relay/front-bound ticket by redirect-rejecting HTTPS POST with sequential
+  broker-front failover under one deadline, then passes the exact signed URL and
+  opaque ticket to the pinned `github.com/openrung/openrung/wsscore v0.2.0`.
+  wsscore exposes a loopback endpoint to the unchanged Reality client. Android
+  requires `VpnService.protect(fd)` to return true before connecting the outer
+  socket and fails closed; PacketTunnel uses the dedicated Apple constructor's
+  nil-protector wsscore path because iOS has no equivalent API. Both
+  platforms opt into wsscore's native CloudFront no-SNI mode: only an exact
+  one-label `*.cloudfront.net` signed front omits ClientHello SNI while retaining
+  hostname certificate verification and the encrypted HTTP Host; custom CNAMEs
+  and other CDNs retain ordinary URL-derived SNI. DNS can still expose the
+  distribution hostname, and an ambiguous failure is never downgraded into a
+  same-ticket retry with SNI. Ticket/CDN
+  failures are transport metrics, not extra relay-health penalties. Once
+  connected, a native WSS close, the end-to-end health-failure threshold, or a
+  changed physical-network fingerprint tears the entire path down; recovery
+  begins with fresh discovery and direct Reality, never a reused ticket. On
+  iOS, the first `NWPath` fingerprint is the baseline and only a later,
+  different fingerprint is an epoch change. Repeated identical callbacks are
+  ignored, while device wake resumes the Reality engine without independently
+  retiring a healthy WSS session or minting a ticket. On Android, the
+  transport-independent libbox monitor covers
+  direct, punched, and WSS sessions: unexpected engine exit is terminal and
+  never starts WSS or reladdering. WSS network, adapter, or end-to-end
+  path-health recovery cancels that monitor, stops libbox first, retires the
+  epoch monitor, and only then closes the WSS adapter before waiting for a usable
+  physical network. On iOS, every startup and health result used for path
+  classification is a bounded HTTPS response-head probe created with
+  `NEPacketTunnelProvider.createTCPConnectionThroughTunnel`; a provider-owned
+  `URLSession` is excluded from its own TUN and must never authorize fallback
+  or recovery.
 - **Telemetry / heartbeat / speed-test** — currently also `https://broker.openrung.org/`
   (the same Cloudflare-fronted broker); see the trade-off below.
 - **Geo lookup** (`https://ipwho.is/`) and **connectivity probes**
@@ -225,6 +263,11 @@ are not ported (TS owns them). Key pieces:
   libbox. It protects the retained UDP fd with `VpnService.protect`, then
   exposes a loopback TCP bridge that sing-box uses without changing the relay's
   Reality identity.
+- `net/WssTicketClient.kt`, `net/WssClient.kt`, and
+  `net/PhysicalNetworkEpochMonitor.kt` — ticket control-plane policy, the thin
+  Android adapter over wsscore, and network-epoch retirement. WebSocket/TLS,
+  yamux, copying, and transport bounds remain entirely in the pinned wsscore Go
+  module compiled into the combined AAR.
 - `net/`, `model/`, `config/AppConfig.kt` — verbatim. `telemetry/` — ported,
   then diverged: `application_connection` flow events are aggregated
   client-side (see "Telemetry transport" above) via the new
@@ -252,12 +295,19 @@ template app target plus the `PacketTunnel` app-extension target);
   platform interface, ported verbatim with the prototype identifiers.
 - `ios/Shared/` — the production `Shared/` + needed OpenRungKit sources
   flattened into one directory compiled into both targets (no SPM package).
+- `ios/Shared/WssTicketClient.swift` + `WssFallbackPolicy.swift` and the
+  PacketTunnel-owned `WssNativeClient.swift` +
+  `PhysicalNetworkEpochMonitor.swift` mirror the direct-first, ticket,
+  transport-only health, engine-before-adapter cleanup, and fresh network-epoch
+  recovery rules.
 - `ios/OpenRung/OpenRungVpnModule.swift` — the bridge over
   `NETunnelProviderManager` + app-group shared state (Darwin observer +
   `NEVPNStatusDidChange`), including the production relay-switch dance
   (stop → 350 ms → reconfigure → start).
-- `PacketTunnel` links `ThirdParty/Libbox.xcframework` (embed: false) +
-  libresolv.tbd; compiles without the framework via `#if canImport(Libbox)`.
+- `PacketTunnel` links the single unified `ThirdParty/Libbox.xcframework`
+  generated by `ios/build-libbox-release.sh` (embed: false) + libresolv.tbd.
+  The framework contains libbox and the thin Apple wsscore adapter in one
+  gomobile runtime; source still compiles without it via `#if canImport(Libbox)`.
 
 ## UI fidelity (§5)
 

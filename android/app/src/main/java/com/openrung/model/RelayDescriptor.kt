@@ -2,12 +2,96 @@ package com.openrung.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.descriptors.buildClassSerialDescriptor
+import kotlinx.serialization.descriptors.element
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonEncoder
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.put
 import java.time.Instant
 
 object RelayConstants {
     const val PROTOCOL_VLESS_REALITY_VISION = "vless-reality-vision"
     const val FLOW_VISION = "xtls-rprx-vision"
     const val EXIT_MODE_DIRECT = "direct"
+    const val TRANSPORT_DIRECT = "direct"
+    const val NODE_CLASS_FOUNDATION = "foundation"
+    const val NODE_CLASS_VOLUNTEER = "volunteer"
+}
+
+/** A signed WSS/CDN front advertised by the relay directory. */
+@Serializable(with = WssFrontDescriptorSerializer::class)
+data class WssFrontDescriptor(
+    val id: String,
+    val url: String,
+    @SerialName("protocol_version")
+    val protocolVersion: Int,
+)
+
+/**
+ * Keeps top-level relay decoding forward-compatible while making the security-sensitive signed
+ * front shape exact. Otherwise `ignoreUnknownKeys` would discard a front field before wsscore's
+ * strict validator could see and reject it.
+ */
+object WssFrontDescriptorSerializer : KSerializer<WssFrontDescriptor> {
+    override val descriptor: SerialDescriptor = buildClassSerialDescriptor(
+        "com.openrung.model.WssFrontDescriptor",
+    ) {
+        element<String>("id")
+        element<String>("url")
+        element<Int>("protocol_version")
+    }
+
+    override fun serialize(encoder: Encoder, value: WssFrontDescriptor) {
+        val jsonEncoder = encoder as? JsonEncoder
+            ?: throw SerializationException("WSS fronts require JSON encoding")
+        jsonEncoder.encodeJsonElement(
+            buildJsonObject {
+                put("id", value.id)
+                put("url", value.url)
+                put("protocol_version", value.protocolVersion)
+            },
+        )
+    }
+
+    override fun deserialize(decoder: Decoder): WssFrontDescriptor {
+        val jsonDecoder = decoder as? JsonDecoder
+            ?: throw SerializationException("WSS fronts require JSON decoding")
+        val value = jsonDecoder.decodeJsonElement() as? JsonObject
+            ?: throw SerializationException("WSS front must be an object")
+        val unknown = value.keys - ALLOWED_KEYS
+        if (unknown.isNotEmpty()) {
+            throw SerializationException("WSS front contains unknown fields: ${unknown.sorted()}")
+        }
+
+        fun requiredString(name: String): String {
+            val primitive = value[name] as? JsonPrimitive
+            if (primitive == null || !primitive.isString) {
+                throw SerializationException("WSS front $name must be a string")
+            }
+            return primitive.content
+        }
+
+        val protocol = value["protocol_version"] as? JsonPrimitive
+        if (protocol == null || protocol.isString || protocol.intOrNull == null) {
+            throw SerializationException("WSS front protocol_version must be an integer")
+        }
+        return WssFrontDescriptor(
+            id = requiredString("id"),
+            url = requiredString("url"),
+            protocolVersion = checkNotNull(protocol.intOrNull),
+        )
+    }
+
+    private val ALLOWED_KEYS = setOf("id", "url", "protocol_version")
 }
 
 @Serializable
@@ -39,8 +123,14 @@ data class RelayDescriptor(
     /** Software version for any relay class; serialized name preserves the legacy broker wire field. */
     @SerialName("volunteer_version")
     val relayVersion: String,
+    /** Trust class assigned by the signed directory; older descriptors are volunteer relays. */
+    @SerialName("node_class")
+    val nodeClass: String = RelayConstants.NODE_CLASS_VOLUNTEER,
     /** "direct" when clients reach this relay directly, "tunnel" when publicHost is a RelayHub. */
     val transport: String = "",
+    /** Canonical, unique, sorted WSS/CDN fronts covered by the directory signature. */
+    @SerialName("wss_fronts")
+    val wssFronts: List<WssFrontDescriptor> = emptyList(),
     /** Whether the tunnel relay and its hub negotiated direct NAT punching. */
     @SerialName("punch_capable")
     val punchCapable: Boolean = false,

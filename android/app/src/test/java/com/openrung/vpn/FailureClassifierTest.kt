@@ -1,6 +1,7 @@
 package com.openrung.vpn
 
 import com.openrung.net.BrokerHttpException
+import com.openrung.net.WssTicketStatusException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -63,6 +64,12 @@ class FailureClassifierTest {
     fun `broker http non-429 classifies as http prefix with code`() {
         assertEquals("http_503", FailureClassifier.classify(BrokerHttpException(503, "broker list relays: unavailable")))
         assertEquals("http_500", FailureClassifier.classify(BrokerHttpException(500, "broker list relays: server error")))
+    }
+
+    @Test
+    fun `WSS ticket status keeps HTTP classification transport scoped`() {
+        assertEquals("rate_limited", FailureClassifier.classify(WssTicketStatusException(429, 5_000)))
+        assertEquals("http_503", FailureClassifier.classify(WssTicketStatusException(503, null)))
     }
 
     @Test

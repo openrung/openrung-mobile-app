@@ -7,12 +7,17 @@ import OSLog
 
 final class LibboxPacketTunnelPlatformInterface: NSObject, LibboxPlatformInterfaceProtocol, LibboxCommandServerHandlerProtocol {
     private let tunnelProvider: NEPacketTunnelProvider
+    private let onUnexpectedServiceStop: @Sendable () -> Void
     private let logger = Logger(subsystem: AppConfig.loggingSubsystem, category: "LibboxPlatformInterface")
     private var networkSettings: NEPacketTunnelNetworkSettings?
     private var pathMonitor: NWPathMonitor?
 
-    init(tunnelProvider: NEPacketTunnelProvider) {
+    init(
+        tunnelProvider: NEPacketTunnelProvider,
+        onUnexpectedServiceStop: @escaping @Sendable () -> Void = {}
+    ) {
         self.tunnelProvider = tunnelProvider
+        self.onUnexpectedServiceStop = onUnexpectedServiceStop
     }
 
     func openTun(_ options: LibboxTunOptionsProtocol?, ret0_: UnsafeMutablePointer<Int32>?) throws {
@@ -228,7 +233,9 @@ final class LibboxPacketTunnelPlatformInterface: NSObject, LibboxPlatformInterfa
         return LibboxNetworkInterfaceArray(interfaces)
     }
 
-    func serviceStop() throws {}
+    func serviceStop() throws {
+        onUnexpectedServiceStop()
+    }
     func serviceReload() throws {}
 
     func getSystemProxyStatus() throws -> LibboxSystemProxyStatus {

@@ -4,9 +4,11 @@
 > `Libbox.xcframework` is statically linked into the app and the PacketTunnel
 > extension, so the whole iOS app is GPL-3.0-or-later (see the repo `LICENSE`
 > and `THIRD_PARTY_NOTICES.md`). The build below pins the **exact sing-box
-> revision** recorded in [`../../SINGBOX_VERSION`](../../SINGBOX_VERSION) so the
-> GPL §6 corresponding source is reproducible — keep that pin in lockstep with
-> the shipped binary (see [`../../RELEASE.md`](../../RELEASE.md)).
+> revision** recorded in [`../../SINGBOX_VERSION`](../../SINGBOX_VERSION). The
+> OpenRung WSS wrapper also resolves the exact `wsscore` tag pinned in
+> [`../../android/punchbridge/go.mod`](../../android/punchbridge/go.mod), so the
+> GPL §6 corresponding source is reproducible — keep those pins in lockstep
+> with the shipped binary (see [`../../RELEASE.md`](../../RELEASE.md)).
 >
 > **App Store caveat:** distributing this GPL-linked binary through the App
 > Store (and likely external TestFlight) conflicts with Apple's Usage Rules /
@@ -17,27 +19,25 @@
 `Libbox.xcframework` is generated locally from sing-box and intentionally
 ignored by git because it is large.
 
-To rebuild it against the pinned revision (run from the repo root):
+To rebuild both the iOS device and simulator slices (run from the repo root):
 
 ```sh
-# SINGBOX_VERSION holds a Go pseudo-version like
-# v0.0.0-<utc>-<12-char-commit>; the trailing 12 chars are the commit SHA.
-version="$(tr -d '[:space:]' < SINGBOX_VERSION)"
-commit="${version##*-}"
-
-git clone https://github.com/SagerNet/sing-box.git /private/tmp/openrung-sing-box
-cd /private/tmp/openrung-sing-box
-git checkout "$commit"
-
 go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.12
 go install github.com/sagernet/gomobile/cmd/gobind@v0.1.12
-PATH="$HOME/go/bin:$PATH" gomobile init
-PATH="$HOME/go/bin:$PATH" go run ./cmd/internal/build_libbox \
-  -target apple -platform ios,iossimulator
-
-# Copy the result back into this directory (adjust the destination to your checkout):
-cp -R Libbox.xcframework "$OLDPWD/ios/ThirdParty/Libbox.xcframework"
+PATH="$(go env GOPATH)/bin:$PATH" gomobile init
+./ios/build-libbox-release.sh
 ```
+
+The script downloads the exact sing-box pseudo-version, grafts only the thin
+OpenRung WSS binding into `experimental/libbox`, resolves the tagged `wsscore`
+module, and emits one unified `Libbox.xcframework`. This is required because a
+second gomobile framework would load a second, incompatible Go runtime. The
+transport implementation is never copied into this repository.
+
+For development against an unpublished local wsscore checkout, use
+`WSSCORE_SRC=/absolute/path/to/wsscore ./ios/build-libbox-release.sh`. Artifacts
+built this way are explicitly non-release builds; omit `WSSCORE_SRC` to verify
+the pinned tag used for distribution.
 
 The Android AAR is built from the same pinned revision by
 [`../../android/build-libbox-release.sh`](../../android/build-libbox-release.sh).

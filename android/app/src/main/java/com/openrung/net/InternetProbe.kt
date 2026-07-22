@@ -18,6 +18,11 @@ data class InternetProbeResult(
     val durationMs: Long,
 )
 
+/** A remote endpoint answered, but did not provide a usable through-tunnel response. */
+class InternetProbeHttpStatusException(
+    val status: Int,
+) : IOException("internet probe returned HTTP $status")
+
 class InternetProbe(context: Context) {
     private val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
 
@@ -29,6 +34,10 @@ class InternetProbe(context: Context) {
         while (SystemClock.elapsedRealtime() < deadline) {
             val vpnNetwork = currentVpnNetwork()
             if (vpnNetwork == null) {
+                // Do not retain an earlier remote-looking endpoint error after Android has lost
+                // the local VPN Network. The final observation controls classification, so a TUN
+                // publication/teardown problem can never authorize WSS.
+                lastError = IOException("VPN network is unavailable")
                 delay(RETRY_DELAY_MS)
                 continue
             }
@@ -99,7 +108,7 @@ class InternetProbe(context: Context) {
         try {
             val status = connection.responseCode
             if (!acceptsHttpStatus(status)) {
-                throw IOException("internet probe HTTP $status from $endpoint")
+                throw InternetProbeHttpStatusException(status)
             }
             connection.inputStream.use { input -> input.read() }
         } finally {
