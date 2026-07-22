@@ -1,6 +1,6 @@
-// Package libbox exposes the OpenRung NAT-punch client through the same
-// gomobile package as sing-box. Keeping both APIs in one generated AAR is
-// important: two gomobile AARs would each ship go.Seq and a separate Go
+// Package libbox exposes OpenRung's native transport adapters through the same
+// gomobile package as sing-box. Keeping the APIs in one generated AAR is
+// important: separate gomobile AARs would each ship go.Seq and a separate Go
 // runtime, which Android cannot safely link into one application.
 package libbox
 

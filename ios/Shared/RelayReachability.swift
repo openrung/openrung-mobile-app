@@ -38,7 +38,7 @@ public enum RelayReachability {
 
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int64, Error>) in
-                func finish(_ result: Result<Int64, Error>) {
+                @Sendable func finish(_ result: Result<Int64, Error>) {
                     guard guardBox.claim() else { return }
                     connection.stateUpdateHandler = nil
                     connection.cancel()

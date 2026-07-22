@@ -196,11 +196,93 @@ Ported from the production app with packages renamed
 `com.openrung.client.*` → `com.openrung.*`; UI/Compose/directory code is NOT
 ported (that lives in TS now). Files:
 
+### Cross-platform WSS/CDN fallback contract
+
+This contract applies to both native clients; §7 records the iOS adapter and
+lifecycle details. WSS is a per-relay access fallback, not a replacement tunnel
+protocol. The existing VLESS/Reality/Vision client remains the authenticated
+end-to-end data path. Each platform MUST attempt that relay's normal Reality
+address first and MUST NOT request a WSS ticket until the direct attempt has
+produced a genuine remote TCP or post-start data-path failure. Configuration
+encoding, engine creation or startup, VPN permission, Android socket
+protection, network-monitor setup, and other local/platform failures fail the
+connection locally; they neither unlock WSS nor count against relay health.
+
+A relay is WSS-eligible only when the signed descriptor says
+`node_class=foundation`, `exit_mode=direct`, `public_port=443`, and `transport`
+is empty or `direct`, and contains a non-empty `wss_fronts` array. The complete
+advertised array MUST already exactly match `wsscore.NormalizeFronts`
+(supported protocol version, canonical URL/ID, uniqueness, and ID-sorted
+order). Kotlin and Swift never repair, reorder, or independently reimplement
+those rules; malformed sets make WSS unavailable. Eligible fronts are attempted
+sequentially in their exact signed order.
+
+For each front, the client POSTs `{relay_id, front_id}` to the selected broker
+base path plus `/api/v1/wss/tickets`, then the built-in broker fronts in order.
+Production broker URLs MUST be HTTPS; only an explicit literal-loopback HTTP
+base is accepted as a development allowance. Redirects are rejected, caching is
+disabled, and client/session identity headers are sent only as a complete pair.
+All broker-front attempts share a 15 s deadline and use at most 5 s each. A 429
+or 503 can schedule one additional failover round: `Retry-After` accepts
+delta-seconds or HTTP-date, a missing/invalid/zero value uses 10 s, and a large
+value is clamped to 30 s; the retry is skipped if that wait would consume the
+remaining overall budget. The first broker diagnostic is retained if all
+attempts fail; status diagnostics never include a response body. Successful
+responses are capped at 64 KiB and require
+an opaque ticket of at most 4096 UTF-8 bytes, a future `expires_at`, and a URL
+that exactly equals the selected signed front.
+
+The exact descriptor URL and opaque ticket are passed unchanged to
+`wsscore.DialClient`; neither is reconstructed, put into another URL, or logged.
+Its loopback endpoint is validated and supplied to the existing Reality client.
+The shared transport implementation is the tagged Go module
+`github.com/openrung/openrung/wsscore v0.2.0`, pinned in
+`android/punchbridge/go.mod`; the repository contains only the gomobile adapter,
+ticket/lifecycle policy, telemetry, and platform integration. Android constructs
+the client with a `SocketProtector`; before the outer CDN socket connects it
+delegates to `VpnService.protect(fd)`. A missing callback, exception, panic, or
+`false` result fails closed and never calls `connect(2)`. iOS constructs the
+same client inside `PacketTunnel` with the platform-native
+`NewOpenRungWSSClientForIOS` entry point. iOS has no `VpnService` equivalent, so
+that constructor deliberately selects wsscore's nil-protector path.
+Both constructors enable wsscore's opt-in CloudFront no-SNI mode. The core
+applies it only when the exact signed URL uses a native one-label
+`*.cloudfront.net` distribution hostname: ClientHello SNI is omitted, the same
+hostname remains in the encrypted HTTP `Host` header, and the certificate is
+still verified against that hostname. Custom CloudFront CNAMEs and all other
+CDNs retain ordinary URL-derived SNI. No platform layer rewrites the URL,
+selects a TLS verification name, or implements this TLS behavior itself. DNS
+resolution can still reveal the distribution hostname. An ambiguous no-SNI
+handshake failure never retries the same single-use ticket with SNI; the normal
+front ladder may continue only with the next signed front and a fresh
+front-bound ticket.
+
+The first direct failure is the relay-health event. Ticket, CDN, handshake, and
+WSS-path failures emit transport-only telemetry (`transport_failed` with
+`transport=wss`, front ID, and stage) and MUST NOT add another relay penalty.
+Once connected, native WSS adapter loss, end-to-end path-health failure, or a
+physical network epoch change retires the session. Android treats
+route/interface/DNS changes as a new epoch; iOS does the same for `NWPath`
+changes and extension wake. An unexpected local Reality-engine exit is instead
+terminal: it never triggers reladdering, ticket acquisition, or WSS recovery.
+Cleanup clears ownership before close and always stops the Reality engine before
+the native WSS adapter. Recovery waits for a usable physical network, fetches
+fresh signed relay data, and starts again at direct Reality; single-use tickets
+and the prior WSS preference are never reused across network epochs.
+
+iOS startup and active-health classification MUST probe over
+`NEPacketTunnelProvider.createTCPConnectionThroughTunnel` with TLS, bounded
+request time, and a bounded HTTP response head. A `URLSession` created by the
+packet-tunnel provider bypasses that provider's TUN and therefore MUST NOT be
+used as evidence that Reality or WSS carried end-to-end traffic.
+
 - `vpn/OpenRungVpnService.kt`, `vpn/ProxyEngine.kt` — connect flow including
-  Android NAT-punch-first/RelayHub fallback, connection-failure handling,
+  Android NAT-punch-first/RelayHub and direct-first WSS/CDN fallback,
+  connection-failure handling,
   notification id 2001 channel `openrung_vpn`, heartbeat 50–70s.
 - `net/` BrokerClient, GeoIpClient, InternetProbe, RelayReachability,
-  SingBoxConfiguration, NatPunchClient; `model/` RelayDescriptor, RelaySelector, CountryGeo,
+  SingBoxConfiguration, NatPunchClient, WssTicketClient, WssClient,
+  PhysicalNetworkEpochMonitor; `model/` RelayDescriptor, RelaySelector, CountryGeo,
   RecentNode; `telemetry/` all four files (since diverged: `application_connection`
   events are aggregated client-side by the added `ApplicationConnectionAggregator.kt`,
   and the schema dropped destination ip/port/protocol); `config/AppConfig.kt`.
@@ -232,6 +314,10 @@ ported (that lives in TS now). Files:
   (`PUNCHCORE_SRC` swaps in a local-checkout `replace` for development only —
   never for releases). The Go UDP fd must be accepted by
   `VpnService.protect` before discovery begins; failure falls back to RelayHub.
+- The same combined AAR grafts `wss_binding.go`, but resolves all WebSocket,
+  TLS, yamux, transport-bound, and loopback-adapter code from the exact wsscore
+  version in `android/punchbridge/go.mod`. `WSSCORE_SRC` is a local-development
+  replace only and MUST NOT be used for a release artifact.
 - The signed descriptor must advertise an explicit HTTPS punch endpoint. Bare-IP
   self-signed coordinators are accepted only when their exact certificate SHA-256
   appears in `AppConfig.PUNCH_COORDINATOR_CERT_SHA256_BY_HOST`; hostname endpoints
@@ -241,6 +327,13 @@ ported (that lives in TS now). Files:
   successful physical-network broker probe trigger fresh discovery/re-punch and
   RelayHub fallback. Native path loss waits for a reachable physical network, so
   a local outage leaves the foreground service CONNECTING instead of failing it.
+- A transport-independent engine monitor watches libbox during direct, punched,
+  and WSS sessions. Unexpected engine exit is a terminal local failure and never
+  starts reladdering or ticket acquisition. WSS network, adapter, and end-to-end
+  path-health recovery cancels that monitor, stops the engine first, closes the
+  physical-network epoch monitor, and then closes the WSS adapter. It waits for
+  a usable physical network before fresh signed discovery and a direct-first
+  attempt with a fresh ticket only if another eligible remote failure occurs.
 - Direct-path recovery is bounded per relay. Losses before five minutes use
   jittered exponential backoff; the third rapid loss opens a circuit for the
   current user connection, so fresh discovery still runs but that relay is
@@ -269,15 +362,30 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   GeoIpClient, CountryGeo, RelayReachability, InternetProbe, Telemetry*,
   ActivityLog, ConnectionStatus/Snapshot, SharedConnectionState, AppConfig …)
   flattened into one directory compiled into BOTH targets (no SPM package).
+- `ios/Shared/WssTicketClient.swift` and `WssFallbackPolicy.swift` implement
+  the shared §6 ticket and direct-first classification contract. PacketTunnel
+  owns `WssNativeClient.swift`, the exact-front validator, and
+  `PhysicalNetworkEpochMonitor.swift`: adapter loss, `NWPath` change, or wake
+  stops Reality before the adapter, then performs fresh signed discovery,
+  direct Reality first, and a fresh ticket only if another eligible remote
+  failure occurs.
 - `ios/OpenRung/OpenRungVpnModule.swift` + `OpenRungVpnModule.m`
   (RCT_EXTERN_MODULE) — implements §3 over NETunnelProviderManager +
   SharedConnectionState (Darwin observer + NEVPNStatusDidChange), including the
   production relay-switch dance (stop → 350 ms → reconfigure → start).
 - Both targets: packet-tunnel-provider entitlement + app group; no ATS exceptions —
-  default App Transport Security is enforced because every endpoint is HTTPS (see
-  ARCHITECTURE.md § "Network transport"). PacketTunnel links `ThirdParty/Libbox.xcframework`
+  default App Transport Security is enforced because every production endpoint
+  is HTTPS (see ARCHITECTURE.md § "Network transport"). PacketTunnel links `ThirdParty/Libbox.xcframework`
   (embed:false) + libresolv.tbd, `APPLICATION_EXTENSION_API_ONLY=YES`; compiles
   without the xcframework via the existing `#if canImport(Libbox)` stub.
+- `ios/build-libbox-release.sh` generates that one device+simulator
+  `Libbox.xcframework` by grafting only `wss_binding.go` into the pinned sing-box
+  libbox package and resolving wsscore v0.2.0 from
+  `android/punchbridge/go.mod`. PacketTunnel calls the generated
+  `LibboxNewOpenRungWSSClientForIOS(frontURL,ticket,listener)` export, whose
+  nil `SocketProtector` deliberately selects wsscore's Apple nil-protector
+  path. A second gomobile framework/runtime or an artifact built with
+  `WSSCORE_SRC` is not releasable.
 
 ## 8. Known prototype limitations (documented in README)
 

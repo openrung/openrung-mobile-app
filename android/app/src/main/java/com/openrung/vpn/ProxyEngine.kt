@@ -40,10 +40,14 @@ import io.nekohasekai.libbox.StringIterator
 import io.nekohasekai.libbox.SystemProxyStatus
 import io.nekohasekai.libbox.TunOptions
 import io.nekohasekai.libbox.WIFIState
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
 import java.io.File
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.InterfaceAddress
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import java.net.NetworkInterface as JavaNetworkInterface
 import io.nekohasekai.libbox.NetworkInterface as BoxNetworkInterface
 
@@ -53,6 +57,12 @@ interface ProxyEngine {
         configJson: String,
         vpnService: VpnService,
     )
+
+    /** Completes only when the local tunnel engine stops without an explicit service teardown. */
+    suspend fun awaitUnexpectedStop(): String = awaitCancellation()
+
+    /** Persistent companion to [awaitUnexpectedStop] for resolving simultaneous path/engine events. */
+    fun unexpectedStopReason(): String? = null
 
     fun stop()
 }
@@ -70,6 +80,18 @@ object ProxyEngineFactory {
     }
 
     fun create(): ProxyEngine = if (libboxLinked) LibboxProxyEngine() else StubProxyEngine()
+
+    fun isAvailable(): Boolean = libboxLinked
+
+    /**
+     * Parses and constructs the sing-box graph without starting a service, opening a TUN, or
+     * dialing the network. This must run before relay reachability so deterministic local config
+     * failures cannot be mistaken for a blocked direct path and authorize a WSS ticket.
+     */
+    fun preflight(configJson: String) {
+        check(libboxLinked) { "libbox engine not linked" }
+        Libbox.checkConfig(configJson)
+    }
 }
 
 /** Fallback engine used when the libbox classes are unavailable at runtime. */
@@ -89,6 +111,9 @@ class LibboxProxyEngine : ProxyEngine {
     private var commandServer: CommandServer? = null
     private var statusClient: CommandClient? = null
     private var tunFd: ParcelFileDescriptor? = null
+    private val stopping = AtomicBoolean(false)
+    private val unexpectedStop = CompletableDeferred<String>()
+    private val unexpectedReason = AtomicReference<String?>(null)
 
     override suspend fun start(
         relay: RelayDescriptor,
@@ -99,7 +124,7 @@ class LibboxProxyEngine : ProxyEngine {
             tunFd?.close()
             tunFd = fd
         }
-        val handler = OpenRungCommandServerHandler(::stop)
+        val handler = OpenRungCommandServerHandler(::onServiceStop)
         val options = SetupOptions().apply {
             basePath = File(vpnService.filesDir, "libbox").apply { mkdirs() }.path
             workingPath = File(vpnService.getExternalFilesDir(null) ?: vpnService.filesDir, "libbox").apply { mkdirs() }.path
@@ -139,7 +164,21 @@ class LibboxProxyEngine : ProxyEngine {
             .getOrNull()
     }
 
+    override suspend fun awaitUnexpectedStop(): String = unexpectedStop.await()
+
+    override fun unexpectedStopReason(): String? = unexpectedReason.get()
+
+    private fun onServiceStop() {
+        if (!stopping.get()) {
+            val reason = "libbox tunnel engine stopped unexpectedly"
+            unexpectedReason.compareAndSet(null, reason)
+            unexpectedStop.complete(reason)
+        }
+        stop()
+    }
+
     override fun stop() {
+        if (!stopping.compareAndSet(false, true)) return
         runCatching { statusClient?.disconnect() }
         statusClient = null
         runCatching { commandServer?.closeService() }

@@ -21,6 +21,22 @@ enum FailureClassifier {
         // (1) cancellation (user stop / task cancellation)
         if error is CancellationError { return "cancelled" }
 
+        if let direct = error as? DirectPathError { return classify(direct.underlying) }
+        if let local = error as? LocalTunnelError { return classify(local.underlying) }
+        if let wss = error as? WssTransportError { return classify(wss.underlying) }
+        if let probe = error as? InternetProbeError {
+            return probe.underlyingError.map(classify) ?? "network_unreachable"
+        }
+        if let ticketStatus = error as? WssTicketStatusError {
+            return ticketStatus.status == 429 ? "rate_limited" : "http_\(ticketStatus.status)"
+        }
+        if let recorded = error as? RelayFailureAlreadyRecordedError {
+            if let lastWssFailure = recorded.wssFailures.last {
+                return classify(lastWssFailure)
+            }
+            return classify(recorded.directFailure)
+        }
+
         // (2) app relay-selection sentinels; unwrap the wrappers that carry the real cause.
         if let tunnelError = error as? PacketTunnelError {
             switch tunnelError {
@@ -154,10 +170,23 @@ enum FailureClassifier {
         if depth < 8, let underlying = underlyingDetailError(error) {
             return detailDescription(underlying, depth: depth + 1)
         }
+        if let ticketStatus = error as? WssTicketStatusError {
+            return "WSS ticket HTTP status \(ticketStatus.status)"
+        }
         return describe(error)
     }
 
     private static func underlyingDetailError(_ error: Error) -> Error? {
+        if let direct = error as? DirectPathError { return direct.underlying }
+        if let local = error as? LocalTunnelError { return local.underlying }
+        if let wss = error as? WssTransportError { return wss.underlying }
+        if let probe = error as? InternetProbeError { return probe.underlyingError }
+        if let recorded = error as? RelayFailureAlreadyRecordedError {
+            if let lastWssFailure = recorded.wssFailures.last {
+                return lastWssFailure.underlying
+            }
+            return recorded.directFailure.underlying
+        }
         if let tunnelError = error as? PacketTunnelError {
             switch tunnelError {
             case .relayUnreachable(_, _, let underlying), .allRelaysFailed(let underlying):

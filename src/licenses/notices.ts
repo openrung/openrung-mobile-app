@@ -18,6 +18,9 @@ export interface LicenseComponent {
  */
 export const components: LicenseComponent[] = [
   { name: "sing-box (libbox)", license: "GPL-3.0-or-later", url: "https://github.com/SagerNet/sing-box" },
+  { name: "OpenRung wsscore", license: "GPL-3.0-or-later", url: "https://github.com/openrung/openrung/tree/main/wsscore" },
+  { name: "Gorilla WebSocket", license: "BSD-2-Clause", url: "https://github.com/gorilla/websocket" },
+  { name: "HashiCorp yamux", license: "MPL-2.0", url: "https://github.com/hashicorp/yamux" },
   { name: "gVisor", license: "Apache-2.0", url: "https://github.com/google/gvisor" },
   { name: "SagerNet quic-go fork", license: "MIT", url: "https://github.com/SagerNet/quic-go" },
   { name: "wireguard-go", license: "MIT", url: "https://git.zx2c4.com/wireguard-go" },
@@ -758,6 +761,18 @@ GPL-3.0-or-later (see \`LICENSE\`), same as the production OpenRung project.
 OpenRung is **not affiliated with or endorsed by** sing-box or SagerNet; the
 sing-box name is used only descriptively.
 
+### OpenRung wsscore — GPL-3.0-or-later
+
+- **Component:** \`github.com/openrung/openrung/wsscore\` at the exact version
+  pinned in \`android/punchbridge/go.mod\` (linked into both Libbox artifacts).
+- **License:** GNU General Public License v3.0 or later.
+- **Upstream/source:** https://github.com/openrung/openrung/tree/main/wsscore
+
+This is first-party shared transport code rather than a third-party project,
+but it is called out because its tagged source and transitive dependencies are
+separate native release inputs. The complete GPL-3.0 text is bundled as
+\`LICENSE\`.
+
 #### sing-box transitive components (compiled into the apps)
 
 The \`libbox\` build statically links additional libraries that are therefore
@@ -768,6 +783,9 @@ distributed inside the apps. This list must be completed from the exact build
 - \`github.com/sagernet/quic-go\` (SagerNet's sing-box fork of quic-go) — MIT
 - \`golang.zx2c4.com/wireguard\` (wireguard-go) — MIT
 - \`github.com/refraction-networking/utls\` — BSD-3-Clause
+- \`github.com/gorilla/websocket\` — BSD-2-Clause, Copyright (c) 2013 The
+  Gorilla WebSocket Authors
+- \`github.com/hashicorp/yamux\` — MPL-2.0, Copyright (c) 2014 HashiCorp, Inc.
 - \`github.com/sagernet/sing\`, \`sing-quic\`, \`sing-shadowsocks*\`, and related
   \`sagernet/*\` modules — GPL-3.0 / mixed (reinforces the GPL-3.0 result above)
 - Go standard library / runtime — BSD-3-Clause, Copyright (c) The Go Authors
@@ -881,17 +899,19 @@ scripts — is available from the app's source repository:
 
 The apps statically link a specific sing-box commit. That commit is pinned in
 this repository at \`SINGBOX_VERSION\`. Android's same-runtime AAR also includes
-(a) the first-party NAT-punch gomobile binding under \`android/punchbridge\` and
-(b) the shared OpenRung punch core, consumed as the Go module
-\`github.com/openrung/openrung/punchcore\` at the version pinned in
-\`android/punchbridge/go.mod\`. The punch core is first-party GPL-3.0-or-later
-code (not a third-party component); its complete source is available from
-**https://github.com/openrung/openrung**, which this offer also covers. The
-build paths (\`android/build-libbox-release.sh\` and \`ios/ThirdParty/README.md\`)
-and per-release procedure in \`RELEASE.md\` make both artifacts reproducible.
-Record/verify the sing-box pin, the punchcore module version, and the release
-tag against every shipped binary. OpenRung will provide the corresponding
-source for at least three (3) years on request.
+the first-party native bindings under \`android/punchbridge\` and the shared
+OpenRung punch and WSS cores, consumed as the Go modules
+\`github.com/openrung/openrung/punchcore\` and
+\`github.com/openrung/openrung/wsscore\` at the versions pinned in
+\`android/punchbridge/go.mod\`. The Apple framework includes the WSS binding and
+the same wsscore pin. Both cores are first-party GPL-3.0-or-later code; their
+complete tagged source is available from **https://github.com/openrung/openrung**,
+which this offer also covers. The build paths
+(\`android/build-libbox-release.sh\` and \`ios/build-libbox-release.sh\`) and the
+per-release procedure in \`RELEASE.md\` make both artifacts reproducible.
+Record and verify the sing-box, punchcore, and wsscore pins against every
+shipped binary. OpenRung will provide the corresponding source for at least
+three (3) years on request.
 
 ---
 

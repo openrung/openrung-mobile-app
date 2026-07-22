@@ -14,7 +14,7 @@ import kotlinx.serialization.json.put
 
 data class SingBoxConfiguration(
     val relay: RelayDescriptor,
-    /** Loopback TCP bridge exposed by the NAT-punch client. Empty means use the relay endpoint. */
+    /** Loopback TCP adapter exposed by a native transport. Empty means use the relay endpoint. */
     val bridgeHost: String = "",
     val bridgePort: Int = 0,
     val tunnelIPv4Address: String = "172.19.0.1/30",
@@ -30,14 +30,14 @@ data class SingBoxConfiguration(
     fun makeJsonObject(): JsonObject {
         require(mtu > 0) { "mtu must be positive" }
         validateRelay()
-        val usePunchBridge = bridgeHost.isNotBlank() || bridgePort != 0
-        if (usePunchBridge) {
+        val useLoopbackAdapter = bridgeHost.isNotBlank() || bridgePort != 0
+        if (useLoopbackAdapter) {
             require(bridgeHost.isNotBlank() && bridgePort in 1..65535) {
-                "punch bridge requires a host and valid port"
+                "loopback adapter requires a host and valid port"
             }
         }
-        val outboundHost = if (usePunchBridge) bridgeHost else relay.publicHost
-        val outboundPort = if (usePunchBridge) bridgePort else relay.publicPort
+        val outboundHost = if (useLoopbackAdapter) bridgeHost else relay.publicHost
+        val outboundPort = if (useLoopbackAdapter) bridgePort else relay.publicPort
 
         val tunInbound = mutableMapOf<String, JsonElement>(
             "type" to JsonPrimitive("tun"),
@@ -50,7 +50,7 @@ data class SingBoxConfiguration(
             "dns_mode" to JsonPrimitive("hijack"),
             "endpoint_independent_nat" to JsonPrimitive(true),
         )
-        if (!usePunchBridge) {
+        if (!useLoopbackAdapter) {
             relayRouteExcludeAddress(relay.publicHost)?.let {
                 tunInbound["route_exclude_address"] = JsonArray(listOf(JsonPrimitive(it)))
             }

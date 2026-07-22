@@ -4,12 +4,69 @@ import NetworkExtension
 import OSLog
 
 protocol PacketTunnelProxyEngine: AnyObject {
-    func start(relay: RelayDescriptor, tunnelProvider: NEPacketTunnelProvider) async throws
+    func start(
+        relay: RelayDescriptor,
+        configuration: SingBoxConfiguration,
+        tunnelProvider: NEPacketTunnelProvider
+    ) async throws
     func stop()
     /// Pause the engine when the device sleeps and resume it on wake, so iOS doesn't terminate the
     /// extension for CPU/wakeups while the tunnel sits idle. Safe no-op before the engine starts.
     func pause()
     func wake()
+    /// Completes only when libbox asks the extension to stop unexpectedly. An intentional `stop()`
+    /// finishes the waiter without reporting a failure.
+    func waitForUnexpectedStop() async -> String?
+    var hasUnexpectedStop: Bool { get }
+}
+
+private final class EngineStopSignal: @unchecked Sendable {
+    private let lock = NSLock()
+    private let continuation: AsyncStream<String>.Continuation
+    let events: AsyncStream<String>
+    private var unexpectedReason: String?
+    private var finished = false
+
+    init() {
+        var captured: AsyncStream<String>.Continuation?
+        events = AsyncStream { captured = $0 }
+        continuation = captured!
+    }
+
+    var hasUnexpectedStop: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return unexpectedReason != nil
+    }
+
+    func reportUnexpected(_ reason: String) {
+        lock.lock()
+        guard finished == false else {
+            lock.unlock()
+            return
+        }
+        unexpectedReason = reason
+        finished = true
+        lock.unlock()
+        continuation.yield(reason)
+        continuation.finish()
+    }
+
+    func finishExpected() {
+        lock.lock()
+        guard finished == false else {
+            lock.unlock()
+            return
+        }
+        finished = true
+        lock.unlock()
+        continuation.finish()
+    }
+
+    func wait() async -> String? {
+        for await reason in events { return reason }
+        return nil
+    }
 }
 
 #if canImport(Libbox)
@@ -21,14 +78,34 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
     private var statusClient: LibboxCommandClient?
     private var platformInterface: LibboxPacketTunnelPlatformInterface?
     private var activeRelay: RelayDescriptor?
+    private let stopSignal = EngineStopSignal()
 
     /// Status push interval, a Go time.Duration in nanoseconds.
     private static let statusIntervalNs: Int64 = 3_000_000_000
 
-    func start(relay: RelayDescriptor, tunnelProvider: NEPacketTunnelProvider) async throws {
+    /// Performs every deterministic local check available before opening a relay socket. This is
+    /// intentionally ahead of direct reachability so a missing/stale native engine, unwritable
+    /// extension storage, or invalid sing-box configuration cannot mint a WSS ticket merely because
+    /// the remote TCP path also happens to be blocked.
+    static func preflight(configuration: SingBoxConfiguration) throws {
+        let configurationJSON = try configuration.encodedJSONString()
+        _ = try EngineDirectories.make()
+        var validationError: NSError?
+        guard LibboxCheckConfig(configurationJSON, &validationError) else {
+            throw PacketTunnelProxyEngineError.engineStartFailed(
+                validationError?.localizedDescription ?? "Invalid sing-box configuration."
+            )
+        }
+    }
+
+    func start(
+        relay: RelayDescriptor,
+        configuration: SingBoxConfiguration,
+        tunnelProvider: NEPacketTunnelProvider
+    ) async throws {
         activeRelay = relay
 
-        let configuration = try SingBoxConfiguration(relay: relay).encodedJSONString()
+        let configurationJSON = try configuration.encodedJSONString()
         let directories = try EngineDirectories.make()
         TunnelDiagnostics.recordEvent("Generated sing-box config and engine directories")
         logger.info("Generated sing-box config and engine directories")
@@ -61,7 +138,12 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
             throw PacketTunnelProxyEngineError.engineStartFailed(setupError.localizedDescription)
         }
 
-        let platformInterface = LibboxPacketTunnelPlatformInterface(tunnelProvider: tunnelProvider)
+        let platformInterface = LibboxPacketTunnelPlatformInterface(
+            tunnelProvider: tunnelProvider,
+            onUnexpectedServiceStop: { [stopSignal] in
+                stopSignal.reportUnexpected("libbox service stopped unexpectedly")
+            }
+        )
         var commandServerError: NSError?
         guard let commandServer = LibboxNewCommandServer(platformInterface, platformInterface, &commandServerError) else {
             throw PacketTunnelProxyEngineError.engineStartFailed(commandServerError?.localizedDescription ?? "Unable to create libbox command server.")
@@ -73,7 +155,7 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
             try commandServer.start()
             TunnelDiagnostics.recordEvent("Starting libbox service")
             logger.info("Starting libbox service")
-            try commandServer.startOrReloadService(configuration, options: LibboxOverrideOptions())
+            try commandServer.startOrReloadService(configurationJSON, options: LibboxOverrideOptions())
         } catch {
             commandServer.close()
             throw PacketTunnelProxyEngineError.engineStartFailed(error.localizedDescription)
@@ -107,6 +189,7 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
     }
 
     func stop() {
+        stopSignal.finishExpected()
         try? statusClient?.disconnect()
         statusClient = nil
         try? commandServer?.closeService()
@@ -124,6 +207,12 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
     func wake() {
         commandServer?.wake()
     }
+
+    func waitForUnexpectedStop() async -> String? {
+        await stopSignal.wait()
+    }
+
+    var hasUnexpectedStop: Bool { stopSignal.hasUnexpectedStop }
 
     /// Per-launch random secret for the command server's gRPC auth interceptor (see `start`).
     private static func makeCommandServerSecret() -> String {
@@ -182,20 +271,33 @@ private final class TrafficStatusHandler: NSObject, LibboxCommandClientHandlerPr
 
 final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
     private var activeRelay: RelayDescriptor?
+    private let stopSignal = EngineStopSignal()
 
-    func start(relay: RelayDescriptor, tunnelProvider _: NEPacketTunnelProvider) async throws {
+    static func preflight(configuration: SingBoxConfiguration) throws {
+        _ = try configuration.encodedJSON()
+        throw PacketTunnelProxyEngineError.engineNotLinked
+    }
+
+    func start(
+        relay: RelayDescriptor,
+        configuration: SingBoxConfiguration,
+        tunnelProvider _: NEPacketTunnelProvider
+    ) async throws {
         activeRelay = relay
-        _ = try SingBoxConfiguration(relay: relay).encodedJSON()
+        _ = try configuration.encodedJSON()
 
         throw PacketTunnelProxyEngineError.engineNotLinked
     }
 
     func stop() {
+        stopSignal.finishExpected()
         activeRelay = nil
     }
 
     func pause() {}
     func wake() {}
+    func waitForUnexpectedStop() async -> String? { await stopSignal.wait() }
+    var hasUnexpectedStop: Bool { stopSignal.hasUnexpectedStop }
 }
 
 #endif

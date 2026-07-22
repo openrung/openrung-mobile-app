@@ -6,19 +6,26 @@ public struct SingBoxConfiguration: Equatable, Sendable {
     public let tunnelIPv6Address: String
     public let dnsServers: [String]
     public let mtu: Int
+    /// Optional loopback endpoint owned by a native access transport such as wsscore.
+    public let bridgeHost: String?
+    public let bridgePort: Int?
 
     public init(
         relay: RelayDescriptor,
         tunnelIPv4Address: String = "172.19.0.1/30",
         tunnelIPv6Address: String = "fdfe:dcba:9876::1/126",
         dnsServers: [String] = ["1.1.1.1", "8.8.8.8"],
-        mtu: Int = 1400
+        mtu: Int = 1400,
+        bridgeHost: String? = nil,
+        bridgePort: Int? = nil
     ) {
         self.relay = relay
         self.tunnelIPv4Address = tunnelIPv4Address
         self.tunnelIPv6Address = tunnelIPv6Address
         self.dnsServers = dnsServers
         self.mtu = mtu
+        self.bridgeHost = bridgeHost
+        self.bridgePort = bridgePort
     }
 
     public func encodedJSON() throws -> Data {
@@ -47,9 +54,14 @@ public struct SingBoxConfiguration: Equatable, Sendable {
             "dns_mode": "hijack",
             "endpoint_independent_nat": true
         ]
-        if let excludeAddress = Self.relayRouteExcludeAddress(for: relay.publicHost) {
+        // A native bridge owns its outer socket. Only a direct Reality socket needs the raw relay
+        // address excluded from the TUN route; the inner bridge endpoint must stay on loopback.
+        if bridgeHost == nil, let excludeAddress = Self.relayRouteExcludeAddress(for: relay.publicHost) {
             tunInbound["route_exclude_address"] = [excludeAddress]
         }
+
+        let outboundHost = bridgeHost ?? relay.publicHost
+        let outboundPort = bridgePort ?? relay.publicPort
 
         return [
             "log": [
@@ -74,8 +86,8 @@ public struct SingBoxConfiguration: Equatable, Sendable {
                 [
                     "type": "vless",
                     "tag": "proxy",
-                    "server": relay.publicHost,
-                    "server_port": relay.publicPort,
+                    "server": outboundHost,
+                    "server_port": outboundPort,
                     "uuid": relay.clientID,
                     "flow": relay.flow,
                     "network": "tcp",

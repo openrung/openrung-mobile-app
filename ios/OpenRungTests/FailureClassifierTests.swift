@@ -117,6 +117,62 @@ final class FailureClassifierTests: XCTestCase {
         XCTAssertEqual(FailureClassifier.classify(NSError(domain: "com.example.other", code: 7)), "unknown")
     }
 
+    func testWssWrappersKeepLocalAndTransportClassificationSeparate() {
+        XCTAssertEqual(
+            FailureClassifier.classify(
+                DirectPathError(stage: "tcp", underlying: URLError(.timedOut))
+            ),
+            "timeout"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(
+                LocalTunnelError(stage: "permission", underlying: NSError(domain: NEVPNErrorDomain, code: 1))
+            ),
+            "permission_denied"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(
+                WssTransportError(stage: "ticket", frontID: "front-a", underlying: BrokerClientError.httpStatus(503))
+            ),
+            "http_503"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(
+                DirectPathError(
+                    stage: "internet_probe",
+                    underlying: InternetProbeError.unreachable(URLError(.dnsLookupFailed))
+                )
+            ),
+            "dns_failure"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(
+                WssTransportError(
+                    stage: "ticket",
+                    frontID: "front-a",
+                    underlying: WssTicketStatusError(status: 429, retryAfterMilliseconds: 1_000)
+                )
+            ),
+            "rate_limited"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(
+                WssTicketStatusError(status: 503, retryAfterMilliseconds: nil)
+            ),
+            "http_503"
+        )
+        XCTAssertEqual(
+            FailureClassifier.detail(
+                WssTransportError(
+                    stage: "ticket",
+                    frontID: "front-a",
+                    underlying: WssTicketStatusError(status: 503, retryAfterMilliseconds: nil)
+                )
+            ),
+            "WSS ticket HTTP status 503"
+        )
+    }
+
     // MARK: - failure_detail truncation
 
     func testDetailTruncatesOnUTF8Boundary() {

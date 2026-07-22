@@ -114,7 +114,8 @@ targets:
 
   # Hostless logic-test bundle. It compiles the units under test and their source closure directly
   # into the test module (rather than @testable-importing the app/extension), so the suites build and
-  # run without the app, CocoaPods, or Libbox. Four suites live here:
+  # run without the app, CocoaPods, or Libbox. The source closure also includes the pure WSS policy,
+  # ticket client, bridge config and network-epoch tracker for focused transport tests.
   #   - FailureClassifierTests: FailureClassifier + the small error types it maps.
   #   - BrokerClientTests: the broker discovery flow (staggered race + override-first).
   #   - RelayListVerifierTests: RelayListVerifier, plus AppConfig and its compile closure
@@ -130,19 +131,26 @@ targets:
     sources:
       - path: OpenRungTests
       - path: PacketTunnel/FailureClassifier.swift
+      - path: PacketTunnel/PhysicalNetworkEpochMonitor.swift
       - path: PacketTunnel/PacketTunnelError.swift
+      - path: PacketTunnel/PacketTunnelInternetProbe.swift
       - path: PacketTunnel/PacketTunnelProxyEngineError.swift
+      - path: PacketTunnel/WssNativeClient.swift
       - path: Shared/AppConfig.swift
       - path: Shared/BrokerClient.swift
       - path: Shared/BrokerClientError.swift
       - path: Shared/BrokerEndpoint.swift
       - path: Shared/DeviceAttributes.swift
+      - path: Shared/InternetProbe.swift
       - path: Shared/NetworkPathMonitor.swift
       - path: Shared/RelayDescriptor.swift
       - path: Shared/RelayRanker.swift
       - path: Shared/RelayReachability.swift
       - path: Shared/RelayReachabilityError.swift
       - path: Shared/RelayListVerifier.swift
+      - path: Shared/SingBoxConfiguration.swift
+      - path: Shared/WssFallbackPolicy.swift
+      - path: Shared/WssTicketClient.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.openrung.app.OpenRungTests
@@ -167,3 +175,7 @@ schemes:
       config: Debug
       targets:
         - OpenRungTests
+  PacketTunnel:
+    build:
+      targets:
+        PacketTunnel: all

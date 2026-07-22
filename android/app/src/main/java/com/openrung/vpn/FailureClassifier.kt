@@ -3,6 +3,7 @@ package com.openrung.vpn
 import android.system.ErrnoException
 import android.system.OsConstants
 import com.openrung.net.BrokerHttpException
+import com.openrung.net.WssTicketStatusException
 import java.io.InterruptedIOException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
@@ -49,6 +50,9 @@ object FailureClassifier {
 
         // (3) broker HTTP status (429 → rate_limited, else http_<code>)
         chain.firstNotNullOfOrNull { it as? BrokerHttpException }?.let {
+            return if (it.status == 429) "rate_limited" else "http_${it.status}"
+        }
+        chain.firstNotNullOfOrNull { it as? WssTicketStatusException }?.let {
             return if (it.status == 429) "rate_limited" else "http_${it.status}"
         }
 
