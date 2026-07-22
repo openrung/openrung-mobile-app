@@ -12,8 +12,12 @@ Client pieces: `src/net/updateManifestClient.ts` (fetch + verify + decode),
 `src/model/updateStatus.ts` (tier derivation), `src/state/updateCheck.ts` (orchestration),
 `src/screens/UpdateRequiredScreen.tsx` + `src/components/UpdateBanner.tsx` (UI).
 Publishing pieces: `release/update-policy.json` (operator knobs, see `release/README.md`),
-`scripts/update-manifest.mjs` (generate/sign/check), `.github/workflows/release.yml` (per-release)
-and `.github/workflows/update-manifest.yml` (policy-edit broadcast).
+`scripts/update-manifest.mjs` (generate/sign/check), and `.github/workflows/update-manifest.yml` —
+the **one** publisher, invoked by policy edits on main, by manual dispatch, and (via
+`workflow_call`) by `release.yml` after each release. Every invocation runs behind a shared
+concurrency mutex and generates from **latest main**, so publishers can never race each other and
+a stale checkout can never be the source; `release.yml` itself only fail-fast-validates the
+policy/seed and never generates the published manifest.
 
 ## The forever contract
 
@@ -65,21 +69,24 @@ raw 32-byte public key — advisory routing only, all pinned keys are tried.
 The manifest must never advertise a build that is not actually downloadable, so `latest` is
 sourced per platform:
 
-- **android.latest** — release path: the working-tree package.json version, safe because the
-  manifest is attached to the *same* GitHub release as that APK (they publish atomically).
-  Broadcast path (`update-manifest.yml`): the latest **release tag**, never main — so a version
-  bump whose release is still building or failed cannot be advertised early. `latest_code` is
-  only present on the release path (elsewhere it is unknowable and set to null; informational
-  only, clients ignore it).
+- **android.latest** — always the latest **release tag** (resolved at publish time), never a
+  package.json version: a version bump whose release is still building or failed cannot be
+  advertised before the APK exists. After a release completes, `release.yml` calls the publisher,
+  which resolves the just-created tag. `latest_code` is present only when the tag matches the
+  generating checkout's package.json version (otherwise unknowable and null; informational only,
+  clients ignore it).
 - **ios.latest** — always `ios_latest` from `release/update-policy.json`: iOS/TestFlight uploads
   are manual, so the operator records what is actually live and bumps it by policy PR after each
   TestFlight upload. CI rejects `ios_latest` above package.json and any `min_supported` above the
   advertised latest (a floor above what users can install would block them with no fix).
 
-`min_supported`, `promote` and `notice` come from `release/update-policy.json`. `generated_at`
-drives rollback monotonicity: a client never replaces a cached *verified* manifest with an older
-*verified* one, so replaying a stale signed manifest cannot lower a raised floor. Unsigned
-envelopes can never displace a verified cache at all.
+`min_supported`, `promote` and `notice` come from `release/update-policy.json`. `generated_at` is
+the generating checkout's HEAD **committer time**, not wall clock — git history is the ordering
+authority, so any late publish from a stale checkout carries an honestly-older stamp. It drives
+rollback monotonicity: a client never replaces a cached *verified* manifest with an older
+*verified* one, so neither a replayed signed manifest nor a stale-checkout publish can lower a
+raised floor for clients that already saw the newer one. Unsigned envelopes can never displace a
+verified cache at all.
 
 ## Client tier ladder (src/model/updateStatus.ts)
 

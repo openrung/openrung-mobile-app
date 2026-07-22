@@ -35,6 +35,7 @@ import {
   sign as ed25519Sign,
   verify as ed25519Verify,
 } from 'node:crypto';
+import { execSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, isAbsolute, join } from 'node:path';
@@ -208,12 +209,36 @@ function loadVectors() {
   return JSON.parse(read(VECTORS_PATH));
 }
 
+/**
+ * generated_at = the generating checkout's HEAD committer time, NOT wall-clock. Git history is
+ * the ordering authority for policy content: clients keep the manifest with the newest
+ * generated_at, so a stale checkout that publishes late (e.g. a long release build racing a
+ * policy edit) carries an honestly-older stamp and cached clients reject the rollback — a
+ * wall-clock stamp would instead make the stale content look newest. Same-commit re-publishes
+ * carry equal stamps, which clients accept (last-write-wins between identical-policy sources).
+ */
+function generatedAtIso() {
+  try {
+    const iso = execSync('git log -1 --format=%cI', { cwd: root, encoding: 'utf8' }).trim();
+    if (Number.isNaN(Date.parse(iso))) {
+      throw new Error(`unparseable committer date ${JSON.stringify(iso)}`);
+    }
+    return iso;
+  } catch (error) {
+    console.warn(
+      `⚠ could not read the HEAD committer time (${error.message ?? error}) — ` +
+        'falling back to wall-clock generated_at (rollback ordering is weaker for this manifest).',
+    );
+    return new Date().toISOString();
+  }
+}
+
 // --- generate ---------------------------------------------------------------------------------
 
 function buildPayload(version, versionCode, policy, androidLatest) {
   return {
     schema: 1,
-    generated_at: new Date().toISOString(),
+    generated_at: generatedAtIso(),
     android: {
       latest: androidLatest,
       // versionCode is read from the working tree, which only describes the advertised build

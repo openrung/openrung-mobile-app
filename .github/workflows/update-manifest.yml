@@ -1,12 +1,17 @@
 name: Publish update manifest
 
-# The broadcast path of the in-app update check (docs/UPDATE_MANIFEST.md): editing
-# release/update-policy.json on main republishes the signed manifest to the LATEST GitHub
-# release asset and the R2 mirror — no app release needed. release.yml also attaches a fresh
-# manifest to every new release; both producers generate from the same repo state, so
-# last-writer-wins is always consistent.
+# The ONE publisher of update-manifest.json (docs/UPDATE_MANIFEST.md). Three ways in, one
+# serialized code path:
+#   - push to main touching release/update-policy.json (the broadcast path — no app release)
+#   - workflow_dispatch (manual re-publish)
+#   - workflow_call from release.yml after each release is created
+# Serializing every path behind one concurrency mutex, and ALWAYS generating from latest main,
+# is what prevents the stale-publisher race: a ~30-min release build that generated its own
+# manifest from its job-start checkout could otherwise overwrite a newer policy published while
+# it was building — with a wall-clock generated_at that clients would trust as newer.
 #
-# push-only (never pull_request) so fork PRs cannot reach the signing seed secret.
+# push-only + call from a push-only workflow (never pull_request) so fork PRs cannot reach the
+# signing seed secret.
 
 on:
   push:
@@ -15,19 +20,28 @@ on:
       - release/update-policy.json
       - scripts/update-manifest.mjs
   workflow_dispatch:
-
-concurrency:
-  group: publish-update-manifest
-  cancel-in-progress: false
+  workflow_call:
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Shared mutex across every invocation path. Queued runs execute in order and each generates
+    # from latest main, so the final published state is always the newest policy. Keep
+    # cancel-in-progress false: a superseded run still converges, whereas cancelling a
+    # half-publish (release asset written, R2 not) would leave the fronts disagreeing.
+    concurrency:
+      group: publish-update-manifest
+      cancel-in-progress: false
     permissions:
       contents: write # upload the asset onto the latest release
     steps:
       - uses: actions/checkout@v4
+        with:
+          # ALWAYS latest main, never the triggering sha: a release-triggered call arrives ~30
+          # build-minutes after its version-bump commit and must not resurrect the policy as it
+          # stood back then.
+          ref: main
 
       - uses: actions/setup-node@v4
         with:
