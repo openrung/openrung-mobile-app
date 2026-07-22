@@ -299,7 +299,9 @@ supported-version floor, and operator broadcasts. Per release, decide ONE
 thing: does this release warrant a prompt? If yes, set `promote: "notify"` in
 [`release/update-policy.json`](release/update-policy.json) in the version-bump
 PR (and revert to `"silent"` in the next one); if it's a routine release,
-touch nothing. Raising `min_supported` (the kill switch) and broadcasting
+touch nothing. After manually uploading an iOS build to TestFlight, bump
+`ios_latest` in the same policy file — the manifest advertises exactly that
+to iOS users, so it stays honest while the (manual) iOS pipeline lags Android. Raising `min_supported` (the kill switch) and broadcasting
 notices are policy edits with their own workflow and do not require a release
 at all — see [`release/README.md`](release/README.md) and
 [`docs/UPDATE_MANIFEST.md`](docs/UPDATE_MANIFEST.md) (signing-key handling

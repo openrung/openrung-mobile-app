@@ -62,7 +62,20 @@ raw 32-byte public key — advisory routing only, all pinned keys are tried.
 }
 ```
 
-`latest`/`latest_code` are filled from package.json / build.gradle at generation time;
+The manifest must never advertise a build that is not actually downloadable, so `latest` is
+sourced per platform:
+
+- **android.latest** — release path: the working-tree package.json version, safe because the
+  manifest is attached to the *same* GitHub release as that APK (they publish atomically).
+  Broadcast path (`update-manifest.yml`): the latest **release tag**, never main — so a version
+  bump whose release is still building or failed cannot be advertised early. `latest_code` is
+  only present on the release path (elsewhere it is unknowable and set to null; informational
+  only, clients ignore it).
+- **ios.latest** — always `ios_latest` from `release/update-policy.json`: iOS/TestFlight uploads
+  are manual, so the operator records what is actually live and bumps it by policy PR after each
+  TestFlight upload. CI rejects `ios_latest` above package.json and any `min_supported` above the
+  advertised latest (a floor above what users can install would block them with no fix).
+
 `min_supported`, `promote` and `notice` come from `release/update-policy.json`. `generated_at`
 drives rollback monotonicity: a client never replaces a cached *verified* manifest with an older
 *verified* one, so replaying a stale signed manifest cannot lower a raised floor. Unsigned
@@ -124,6 +137,9 @@ candidate), so caching/proxying is safe.
 ## Runbooks
 
 - **Routine release:** do nothing. `promote` stays `silent`; users see only the passive row.
+- **After uploading an iOS build to TestFlight:** bump `ios_latest` in
+  `release/update-policy.json` (PR to main) — until then the manifest keeps advertising the
+  previous iOS version, by design.
 - **Important release** (security fix, protocol change): set `promote: "notify"` in
   `release/update-policy.json` in the version-bump PR; set it back to `silent` in the next one.
 - **Broadcast a notice / raise the floor:** edit `release/update-policy.json`, PR to main —

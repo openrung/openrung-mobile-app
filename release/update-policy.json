@@ -4,6 +4,7 @@
     "android": "0.0.0",
     "ios": "0.0.0"
   },
+  "ios_latest": "0.3.2",
   "promote": "silent",
   "notice": null
 }

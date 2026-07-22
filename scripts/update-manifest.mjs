@@ -10,11 +10,14 @@
 // Uses only node:crypto (no node_modules) so it runs in workflows without `npm ci`.
 //
 // Modes:
-//   node scripts/update-manifest.mjs generate --out update-manifest.json
+//   node scripts/update-manifest.mjs generate --out update-manifest.json [--android-latest x.y.z]
 //       Builds the envelope from package.json (version), android/app/build.gradle (versionCode)
 //       and release/update-policy.json. Signs it when OPENRUNG_MANIFEST_SIGNING_SEED_B64 is set
 //       (the base64 32-byte Ed25519 seed); otherwise emits an unsigned envelope with a warning —
 //       unsigned manifests can never hard-block clients, only surface the passive update row.
+//       --android-latest overrides the advertised Android version (broadcast workflow passes the
+//       latest RELEASE tag so a still-building/failed release is never advertised); iOS latest
+//       always comes from the policy file's ios_latest (TestFlight uploads are manual).
 //   node scripts/update-manifest.mjs check
 //       CI guard: validates release/update-policy.json and the committed test vectors. Run by
 //       .github/workflows/version-check.yml on every PR.
@@ -132,6 +135,26 @@ function validatePolicy(policy, currentVersion) {
       );
     }
   }
+  // iOS releases are manual (TestFlight), so nothing in CI knows what is actually live; the
+  // operator records it here and the manifest advertises exactly that — never an unbuilt version.
+  const iosLatest = policy.ios_latest;
+  if (typeof iosLatest !== 'string' || !SEMVER_RE.test(iosLatest)) {
+    errors.push(
+      `ios_latest must be "x.y.z" (the version actually live on TestFlight), got ${JSON.stringify(iosLatest)}`,
+    );
+  } else {
+    if (!semverLte(iosLatest, currentVersion)) {
+      errors.push(
+        `ios_latest (${iosLatest}) is above the current app version (${currentVersion}) — cannot advertise an unbuilt iOS release`,
+      );
+    }
+    const minIos = policy.min_supported?.ios;
+    if (typeof minIos === 'string' && SEMVER_RE.test(minIos) && !semverLte(minIos, iosLatest)) {
+      errors.push(
+        `min_supported.ios (${minIos}) is above ios_latest (${iosLatest}) — would block users with no available fix`,
+      );
+    }
+  }
   if (policy.promote !== 'silent' && policy.promote !== 'notify') {
     errors.push(`promote must be "silent" or "notify", got ${JSON.stringify(policy.promote)}`);
   }
@@ -187,17 +210,23 @@ function loadVectors() {
 
 // --- generate ---------------------------------------------------------------------------------
 
-function buildPayload(version, versionCode, policy) {
+function buildPayload(version, versionCode, policy, androidLatest) {
   return {
     schema: 1,
     generated_at: new Date().toISOString(),
     android: {
-      latest: version,
-      latest_code: versionCode,
+      latest: androidLatest,
+      // versionCode is read from the working tree, which only describes the advertised build
+      // when the advertised version IS the working-tree version (release path). In broadcast
+      // mode (androidLatest from the release tag) the code is unknowable here; null it rather
+      // than lie. Informational only — clients ignore it.
+      latest_code: androidLatest === version ? versionCode : null,
       min_supported: policy.min_supported.android,
     },
     ios: {
-      latest: version,
+      // Manual TestFlight pipeline: advertise what the operator recorded as actually live,
+      // never the source version (which may not be built for iOS yet).
+      latest: policy.ios_latest,
       min_supported: policy.min_supported.ios,
     },
     promote: policy.promote,
@@ -205,7 +234,7 @@ function buildPayload(version, versionCode, policy) {
   };
 }
 
-function generate(outPath) {
+function generate(outPath, androidLatestOverride) {
   const version = currentAppVersion();
   const policy = loadPolicy();
   const policyErrors = validatePolicy(policy, version);
@@ -215,7 +244,25 @@ function generate(outPath) {
     process.exit(1);
   }
 
-  const payload = buildPayload(version, currentVersionCode(), policy);
+  // Android latest: the release path (no override) advertises the working-tree version — the
+  // manifest is attached to the same GitHub release as that APK, so they publish atomically.
+  // The broadcast workflow passes --android-latest <latest release tag> so a version bump on
+  // main whose release is still building (or failed) is never advertised before it exists.
+  if (androidLatestOverride != null && !SEMVER_RE.test(androidLatestOverride)) {
+    console.error(`✖ --android-latest must be "x.y.z", got ${JSON.stringify(androidLatestOverride)}`);
+    process.exit(1);
+  }
+  const androidLatest = androidLatestOverride ?? version;
+  if (!semverLte(policy.min_supported.android, androidLatest)) {
+    console.error(
+      `✖ min_supported.android (${policy.min_supported.android}) is above the published android ` +
+        `latest (${androidLatest}) — would block users with no available fix. Wait for the ` +
+        `release of the new version to finish, then re-run.`,
+    );
+    process.exit(1);
+  }
+
+  const payload = buildPayload(version, currentVersionCode(), policy, androidLatest);
   const payloadBytes = Buffer.from(JSON.stringify(payload), 'utf8');
   const envelope = { schema: 1, payload_b64: payloadBytes.toString('base64') };
 
@@ -364,7 +411,7 @@ const flag = (label, fallback) => {
 
 switch (mode) {
   case 'generate':
-    generate(flag('--out', 'update-manifest.json'));
+    generate(flag('--out', 'update-manifest.json'), flag('--android-latest', null));
     break;
   case 'check':
     check();
@@ -373,6 +420,8 @@ switch (mode) {
     keygen(flag('--name', 'active'));
     break;
   default:
-    console.error('usage: update-manifest.mjs <generate [--out file] | check | keygen [--name n]>');
+    console.error(
+      'usage: update-manifest.mjs <generate [--out file] [--android-latest x.y.z] | check | keygen [--name n]>',
+    );
     process.exit(1);
 }
