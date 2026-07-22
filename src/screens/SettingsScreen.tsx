@@ -1,13 +1,24 @@
 /**
  * Settings tab. Large title (it's a root tab now — no back arrow), then
- * sectioned panels: GENERAL (language and Android offline sharing) and
- * DIAGNOSTICS (relay speed test, debug console). Version and licenses live on
- * the About tab. The language picker mirrors the production dropdown semantics
- * with a dark-styled modal list; the speed test RUN button is enabled only
- * while connected and not already running.
+ * sectioned panels: GENERAL (language plus per-platform sharing — Android
+ * offline APK, iOS TestFlight invite link) and DIAGNOSTICS (relay speed test,
+ * debug console). Version and licenses live on the About tab. The language
+ * picker mirrors the production dropdown semantics with a dark-styled modal
+ * list; the speed test RUN button is enabled only while connected and not
+ * already running.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SettingPanel } from '../components/SettingPanel';
@@ -31,6 +42,13 @@ import { monoFont, palette, tokens } from '../theme';
 export interface SettingsScreenProps {
   onOpenDebug: () => void;
 }
+
+/**
+ * iOS counterpart of Android's offline APK sharing: nothing to link natively — the TestFlight
+ * invite link just goes to the system share sheet. Hidden until TESTFLIGHT_URL is configured.
+ */
+const isTestFlightShareAvailable =
+  Platform.OS === 'ios' && AppConfig.TESTFLIGHT_URL.length > 0;
 
 export function SettingsScreen({ onOpenDebug }: SettingsScreenProps): React.JSX.Element {
   const s = useStrings();
@@ -74,6 +92,15 @@ export function SettingsScreen({ onOpenDebug }: SettingsScreenProps): React.JSX.
           ? s.shareApkSplitInstallError
           : s.shareApkErrorBody;
       Alert.alert(s.shareApkErrorTitle, message);
+    });
+  }, [s]);
+
+  const onShareTestFlight = useCallback(() => {
+    Share.share(
+      { message: s.shareTestFlightMessage, url: AppConfig.TESTFLIGHT_URL },
+      { subject: s.shareTestFlightTitle },
+    ).catch(() => {
+      Alert.alert(s.shareTestFlightErrorTitle, s.shareTestFlightErrorBody);
     });
   }, [s]);
 
@@ -160,6 +187,13 @@ export function SettingsScreen({ onOpenDebug }: SettingsScreenProps): React.JSX.
           title={s.shareApkTitle}
           subtitle={s.shareApkSubtitle}
           onPress={onShareApk}
+        />
+      ) : null}
+      {isTestFlightShareAvailable ? (
+        <SettingPanel
+          title={s.shareTestFlightTitle}
+          subtitle={s.shareTestFlightSubtitle}
+          onPress={onShareTestFlight}
         />
       ) : null}
 

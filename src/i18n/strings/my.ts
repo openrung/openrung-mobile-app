@@ -119,6 +119,13 @@ export const my: Partial<Strings> = {
     'APK ကို မျှဝေ၍မရပါ။ OpenRung ကို ဖွင့်ထားပြီး ထပ်မံကြိုးစားပါ။',
   shareApkSplitInstallError:
     'ဤမိတ္တူကို APK ဖိုင်များစွာဖြင့် ထည့်သွင်းထားသဖြင့် လုံခြုံစွာ မျှဝေ၍မရပါ။ အင်တာနက်မလိုဘဲ မျှဝေရန် OpenRung ၏ သီးခြား APK ကို ထည့်သွင်းပါ။',
+  shareTestFlightTitle: 'OpenRung ကို မျှဝေပါ',
+  shareTestFlightSubtitle:
+    'iOS beta ကို ထည့်သွင်းနိုင်ရန် TestFlight လင့်ခ်ကို ပေးပို့ပါ။',
+  shareTestFlightMessage: 'TestFlight တွင် OpenRung beta သို့ ပါဝင်ပါ –',
+  shareTestFlightErrorTitle: 'OpenRung ကို မျှဝေ၍မရပါ',
+  shareTestFlightErrorBody:
+    'TestFlight လင့်ခ်ကို မျှဝေ၍မရပါ။ ထပ်မံကြိုးစားပါ။',
 
   // Home overlay tagline.
   homeTagline: 'ရီလေး ကွန်ရက်',

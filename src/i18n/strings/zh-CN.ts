@@ -108,6 +108,11 @@ export const zhCN: Partial<Strings> = {
   shareApkErrorBody: '无法分享 APK。请保持 OpenRung 打开并重试。',
   shareApkSplitInstallError:
     '此版本由多个 APK 文件安装，无法安全分享。请安装 OpenRung 独立 APK 后使用离线分享。',
+  shareTestFlightTitle: '分享 OpenRung',
+  shareTestFlightSubtitle: '发送 TestFlight 链接，供他人安装 iOS 测试版。',
+  shareTestFlightMessage: '通过 TestFlight 加入 OpenRung 测试版：',
+  shareTestFlightErrorTitle: '无法分享 OpenRung',
+  shareTestFlightErrorBody: '无法分享 TestFlight 链接。请重试。',
 
   // Home tagline and about screen.
   homeTagline: '中继网络',

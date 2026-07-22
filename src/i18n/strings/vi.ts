@@ -106,6 +106,13 @@ export const vi: Partial<Strings> = {
     'Không thể chia sẻ APK. Hãy giữ OpenRung đang mở và thử lại.',
   shareApkSplitInstallError:
     'Bản này được cài bằng nhiều tệp APK nên không thể chia sẻ an toàn. Hãy cài APK OpenRung độc lập để dùng tính năng chia sẻ ngoại tuyến.',
+  shareTestFlightTitle: 'Chia sẻ OpenRung',
+  shareTestFlightSubtitle:
+    'Gửi liên kết TestFlight để người khác cài bản beta iOS.',
+  shareTestFlightMessage: 'Tham gia bản beta OpenRung trên TestFlight:',
+  shareTestFlightErrorTitle: 'Không thể chia sẻ OpenRung',
+  shareTestFlightErrorBody:
+    'Không thể chia sẻ liên kết TestFlight. Hãy thử lại.',
 
   // Home overlay and about screen.
   homeTagline: 'mạng lưới relay',
