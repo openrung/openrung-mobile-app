@@ -9,12 +9,15 @@ import io.nekohasekai.libbox.OpenRungWSSListener
 import io.nekohasekai.libbox.OpenRungWSSProtector
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.net.InetAddress
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.coroutines.coroutineContext
 
 data class WssConnectResult(
@@ -29,7 +32,9 @@ data class WssConnectResult(
 interface WssSession {
     suspend fun connect(): WssConnectResult
     suspend fun awaitFailure(): String
-    fun close()
+
+    /** Starts an idempotent native close off Main and exposes completion for ordered recovery. */
+    fun close(): Deferred<Unit>
 }
 
 /** Android application adapter around the transport-only gomobile wrapper. */
@@ -86,6 +91,8 @@ private class LibboxWssSession(
     private val client: OpenRungWSSClient,
     private val failure: CompletableDeferred<String>,
 ) : WssSession {
+    private val nativeClose = NativeWssCloseOnce(client::close)
+
     override suspend fun connect(): WssConnectResult = withContext(Dispatchers.IO) {
         val native = client.connect()
         val result = WssConnectResult(
@@ -98,16 +105,16 @@ private class LibboxWssSession(
         try {
             coroutineContext.ensureActive()
         } catch (cancellation: CancellationException) {
-            client.close()
+            nativeClose.close()
             throw cancellation
         }
         if (!result.succeeded) {
-            client.close()
+            nativeClose.close()
             return@withContext result
         }
         val address = runCatching { InetAddress.getByName(result.bridgeHost) }.getOrNull()
         if (address?.isLoopbackAddress != true || result.bridgePort !in 1..65_535) {
-            client.close()
+            nativeClose.close()
             return@withContext result.copy(
                 succeeded = false,
                 reason = "adapter",
@@ -119,8 +126,43 @@ private class LibboxWssSession(
 
     override suspend fun awaitFailure(): String = failure.await()
 
-    override fun close() {
-        client.close()
+    override fun close(): Deferred<Unit> {
         failure.cancel()
+        return nativeClose.close()
+    }
+}
+
+/**
+ * Native Close can wait for goroutines and socket shutdown. Dispatch it directly to IO so even a
+ * synchronous VpnService lifecycle callback can begin teardown without running or blocking on the
+ * Android main thread. The returned Deferred lets recovery await full adapter retirement before it
+ * reconnects, and the CAS keeps concurrent lifecycle/handshake closes strictly one-shot.
+ */
+internal class NativeWssCloseOnce(
+    private val closeNative: () -> Unit,
+    private val dispatch: (Runnable) -> Unit = { task ->
+        Dispatchers.IO.dispatch(EmptyCoroutineContext, task)
+    },
+) {
+    private val started = AtomicBoolean(false)
+    private val completion = CompletableDeferred<Unit>()
+
+    fun close(): Deferred<Unit> {
+        if (started.compareAndSet(false, true)) {
+            val task = Runnable {
+                try {
+                    closeNative()
+                    completion.complete(Unit)
+                } catch (error: Throwable) {
+                    completion.completeExceptionally(error)
+                }
+            }
+            try {
+                dispatch(task)
+            } catch (error: Throwable) {
+                completion.completeExceptionally(error)
+            }
+        }
+        return completion
     }
 }

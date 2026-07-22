@@ -4,6 +4,8 @@ import android.app.Application
 import android.system.ErrnoException
 import android.system.OsConstants
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -63,5 +65,34 @@ class FailureClassifierErrnoTest {
         // has higher precedence (socket errno before engine-exit), so it wins.
         val error = EngineStartException("engine failed", errno(OsConstants.ECONNREFUSED))
         assertEquals("connection_refused", FailureClassifier.classify(error))
+    }
+
+    @Test
+    fun `dead local network errno beats an outer ConnectException and cannot unlock WSS`() {
+        listOf(OsConstants.ENETDOWN, OsConstants.ENETUNREACH).forEach { code ->
+            assertFalse("errno=$code", isGenuineRemoteDataPathFailure(wrapped(code)))
+        }
+    }
+
+    @Test
+    fun `only remote socket errnos remain eligible through a ConnectException wrapper`() {
+        val eligible = listOf(
+            OsConstants.ECONNABORTED,
+            OsConstants.ECONNREFUSED,
+            OsConstants.ECONNRESET,
+            OsConstants.EHOSTUNREACH,
+            OsConstants.ENETRESET,
+            OsConstants.EPIPE,
+            OsConstants.ETIMEDOUT,
+        )
+        eligible.forEach { code ->
+            assertTrue("errno=$code", isGenuineRemoteDataPathFailure(wrapped(code)))
+        }
+
+        // A typed errno is authoritative: generic ConnectException must not turn any unrecognized
+        // local/platform errno into a remote-path signal either.
+        listOf(OsConstants.EADDRNOTAVAIL, OsConstants.ENONET).forEach { code ->
+            assertFalse("errno=$code", isGenuineRemoteDataPathFailure(wrapped(code)))
+        }
     }
 }

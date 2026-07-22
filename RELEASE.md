@@ -95,7 +95,7 @@ go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.12
 go install github.com/sagernet/gomobile/cmd/gobind@v0.1.12
 
 # Android → android/app/libs/libbox.aar
-#   (sing-box + android/punchbridge bindings + pinned punchcore/wsscore modules)
+#   (all four Android ABIs; bindings + pinned punchcore/wsscore modules)
 ./android/build-libbox-release.sh
 
 # iOS → ios/ThirdParty/Libbox.xcframework
@@ -112,6 +112,19 @@ corresponding build script. For the shared cores, CI hashes the *pins*
 (`go.mod`/`go.sum`), not their
 source trees — those live in the `openrung/openrung` repository at the recorded
 versions, so the tagged versions, not the cache key, make the build reproducible.
+
+The Android release build now intentionally targets `android` rather than the
+former `android/arm64` target. Its single AAR must contain `armeabi-v7a`,
+`arm64-v8a`, `x86`, and `x86_64`, matching `reactNativeArchitectures` in
+`android/gradle.properties`; inspect the AAR before release and reject a
+partial-ABI artifact.
+
+There is currently **no CI gate that builds or inspects the Apple
+XCFramework**. CI runs the Go binding tests and syntax-checks
+`ios/build-libbox-release.sh`, but the device/simulator framework build still
+requires macOS tooling and is a manual release gate. Until CI builds the
+XCFramework, the release owner must run the script and verify both required
+slices and exported WSS symbols as described below.
 
 For Android releases, also verify every live bare-IP punch coordinator's leaf
 SHA-256 against `AppConfig.PUNCH_COORDINATOR_CERT_SHA256_BY_HOST`. Coordinate

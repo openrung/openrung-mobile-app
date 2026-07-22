@@ -40,7 +40,11 @@ data class WssSessionTicket(
     val expiresAt: Instant,
     /** Exact front URL echoed by the broker; the caller must compare it to the signed descriptor. */
     val url: String,
-)
+) {
+    /** Never let Kotlin's generated data-class representation expose the bearer credential. */
+    override fun toString(): String =
+        "WssSessionTicket(ticket=<redacted>, expiresAt=$expiresAt, url=$url)"
+}
 
 /**
  * A non-success response from a WSS ticket endpoint. The body is deliberately neither read nor

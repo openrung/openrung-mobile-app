@@ -158,6 +158,9 @@ done
       "github.com/openrung/openrung/punchcore@$punchcore_version" \
       "github.com/openrung/openrung/wsscore@$wsscore_version"
   # GOWORK=off so a developer go.work can never leak into the graft build.
+  # Build one AAR with all four React Native release ABIs: armeabi-v7a,
+  # arm64-v8a, x86, and x86_64. The previous arm64-only target was too narrow
+  # for the app's declared reactNativeArchitectures set.
   GOMODCACHE="$module_cache" GOWORK=off go run ./cmd/internal/build_libbox \
     -target android \
     -platform android

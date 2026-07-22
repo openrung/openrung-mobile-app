@@ -32,6 +32,20 @@ import java.util.concurrent.atomic.AtomicInteger
 @OptIn(ExperimentalCoroutinesApi::class)
 class WssTicketClientTest {
     @Test
+    fun `ticket string representation redacts the opaque bearer value`() {
+        val secret = "opaque-ticket-that-must-never-reach-logs"
+        val value = WssSessionTicket(
+            ticket = secret,
+            expiresAt = Instant.parse("2026-07-22T00:01:00Z"),
+            url = "wss://front.example/connect",
+        ).toString()
+
+        assertFalse(value.contains(secret))
+        assertTrue(value.contains("ticket=<redacted>"))
+        assertTrue(value.contains("front.example"))
+    }
+
+    @Test
     fun `fixed endpoint preserves a base path and allows cleartext only on loopback`() {
         assertEquals(
             "https://broker.example/base/api/v1/wss/tickets",

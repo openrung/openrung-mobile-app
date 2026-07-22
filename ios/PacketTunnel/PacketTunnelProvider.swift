@@ -60,6 +60,8 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         let task = Task { await connect(completionHandler: completionHandler, isRecovery: false) }
         lifecycleQueue.sync {
             lifecycleIsStopping = false
+            // A new provider start is not a continuation of a prior recovery epoch.
+            reasserting = false
             connectTask = task
         }
     }
@@ -70,6 +72,8 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     ) {
         let pending = lifecycleQueue.sync {
             lifecycleIsStopping = true
+            // User stop is terminal, not a tunnel re-establishment attempt.
+            reasserting = false
             wssRecoveryGate.clear()
             let pending = PendingTunnelTasks(
                 connect: connectTask,
@@ -254,6 +258,9 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 activeTransport.relayID = relay.id
                 activeTransport.accessTransport = connected.accessTransport
                 activeTransport.wssFrontID = connected.frontID
+                // NetworkExtension exposes the recovered session as Connected only after the new
+                // engine/session tuple has atomically replaced the failed transport.
+                reasserting = false
                 return true
             }
             guard promoted else { throw CancellationError() }
@@ -348,6 +355,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             TunnelDiagnostics.recordError(message)
             logger.error("Failed to start tunnel: \(message, privacy: .public)")
             if isRecovery {
+                lifecycleQueue.sync { reasserting = false }
                 cancelTunnelWithError(error)
             } else {
                 completionHandler?(error)
@@ -786,6 +794,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 self.activeTransport.relayID == relay.id
             else { return }
             self.wssRecoveryGate.clear()
+            self.reasserting = false
             self.wssMonitorTask?.cancel()
             self.wssMonitorTask = nil
             self.wssMonitorGeneration = nil
@@ -953,6 +962,11 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         guard activeTransport.engine?.hasUnexpectedStop != true else { return }
         guard wssRecoveryGate.claim(expectedSession) else { return }
 
+        // The current system VPN session remains alive while its transport is rebuilt. This is
+        // exactly NETunnelProvider.reasserting: iOS reports Reasserting until promotion commits a
+        // replacement tuple, rather than showing a misleading Connected state while traffic is
+        // temporarily unavailable.
+        reasserting = true
         wssMonitorTask?.cancel()
         wssMonitorTask = nil
         let generation = UUID()
@@ -988,6 +1002,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 self.activeTransport.relayID == relay.id
             else { return }
             guard self.wssRecoveryGate.claim(expectedSession) else { return }
+            self.reasserting = false
             self.wssMonitorTask?.cancel()
             self.wssMonitorTask = nil
             self.wssMonitorGeneration = nil
@@ -1073,6 +1088,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         } catch is CancellationError {
             return
         } catch {
+            lifecycleQueue.sync { reasserting = false }
             cancelTunnelWithError(error)
         }
     }
@@ -1082,6 +1098,9 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             guard wssMonitorGeneration == generation else { return }
             wssRecoveryTask = nil
             wssMonitorGeneration = nil
+            // Covers cancellation/early-return paths (engine terminal handoff or user stop). A
+            // successful recovery already cleared this at promotion.
+            reasserting = false
         }
     }
 

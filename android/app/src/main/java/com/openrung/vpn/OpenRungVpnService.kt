@@ -41,8 +41,10 @@ import com.openrung.telemetry.TelemetryManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
@@ -74,6 +76,7 @@ class OpenRungVpnService : VpnService() {
     private var engine: ProxyEngine? = null
     private var punchSession: NatPunchSession? = null
     private var wssSession: WssSession? = null
+    private val pendingWssCloses = LinkedHashSet<Deferred<Unit>>()
     private var physicalNetworkMonitor: PhysicalNetworkEpochMonitor? = null
     private var brokerUrl: String = AppConfig.DEFAULT_BROKER_URL
     private var activeRelayId: String? = null
@@ -831,7 +834,7 @@ class OpenRungVpnService : VpnService() {
         punchRecoveryCircuitBreaker.reset()
         OpenRungStatusStore.setStatus(ConnectionStatus.DISCONNECTING)
         connectJob?.cancel()
-        cleanupActiveTunnel()
+        beginCleanupActiveTunnel()
         activeRelayId?.let {
             TelemetryManager.record("tunnel_stopped", relayId = it)
         }
@@ -1291,7 +1294,12 @@ class OpenRungVpnService : VpnService() {
             }
         }
 
-    private fun cleanupActiveTunnel() {
+    /**
+     * Detaches resources in routing order and starts WSS close without blocking Main. Lifecycle
+     * callbacks use this non-suspending half; recovery follows it with [awaitPendingWssCloses]
+     * before any new adapter is created.
+     */
+    private fun beginCleanupActiveTunnel() {
         val activeEngine = engine
         engine = null
         runCatching { activeEngine?.stop() }
@@ -1306,7 +1314,13 @@ class OpenRungVpnService : VpnService() {
 
         val activeWssSession = wssSession
         wssSession = null
-        runCatching { activeWssSession?.close() }
+        activeWssSession?.let(::beginWssClose)
+    }
+
+    /** Engine is stopped first; reconnect cannot proceed until every native adapter close ends. */
+    private suspend fun cleanupActiveTunnel() {
+        beginCleanupActiveTunnel()
+        awaitPendingWssCloses()
     }
 
     private fun closePunchSession(session: NatPunchSession) {
@@ -1314,13 +1328,37 @@ class OpenRungVpnService : VpnService() {
         session.close()
     }
 
-    private fun closeWssSession(session: WssSession) {
+    private suspend fun closeWssSession(session: WssSession) {
         if (wssSession === session) {
             wssSession = null
             physicalNetworkMonitor?.close()
             physicalNetworkMonitor = null
         }
-        session.close()
+        beginWssClose(session)
+        awaitPendingWssCloses()
+    }
+
+    private fun beginWssClose(session: WssSession) {
+        runCatching { session.close() }
+            .getOrNull()
+            ?.let(pendingWssCloses::add)
+    }
+
+    private suspend fun awaitPendingWssCloses() {
+        val pending = pendingWssCloses.toList()
+        if (pending.isEmpty()) return
+        // Teardown owns completion once begun. A user cancellation may skip the remaining connect
+        // work, but it must not strand a native adapter or let recovery overlap its loopback port.
+        withContext(NonCancellable) {
+            pending.forEach { close ->
+                try {
+                    close.await()
+                } catch (_: Throwable) {
+                    // Native teardown is best-effort after ownership has already been detached.
+                }
+            }
+        }
+        pendingWssCloses.removeAll(pending.toSet())
     }
 
     private data class PunchPathFailure(

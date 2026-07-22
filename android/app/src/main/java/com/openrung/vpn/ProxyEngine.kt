@@ -42,11 +42,13 @@ import io.nekohasekai.libbox.TunOptions
 import io.nekohasekai.libbox.WIFIState
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import java.io.File
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.InterfaceAddress
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
 import java.net.NetworkInterface as JavaNetworkInterface
 import io.nekohasekai.libbox.NetworkInterface as BoxNetworkInterface
@@ -108,10 +110,7 @@ class StubProxyEngine : ProxyEngine {
 }
 
 class LibboxProxyEngine : ProxyEngine {
-    private var commandServer: CommandServer? = null
-    private var statusClient: CommandClient? = null
-    private var tunFd: ParcelFileDescriptor? = null
-    private val stopping = AtomicBoolean(false)
+    private val resources = StopSafeResourceRegistry(EngineResource.entries.toList())
     private val unexpectedStop = CompletableDeferred<String>()
     private val unexpectedReason = AtomicReference<String?>(null)
 
@@ -120,9 +119,9 @@ class LibboxProxyEngine : ProxyEngine {
         configJson: String,
         vpnService: VpnService,
     ) {
+        ensureRunning()
         val platform = OpenRungLibboxPlatform(vpnService) { fd ->
-            tunFd?.close()
-            tunFd = fd
+            resources.replace(EngineResource.TUN) { fd.close() }
         }
         val handler = OpenRungCommandServerHandler(::onServiceStop)
         val options = SetupOptions().apply {
@@ -141,9 +140,18 @@ class LibboxProxyEngine : ProxyEngine {
 
         val server = CommandServer(handler, platform)
         server.start()
+        if (!resources.replace(EngineResource.SERVER) {
+                runCatching { server.closeService() }
+                runCatching { server.close() }
+            }
+        ) {
+            ensureRunning()
+        }
         server.startOrReloadService(configJson, OverrideOptions())
-        commandServer = server
-        statusClient = connectStatusClient()
+        connectStatusClient()?.let { client ->
+            resources.replace(EngineResource.STATUS) { client.disconnect() }
+        }
+        ensureRunning()
     }
 
     /**
@@ -169,28 +177,129 @@ class LibboxProxyEngine : ProxyEngine {
     override fun unexpectedStopReason(): String? = unexpectedReason.get()
 
     private fun onServiceStop() {
-        if (!stopping.get()) {
+        resources.stop(waitForOngoing = false) {
             val reason = "libbox tunnel engine stopped unexpectedly"
             unexpectedReason.compareAndSet(null, reason)
             unexpectedStop.complete(reason)
         }
-        stop()
     }
 
     override fun stop() {
-        if (!stopping.compareAndSet(false, true)) return
-        runCatching { statusClient?.disconnect() }
-        statusClient = null
-        runCatching { commandServer?.closeService() }
-        runCatching { commandServer?.close() }
-        commandServer = null
-        runCatching { tunFd?.close() }
-        tunFd = null
+        // Deliberately drain on every call. If stop wins while start is still inside a native call,
+        // any resource published afterward is rejected and closed instead of surviving a one-shot
+        // compare-and-set that already returned.
+        resources.stop()
+    }
+
+    private suspend fun ensureRunning() {
+        currentCoroutineContext().ensureActive()
+        check(!resources.isStopped()) { "libbox tunnel engine stopped during startup" }
+    }
+
+    private enum class EngineResource {
+        STATUS,
+        SERVER,
+        TUN,
     }
 
     companion object {
         /** Status push interval, a Go time.Duration in nanoseconds. */
         private const val STATUS_INTERVAL_NS = 3_000_000_000L
+    }
+}
+
+/**
+ * Thread-safe resource publication for a start/stop race. Once stopped, a late resource is closed
+ * immediately; repeated stop calls also drain anything that raced with an earlier drain. The first
+ * stop callback is lock-linearized so an intentional stop cannot be reported as unexpected.
+ */
+internal class StopSafeResourceRegistry<K>(
+    private val closeOrder: List<K>,
+) {
+    private val lock = Any()
+    private val resources = LinkedHashMap<K, () -> Unit>()
+    private var stopped = false
+    private var closeCompletion: CountDownLatch? = null
+
+    fun replace(key: K, close: () -> Unit): Boolean {
+        var previous: (() -> Unit)? = null
+        val accepted = synchronized(lock) {
+            previous = resources.remove(key)
+            if (stopped) {
+                false
+            } else {
+                resources[key] = close
+                true
+            }
+        }
+        previous?.let(::closeQuietly)
+        if (!accepted) closeQuietly(close)
+        return accepted
+    }
+
+    fun stop(
+        waitForOngoing: Boolean = true,
+        onFirstStop: () -> Unit = {},
+    ): Boolean {
+        val ongoingClose: CountDownLatch?
+        val firstStop: Boolean
+        val closeActions: List<() -> Unit>
+        synchronized(lock) {
+            ongoingClose = closeCompletion
+            if (ongoingClose == null) {
+                firstStop = !stopped
+                stopped = true
+                closeActions = buildList {
+                    closeOrder.forEach { key -> resources.remove(key)?.let(::add) }
+                    addAll(resources.values)
+                }
+                resources.clear()
+                closeCompletion = CountDownLatch(1)
+            } else {
+                firstStop = false
+                closeActions = emptyList()
+            }
+        }
+
+        if (ongoingClose != null) {
+            if (waitForOngoing) {
+                awaitUninterruptibly(ongoingClose)
+            }
+            return false
+        }
+
+        try {
+            // A concurrent lifecycle stop waits above, so it cannot return and close WSS while
+            // another thread is still closing the engine. Native serviceStop callbacks opt out of
+            // waiting to avoid re-entrant closeService callback deadlocks.
+            closeActions.forEach(::closeQuietly)
+            // Publish an unexpected stop only after engine resources have actually retired.
+            if (firstStop) onFirstStop()
+            return firstStop
+        } finally {
+            val completed = synchronized(lock) {
+                closeCompletion.also { closeCompletion = null }
+            }
+            completed?.countDown()
+        }
+    }
+
+    fun isStopped(): Boolean = synchronized(lock) { stopped }
+
+    private fun closeQuietly(close: () -> Unit) {
+        runCatching(close)
+    }
+
+    private fun awaitUninterruptibly(completion: CountDownLatch) {
+        var interrupted = false
+        while (completion.count > 0) {
+            try {
+                completion.await()
+            } catch (_: InterruptedException) {
+                interrupted = true
+            }
+        }
+        if (interrupted) Thread.currentThread().interrupt()
     }
 }
 

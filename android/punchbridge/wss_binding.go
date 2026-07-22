@@ -17,7 +17,9 @@ const unexpectedWSSCloseReason = "WSS session stopped unexpectedly"
 
 // OpenRungWSSProtector is implemented by Android's VpnService. Protect must
 // delegate to VpnService.protect(fd). Returning false prevents the outer CDN
-// socket from connecting; wsscore never retries without protection.
+// socket from connecting; wsscore never retries without protection. Protect
+// runs synchronously inside Connect and must not re-enter the owning client's
+// Close method: Close waits for Connect, so that call cycle would deadlock.
 type OpenRungWSSProtector interface {
 	Protect(fd int32) bool
 }
@@ -25,6 +27,9 @@ type OpenRungWSSProtector interface {
 // OpenRungWSSListener reports loss of an established WSS transport. The
 // callback contains no front URL, ticket, or underlying error text. A caller
 // may call Close from the callback; the serving goroutine is already released.
+// A callback selected immediately before a concurrent Close may run after that
+// Close returns, so consumers must treat Closed as an idempotent, stale-safe
+// notification and must not assume that the client is still active.
 type OpenRungWSSListener interface {
 	Closed(reason string)
 }
@@ -273,7 +278,9 @@ func (c *OpenRungWSSClient) serve(ctx context.Context, bridge openRungWSSBridge,
 }
 
 // Close is idempotent, cancels a blocked Connect, and waits until any in-flight
-// dial or serving goroutine has released the wsscore client.
+// dial or serving goroutine has released the wsscore client. It does not wait
+// for a Closed callback that the serving goroutine selected before Close took
+// effect; that stale-safe callback may finish after Close returns.
 func (c *OpenRungWSSClient) Close() {
 	if c == nil {
 		return

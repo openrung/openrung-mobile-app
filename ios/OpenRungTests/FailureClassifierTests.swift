@@ -173,6 +173,45 @@ final class FailureClassifierTests: XCTestCase {
         )
     }
 
+    func testNativeWssErrorsUseBoundedSpecificReasons() {
+        XCTAssertEqual(FailureClassifier.classify(WssNativeClientError.unavailable), "wss_client_unavailable")
+        XCTAssertEqual(FailureClassifier.classify(WssNativeClientError.creationFailed), "wss_client_creation_failed")
+        XCTAssertEqual(
+            FailureClassifier.classify(WssNativeClientError.invalidLoopbackEndpoint),
+            "wss_invalid_loopback_endpoint"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(WssNativeClientError.connectionFailed(reason: "cancelled")),
+            "cancelled"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(WssNativeClientError.connectionFailed(reason: "client")),
+            "wss_client_failed"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(WssNativeClientError.connectionFailed(reason: "front")),
+            "wss_invalid_front"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(WssNativeClientError.connectionFailed(reason: "adapter")),
+            "wss_invalid_loopback_endpoint"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(WssNativeClientError.connectionFailed(reason: "protect")),
+            "wss_socket_protection_failed"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(WssNativeClientError.connectionFailed(reason: "transport")),
+            "wss_transport_failed"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(
+                WssNativeClientError.connectionFailed(reason: "opaque native detail must not escape")
+            ),
+            "wss_transport_failed"
+        )
+    }
+
     // MARK: - failure_detail truncation
 
     func testDetailTruncatesOnUTF8Boundary() {

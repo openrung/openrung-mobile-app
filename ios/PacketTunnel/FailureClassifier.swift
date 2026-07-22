@@ -36,6 +36,9 @@ enum FailureClassifier {
             }
             return classify(recorded.directFailure)
         }
+        if let nativeWssError = error as? WssNativeClientError {
+            return nativeWssError.failureReason
+        }
 
         // (2) app relay-selection sentinels; unwrap the wrappers that carry the real cause.
         if let tunnelError = error as? PacketTunnelError {

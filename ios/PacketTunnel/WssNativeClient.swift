@@ -34,6 +34,30 @@ enum WssNativeClientError: LocalizedError {
             return ["client", "front", "adapter", "protect"].contains(reason)
         }
     }
+
+    /// Stable, bounded telemetry taxonomy. Native reason strings are deliberately matched against
+    /// the binding's closed enum instead of being interpolated into telemetry; an unfamiliar value
+    /// is a generic WSS transport failure, not an unbounded/high-cardinality reason.
+    var failureReason: String {
+        switch self {
+        case .unavailable:
+            return "wss_client_unavailable"
+        case .creationFailed:
+            return "wss_client_creation_failed"
+        case .invalidLoopbackEndpoint:
+            return "wss_invalid_loopback_endpoint"
+        case .connectionFailed(let reason):
+            switch reason {
+            case "cancelled": return "cancelled"
+            case "client": return "wss_client_failed"
+            case "front": return "wss_invalid_front"
+            case "adapter": return "wss_invalid_loopback_endpoint"
+            case "protect": return "wss_socket_protection_failed"
+            case "transport": return "wss_transport_failed"
+            default: return "wss_transport_failed"
+            }
+        }
+    }
 }
 
 protocol WssNativeSession: AnyObject, Sendable {
