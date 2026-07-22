@@ -109,6 +109,13 @@ export const fa: Partial<Strings> = {
     'فایل APK قابل اشتراک‌گذاری نبود. OpenRung را باز نگه دارید و دوباره تلاش کنید.',
   shareApkSplitInstallError:
     'این نسخه با چند فایل APK نصب شده است و نمی‌توان آن را به‌طور امن به اشتراک گذاشت. برای اشتراک‌گذاری آفلاین، فایل APK مستقل OpenRung را نصب کنید.',
+  shareTestFlightTitle: 'اشتراک‌گذاری OpenRung',
+  shareTestFlightSubtitle:
+    'پیوند TestFlight را بفرستید تا دیگران بتای iOS را نصب کنند.',
+  shareTestFlightMessage: 'در TestFlight به بتای OpenRung بپیوندید:',
+  shareTestFlightErrorTitle: 'اشتراک‌گذاری OpenRung ممکن نیست',
+  shareTestFlightErrorBody:
+    'پیوند TestFlight به اشتراک گذاشته نشد. دوباره تلاش کنید.',
 
   // Home tagline + about screen.
   homeTagline: 'شبکهٔ رله‌ها',

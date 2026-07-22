@@ -108,6 +108,13 @@ export const ru: Partial<Strings> = {
     'Не удалось поделиться APK. Оставьте OpenRung открытым и повторите попытку.',
   shareApkSplitInstallError:
     'Эта копия установлена из нескольких APK и не может быть безопасно передана. Установите отдельный APK OpenRung, чтобы использовать офлайн-обмен.',
+  shareTestFlightTitle: 'Поделиться OpenRung',
+  shareTestFlightSubtitle:
+    'Отправьте ссылку TestFlight, чтобы другие могли установить iOS-бету.',
+  shareTestFlightMessage: 'Присоединяйтесь к бете OpenRung в TestFlight:',
+  shareTestFlightErrorTitle: 'Не удалось поделиться OpenRung',
+  shareTestFlightErrorBody:
+    'Не удалось поделиться ссылкой TestFlight. Попробуйте ещё раз.',
 
   // Home overlay / about screen.
   homeTagline: 'сеть ретрансляторов',

@@ -123,6 +123,15 @@ export const AppConfig = {
   PRIVACY_URL: 'https://www.openrung.org/privacy',
 
   /**
+   * TestFlight public invite link for the iOS beta, shared from Settings → "Share OpenRung"
+   * (the iOS counterpart of Android's offline APK sharing). Generate it in App Store Connect →
+   * TestFlight → external group → Public Link and paste it here; the Settings row stays hidden
+   * while this is empty. Before enabling, note RELEASE.md §5: external TestFlight distribution
+   * of the GPL-linked binary has an unresolved licensing caveat.
+   */
+  TESTFLIGHT_URL: '',
+
+  /**
    * Vector tiles + glyphs for the exit-node map. We build our own flat style around these MapLibre
    * demo tiles rather than using the demo *style*, which colour-codes every country. An operator
    * can point these at a self-hosted source to avoid third-party tiles.

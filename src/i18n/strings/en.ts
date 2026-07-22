@@ -81,6 +81,11 @@ export const en = {
     'The APK could not be shared. Keep OpenRung open and try again.',
   shareApkSplitInstallError:
     'This copy was installed as multiple APK files and cannot be shared safely. Install the standalone OpenRung APK to use offline sharing.',
+  shareTestFlightTitle: 'Share OpenRung',
+  shareTestFlightSubtitle: 'Send a TestFlight link that installs the iOS beta.',
+  shareTestFlightMessage: 'Join the OpenRung beta on TestFlight:',
+  shareTestFlightErrorTitle: 'Unable to share OpenRung',
+  shareTestFlightErrorBody: 'The TestFlight link could not be shared. Try again.',
 
   // --- Redesigned shell (tabs, home overlay, about) ---
   tabHome: 'Home',

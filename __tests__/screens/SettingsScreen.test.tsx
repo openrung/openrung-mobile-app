@@ -1,8 +1,21 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { Alert, Linking, Text } from 'react-native';
+import { Alert, Linking, Share, Text } from 'react-native';
 
 const mockShareInstalledApk = jest.fn<Promise<void>, [string]>();
+
+// Jest's react-native preset resolves Platform.OS to 'ios', so giving the config a TestFlight
+// link is all it takes to make the iOS sharing row available.
+jest.mock('../../src/config', () => {
+  const actual = jest.requireActual('../../src/config');
+  return {
+    ...actual,
+    AppConfig: {
+      ...actual.AppConfig,
+      TESTFLIGHT_URL: 'https://testflight.apple.com/join/TESTCODE',
+    },
+  };
+});
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
   __esModule: true,
@@ -127,6 +140,62 @@ describe('SettingsScreen Android APK sharing', () => {
       .some(text => text.props.children === 'Share OpenRung offline');
     expect(hasShareAction).toBe(false);
     await unmount(tree!);
+  });
+});
+
+describe('SettingsScreen iOS TestFlight sharing', () => {
+  it('places TestFlight sharing in General and opens the system share sheet', async () => {
+    const share = jest
+      .spyOn(Share, 'share')
+      .mockResolvedValue({ action: Share.sharedAction });
+    const tree = await renderSettings();
+    const labels = tree.root
+      .findAllByType(Text)
+      .map(text => text.props.children)
+      .filter((label): label is string => typeof label === 'string');
+
+    expect(labels.indexOf('GENERAL')).toBeLessThan(
+      labels.indexOf('Share OpenRung'),
+    );
+    expect(labels.indexOf('Share OpenRung')).toBeLessThan(
+      labels.indexOf('DIAGNOSTICS'),
+    );
+
+    await ReactTestRenderer.act(async () => {
+      findButton(tree, 'Share OpenRung').props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(share).toHaveBeenCalledWith(
+      {
+        message: 'Join the OpenRung beta on TestFlight:',
+        url: 'https://testflight.apple.com/join/TESTCODE',
+      },
+      { subject: 'Share OpenRung' },
+    );
+    share.mockRestore();
+    await unmount(tree);
+  });
+
+  it('surfaces an alert when the share sheet cannot be opened', async () => {
+    const share = jest
+      .spyOn(Share, 'share')
+      .mockRejectedValue(new Error('share sheet unavailable'));
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const tree = await renderSettings();
+
+    await ReactTestRenderer.act(async () => {
+      findButton(tree, 'Share OpenRung').props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(alert).toHaveBeenCalledWith(
+      'Unable to share OpenRung',
+      'The TestFlight link could not be shared. Try again.',
+    );
+    share.mockRestore();
+    alert.mockRestore();
+    await unmount(tree);
   });
 });
 

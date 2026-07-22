@@ -110,6 +110,13 @@ export const tr: Partial<Strings> = {
   shareApkErrorBody: "APK paylaşılamadı. OpenRung'u açık tutup tekrar deneyin.",
   shareApkSplitInstallError:
     "Bu kopya birden fazla APK dosyasıyla yüklendiği için güvenle paylaşılamaz. Çevrimdışı paylaşım için bağımsız OpenRung APK'sını yükleyin.",
+  shareTestFlightTitle: "OpenRung'u paylaş",
+  shareTestFlightSubtitle:
+    "Başkalarının iOS betasını kurabilmesi için TestFlight bağlantısı gönderin.",
+  shareTestFlightMessage: "TestFlight'ta OpenRung betasına katılın:",
+  shareTestFlightErrorTitle: 'OpenRung paylaşılamıyor',
+  shareTestFlightErrorBody:
+    'TestFlight bağlantısı paylaşılamadı. Tekrar deneyin.',
 
   // Home overlay tagline.
   homeTagline: 'röle ağı',
