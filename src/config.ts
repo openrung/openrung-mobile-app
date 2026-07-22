@@ -138,6 +138,51 @@ export const AppConfig = {
    */
   MAP_TILES_URL: 'https://demotiles.maplibre.org/tiles/tiles.json',
   MAP_GLYPHS_URL: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+
+  /**
+   * Ordered candidates for the in-app update manifest (docs/UPDATE_MANIFEST.md), tried
+   * sequentially with a per-attempt timeout, fail-open: all-fail just means "no update UI".
+   * The two broker fronts come first because they are the censorship-resistant path (same
+   * two-provider reasoning as DEFAULT_BROKER_URLS; the routes are served per the docs contract);
+   * the GitHub release asset is the zero-infrastructure fallback — it works from the first
+   * release that ships a manifest, but github.com is unreliable in several target regions.
+   * These URLs are a FOREVER CONTRACT with shipped clients: never repurpose or break them.
+   */
+  UPDATE_MANIFEST_URLS: [
+    'https://broker.openrung.org/api/v1/app-manifest',
+    'https://d2r7mdpyevvs1m.cloudfront.net/api/v1/app-manifest',
+    'https://github.com/openrung/openrung-mobile-app/releases/latest/download/update-manifest.json',
+  ],
+
+  /**
+   * Where the "Update" buttons send Android users. Deliberately a pinned constant — update
+   * destinations NEVER come from the manifest, so even a validly-signed (let alone forged)
+   * manifest cannot redirect users to a hostile download. iOS uses TESTFLIGHT_URL.
+   */
+  UPDATE_URL_ANDROID: 'https://github.com/openrung/openrung-mobile-app/releases/latest',
+
+  /** Minimum interval between successful update-manifest checks (cold start + app foreground). */
+  UPDATE_CHECK_INTERVAL_MS: 6 * 3_600_000,
+
+  /** Minimum interval between retries after a failed check (in-memory, per app session). */
+  UPDATE_CHECK_RETRY_MS: 15 * 60_000,
+
+  /**
+   * Pinned Ed25519 public keys for update-manifest signature verification — same derivations and
+   * CI guard pattern as RELAY_SIGNING_KEYS, but a DELIBERATELY separate keypair: the manifest can
+   * hard-block app startup, so its signing key is scoped to exactly that power and nothing else.
+   * The client only ever hard-blocks ("Update required") on a manifest that verifies against one
+   * of these keys; unsigned or unverifiable manifests are capped at the passive update row. MUST
+   * stay in sync with the `pinned_keys` block of testdata/update_manifest_vectors.json (CI guard
+   * in updateManifest.test.ts + scripts/update-manifest.mjs check). Rotation: keygen mode of
+   * scripts/update-manifest.mjs, pin the new key here, ship a release, then swap the secret.
+   */
+  MANIFEST_SIGNING_KEYS: [
+    {
+      keyId: 'a71d7615b7af163b', // active (seed in GitHub secret OPENRUNG_MANIFEST_SIGNING_SEED_B64)
+      publicKeyHex: '3443068d4cb27dd474dee11155c365a44df6a24c560b8ae2cb019487b555bfc7',
+    },
+  ],
 } as const;
 
 /** App version reported in X-OpenRung-App-Version (production uses BuildConfig.VERSION_NAME). */

@@ -290,3 +290,17 @@ re-running `generate-project.sh`).
 The Android `versionCode` and iOS `CURRENT_PROJECT_VERSION` are **build
 numbers**, a separate monotonic integer from the version string; bump those by
 hand per store upload.
+
+## 9. Update manifest (in-app update check)
+
+Every release automatically publishes a signed `update-manifest.json` (release
+asset + R2 mirror) that shipped apps poll to learn about new versions, the
+supported-version floor, and operator broadcasts. Per release, decide ONE
+thing: does this release warrant a prompt? If yes, set `promote: "notify"` in
+[`release/update-policy.json`](release/update-policy.json) in the version-bump
+PR (and revert to `"silent"` in the next one); if it's a routine release,
+touch nothing. Raising `min_supported` (the kill switch) and broadcasting
+notices are policy edits with their own workflow and do not require a release
+at all — see [`release/README.md`](release/README.md) and
+[`docs/UPDATE_MANIFEST.md`](docs/UPDATE_MANIFEST.md) (signing-key handling
+lives there too: secret `OPENRUNG_MANIFEST_SIGNING_SEED_B64`).

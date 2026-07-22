@@ -67,6 +67,17 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+
+      # Fail fast on update-manifest problems BEFORE the ~30-minute Android build: an invalid
+      # policy file, broken vectors, or a signing seed that doesn't match the pinned keys would
+      # otherwise only surface in the post-build generate step. Needs no node_modules.
+      - name: Validate update manifest inputs
+        env:
+          OPENRUNG_MANIFEST_SIGNING_SEED_B64: ${{ secrets.OPENRUNG_MANIFEST_SIGNING_SEED_B64 }}
+        run: |
+          node scripts/update-manifest.mjs check
+          node scripts/update-manifest.mjs generate --out /tmp/update-manifest-preflight.json
+
       - run: npm ci
 
       - uses: actions/setup-java@v4
@@ -150,6 +161,14 @@ jobs:
           cp android/app/build/outputs/apk/release/app-release.apk "$ASSET"
           cp android/app/build/outputs/apk/release/app-release.apk openrung-android.apk
 
+      # The in-app update check reads this envelope (docs/UPDATE_MANIFEST.md). Signing is
+      # optional-but-strongly-wanted: without the seed secret the envelope ships unsigned and
+      # clients cap it at the passive "update available" tier (no banner, no kill switch).
+      - name: Generate update manifest
+        env:
+          OPENRUNG_MANIFEST_SIGNING_SEED_B64: ${{ secrets.OPENRUNG_MANIFEST_SIGNING_SEED_B64 }}
+        run: node scripts/update-manifest.mjs generate --out update-manifest.json
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -160,6 +179,7 @@ jobs:
           files: |
             ${{ env.ASSET }}
             openrung-android.apk
+            update-manifest.json
 
       # Optional: mirror to Cloudflare R2, but only if the token secret is configured.
       # No-op (not a failure) when CLOUDFLARE_API_TOKEN is absent.
@@ -181,4 +201,9 @@ jobs:
             "openrung-downloads/android/openrung-android.apk" \
             --file openrung-android.apk \
             --content-type application/vnd.android.package-archive \
+            --remote
+          npx --yes wrangler@4 r2 object put \
+            "openrung-downloads/app/update-manifest.json" \
+            --file update-manifest.json \
+            --content-type application/json \
             --remote

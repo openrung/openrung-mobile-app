@@ -137,4 +137,21 @@ export const tr: Partial<Strings> = {
     'Her şey, sıradan TLS gibi görünen bir VLESS/REALITY tüneli üzerinden akar ve VPN fail-closed çalışır: röle yoksa trafik yok.',
   aboutFootnote:
     'OpenRung özgür bir yazılımdır (GPL-3.0-or-later). Gönüllüler tarafından, herkes için geliştirildi.',
+
+  // --- In-app update check (manifest banner / blocking screen / broadcast notice) ---
+  updateRequiredTitle: 'Güncelleme gerekli',
+  updateRequiredBody:
+    "OpenRung'un bu sürümü artık röle ağına bağlanamıyor. Devam edebilmek için en son sürümü yükleyin.",
+  updateVersionTransition: (current: string, latest: string) => `v${current} -> v${latest}`,
+  updateActionNow: 'GÜNCELLE',
+  updateActionLater: 'Daha sonra',
+  updateContinueAnyway: 'Yine de devam et',
+  updateBannerTitle: 'Güncelleme mevcut',
+  updateBannerBody: (latest: string) =>
+    `${latest} sürümü önemli düzeltmeler içeriyor. Fırsat bulduğunuzda güncelleyin.`,
+  updateSettingTitle: 'Güncelleme mevcut',
+  updateSettingSubtitle: (current: string, latest: string) =>
+    `v${current} kullanıyorsunuz; v${latest} yayında. İndirmek için dokunun.`,
+  noticeDismiss: 'Kapat',
+  noticeLearnMore: 'Daha fazla bilgi',
 };

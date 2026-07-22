@@ -17,3 +17,5 @@ jobs:
         with:
           node-version: '22'
       - run: node scripts/check-versions.mjs
+      # Update-manifest policy + signing-vector guard (docs/UPDATE_MANIFEST.md).
+      - run: node scripts/update-manifest.mjs check

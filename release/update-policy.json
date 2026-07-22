@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "min_supported": {
+    "android": "0.0.0",
+    "ios": "0.0.0"
+  },
+  "promote": "silent",
+  "notice": null
+}

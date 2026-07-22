@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "comment": "Update-manifest signing vectors. test_key seed is 32 bytes of 0x55 — TEST ONLY, never a production key. pinned_keys mirrors src/config.ts MANIFEST_SIGNING_KEYS; each entry carries a vector signature so CI can guard the pin without the offline seed. Checked by scripts/update-manifest.mjs check and __tests__/core/updateManifest.test.ts.",
+  "test_key": {
+    "seed_b64": "VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=",
+    "public_key_hex": "c6822637c7d310ec57627be00ba259d253749f4aaf644470cffbe53a35f73242",
+    "key_id": "b4c1ece898ece24e"
+  },
+  "vector": {
+    "payload_json": "{\"schema\":1,\"generated_at\":\"2026-07-22T00:00:00Z\",\"android\":{\"latest\":\"9.9.9\",\"latest_code\":999,\"min_supported\":\"0.2.0\"},\"ios\":{\"latest\":\"9.9.9\",\"min_supported\":\"0.2.0\"},\"promote\":\"notify\",\"notice\":{\"id\":\"vector-notice\",\"level\":\"info\",\"title\":{\"en\":\"Vector notice\",\"fa\":\"اعلان آزمایشی\"},\"body\":{\"en\":\"Test-only manifest vector.\"},\"url\":null,\"expires\":null}}",
+    "payload_b64": "eyJzY2hlbWEiOjEsImdlbmVyYXRlZF9hdCI6IjIwMjYtMDctMjJUMDA6MDA6MDBaIiwiYW5kcm9pZCI6eyJsYXRlc3QiOiI5LjkuOSIsImxhdGVzdF9jb2RlIjo5OTksIm1pbl9zdXBwb3J0ZWQiOiIwLjIuMCJ9LCJpb3MiOnsibGF0ZXN0IjoiOS45LjkiLCJtaW5fc3VwcG9ydGVkIjoiMC4yLjAifSwicHJvbW90ZSI6Im5vdGlmeSIsIm5vdGljZSI6eyJpZCI6InZlY3Rvci1ub3RpY2UiLCJsZXZlbCI6ImluZm8iLCJ0aXRsZSI6eyJlbiI6IlZlY3RvciBub3RpY2UiLCJmYSI6Itin2LnZhNin2YYg2KLYstmF2KfbjNi024wifSwiYm9keSI6eyJlbiI6IlRlc3Qtb25seSBtYW5pZmVzdCB2ZWN0b3IuIn0sInVybCI6bnVsbCwiZXhwaXJlcyI6bnVsbH19",
+    "sig": "ed25519;b4c1ece898ece24e;0EcgHAmyOQSQljKVh8Mttefut77rFvaCqx83S1WjmCwLEDa1khQJKVHtZ7OMkJpR3Ko6BJjsjzAcqag5ES8yCg==",
+    "envelope_json": "{\"schema\":1,\"payload_b64\":\"eyJzY2hlbWEiOjEsImdlbmVyYXRlZF9hdCI6IjIwMjYtMDctMjJUMDA6MDA6MDBaIiwiYW5kcm9pZCI6eyJsYXRlc3QiOiI5LjkuOSIsImxhdGVzdF9jb2RlIjo5OTksIm1pbl9zdXBwb3J0ZWQiOiIwLjIuMCJ9LCJpb3MiOnsibGF0ZXN0IjoiOS45LjkiLCJtaW5fc3VwcG9ydGVkIjoiMC4yLjAifSwicHJvbW90ZSI6Im5vdGlmeSIsIm5vdGljZSI6eyJpZCI6InZlY3Rvci1ub3RpY2UiLCJsZXZlbCI6ImluZm8iLCJ0aXRsZSI6eyJlbiI6IlZlY3RvciBub3RpY2UiLCJmYSI6Itin2LnZhNin2YYg2KLYstmF2KfbjNi024wifSwiYm9keSI6eyJlbiI6IlRlc3Qtb25seSBtYW5pZmVzdCB2ZWN0b3IuIn0sInVybCI6bnVsbCwiZXhwaXJlcyI6bnVsbH19\",\"sig\":\"ed25519;b4c1ece898ece24e;0EcgHAmyOQSQljKVh8Mttefut77rFvaCqx83S1WjmCwLEDa1khQJKVHtZ7OMkJpR3Ko6BJjsjzAcqag5ES8yCg==\"}"
+  },
+  "pinned_keys": [
+    {
+      "name": "active",
+      "public_key_hex": "3443068d4cb27dd474dee11155c365a44df6a24c560b8ae2cb019487b555bfc7",
+      "key_id": "a71d7615b7af163b",
+      "vector_message": "openrung-manifest-key-vector:active",
+      "vector_signature_b64": "IztpNj5fHTOsnjL3YMTH/4sBl7HqK6wxe9kFv32faN+HMbM030glmskUM40xpxuuL/pPKLPWBD+iw5hkZFCDDw=="
+    }
+  ]
+}

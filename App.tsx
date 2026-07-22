@@ -27,12 +27,19 @@ import { LicenseTextScreen } from './src/screens/LicenseTextScreen';
 import { LicensesScreen } from './src/screens/LicensesScreen';
 import { MainScreen } from './src/screens/MainScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
+import { UpdateRequiredScreen } from './src/screens/UpdateRequiredScreen';
+import { useAppState } from './src/state/store';
+import { startUpdateCheck } from './src/state/updateCheck';
 import { palette } from './src/theme';
 
 /** Screens pushed over the tabs (each has its own back arrow). */
 type SubRoute = 'DEBUG' | 'LICENSES' | 'LICENSE_TEXT' | null;
 
 function App(): React.JSX.Element {
+  // Kick off the fail-open update check (hydrate + throttled fetch + foreground re-checks).
+  // It never gates rendering: the manifest only ever changes what AppRoutes shows.
+  useEffect(() => startUpdateCheck(), []);
+
   return (
     <SafeAreaProvider>
       <LanguageProvider>
@@ -46,6 +53,7 @@ function App(): React.JSX.Element {
 function AppRoutes(): React.JSX.Element {
   const [tab, setTab] = useState<AppTab>('home');
   const [subRoute, setSubRoute] = useState<SubRoute>(null);
+  const { update } = useAppState();
 
   const goBack = useCallback((): boolean => {
     if (subRoute === 'LICENSE_TEXT') {
@@ -130,6 +138,14 @@ function AppRoutes(): React.JSX.Element {
         </>
       )}
       {subScreen != null ? <View style={styles.subOverlay}>{subScreen}</View> : null}
+      {update.tier === 'blocked' ? (
+        // Verified-manifest kill switch: covers everything including the tab bar. Hardware back
+        // keeps its normal behaviour underneath (worst case it exits the app — that's not a
+        // bypass); "Continue anyway" on the screen is the sanctioned way past it.
+        <View style={styles.subOverlay}>
+          <UpdateRequiredScreen />
+        </View>
+      ) : null}
     </View>
   );
 }

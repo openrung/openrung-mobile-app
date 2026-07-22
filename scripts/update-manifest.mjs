@@ -1,0 +1,378 @@
+#!/usr/bin/env node
+// Update-manifest tooling: generates (and optionally Ed25519-signs) the signed envelope the app's
+// in-app update check consumes, validates the committed release/update-policy.json, and guards the
+// committed test vectors in testdata/update_manifest_vectors.json.
+//
+// The manifest URL and schema are a FOREVER CONTRACT with every shipped client (see
+// docs/UPDATE_MANIFEST.md): schema stays 1, changes are additive-only, and clients ignore fields
+// they don't know. Do not "clean up" old fields.
+//
+// Uses only node:crypto (no node_modules) so it runs in workflows without `npm ci`.
+//
+// Modes:
+//   node scripts/update-manifest.mjs generate --out update-manifest.json
+//       Builds the envelope from package.json (version), android/app/build.gradle (versionCode)
+//       and release/update-policy.json. Signs it when OPENRUNG_MANIFEST_SIGNING_SEED_B64 is set
+//       (the base64 32-byte Ed25519 seed); otherwise emits an unsigned envelope with a warning —
+//       unsigned manifests can never hard-block clients, only surface the passive update row.
+//   node scripts/update-manifest.mjs check
+//       CI guard: validates release/update-policy.json and the committed test vectors. Run by
+//       .github/workflows/version-check.yml on every PR.
+//   node scripts/update-manifest.mjs keygen [--name active]
+//       Prints a fresh keypair as JSON: seed_b64 (SECRET — GitHub secret + password manager only,
+//       never committed), public_key_hex + key_id (pin in src/config.ts MANIFEST_SIGNING_KEYS),
+//       and the vector_message/vector_signature_b64 pair to commit to testdata pinned_keys so CI
+//       can guard the pin without the seed.
+
+import {
+  createHash,
+  createPrivateKey,
+  createPublicKey,
+  randomBytes,
+  sign as ed25519Sign,
+  verify as ed25519Verify,
+} from 'node:crypto';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, isAbsolute, join } from 'node:path';
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const read = (p) => readFileSync(join(root, p), 'utf8');
+
+const POLICY_PATH = 'release/update-policy.json';
+const VECTORS_PATH = 'testdata/update_manifest_vectors.json';
+const SEED_ENV = 'OPENRUNG_MANIFEST_SIGNING_SEED_B64';
+
+// --- Ed25519 over raw 32-byte seeds via node:crypto DER framing -------------------------------
+
+const PKCS8_PREFIX = Buffer.from('302e020100300506032b657004220420', 'hex');
+const SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
+
+function privateKeyFromSeed(seed) {
+  if (seed.length !== 32) {
+    throw new Error(`Ed25519 seed must be 32 bytes, got ${seed.length}`);
+  }
+  return createPrivateKey({ key: Buffer.concat([PKCS8_PREFIX, seed]), format: 'der', type: 'pkcs8' });
+}
+
+function publicKeyRawFromSeed(seed) {
+  const spki = createPublicKey(privateKeyFromSeed(seed)).export({ format: 'der', type: 'spki' });
+  return Buffer.from(spki.subarray(spki.length - 32));
+}
+
+function publicKeyFromRaw(raw) {
+  return createPublicKey({ key: Buffer.concat([SPKI_PREFIX, raw]), format: 'der', type: 'spki' });
+}
+
+/** key_id = lowercase hex of the first 8 bytes of SHA-256 over the raw public key (SPEC v1 §4.2). */
+function keyIdOf(rawPublicKey) {
+  return createHash('sha256').update(rawPublicKey).digest('hex').slice(0, 16);
+}
+
+function signBytes(seed, bytes) {
+  return ed25519Sign(null, bytes, privateKeyFromSeed(seed));
+}
+
+function verifyBytes(rawPublicKey, bytes, signature) {
+  try {
+    return ed25519Verify(null, bytes, publicKeyFromRaw(rawPublicKey), signature);
+  } catch {
+    return false;
+  }
+}
+
+// --- Shared validation ------------------------------------------------------------------------
+
+const SEMVER_RE = /^\d+\.\d+\.\d+$/;
+
+function semverTriple(value) {
+  return SEMVER_RE.test(value) ? value.split('.').map(Number) : null;
+}
+
+function semverLte(a, b) {
+  const ta = semverTriple(a);
+  const tb = semverTriple(b);
+  if (!ta || !tb) {
+    return false;
+  }
+  for (let i = 0; i < 3; i++) {
+    if (ta[i] !== tb[i]) {
+      return ta[i] < tb[i];
+    }
+  }
+  return true;
+}
+
+function isLocalizedMap(value) {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const entries = Object.entries(value);
+  return (
+    typeof value.en === 'string' &&
+    value.en.trim().length > 0 &&
+    entries.every(([, text]) => typeof text === 'string' && text.trim().length > 0)
+  );
+}
+
+/** Validates release/update-policy.json; returns a list of human-readable problems. */
+function validatePolicy(policy, currentVersion) {
+  const errors = [];
+  if (policy.schema !== 1) {
+    errors.push(`policy schema must be 1, got ${JSON.stringify(policy.schema)}`);
+  }
+  for (const platform of ['android', 'ios']) {
+    const min = policy.min_supported?.[platform];
+    if (typeof min !== 'string' || !SEMVER_RE.test(min)) {
+      errors.push(`min_supported.${platform} must be "x.y.z", got ${JSON.stringify(min)}`);
+    } else if (!semverLte(min, currentVersion)) {
+      // A floor above the version being released would block even fully-updated users.
+      errors.push(
+        `min_supported.${platform} (${min}) is above the current app version (${currentVersion})`,
+      );
+    }
+  }
+  if (policy.promote !== 'silent' && policy.promote !== 'notify') {
+    errors.push(`promote must be "silent" or "notify", got ${JSON.stringify(policy.promote)}`);
+  }
+  const notice = policy.notice;
+  if (notice !== null && notice !== undefined) {
+    if (typeof notice !== 'object' || Array.isArray(notice)) {
+      errors.push('notice must be null or an object');
+    } else {
+      if (typeof notice.id !== 'string' || notice.id.trim().length === 0 || notice.id.length > 64) {
+        errors.push('notice.id must be a non-empty string (max 64 chars)');
+      }
+      if (notice.level !== 'info' && notice.level !== 'warn') {
+        errors.push(`notice.level must be "info" or "warn", got ${JSON.stringify(notice.level)}`);
+      }
+      if (!isLocalizedMap(notice.title)) {
+        errors.push('notice.title must be a {locale: text} map with a non-empty "en" entry');
+      }
+      if (!isLocalizedMap(notice.body)) {
+        errors.push('notice.body must be a {locale: text} map with a non-empty "en" entry');
+      }
+      if (notice.url != null && !/^https:\/\//.test(notice.url)) {
+        errors.push('notice.url must be null or an https:// URL');
+      }
+      if (notice.expires != null && Number.isNaN(Date.parse(notice.expires))) {
+        errors.push(`notice.expires must be null or ISO-8601, got ${JSON.stringify(notice.expires)}`);
+      }
+    }
+  }
+  return errors;
+}
+
+// --- Inputs -----------------------------------------------------------------------------------
+
+function currentAppVersion() {
+  return JSON.parse(read('package.json')).version;
+}
+
+function currentVersionCode() {
+  const match = read('android/app/build.gradle').match(/versionCode\s+(\d+)/);
+  if (!match) {
+    throw new Error('android/app/build.gradle: versionCode not found');
+  }
+  return Number(match[1]);
+}
+
+function loadPolicy() {
+  return JSON.parse(read(POLICY_PATH));
+}
+
+function loadVectors() {
+  return JSON.parse(read(VECTORS_PATH));
+}
+
+// --- generate ---------------------------------------------------------------------------------
+
+function buildPayload(version, versionCode, policy) {
+  return {
+    schema: 1,
+    generated_at: new Date().toISOString(),
+    android: {
+      latest: version,
+      latest_code: versionCode,
+      min_supported: policy.min_supported.android,
+    },
+    ios: {
+      latest: version,
+      min_supported: policy.min_supported.ios,
+    },
+    promote: policy.promote,
+    notice: policy.notice ?? null,
+  };
+}
+
+function generate(outPath) {
+  const version = currentAppVersion();
+  const policy = loadPolicy();
+  const policyErrors = validatePolicy(policy, version);
+  if (policyErrors.length) {
+    console.error(`✖ ${POLICY_PATH} is invalid:`);
+    for (const e of policyErrors) console.error(`  - ${e}`);
+    process.exit(1);
+  }
+
+  const payload = buildPayload(version, currentVersionCode(), policy);
+  const payloadBytes = Buffer.from(JSON.stringify(payload), 'utf8');
+  const envelope = { schema: 1, payload_b64: payloadBytes.toString('base64') };
+
+  const seedB64 = process.env[SEED_ENV] ?? '';
+  if (seedB64.trim().length > 0) {
+    const seed = Buffer.from(seedB64.trim(), 'base64');
+    const rawPublic = publicKeyRawFromSeed(seed);
+    const keyId = keyIdOf(rawPublic);
+    // Refuse to sign with a key clients don't pin: a manifest signed by an unpinned key verifies
+    // nowhere and silently downgrades every client to the unsigned (never-blocking) tier.
+    const pinned = loadVectors().pinned_keys.some(
+      (key) => key.public_key_hex === rawPublic.toString('hex'),
+    );
+    if (!pinned) {
+      console.error(
+        `✖ ${SEED_ENV} derives public key ${rawPublic.toString('hex')} (key_id ${keyId}), ` +
+          `which is not in ${VECTORS_PATH} pinned_keys. Pin it (and src/config.ts) first.`,
+      );
+      process.exit(1);
+    }
+    const signature = signBytes(seed, payloadBytes);
+    envelope.sig = `ed25519;${keyId};${signature.toString('base64')}`;
+    // Round-trip self-check so a bad signer can never ship a broken envelope.
+    if (!verifyBytes(rawPublic, payloadBytes, signature)) {
+      console.error('✖ self-verification of the freshly signed envelope failed');
+      process.exit(1);
+    }
+    console.log(`✓ signed with key_id ${keyId}`);
+  } else {
+    console.warn(
+      `⚠ ${SEED_ENV} not set — emitting an UNSIGNED envelope. ` +
+        'Clients will show the passive update row only; they never hard-block on unsigned manifests.',
+    );
+  }
+
+  writeFileSync(isAbsolute(outPath) ? outPath : join(root, outPath), JSON.stringify(envelope, null, 2) + '\n');
+  console.log(`✓ wrote ${outPath} (version ${version}, promote ${policy.promote})`);
+}
+
+// --- check ------------------------------------------------------------------------------------
+
+function check() {
+  const errors = [];
+  const version = currentAppVersion();
+
+  let policy = null;
+  try {
+    policy = loadPolicy();
+  } catch (error) {
+    errors.push(`${POLICY_PATH}: ${error.message}`);
+  }
+  if (policy) {
+    errors.push(...validatePolicy(policy, version).map((e) => `${POLICY_PATH}: ${e}`));
+  }
+
+  let vectors = null;
+  try {
+    vectors = loadVectors();
+  } catch (error) {
+    errors.push(`${VECTORS_PATH}: ${error.message}`);
+  }
+  if (vectors) {
+    // Test key self-consistency: pubkey/key_id derive from the committed TEST seed.
+    const testSeed = Buffer.from(vectors.test_key.seed_b64, 'base64');
+    const testRaw = publicKeyRawFromSeed(testSeed);
+    if (testRaw.toString('hex') !== vectors.test_key.public_key_hex) {
+      errors.push(`${VECTORS_PATH}: test_key.public_key_hex does not derive from seed_b64`);
+    }
+    if (keyIdOf(testRaw) !== vectors.test_key.key_id) {
+      errors.push(`${VECTORS_PATH}: test_key.key_id does not derive from public key`);
+    }
+
+    // Vector envelope: payload_b64 matches payload_json byte-for-byte, sig verifies with test key.
+    const vector = vectors.vector;
+    const payloadBytes = Buffer.from(vector.payload_b64, 'base64');
+    if (payloadBytes.toString('utf8') !== vector.payload_json) {
+      errors.push(`${VECTORS_PATH}: vector.payload_b64 does not decode to vector.payload_json`);
+    }
+    const sigFields = vector.sig.split(';');
+    if (sigFields.length !== 3 || sigFields[0] !== 'ed25519' || sigFields[1] !== vectors.test_key.key_id) {
+      errors.push(`${VECTORS_PATH}: vector.sig is not "ed25519;<test key_id>;<base64>"`);
+    } else if (!verifyBytes(testRaw, payloadBytes, Buffer.from(sigFields[2], 'base64'))) {
+      errors.push(`${VECTORS_PATH}: vector.sig does not verify against test_key`);
+    }
+    const envelope = JSON.parse(vector.envelope_json);
+    if (envelope.schema !== 1 || envelope.payload_b64 !== vector.payload_b64 || envelope.sig !== vector.sig) {
+      errors.push(`${VECTORS_PATH}: vector.envelope_json disagrees with payload_b64/sig`);
+    }
+
+    // Pinned production keys: key_id derives, and the committed vector signature verifies — so a
+    // truncated or typo'd pin fails CI immediately, without the offline seed (same guard idea as
+    // the relay-list pinned-key CI guard).
+    for (const key of vectors.pinned_keys) {
+      const raw = Buffer.from(key.public_key_hex, 'hex');
+      if (raw.length !== 32) {
+        errors.push(`${VECTORS_PATH}: pinned key "${key.name}" public_key_hex is not 32 bytes`);
+        continue;
+      }
+      if (keyIdOf(raw) !== key.key_id) {
+        errors.push(`${VECTORS_PATH}: pinned key "${key.name}" key_id does not derive from public key`);
+      }
+      const message = Buffer.from(key.vector_message, 'utf8');
+      const signature = Buffer.from(key.vector_signature_b64, 'base64');
+      if (!verifyBytes(raw, message, signature)) {
+        errors.push(`${VECTORS_PATH}: pinned key "${key.name}" vector signature does not verify`);
+      }
+    }
+  }
+
+  if (errors.length) {
+    console.error('✖ update-manifest check failed:');
+    for (const e of errors) console.error(`  - ${e}`);
+    process.exit(1);
+  }
+  console.log(`✓ ${POLICY_PATH} and ${VECTORS_PATH} are valid (app version ${version}).`);
+}
+
+// --- keygen -----------------------------------------------------------------------------------
+
+function keygen(name) {
+  const seed = randomBytes(32);
+  const raw = publicKeyRawFromSeed(seed);
+  const message = `openrung-manifest-key-vector:${name}`;
+  console.log(
+    JSON.stringify(
+      {
+        seed_b64: seed.toString('base64'),
+        public_key_hex: raw.toString('hex'),
+        key_id: keyIdOf(raw),
+        vector_message: message,
+        vector_signature_b64: signBytes(seed, Buffer.from(message, 'utf8')).toString('base64'),
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+// --- CLI --------------------------------------------------------------------------------------
+
+const [mode, ...rest] = process.argv.slice(2);
+const flag = (label, fallback) => {
+  const index = rest.indexOf(label);
+  return index >= 0 && rest[index + 1] ? rest[index + 1] : fallback;
+};
+
+switch (mode) {
+  case 'generate':
+    generate(flag('--out', 'update-manifest.json'));
+    break;
+  case 'check':
+    check();
+    break;
+  case 'keygen':
+    keygen(flag('--name', 'active'));
+    break;
+  default:
+    console.error('usage: update-manifest.mjs <generate [--out file] | check | keygen [--name n]>');
+    process.exit(1);
+}

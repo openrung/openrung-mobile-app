@@ -134,4 +134,21 @@ export const fa: Partial<Strings> = {
     'همه‌چیز از طریق یک تونل VLESS/REALITY جریان می‌یابد که شبیه TLS معمولی به نظر می‌رسد، و VPN در حالت fail-closed است: بدون رله، بدون ترافیک.',
   aboutFootnote:
     'OpenRung نرم‌افزار آزاد است (GPL-3.0-or-later). ساخته‌شده توسط داوطلبان، برای همه.',
+
+  // --- In-app update check (manifest banner / blocking screen / broadcast notice) ---
+  updateRequiredTitle: 'به‌روزرسانی لازم است',
+  updateRequiredBody:
+    'این نسخه از OpenRung دیگر نمی‌تواند به شبکهٔ رله‌ها متصل شود. برای ادامه، آخرین نسخه را نصب کنید.',
+  updateVersionTransition: (current: string, latest: string) => `v${current} -> v${latest}`,
+  updateActionNow: 'به‌روزرسانی',
+  updateActionLater: 'بعداً',
+  updateContinueAnyway: 'به هر حال ادامه دهید',
+  updateBannerTitle: 'به‌روزرسانی موجود است',
+  updateBannerBody: (latest: string) =>
+    `نسخهٔ ${latest} شامل اصلاحات مهمی است. در اولین فرصت به‌روزرسانی کنید.`,
+  updateSettingTitle: 'به‌روزرسانی موجود است',
+  updateSettingSubtitle: (current: string, latest: string) =>
+    `شما نسخهٔ v${current} را دارید؛ نسخهٔ v${latest} منتشر شده است. برای دریافت ضربه بزنید.`,
+  noticeDismiss: 'بستن',
+  noticeLearnMore: 'بیشتر بدانید',
 };
