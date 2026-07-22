@@ -124,12 +124,12 @@ export const AppConfig = {
 
   /**
    * TestFlight public invite link for the iOS beta, shared from Settings → "Share OpenRung"
-   * (the iOS counterpart of Android's offline APK sharing). Generate it in App Store Connect →
-   * TestFlight → external group → Public Link and paste it here; the Settings row stays hidden
-   * while this is empty. Before enabling, note RELEASE.md §5: external TestFlight distribution
-   * of the GPL-linked binary has an unresolved licensing caveat.
+   * (the iOS counterpart of Android's offline APK sharing). Regenerate it in App Store Connect →
+   * TestFlight → external group → Public Link if the group is ever recreated; the Settings row
+   * hides itself whenever this is empty. Note RELEASE.md §5: external TestFlight distribution of
+   * the GPL-linked binary has an unresolved licensing caveat.
    */
-  TESTFLIGHT_URL: '',
+  TESTFLIGHT_URL: 'https://testflight.apple.com/join/RMTt4UfQ',
 
   /**
    * Vector tiles + glyphs for the exit-node map. We build our own flat style around these MapLibre
