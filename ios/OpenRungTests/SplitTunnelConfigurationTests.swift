@@ -66,8 +66,7 @@ final class SplitTunnelConfigurationTests: XCTestCase {
         XCTAssertEqual(try canonicalJSON(servers[2]), try canonicalJSON([
             "tag": "dns-direct-ir",
             "type": "udp",
-            "server": "178.22.122.100",
-            "detour": "direct",
+            "server": "178.22.122.100"
         ] as [String: Any]))
         XCTAssertEqual(try canonicalJSON(dns["rules"]), try canonicalJSON([
             ["rule_set": ["geosite-ir"], "server": "dns-direct-ir"],
@@ -94,6 +93,7 @@ final class SplitTunnelConfigurationTests: XCTestCase {
         let servers = try XCTUnwrap(dns["servers"] as? [[String: Any]])
         XCTAssertEqual(servers.map { $0["tag"] as? String }, ["dns-0", "dns-1", "dns-direct-ir", "dns-direct-cn"])
         XCTAssertEqual(servers[3]["server"] as? String, "223.5.5.5")
+        XCTAssertTrue(servers.suffix(2).allSatisfy { $0["detour"] == nil })
         XCTAssertEqual(try canonicalJSON(dns["rules"]), try canonicalJSON([
             ["rule_set": ["geosite-ir"], "server": "dns-direct-ir"],
             ["rule_set": ["geosite-cn"], "server": "dns-direct-cn"],

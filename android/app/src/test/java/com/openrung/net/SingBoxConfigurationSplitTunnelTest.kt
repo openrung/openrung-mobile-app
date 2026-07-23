@@ -68,7 +68,10 @@ class SingBoxConfigurationSplitTunnelTest {
         assertEquals("dns-direct-ir", directServer["tag"]!!.jsonPrimitive.content)
         assertEquals("udp", directServer["type"]!!.jsonPrimitive.content)
         assertEquals("178.22.122.100", directServer["server"]!!.jsonPrimitive.content)
-        assertEquals("direct", directServer["detour"]!!.jsonPrimitive.content)
+        assertFalse(
+            "A UDP DNS server is already direct; detouring through an empty direct outbound fails at engine start",
+            directServer.containsKey("detour"),
+        )
 
         val dnsRules = dns["rules"]!!.jsonArray
         assertEquals(1, dnsRules.size)
@@ -119,6 +122,7 @@ class SingBoxConfigurationSplitTunnelTest {
             listOf("178.22.122.100", "223.5.5.5"),
             directServers.map { it["server"]!!.jsonPrimitive.content },
         )
+        assertTrue(directServers.none { it.containsKey("detour") })
         assertEquals(
             listOf("dns-direct-ir", "dns-direct-cn"),
             dns["rules"]!!.jsonArray.map { it.jsonObject["server"]!!.jsonPrimitive.content },

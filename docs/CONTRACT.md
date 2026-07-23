@@ -350,7 +350,9 @@ used as evidence that Reality or WSS carried end-to-end traffic.
   the tun inbound (after `endpoint_independent_nat`; only when excludedPackages
   is non-empty; `include_package` is NEVER emitted); per enabled country, `ir`
   first, an appended dns server
-  `{"tag":"dns-direct-<cc>","type":"udp","server":<resolver>,"detour":"direct"}`
+  `{"tag":"dns-direct-<cc>","type":"udp","server":<resolver>}` (no `detour`:
+  modern UDP DNS servers already dial directly, while detouring through the
+  otherwise-empty tagged direct outbound fails during the sing-box Start stage)
   (`ir` → `178.22.122.100` Shecan, `cn` → `223.5.5.5` AliDNS) and a `dns.rules`
   entry `{"rule_set":["geosite-<cc>"],"server":"dns-direct-<cc>"}` between
   `servers` and `final`; `route.rule_set` local/binary entries for

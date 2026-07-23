@@ -114,7 +114,9 @@ data class SingBoxConfiguration(
                             put("tag", "dns-direct-$country")
                             put("type", "udp")
                             put("server", SplitTunnelRules.directDnsServer(country))
-                            put("detour", "direct")
+                            // Modern UDP DNS servers use a direct dialer when detour is omitted.
+                            // Detouring to our otherwise-empty tagged direct outbound is rejected
+                            // during sing-box's Start stage ("detour to an empty direct outbound").
                         })
                     }
                 })

@@ -83,12 +83,12 @@ public struct SingBoxConfiguration: Equatable, Sendable {
             ]
         }
         for country in bypassCountries {
-            // Bypassed domains resolve through the country's public resolver over the direct path.
+            // Modern UDP DNS servers use a direct dialer when detour is omitted. Detouring to our
+            // otherwise-empty tagged direct outbound is rejected during sing-box's Start stage.
             dnsServerObjects.append([
                 "tag": "dns-direct-\(country.code)",
                 "type": "udp",
-                "server": country.directResolver,
-                "detour": "direct"
+                "server": country.directResolver
             ])
         }
         var dns: [String: Any] = [
