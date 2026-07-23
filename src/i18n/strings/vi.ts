@@ -131,4 +131,21 @@ export const vi: Partial<Strings> = {
     'Mọi thứ đều đi qua một đường hầm VLESS/REALITY trông như TLS thông thường, và VPN ở chế độ fail-closed: không có relay, không có lưu lượng.',
   aboutFootnote:
     'OpenRung là phần mềm tự do (GPL-3.0-or-later). Được xây dựng bởi tình nguyện viên, cho mọi người.',
+
+  // --- In-app update check (manifest banner / blocking screen / broadcast notice) ---
+  updateRequiredTitle: 'Cần cập nhật',
+  updateRequiredBody:
+    'Phiên bản OpenRung này không còn kết nối được với mạng lưới relay. Hãy cài bản mới nhất để tiếp tục sử dụng.',
+  updateVersionTransition: (current: string, latest: string) => `v${current} -> v${latest}`,
+  updateActionNow: 'CẬP NHẬT',
+  updateActionLater: 'Để sau',
+  updateContinueAnyway: 'Vẫn tiếp tục',
+  updateBannerTitle: 'Có bản cập nhật',
+  updateBannerBody: (latest: string) =>
+    `Phiên bản ${latest} có các bản sửa lỗi quan trọng. Hãy cập nhật khi có thể.`,
+  updateSettingTitle: 'Có bản cập nhật',
+  updateSettingSubtitle: (current: string, latest: string) =>
+    `Bạn đang dùng v${current}; v${latest} đã ra mắt. Nhấn để tải về.`,
+  noticeDismiss: 'Bỏ qua',
+  noticeLearnMore: 'Tìm hiểu thêm',
 };

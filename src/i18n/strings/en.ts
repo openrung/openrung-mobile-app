@@ -119,6 +119,23 @@ export const en = {
   telemetryLocationsLabel: 'locations',
   telemetryCountriesLabel: 'countries',
   telemetryUptimeLabel: 'uptime',
+
+  // --- In-app update check (manifest banner / blocking screen / broadcast notice) ---
+  updateRequiredTitle: 'Update required',
+  updateRequiredBody:
+    'This version of OpenRung can no longer connect to the relay network. Install the latest release to keep going.',
+  updateVersionTransition: (current: string, latest: string) => `v${current} -> v${latest}`,
+  updateActionNow: 'UPDATE',
+  updateActionLater: 'Later',
+  updateContinueAnyway: 'Continue anyway',
+  updateBannerTitle: 'Update available',
+  updateBannerBody: (latest: string) =>
+    `Version ${latest} includes important fixes. Update when you can.`,
+  updateSettingTitle: 'Update available',
+  updateSettingSubtitle: (current: string, latest: string) =>
+    `You have v${current}; v${latest} is out. Tap to get it.`,
+  noticeDismiss: 'Dismiss',
+  noticeLearnMore: 'Learn more',
 };
 
 export type Strings = typeof en;

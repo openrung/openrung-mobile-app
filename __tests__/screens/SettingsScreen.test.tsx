@@ -31,7 +31,13 @@ jest.mock('react-native-safe-area-context', () => ({
 }));
 
 jest.mock('../../src/state/useVpnState', () => ({
-  useVpnState: () => ({ isConnected: false }),
+  useVpnState: () => ({
+    isConnected: false,
+    // Only the slice SettingsScreen reads from state; the update row stays hidden at tier 'none'.
+    state: {
+      update: { tier: 'none', latestVersion: null, verified: false, notice: null },
+    },
+  }),
 }));
 
 jest.mock('../../src/native/OpenRungApkShare', () => ({

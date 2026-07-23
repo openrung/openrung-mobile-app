@@ -1,0 +1,118 @@
+name: Publish update manifest
+
+# The ONE publisher of update-manifest.json (docs/UPDATE_MANIFEST.md). Three ways in, one
+# serialized code path:
+#   - push to main touching release/update-policy.json (the broadcast path — no app release)
+#   - workflow_dispatch (manual re-publish)
+#   - workflow_call from release.yml after each release is created
+# Serializing every path behind one concurrency mutex, and ALWAYS generating from latest main,
+# is what prevents the stale-publisher race: a ~30-min release build that generated its own
+# manifest from its job-start checkout could otherwise overwrite a newer policy published while
+# it was building — with a wall-clock generated_at that clients would trust as newer.
+#
+# push-only + call from a push-only workflow (never pull_request) so fork PRs cannot reach the
+# signing seed secret.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - release/update-policy.json
+      - scripts/update-manifest.mjs
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Shared mutex across every invocation path. Queued runs execute in order and each generates
+    # from latest main, so the final published state is always the newest policy. Keep
+    # cancel-in-progress false: a superseded run still converges, whereas cancelling a
+    # half-publish (release asset written, R2 not) would leave the fronts disagreeing.
+    concurrency:
+      group: publish-update-manifest
+      cancel-in-progress: false
+    permissions:
+      contents: write # upload the asset onto the latest release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # ALWAYS latest main, never the triggering sha: a release-triggered call arrives ~30
+          # build-minutes after its version-bump commit and must not resurrect the policy as it
+          # stood back then.
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # scripts/update-manifest.mjs uses only node:crypto — no npm ci needed.
+      - name: Validate policy and vectors
+        run: node scripts/update-manifest.mjs check
+
+      # The advertised Android version comes from the latest RELEASE, never from main's
+      # package.json: a version bump whose release is still building (or failed) must not be
+      # advertised before the APK exists. Only a genuine 404 (no release yet) skips the whole
+      # publish; auth/API/network failures must FAIL the run — a green skip while the broadcast
+      # never shipped would be silently wrong.
+      - name: Resolve latest release
+        id: latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          release_json=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" 2>gh-error.txt)
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            if grep -q "HTTP 404" gh-error.txt; then
+              echo "::notice::No release exists yet — nothing to publish a manifest against."
+              echo "tag=" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "::error::Could not resolve the latest release:"
+            cat gh-error.txt
+            exit 1
+          fi
+          echo "tag=$(jq -r .tag_name <<<"$release_json")" >> "$GITHUB_OUTPUT"
+          # published_at feeds generated_at so the release input is part of the manifest's
+          # ordering stamp (same-commit republishes after a new release must rank strictly newer).
+          echo "published_at=$(jq -r .published_at <<<"$release_json")" >> "$GITHUB_OUTPUT"
+
+      - name: Generate update manifest
+        if: steps.latest.outputs.tag != ''
+        env:
+          OPENRUNG_MANIFEST_SIGNING_SEED_B64: ${{ secrets.OPENRUNG_MANIFEST_SIGNING_SEED_B64 }}
+          LATEST_TAG: ${{ steps.latest.outputs.tag }}
+          LATEST_PUBLISHED_AT: ${{ steps.latest.outputs.published_at }}
+        run: |
+          node scripts/update-manifest.mjs generate \
+            --out update-manifest.json \
+            --android-latest "${LATEST_TAG#v}" \
+            --release-published-at "$LATEST_PUBLISHED_AT"
+
+      # Clobber the asset on the LATEST release so the stable
+      # releases/latest/download/update-manifest.json URL serves the new policy immediately.
+      - name: Upload to latest GitHub release
+        if: steps.latest.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ steps.latest.outputs.tag }}" update-manifest.json --clobber
+
+      # Optional R2 mirror, same conditional convention as release.yml.
+      - name: Mirror to Cloudflare R2
+        if: steps.latest.outputs.tag != ''
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "CLOUDFLARE_API_TOKEN not set — skipping R2 mirror."
+            exit 0
+          fi
+          npx --yes wrangler@4 r2 object put \
+            "openrung-downloads/app/update-manifest.json" \
+            --file update-manifest.json \
+            --content-type application/json \
+            --remote

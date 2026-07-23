@@ -134,4 +134,21 @@ export const ar: Partial<Strings> = {
     'يتدفّق كل شيء عبر نفق VLESS/REALITY يبدو كأنه TLS عادي، ويعمل VPN بوضع fail-closed: لا مرحل، لا مرور.',
   aboutFootnote:
     'OpenRung برمجية حرة (GPL-3.0-or-later). بناه متطوّعون، للجميع.',
+
+  // --- In-app update check (manifest banner / blocking screen / broadcast notice) ---
+  updateRequiredTitle: 'التحديث مطلوب',
+  updateRequiredBody:
+    'لم يعد بإمكان هذا الإصدار من OpenRung الاتصال بشبكة المُرحّلات. ثبّت أحدث إصدار للمتابعة.',
+  updateVersionTransition: (current: string, latest: string) => `v${current} -> v${latest}`,
+  updateActionNow: 'تحديث',
+  updateActionLater: 'لاحقًا',
+  updateContinueAnyway: 'المتابعة على أي حال',
+  updateBannerTitle: 'يتوفر تحديث',
+  updateBannerBody: (latest: string) =>
+    `يتضمّن الإصدار ${latest} إصلاحات مهمة. حدّث عندما تستطيع.`,
+  updateSettingTitle: 'يتوفر تحديث',
+  updateSettingSubtitle: (current: string, latest: string) =>
+    `لديك v${current}؛ وصدر v${latest}. اضغط للحصول عليه.`,
+  noticeDismiss: 'تجاهل',
+  noticeLearnMore: 'معرفة المزيد',
 };

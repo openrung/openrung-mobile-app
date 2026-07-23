@@ -146,4 +146,21 @@ export const my: Partial<Strings> = {
     'အရာအားလုံးသည် သာမန် TLS နှင့် တူသော VLESS/REALITY ဥမင်မှတစ်ဆင့် စီးဆင်းသွားပြီး VPN သည် fail-closed ဖြစ်သည်: ရီလေးမရှိလျှင် ဒေတာအသွားအလာ မရှိပါ။',
   aboutFootnote:
     'OpenRung သည် အခမဲ့ဆော့ဖ်ဝဲ (GPL-3.0-or-later) ဖြစ်သည်။ စေတနာ့ဝန်ထမ်းများက အားလုံးအတွက် တည်ဆောက်ထားသည်။',
+
+  // --- In-app update check (manifest banner / blocking screen / broadcast notice) ---
+  updateRequiredTitle: 'အပ်ဒိတ် လုပ်ရန် လိုအပ်သည်',
+  updateRequiredBody:
+    'ဤ OpenRung ဗားရှင်းသည် ရီလေး ကွန်ရက်သို့ ချိတ်ဆက်၍ မရတော့ပါ။ ဆက်လက်အသုံးပြုနိုင်ရန် နောက်ဆုံးထွက် ဗားရှင်းကို ထည့်သွင်းပါ။',
+  updateVersionTransition: (current: string, latest: string) => `v${current} -> v${latest}`,
+  updateActionNow: 'အပ်ဒိတ်လုပ်မည်',
+  updateActionLater: 'နောက်မှ',
+  updateContinueAnyway: 'မည်သို့ပင်ဖြစ်စေ ဆက်လုပ်မည်',
+  updateBannerTitle: 'အပ်ဒိတ် ရနိုင်ပါပြီ',
+  updateBannerBody: (latest: string) =>
+    `ဗားရှင်း ${latest} တွင် အရေးကြီးသော ပြင်ဆင်ချက်များ ပါဝင်သည်။ အဆင်ပြေချိန်တွင် အပ်ဒိတ်လုပ်ပါ။`,
+  updateSettingTitle: 'အပ်ဒိတ် ရနိုင်ပါပြီ',
+  updateSettingSubtitle: (current: string, latest: string) =>
+    `သင် v${current} ကို သုံးနေပြီး v${latest} ထွက်ရှိပြီးဖြစ်သည်။ ရယူရန် တို့ပါ။`,
+  noticeDismiss: 'ပိတ်မည်',
+  noticeLearnMore: 'ပိုမိုလေ့လာရန်',
 };

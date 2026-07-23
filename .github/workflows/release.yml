@@ -67,6 +67,17 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+
+      # Fail fast on update-manifest problems BEFORE the ~30-minute Android build: an invalid
+      # policy file, broken vectors, or a signing seed that doesn't match the pinned keys would
+      # otherwise only surface in the post-build generate step. Needs no node_modules.
+      - name: Validate update manifest inputs
+        env:
+          OPENRUNG_MANIFEST_SIGNING_SEED_B64: ${{ secrets.OPENRUNG_MANIFEST_SIGNING_SEED_B64 }}
+        run: |
+          node scripts/update-manifest.mjs check
+          node scripts/update-manifest.mjs generate --out /tmp/update-manifest-preflight.json
+
       - run: npm ci
 
       - uses: actions/setup-java@v4
@@ -182,3 +193,14 @@ jobs:
             --file openrung-android.apk \
             --content-type application/vnd.android.package-archive \
             --remote
+
+  # Publish update-manifest.json through the ONE serialized publisher (shared concurrency mutex,
+  # always generated from latest main) — never from this job's checkout: a ~30-min build racing a
+  # policy edit must not overwrite the newer policy with a stale-but-fresher-stamped manifest.
+  # See docs/UPDATE_MANIFEST.md.
+  publish-manifest:
+    needs: release
+    uses: ./.github/workflows/update-manifest.yml
+    permissions:
+      contents: write
+    secrets: inherit

@@ -133,4 +133,21 @@ export const ru: Partial<Strings> = {
     'Всё проходит через туннель VLESS/REALITY, который выглядит как обычный TLS, а VPN работает fail-closed: нет ретранслятора, нет трафика.',
   aboutFootnote:
     'OpenRung — свободное программное обеспечение (GPL-3.0-or-later). Создано волонтёрами для всех.',
+
+  // --- In-app update check (manifest banner / blocking screen / broadcast notice) ---
+  updateRequiredTitle: 'Требуется обновление',
+  updateRequiredBody:
+    'Эта версия OpenRung больше не может подключаться к сети ретрансляторов. Установите последний выпуск, чтобы продолжить пользоваться приложением.',
+  updateVersionTransition: (current: string, latest: string) => `v${current} -> v${latest}`,
+  updateActionNow: 'ОБНОВИТЬ',
+  updateActionLater: 'Позже',
+  updateContinueAnyway: 'Всё равно продолжить',
+  updateBannerTitle: 'Доступно обновление',
+  updateBannerBody: (latest: string) =>
+    `Версия ${latest} содержит важные исправления. Обновитесь при возможности.`,
+  updateSettingTitle: 'Доступно обновление',
+  updateSettingSubtitle: (current: string, latest: string) =>
+    `У вас v${current}; вышла v${latest}. Нажмите, чтобы установить.`,
+  noticeDismiss: 'Закрыть',
+  noticeLearnMore: 'Подробнее',
 };

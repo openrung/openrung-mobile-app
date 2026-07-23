@@ -10,6 +10,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -22,7 +23,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SettingPanel } from '../components/SettingPanel';
-import { AppConfig } from '../config';
+import { APP_VERSION, AppConfig } from '../config';
 import { languageOptions, useLanguage, useStrings } from '../i18n';
 import {
   apkShareErrorCode,
@@ -53,7 +54,8 @@ const isTestFlightShareAvailable =
 export function SettingsScreen({ onOpenDebug }: SettingsScreenProps): React.JSX.Element {
   const s = useStrings();
   const insets = useSafeAreaInsets();
-  const { isConnected } = useVpnState();
+  const { state, isConnected } = useVpnState();
+  const { update } = state;
 
   const [speedTestRunning, setSpeedTestRunning] = useState(false);
   const [speedTestResult, setSpeedTestResult] = useState<SpeedTestResult | null>(null);
@@ -94,6 +96,14 @@ export function SettingsScreen({ onOpenDebug }: SettingsScreenProps): React.JSX.
       Alert.alert(s.shareApkErrorTitle, message);
     });
   }, [s]);
+
+  const onOpenUpdate = useCallback(() => {
+    // Pinned destination only — never a manifest-supplied URL (see AppConfig.UPDATE_URL_ANDROID).
+    const url = Platform.OS === 'ios' ? AppConfig.TESTFLIGHT_URL : AppConfig.UPDATE_URL_ANDROID;
+    Linking.openURL(url).catch(() => {
+      // Best-effort: ignore devices without a browser handler.
+    });
+  }, []);
 
   const onShareTestFlight = useCallback(() => {
     Share.share(
@@ -177,6 +187,15 @@ export function SettingsScreen({ onOpenDebug }: SettingsScreenProps): React.JSX.
       <Text style={styles.title}>{s.settingsTitle}</Text>
 
       <Text style={styles.sectionHeader}>{s.settingsGeneralHeader.toUpperCase()}</Text>
+      {update.tier !== 'none' && update.latestVersion != null ? (
+        // Passive update row: present at every tier above 'none' — for 'available' (routine
+        // releases, and the ceiling for unsigned manifests) it is the ONLY update UI.
+        <SettingPanel
+          title={s.updateSettingTitle}
+          subtitle={s.updateSettingSubtitle(APP_VERSION, update.latestVersion)}
+          onPress={onOpenUpdate}
+        />
+      ) : null}
       <SettingPanel
         title={s.languageSettingTitle}
         subtitle={s.languageSettingSubtitle}

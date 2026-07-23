@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSyncExternalStore } from 'react';
 import { AppConfig } from '../config';
 import type { DirectoryStatus, ExitNodeRegion, HomeViewMode } from '../model/exitNode';
+import { INITIAL_UPDATE_UI, type UpdateUiState } from '../model/updateStatus';
 import { firstReachable } from '../net/brokerClient';
 import { loadExitNodeDirectory } from '../net/exitNodeDirectory';
 import type { NativeVpnState } from '../native/types';
@@ -26,6 +27,8 @@ export interface AppState {
    * uptime readout.
    */
   connectedAtMs: number | null;
+  /** In-app update check UI tier, derived and written by state/updateCheck.ts. */
+  update: UpdateUiState;
 }
 
 export const LANGUAGE_STORAGE_KEY = 'openrung.language';
@@ -48,6 +51,7 @@ function initialState(): AppState {
     languageTag: '',
     homeViewMode: 'map',
     connectedAtMs: null,
+    update: INITIAL_UPDATE_UI,
   };
 }
 
@@ -176,6 +180,11 @@ export async function hydrateHomeViewMode(): Promise<void> {
   } catch {
     // Best-effort: keep the in-memory default ('map').
   }
+}
+
+/** Mirrors the derived update-check UI state into the store (called by state/updateCheck.ts). */
+export function applyUpdateUiState(update: UpdateUiState): void {
+  setState({ ...state, update });
 }
 
 /** Test-only: resets the store to its initial state. */

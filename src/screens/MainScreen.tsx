@@ -22,7 +22,7 @@
  * through everywhere except the actual controls.
  */
 import React, { useCallback, useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ConnectCard } from '../components/ConnectCard';
@@ -32,9 +32,13 @@ import { MapStatusChip } from '../components/MapStatusChip';
 import { OceanTelemetry } from '../components/OceanTelemetry';
 import { RecentsSection } from '../components/RecentsSection';
 import { RelayList } from '../components/RelayList';
+import { UpdateBanner } from '../components/UpdateBanner';
 import { ViewModeToggle } from '../components/ViewModeToggle';
-import { useStrings } from '../i18n';
+import { AppConfig } from '../config';
+import { resolveLanguage, useLanguage, useStrings } from '../i18n';
+import { pickLocalizedText } from '../model/updateStatus';
 import { hydrateHomeViewMode, refreshDirectory, setHomeViewMode } from '../state/store';
+import { dismissUpdateBanner, dismissUpdateNotice } from '../state/updateCheck';
 import { useVpnState } from '../state/useVpnState';
 import { monoFont, palette, tokens } from '../theme';
 
@@ -69,9 +73,12 @@ function Wordmark(): React.JSX.Element {
 
 export function MainScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
+  const s = useStrings();
+  const { languageTag } = useLanguage();
   const { state, isConnected, isWorking, disconnect, prepareAndConnect } = useVpnState();
-  const { native, directoryStatus, availableRegions, homeViewMode, connectedAtMs } = state;
+  const { native, directoryStatus, availableRegions, homeViewMode, connectedAtMs, update } = state;
   const isListMode = homeViewMode === 'list';
+  const locale = resolveLanguage(languageTag);
 
   // Populate the exit-node map directory when the home screen is shown (no-op once loaded)
   // and restore the persisted map/list presentation.
@@ -117,6 +124,23 @@ export function MainScreen(): React.JSX.Element {
     refreshDirectory(true);
   }, []);
 
+  const onOpenUpdate = useCallback(() => {
+    // Pinned destination only — never a manifest-supplied URL (see AppConfig.UPDATE_URL_ANDROID).
+    const url = Platform.OS === 'ios' ? AppConfig.TESTFLIGHT_URL : AppConfig.UPDATE_URL_ANDROID;
+    Linking.openURL(url).catch(() => {
+      // Best-effort: ignore devices without a browser handler.
+    });
+  }, []);
+
+  const notice = update.notice;
+  const onOpenNoticeUrl = useCallback(() => {
+    if (notice?.url != null) {
+      Linking.openURL(notice.url).catch(() => {
+        // Best-effort.
+      });
+    }
+  }, [notice]);
+
   return (
     <View style={styles.root}>
       <View
@@ -159,6 +183,31 @@ export function MainScreen(): React.JSX.Element {
             style={styles.headerChip}
           />
         </View>
+
+        {update.tier === 'notify' && update.latestVersion != null ? (
+          <UpdateBanner
+            style={styles.updateBanner}
+            title={s.updateBannerTitle}
+            body={s.updateBannerBody(update.latestVersion)}
+            primaryLabel={s.updateActionNow}
+            onPrimary={onOpenUpdate}
+            dismissLabel={s.updateActionLater}
+            onDismiss={dismissUpdateBanner}
+          />
+        ) : notice != null ? (
+          // Broadcast notice (verified manifests only; one card at a time — the update banner
+          // outranks it, and the notice returns once the banner is dismissed or acted on).
+          <UpdateBanner
+            style={styles.updateBanner}
+            level={notice.level}
+            title={pickLocalizedText(notice.title, locale)}
+            body={pickLocalizedText(notice.body, locale)}
+            primaryLabel={notice.url != null ? s.noticeLearnMore : undefined}
+            onPrimary={notice.url != null ? onOpenNoticeUrl : undefined}
+            dismissLabel={s.noticeDismiss}
+            onDismiss={() => dismissUpdateNotice(notice.id)}
+          />
+        ) : null}
 
         <ViewModeToggle mode={homeViewMode} onChange={setHomeViewMode} style={styles.viewToggle} />
 
@@ -238,6 +287,9 @@ const styles = StyleSheet.create({
     fontFamily: monoFont,
     fontSize: 11,
     letterSpacing: 1.2,
+  },
+  updateBanner: {
+    marginTop: 14,
   },
   viewToggle: {
     marginTop: 14,

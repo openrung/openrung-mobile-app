@@ -131,4 +131,21 @@ export const zhCN: Partial<Strings> = {
     '所有流量都通过一条看起来像普通 TLS 的 VLESS/REALITY 隧道传输，并且 VPN 采用失败关闭：没有中继，就没有流量。',
   aboutFootnote:
     'OpenRung 是自由软件（GPL-3.0-or-later）。由志愿者打造，为所有人服务。',
+
+  // --- In-app update check (manifest banner / blocking screen / broadcast notice) ---
+  updateRequiredTitle: '需要更新',
+  updateRequiredBody:
+    '当前版本的 OpenRung 已无法连接中继网络。请安装最新版本以继续使用。',
+  updateVersionTransition: (current: string, latest: string) => `v${current} -> v${latest}`,
+  updateActionNow: '立即更新',
+  updateActionLater: '稍后',
+  updateContinueAnyway: '仍然继续',
+  updateBannerTitle: '有可用更新',
+  updateBannerBody: (latest: string) =>
+    `版本 ${latest} 包含重要修复。方便时更新即可。`,
+  updateSettingTitle: '有可用更新',
+  updateSettingSubtitle: (current: string, latest: string) =>
+    `当前为 v${current}，最新版 v${latest} 已发布。点按获取。`,
+  noticeDismiss: '关闭',
+  noticeLearnMore: '了解更多',
 };
