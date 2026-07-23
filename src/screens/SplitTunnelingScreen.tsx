@@ -45,8 +45,8 @@ export function SplitTunnelingScreen({ onBack }: SplitTunnelingScreenProps): Rea
   const { splitTunnel } = useAppState();
 
   useEffect(() => {
-    // Re-sync from AsyncStorage (and give native one debounced push) on every visit.
-    // hydrateSplitTunnel is best-effort and never rejects.
+    // Ensure hydration has run when this screen is rendered outside the normal App launch flow.
+    // The store coalesces this with the launch call and local edits always remain authoritative.
     hydrateSplitTunnel();
   }, []);
 

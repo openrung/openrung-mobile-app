@@ -83,6 +83,21 @@ public struct SplitTunnelConfig: Codable, Equatable, Sendable {
     }
 }
 
+/// Decides whether an effective settings change may restart the current tunnel. Both the
+/// extension-published lifecycle and NetworkExtension's system lifecycle must report a fully
+/// connected tunnel. In particular, a path-loss recovery reports shared `connecting` and system
+/// `reasserting`; restarting in that state would abort the recovery while it waits for a physical
+/// network and could turn a self-healing session into a hard failure.
+enum SplitTunnelReapplyPolicy {
+    static func shouldReapply(
+        effectiveConfigChanged: Bool,
+        sharedTunnelIsConnected: Bool,
+        systemTunnelIsConnected: Bool
+    ) -> Bool {
+        effectiveConfigChanged && sharedTunnelIsConnected && systemTunnelIsConnected
+    }
+}
+
 /// Validated, ready-to-emit split-tunnel input for `SingBoxConfiguration` — NOT the persisted
 /// JSON type above. The caller has already verified that both `.srs` files exist on disk for
 /// every entry in `bypassCountries` and normalized their order to `SplitTunnelCountry.supported`

@@ -235,6 +235,40 @@ final class SplitTunnelConfigurationTests: XCTestCase {
         )
     }
 
+    func testReapplyRequiresEffectiveChangeAndBothLifecyclesToBeFullyConnected() {
+        XCTAssertTrue(
+            SplitTunnelReapplyPolicy.shouldReapply(
+                effectiveConfigChanged: true,
+                sharedTunnelIsConnected: true,
+                systemTunnelIsConnected: true
+            )
+        )
+        XCTAssertFalse(
+            SplitTunnelReapplyPolicy.shouldReapply(
+                effectiveConfigChanged: false,
+                sharedTunnelIsConnected: true,
+                systemTunnelIsConnected: true
+            ),
+            "an ineffective config push must not bounce a live tunnel"
+        )
+        XCTAssertFalse(
+            SplitTunnelReapplyPolicy.shouldReapply(
+                effectiveConfigChanged: true,
+                sharedTunnelIsConnected: false,
+                systemTunnelIsConnected: true
+            ),
+            "shared connecting during path-loss recovery must not be interrupted"
+        )
+        XCTAssertFalse(
+            SplitTunnelReapplyPolicy.shouldReapply(
+                effectiveConfigChanged: true,
+                sharedTunnelIsConnected: true,
+                systemTunnelIsConnected: false
+            ),
+            "system connecting or reasserting must not be treated as fully connected"
+        )
+    }
+
     // MARK: - Helpers
 
     private var fullRules: SplitTunnelRules {

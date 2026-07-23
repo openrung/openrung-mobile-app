@@ -487,12 +487,14 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   ruleSetDirectory; no package field) plus the §6 country constants.
   `setSplitTunnelConfig` writes the raw string always but reapplies only on an
   *effective* change (`SplitTunnelConfig.effectiveSignature`, which ignores
-  `excluded_packages` since iOS never emits it); on an effective change while
-  connected/connecting it runs the existing relay-switch dance (stop → 350 ms →
-  start — the persisted providerConfiguration already carries the last targets,
-  so no reconfigure). The dance captures a `controlEpoch` before the delay and
-  aborts the restart if a connect/disconnect arrived meanwhile, so a reapply
-  never resurrects a tunnel the user stopped during the window.
+  `excluded_packages` since iOS never emits it) while both the shared lifecycle
+  and `NEVPNStatus` report fully connected. Connecting/reasserting recovery is
+  left alone to read the persisted config on its next connect pass. A qualified
+  reapply runs the existing relay-switch dance (stop → 350 ms → start — the
+  persisted providerConfiguration already carries the last targets, so no
+  reconfigure). The dance captures a `controlEpoch` before the delay and aborts
+  the restart if a connect/disconnect arrived meanwhile, so a reapply never
+  resurrects a tunnel the user stopped during the window.
   The four `.srs` files are explicit PacketTunnel bundle resources
   (project.yml); `ruleSetDirectory` is the extension bundle resource path, and
   at connect() start the provider verifies each enabled country's two files

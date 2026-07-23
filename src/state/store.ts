@@ -209,6 +209,16 @@ const SPLIT_TUNNEL_PUSH_DEBOUNCE_MS = 1200;
 let splitTunnelPushTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
+ * Split-tunnel hydration is initialization, not an ongoing two-way merge with AsyncStorage.
+ * Once this process has either loaded storage or accepted a local edit, the in-memory slice is
+ * authoritative. The generation invalidates a read that was already in flight when a local edit
+ * (or a test reset) happened; the shared promise collapses App + screen mount calls into one read.
+ */
+let splitTunnelGeneration = 0;
+let splitTunnelHydrated = false;
+let splitTunnelHydrationPromise: Promise<void> | null = null;
+
+/**
  * Serializes the contract §3 SplitTunnelConfig JSON with the stable key order the native
  * stores rely on for their skip-reapply string comparison:
  * version, enabled, bypass_lan, bypass_countries, excluded_packages.
@@ -269,6 +279,10 @@ export async function flushSplitTunnelPush(): Promise<void> {
  * contract §3 config JSON to the native store (debounced).
  */
 export function setSplitTunnel(patch: Partial<SplitTunnelState>): void {
+  // A local edit is authoritative even if the initial AsyncStorage read is still in flight.
+  // Mark hydration complete and invalidate that read before changing either state or storage.
+  splitTunnelGeneration++;
+  splitTunnelHydrated = true;
   const splitTunnel = { ...state.splitTunnel, ...patch };
   setState({ ...state, splitTunnel });
   AsyncStorage.setItem(SPLIT_TUNNEL_STORAGE_KEY, JSON.stringify(splitTunnel)).catch(() => {
@@ -309,31 +323,63 @@ function parsePersistedSplitTunnel(raw: string): SplitTunnelState | null {
 }
 
 /**
- * Loads the persisted split-tunnel state (called once when the split-tunneling screen mounts),
- * then issues ONE debounced push to native so its store stays in sync after a reinstall or
- * backup restore — the native side's string comparison makes it a no-op otherwise.
+ * Loads the persisted split-tunnel state once, then issues ONE debounced push to native so its
+ * store stays in sync after a reinstall or backup restore — the native side's string comparison
+ * makes it a no-op otherwise.
+ *
+ * App and the split-tunneling screen can mount close together, so concurrent callers share one
+ * read. A local edit always wins over storage: it invalidates an in-flight read and makes later
+ * hydration calls no-ops, preventing stale storage from overwriting or being pushed over the
+ * user's newer selection.
  */
-export async function hydrateSplitTunnel(): Promise<void> {
-  try {
-    const persisted = await AsyncStorage.getItem(SPLIT_TUNNEL_STORAGE_KEY);
-    const parsed = persisted != null ? parsePersistedSplitTunnel(persisted) : null;
-    if (parsed == null) {
-      // Nothing authoritative persisted (fresh install, or unreadable/garbage value): the native
-      // store is likewise empty and there is nothing to sync. Pushing the pristine default here
-      // would be a wasted bridge call — and, worse, could ask a native store that already holds a
-      // real config to go disabled. Leave both sides as-is; the defaults are full-tunnel behavior.
-      return;
-    }
-    if (JSON.stringify(parsed) !== JSON.stringify(state.splitTunnel)) {
-      setState({ ...state, splitTunnel: parsed });
-    }
-    // Sync native from RN's persisted truth (e.g. after a reinstall/backup restore where the
-    // native store was cleared); the native effective-config comparison makes this a no-op when
-    // the two already agree, so it never bounces a live tunnel.
-    scheduleSplitTunnelPush();
-  } catch {
-    // Best-effort: keep the in-memory state (defaults degrade to full-tunnel behavior).
+export function hydrateSplitTunnel(): Promise<void> {
+  if (splitTunnelHydrated) {
+    return Promise.resolve();
   }
+  if (splitTunnelHydrationPromise != null) {
+    return splitTunnelHydrationPromise;
+  }
+
+  const generation = splitTunnelGeneration;
+  let attempt: Promise<void>;
+  attempt = (async () => {
+    try {
+      const persisted = await AsyncStorage.getItem(SPLIT_TUNNEL_STORAGE_KEY);
+      if (generation !== splitTunnelGeneration) {
+        return; // A local edit or reset superseded this read.
+      }
+
+      // A successful read completes initialization even when the value is absent or malformed.
+      // Retrying on every screen visit would only reopen the stale-read race.
+      splitTunnelHydrated = true;
+
+      const parsed = persisted != null ? parsePersistedSplitTunnel(persisted) : null;
+      if (parsed == null) {
+        // Nothing authoritative persisted (fresh install, or unreadable/garbage value): the
+        // native store is likewise empty and there is nothing to sync. Pushing the pristine
+        // default here would be a wasted bridge call — and, worse, could ask a native store that
+        // already holds a real config to go disabled. Leave both sides as-is; the defaults are
+        // full-tunnel behavior.
+        return;
+      }
+      if (JSON.stringify(parsed) !== JSON.stringify(state.splitTunnel)) {
+        setState({ ...state, splitTunnel: parsed });
+      }
+      // Sync native from RN's persisted truth (e.g. after a reinstall/backup restore where the
+      // native store was cleared); the native effective-config comparison makes this a no-op when
+      // the two already agree, so it never bounces a live tunnel.
+      scheduleSplitTunnelPush();
+    } catch {
+      // Best-effort: keep the in-memory state (defaults degrade to full-tunnel behavior). A later
+      // caller may retry because a failed read does not complete initialization.
+    }
+  })().finally(() => {
+    if (splitTunnelHydrationPromise === attempt) {
+      splitTunnelHydrationPromise = null;
+    }
+  });
+  splitTunnelHydrationPromise = attempt;
+  return attempt;
 }
 
 /** Mirrors the derived update-check UI state into the store (called by state/updateCheck.ts). */
@@ -344,6 +390,11 @@ export function applyUpdateUiState(update: UpdateUiState): void {
 /** Test-only: resets the store to its initial state (and cancels any pending native push). */
 export function resetStoreForTests(): void {
   directoryGeneration++;
+  splitTunnelGeneration++;
+  splitTunnelHydrated = false;
+  // An old attempt cannot be cancelled, but its captured generation prevents it from applying.
+  // Clear the shared slot so the reset store can start its own independent hydration.
+  splitTunnelHydrationPromise = null;
   if (splitTunnelPushTimer != null) {
     clearTimeout(splitTunnelPushTimer);
     splitTunnelPushTimer = null;

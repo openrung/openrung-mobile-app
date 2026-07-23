@@ -214,6 +214,7 @@ describe('homeViewMode', () => {
 
 describe('splitTunnel', () => {
   const mockSetSplitTunnelConfig = OpenRungVpn.setSplitTunnelConfig as jest.Mock;
+  const mockGetItem = AsyncStorage.getItem as jest.Mock;
 
   const DEFAULT_SPLIT_TUNNEL = {
     enabled: false,
@@ -224,6 +225,7 @@ describe('splitTunnel', () => {
 
   beforeEach(async () => {
     await AsyncStorage.removeItem(SPLIT_TUNNEL_STORAGE_KEY);
+    mockGetItem.mockClear();
     mockSetSplitTunnelConfig.mockClear();
     jest.useFakeTimers();
   });
@@ -295,6 +297,96 @@ describe('splitTunnel', () => {
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
       '{"version":1,"enabled":true,"bypass_lan":false,"bypass_countries":["cn"],"excluded_packages":["com.tencent.mm"]}',
+    );
+  });
+
+  it('does not let a delayed hydration overwrite or push over a newer user edit', async () => {
+    let resolveRead: ((value: string | null) => void) | undefined;
+    const delayedRead = new Promise<string | null>(resolve => {
+      resolveRead = resolve;
+    });
+    mockGetItem.mockImplementationOnce(() => delayedRead);
+
+    const hydration = hydrateSplitTunnel();
+    expect(mockGetItem).toHaveBeenCalledTimes(1);
+
+    // The user changes the config while AsyncStorage still holds/returns the old selection.
+    setSplitTunnel({ enabled: true, bypassCountries: ['cn'] });
+    jest.advanceTimersByTime(1200);
+    expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
+    expect(mockSetSplitTunnelConfig).toHaveBeenLastCalledWith(
+      '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["cn"],"excluded_packages":[]}',
+    );
+
+    resolveRead?.(
+      JSON.stringify({
+        enabled: false,
+        bypassLan: false,
+        bypassCountries: ['ir'],
+        excludedApps: ['stale.package'],
+      }),
+    );
+    await hydration;
+    jest.advanceTimersByTime(1200);
+
+    expect(getSnapshot().splitTunnel).toEqual({
+      enabled: true,
+      bypassLan: true,
+      bypassCountries: ['cn'],
+      excludedApps: [],
+    });
+    // Completing the stale read neither schedules a second push nor replaces the latest payload.
+    expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
+  });
+
+  it('coalesces concurrent hydration calls into one read and one native sync', async () => {
+    let resolveRead: ((value: string | null) => void) | undefined;
+    const delayedRead = new Promise<string | null>(resolve => {
+      resolveRead = resolve;
+    });
+    mockGetItem.mockImplementationOnce(() => delayedRead);
+
+    const first = hydrateSplitTunnel();
+    const second = hydrateSplitTunnel();
+    expect(second).toBe(first);
+    expect(mockGetItem).toHaveBeenCalledTimes(1);
+
+    resolveRead?.(
+      JSON.stringify({
+        enabled: true,
+        bypassLan: false,
+        bypassCountries: ['ir'],
+        excludedApps: [],
+      }),
+    );
+    await Promise.all([first, second]);
+    expect(getSnapshot().splitTunnel).toEqual({
+      enabled: true,
+      bypassLan: false,
+      bypassCountries: ['ir'],
+      excludedApps: [],
+    });
+
+    jest.advanceTimersByTime(1200);
+    expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats a local edit made before hydration as authoritative', async () => {
+    setSplitTunnel({ enabled: true, bypassCountries: ['ir'] });
+
+    await hydrateSplitTunnel();
+    expect(mockGetItem).not.toHaveBeenCalled();
+    expect(getSnapshot().splitTunnel).toEqual({
+      enabled: true,
+      bypassLan: true,
+      bypassCountries: ['ir'],
+      excludedApps: [],
+    });
+
+    jest.advanceTimersByTime(1200);
+    expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
+    expect(mockSetSplitTunnelConfig).toHaveBeenLastCalledWith(
+      '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["ir"],"excluded_packages":[]}',
     );
   });
 

@@ -156,10 +156,11 @@ final class OpenRungVpnModule: RCTEventEmitter {
     }
 
     /// Persists the split-tunnel config JSON in the app-group defaults (contract §3). When the
-    /// payload actually changed AND the tunnel is up, reapplies it with the same relay-switch
-    /// dance `connect` uses (stop → 350 ms → start; providerConfiguration already carries the last
-    /// targets, so no reconfigure is needed). Resolves after persistence + reapply dispatch — not
-    /// reapply completion — matching Android's ACTION_REAPPLY intent semantics.
+    /// payload actually changed AND both the shared and system lifecycles report a fully connected
+    /// tunnel, reapplies it with the same relay-switch dance `connect` uses (stop → 350 ms → start;
+    /// providerConfiguration already carries the last targets, so no reconfigure is needed).
+    /// Resolves after persistence + reapply dispatch — not reapply completion — matching Android's
+    /// ACTION_REAPPLY intent semantics.
     @objc(setSplitTunnelConfig:resolver:rejecter:)
     func setSplitTunnelConfig(
         _ configJson: String,
@@ -182,8 +183,11 @@ final class OpenRungVpnModule: RCTEventEmitter {
             if stored != configJson {
                 defaults.set(configJson, forKey: AppConfig.splitTunnelConfigDefaultsKey)
             }
-            if effectiveChanged,
-               self.status == .connected || self.status == .connecting,
+            if SplitTunnelReapplyPolicy.shouldReapply(
+                effectiveConfigChanged: effectiveChanged,
+                sharedTunnelIsConnected: self.status == .connected,
+                systemTunnelIsConnected: self.vpnStatus == .connected
+            ),
                Self.canUseNetworkExtension,
                let manager = self.manager {
                 self.controlEpoch += 1
