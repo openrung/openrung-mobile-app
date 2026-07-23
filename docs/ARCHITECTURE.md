@@ -221,11 +221,11 @@ shape (the RN 0.86 bridgeless interop layer handles it):
 
 ### Split tunneling (presets)
 
-Settings → Split tunneling is presets-only: a master toggle (default off —
-off is byte-identical to not having the feature), "bypass local network",
-country presets for Iranian and Chinese sites & apps, and — Android only — a
-bypassed-apps picker. RN persists its own slice, debounces changes, and pushes
-one small snake_case JSON config (`version`, `enabled`, `bypass_lan`,
+Settings → Split tunneling is presets-only: a master toggle (default on), with
+"bypass local network" plus the Iranian and Chinese sites & apps presets also
+on by default, and — Android only — a bypassed-apps picker (no individual apps
+are preselected). RN persists its own slice, debounces changes, and pushes one
+small snake_case JSON config (`version`, `enabled`, `bypass_lan`,
 `bypass_countries`, `excluded_packages`) through `setSplitTunnelConfig`.
 Native persists the raw string (Android SharedPreferences
 `openrung_split_tunnel`, iOS app-group defaults key `split_tunnel_config`)

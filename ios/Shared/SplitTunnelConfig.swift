@@ -51,7 +51,7 @@ public struct SplitTunnelConfig: Codable, Equatable, Sendable {
 
     /// A canonical string that changes only when the emitted sing-box config would change on iOS.
     /// Two raw payloads that both resolve to disabled (or the same enabled rule set) share a
-    /// signature, so a no-op push — e.g. the first persistence of the default disabled config, or
+    /// signature, so a no-op push — e.g. the first persistence of a disabled config, or
     /// any change to `excluded_packages` (which iOS never emits) — is not treated as a change.
     public static func effectiveSignature(ofRawJSON json: String?) -> String {
         let disabled = "disabled"

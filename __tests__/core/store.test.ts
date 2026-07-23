@@ -40,6 +40,7 @@ import {
   getSnapshot,
   hydrateHomeViewMode,
   hydrateSplitTunnel,
+  flushSplitTunnelPush,
   refreshDirectory,
   resetStoreForTests,
   setHomeViewMode,
@@ -217,9 +218,9 @@ describe('splitTunnel', () => {
   const mockGetItem = AsyncStorage.getItem as jest.Mock;
 
   const DEFAULT_SPLIT_TUNNEL = {
-    enabled: false,
+    enabled: true,
     bypassLan: true,
-    bypassCountries: [],
+    bypassCountries: ['ir', 'cn'],
     excludedApps: [],
   };
 
@@ -235,7 +236,7 @@ describe('splitTunnel', () => {
     jest.useRealTimers();
   });
 
-  it('defaults to disabled with LAN bypass on', () => {
+  it('defaults to enabled with LAN, Iran, and China bypass on', () => {
     expect(getSnapshot().splitTunnel).toEqual(DEFAULT_SPLIT_TUNNEL);
   });
 
@@ -271,7 +272,7 @@ describe('splitTunnel', () => {
     jest.advanceTimersByTime(1);
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
-      '{"version":1,"enabled":true,"bypass_lan":false,"bypass_countries":[],"excluded_packages":[]}',
+      '{"version":1,"enabled":true,"bypass_lan":false,"bypass_countries":["ir","cn"],"excluded_packages":[]}',
     );
   });
 
@@ -297,6 +298,31 @@ describe('splitTunnel', () => {
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
       '{"version":1,"enabled":true,"bypass_lan":false,"bypass_countries":["cn"],"excluded_packages":["com.tencent.mm"]}',
+    );
+  });
+
+  it('preserves an explicitly saved disabled selection', async () => {
+    await AsyncStorage.setItem(
+      SPLIT_TUNNEL_STORAGE_KEY,
+      JSON.stringify({
+        enabled: false,
+        bypassLan: false,
+        bypassCountries: ['cn'],
+        excludedApps: [],
+      }),
+    );
+
+    await hydrateSplitTunnel();
+    expect(getSnapshot().splitTunnel).toEqual({
+      enabled: false,
+      bypassLan: false,
+      bypassCountries: ['cn'],
+      excludedApps: [],
+    });
+
+    jest.advanceTimersByTime(1200);
+    expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
+      '{"version":1,"enabled":false,"bypass_lan":false,"bypass_countries":["cn"],"excluded_packages":[]}',
     );
   });
 
@@ -390,13 +416,25 @@ describe('splitTunnel', () => {
     );
   });
 
-  it('does not push to native when nothing is persisted (no live-tunnel bounce on first open)', async () => {
-    // Fresh install / first launch after the feature ships: AsyncStorage is empty, the native
-    // store is likewise empty, and there is nothing to sync — so merely opening the screen must
-    // not push a config (which could otherwise bounce a connected tunnel for a no-op change).
+  it('persists and pushes the enabled bypass defaults when no preference exists', async () => {
     await hydrateSplitTunnel();
+    expect(await AsyncStorage.getItem(SPLIT_TUNNEL_STORAGE_KEY)).toBe(
+      JSON.stringify(DEFAULT_SPLIT_TUNNEL),
+    );
+
     jest.advanceTimersByTime(1200);
-    expect(mockSetSplitTunnelConfig).not.toHaveBeenCalled();
+    expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
+      '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["ir","cn"],"excluded_packages":[]}',
+    );
+  });
+
+  it('flushes fresh-install initialization before the first native connect can start', async () => {
+    await flushSplitTunnelPush();
+
+    expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
+    expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
+      '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["ir","cn"],"excluded_packages":[]}',
+    );
   });
 
   it('filters unrecognized countries out of a hydrated selection', async () => {

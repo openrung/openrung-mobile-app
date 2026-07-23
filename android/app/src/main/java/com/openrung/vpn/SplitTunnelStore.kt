@@ -52,9 +52,8 @@ object SplitTunnelStore {
      * Persists [configJson] and reports whether the EFFECTIVE configuration changed — i.e. whether
      * the emitted sing-box config would actually differ. Two configs that both resolve to disabled
      * (or to the same enabled rule set) compare equal even when their raw JSON differs, so merely
-     * opening the split-tunnel screen — which re-persists the default disabled config on a store
-     * that had never been written — never bounces a live tunnel (CONTRACT §1: master off is
-     * byte-identical to today).
+     * a first disabled payload on a store that had never been written never bounces a live tunnel
+     * (CONTRACT §1: master off is byte-identical to the baseline full-tunnel config).
      */
     fun writeAndReportEffectiveChange(context: Context, configJson: String): Boolean {
         val prefs = prefs(context)

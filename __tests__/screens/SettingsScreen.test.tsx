@@ -227,8 +227,8 @@ describe('SettingsScreen split tunneling', () => {
     expect(labels.indexOf('Split tunneling')).toBeLessThan(
       labels.indexOf('DIAGNOSTICS'),
     );
-    // The store default is off, so the row reports full-tunnel behavior.
-    expect(labels).toContain('Off — all traffic goes through the relay.');
+    // Fresh installs start with all three preset bypasses enabled.
+    expect(labels).toContain('On — selected traffic bypasses the relay.');
 
     await ReactTestRenderer.act(async () => {
       findButton(tree, 'Split tunneling').props.onPress();

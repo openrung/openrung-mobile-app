@@ -124,6 +124,10 @@ serializes with exactly this key order (snake_case):
   `"cn"`; unknown codes are ignored (forward compatibility).
 - `excluded_packages`: Android package names excluded from the VPN at the OS
   level. iOS parses and ignores the field.
+- With no saved user preference, RN initializes and persists
+  `enabled:true`, `bypass_lan:true`, and `bypass_countries:["ir","cn"]`;
+  `excluded_packages` starts empty. A valid saved preference, including an
+  explicit `enabled:false`, always wins over these fresh-install defaults.
 - Parse failure, an absent config, or `enabled:false` ⇒ "no split tunneling":
   the generated sing-box config is byte-identical to the no-split output
   (fail-open, §1).
@@ -132,8 +136,8 @@ serializes with exactly this key order (snake_case):
   emitted sing-box config (Android: `enabled`, `bypass_lan`, recognized
   countries, excluded packages; iOS ignores `excluded_packages`). Two payloads
   that both resolve to disabled, or to the same rule set, do not reconnect. So
-  a redundant push (RN rehydration after a restore), the very first push of the
-  default disabled config, or a change that nets to the same routing is a
+  a redundant push (RN rehydration after a restore), the first persistence of
+  any disabled config, or a change that nets to the same routing is a
   no-op — a live tunnel is never bounced for a no-op change (§1).
 - Reapply targets a **CONNECTED** tunnel only. A connect or path-loss recovery
   in flight is left alone: it re-reads the persisted config on its next

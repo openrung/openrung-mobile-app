@@ -174,7 +174,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
             }
             let stored = defaults.string(forKey: AppConfig.splitTunnelConfigDefaultsKey)
             // Persist the raw string always, but only reapply when the EFFECTIVE config changed:
-            // a first push of the default disabled config, or any change that nets to the same
+            // a first push of a disabled config, or any change that nets to the same
             // emitted sing-box config, must never bounce a live tunnel (contract §1). iOS ignores
             // excluded_packages entirely (no OS-level per-app exclusion), so a packages-only change
             // is not an effective change here.

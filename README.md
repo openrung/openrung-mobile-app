@@ -80,10 +80,10 @@ side-by-side with them.
   failure can use a short-lived front-bound ticket and the pinned wsscore
   transport, including SNI-less native CloudFront access, while Reality remains
   end-to-end and local failures stay local.
-- 🔀 **Preset split tunneling** — off by default. When enabled: bypass the
-  local network, Iranian or Chinese sites & apps (bundled sing-box rule sets),
-  and on Android individual apps. Changes apply live via a quick reconnect, and
-  a bad config or missing rule set degrades to full tunnel — it never breaks
+- 🔀 **Preset split tunneling** — on by default, bypassing the local network
+  plus Iranian and Chinese sites & apps (bundled sing-box rule sets). On Android,
+  users can also bypass individual apps. Changes apply live via a quick reconnect,
+  and a bad config or missing rule set degrades to full tunnel — it never breaks
   connect.
 - 🧪 **Demoable without a native build** — a scripted mock engine drives the UI
   through the full connect lifecycle so you can develop and demo with no device.

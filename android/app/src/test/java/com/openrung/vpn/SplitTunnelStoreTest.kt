@@ -76,7 +76,7 @@ class SplitTunnelStoreTest {
 
     @Test
     fun `writeAndReportEffectiveChange ignores no-op pushes that keep the emitted config identical`() {
-        // First push of the default disabled config over an empty store: persisted, but NOT an
+        // First push of a disabled config over an empty store: persisted, but NOT an
         // effective change (both resolve to "disabled"), so a live tunnel must not reapply.
         val defaultDisabled =
             """{"version":1,"enabled":false,"bypass_lan":true,"bypass_countries":[],"excluded_packages":[]}"""

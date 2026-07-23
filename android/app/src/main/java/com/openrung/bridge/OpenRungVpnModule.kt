@@ -127,7 +127,7 @@ class OpenRungVpnModule(
         try {
             val context = reactContext.applicationContext
             // Only an EFFECTIVE change reapplies (writeAndReportEffectiveChange still persists the
-            // raw string): a first push of the default disabled config, or any change that nets to
+            // raw string): a first push of a disabled config, or any change that nets to
             // the same emitted config, must never bounce a live tunnel. The service re-validates
             // the connection state before actually reconnecting.
             val effectiveChanged = SplitTunnelStore.writeAndReportEffectiveChange(context, configJson)

@@ -53,9 +53,9 @@ const INITIAL_NATIVE_STATE: NativeVpnState = {
 };
 
 const INITIAL_SPLIT_TUNNEL: SplitTunnelState = {
-  enabled: false,
+  enabled: true,
   bypassLan: true,
-  bypassCountries: [],
+  bypassCountries: ['ir', 'cn'],
   excludedApps: [],
 };
 
@@ -260,12 +260,13 @@ function scheduleSplitTunnelPush(): void {
 }
 
 /**
- * Fires any pending debounced split-tunnel push immediately and resolves once native has
- * persisted it. Called right before a connect so the service reads the latest config in its
- * per-connect snapshot — otherwise a change made within the debounce window just before tapping
- * Connect would only take effect on the following connect. A no-op when nothing is pending.
+ * Completes split-tunnel initialization, then fires any pending debounced push immediately and
+ * resolves once native has persisted it. Called right before a connect so the service reads the
+ * latest config in its per-connect snapshot — including the fresh-install default — rather than
+ * racing the launch-time AsyncStorage read. A no-op when initialization produces no pending push.
  */
 export async function flushSplitTunnelPush(): Promise<void> {
+  await hydrateSplitTunnel();
   if (splitTunnelPushTimer == null) {
     return;
   }
@@ -353,13 +354,27 @@ export function hydrateSplitTunnel(): Promise<void> {
       // Retrying on every screen visit would only reopen the stale-read race.
       splitTunnelHydrated = true;
 
-      const parsed = persisted != null ? parsePersistedSplitTunnel(persisted) : null;
+      if (persisted == null) {
+        // No explicit preference exists (fresh install, or an upgrade from the old default-off
+        // release where untouched defaults were never persisted). Materialize the new product
+        // default in both stores: split tunneling on, bypassing LAN + Iran + China. Existing users
+        // with any valid saved selection — including enabled:false — take the parsed branch below
+        // and keep that choice.
+        await AsyncStorage.setItem(
+          SPLIT_TUNNEL_STORAGE_KEY,
+          JSON.stringify(state.splitTunnel),
+        ).catch(() => {
+          // Persistence remains best-effort; native still receives this launch's default.
+        });
+        scheduleSplitTunnelPush();
+        return;
+      }
+
+      const parsed = parsePersistedSplitTunnel(persisted);
       if (parsed == null) {
-        // Nothing authoritative persisted (fresh install, or unreadable/garbage value): the
-        // native store is likewise empty and there is nothing to sync. Pushing the pristine
-        // default here would be a wasted bridge call — and, worse, could ask a native store that
-        // already holds a real config to go disabled. Leave both sides as-is; the defaults are
-        // full-tunnel behavior.
+        // Garbage is not treated like a fresh install: do not overwrite a potentially valid native
+        // config when the JS-side read is corrupt. Keep the in-memory product default for this
+        // launch, while native continues its fail-open behavior.
         return;
       }
       if (JSON.stringify(parsed) !== JSON.stringify(state.splitTunnel)) {
@@ -370,8 +385,8 @@ export function hydrateSplitTunnel(): Promise<void> {
       // the two already agree, so it never bounces a live tunnel.
       scheduleSplitTunnelPush();
     } catch {
-      // Best-effort: keep the in-memory state (defaults degrade to full-tunnel behavior). A later
-      // caller may retry because a failed read does not complete initialization.
+      // Best-effort: keep the in-memory product default without overwriting native. A later caller
+      // may retry because a failed read does not complete initialization.
     }
   })().finally(() => {
     if (splitTunnelHydrationPromise === attempt) {

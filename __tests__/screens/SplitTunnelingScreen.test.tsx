@@ -82,22 +82,24 @@ describe('SplitTunnelingScreen', () => {
     await unmount(tree);
   });
 
-  it('disables the bypass rows while the master toggle is off', async () => {
+  it('starts with every preset on and disables the bypass rows when the master is turned off', async () => {
     const tree = await renderScreen();
     const [master, ...bypassRows] = switches(tree);
 
     expect(master.props.disabled).toBeUndefined();
+    expect(master.props.value).toBe(true);
     expect(bypassRows).toHaveLength(3);
-    expect(bypassRows.every(row => row.props.disabled === true)).toBe(true);
+    expect(bypassRows.every(row => row.props.value === true)).toBe(true);
+    expect(bypassRows.every(row => row.props.disabled === false)).toBe(true);
 
     await ReactTestRenderer.act(async () => {
-      master.props.onChange(true);
+      master.props.onChange(false);
     });
 
     expect(
       switches(tree)
         .slice(1)
-        .every(row => row.props.disabled === false),
+        .every(row => row.props.disabled === true),
     ).toBe(true);
     await unmount(tree);
   });
