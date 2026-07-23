@@ -15,9 +15,11 @@
 //       and release/update-policy.json. Signs it when OPENRUNG_MANIFEST_SIGNING_SEED_B64 is set
 //       (the base64 32-byte Ed25519 seed); otherwise emits an unsigned envelope with a warning —
 //       unsigned manifests can never hard-block clients, only surface the passive update row.
-//       --android-latest overrides the advertised Android version (broadcast workflow passes the
-//       latest RELEASE tag so a still-building/failed release is never advertised); iOS latest
-//       always comes from the policy file's ios_latest (TestFlight uploads are manual).
+//       --android-latest overrides the advertised Android version (the publisher workflow passes
+//       the latest RELEASE tag so a still-building/failed release is never advertised); iOS
+//       latest always comes from the policy file's ios_latest (TestFlight uploads are manual).
+//       --release-published-at (the resolved release's published_at) folds the release input
+//       into generated_at so equal stamps always mean identical manifests — see generatedAtIso.
 //   node scripts/update-manifest.mjs check
 //       CI guard: validates release/update-policy.json and the committed test vectors. Run by
 //       .github/workflows/version-check.yml on every PR.
@@ -210,35 +212,48 @@ function loadVectors() {
 }
 
 /**
- * generated_at = the generating checkout's HEAD committer time, NOT wall-clock. Git history is
- * the ordering authority for policy content: clients keep the manifest with the newest
- * generated_at, so a stale checkout that publishes late (e.g. a long release build racing a
- * policy edit) carries an honestly-older stamp and cached clients reject the rollback — a
- * wall-clock stamp would instead make the stale content look newest. Same-commit re-publishes
- * carry equal stamps, which clients accept (last-write-wins between identical-policy sources).
+ * generated_at = the NEWEST timestamp among ALL manifest inputs — the generating checkout's HEAD
+ * committer time and (when the workflow passes it) the resolved latest release's published_at.
+ * Never plain wall-clock: the inputs' own history is the ordering authority, so a stale-input
+ * publish that lands late carries an honestly-older stamp and cached clients reject the
+ * rollback. Because BOTH inputs are monotone (new commits and new releases only move forward),
+ * any input change strictly increases the stamp — which gives clients the invariant that EQUAL
+ * generated_at implies an identical manifest (same policy commit, same release), so they can
+ * safely stop walking / keep their cache on ties. A wall-clock stamp would break the rollback
+ * direction; a commit-time-only stamp would break the tie invariant (same commit, new release).
  */
-function generatedAtIso() {
+function generatedAtIso(releasePublishedAtIso) {
+  let headIso;
   try {
-    const iso = execSync('git log -1 --format=%cI', { cwd: root, encoding: 'utf8' }).trim();
-    if (Number.isNaN(Date.parse(iso))) {
-      throw new Error(`unparseable committer date ${JSON.stringify(iso)}`);
+    headIso = execSync('git log -1 --format=%cI', { cwd: root, encoding: 'utf8' }).trim();
+    if (Number.isNaN(Date.parse(headIso))) {
+      throw new Error(`unparseable committer date ${JSON.stringify(headIso)}`);
     }
-    return iso;
   } catch (error) {
     console.warn(
       `⚠ could not read the HEAD committer time (${error.message ?? error}) — ` +
         'falling back to wall-clock generated_at (rollback ordering is weaker for this manifest).',
     );
-    return new Date().toISOString();
+    headIso = new Date().toISOString();
   }
+  if (releasePublishedAtIso == null) {
+    return headIso;
+  }
+  if (Number.isNaN(Date.parse(releasePublishedAtIso))) {
+    console.error(
+      `✖ --release-published-at must be ISO-8601, got ${JSON.stringify(releasePublishedAtIso)}`,
+    );
+    process.exit(1);
+  }
+  return Date.parse(releasePublishedAtIso) > Date.parse(headIso) ? releasePublishedAtIso : headIso;
 }
 
 // --- generate ---------------------------------------------------------------------------------
 
-function buildPayload(version, versionCode, policy, androidLatest) {
+function buildPayload(version, versionCode, policy, androidLatest, generatedAt) {
   return {
     schema: 1,
-    generated_at: generatedAtIso(),
+    generated_at: generatedAt,
     android: {
       latest: androidLatest,
       // versionCode is read from the working tree, which only describes the advertised build
@@ -259,7 +274,7 @@ function buildPayload(version, versionCode, policy, androidLatest) {
   };
 }
 
-function generate(outPath, androidLatestOverride) {
+function generate(outPath, androidLatestOverride, releasePublishedAt) {
   const version = currentAppVersion();
   const policy = loadPolicy();
   const policyErrors = validatePolicy(policy, version);
@@ -287,7 +302,13 @@ function generate(outPath, androidLatestOverride) {
     process.exit(1);
   }
 
-  const payload = buildPayload(version, currentVersionCode(), policy, androidLatest);
+  const payload = buildPayload(
+    version,
+    currentVersionCode(),
+    policy,
+    androidLatest,
+    generatedAtIso(releasePublishedAt),
+  );
   const payloadBytes = Buffer.from(JSON.stringify(payload), 'utf8');
   const envelope = { schema: 1, payload_b64: payloadBytes.toString('base64') };
 
@@ -436,7 +457,11 @@ const flag = (label, fallback) => {
 
 switch (mode) {
   case 'generate':
-    generate(flag('--out', 'update-manifest.json'), flag('--android-latest', null));
+    generate(
+      flag('--out', 'update-manifest.json'),
+      flag('--android-latest', null),
+      flag('--release-published-at', null),
+    );
     break;
   case 'check':
     check();

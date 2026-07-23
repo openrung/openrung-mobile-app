@@ -85,12 +85,15 @@ sourced per platform:
   advertised latest (a floor above what users can install would block them with no fix).
 
 `min_supported`, `promote` and `notice` come from `release/update-policy.json`. `generated_at` is
-the generating checkout's HEAD **committer time**, not wall clock — git history is the ordering
-authority, so any late publish from a stale checkout carries an honestly-older stamp. It drives
-rollback monotonicity: a client never replaces a cached *verified* manifest with an older
-*verified* one, so neither a replayed signed manifest nor a stale-checkout publish can lower a
-raised floor for clients that already saw the newer one. Unsigned envelopes can never displace a
-verified cache at all.
+the newest timestamp among **all** manifest inputs — the generating checkout's HEAD committer
+time and the resolved latest release's `published_at` — never plain wall clock. Both inputs are
+monotone, so any input change strictly increases the stamp, which gives clients two guarantees:
+a late publish from stale inputs carries an honestly-older stamp (rollback monotonicity — a
+client never replaces a cached *verified* manifest except with a strictly newer one, so neither
+a replayed signed manifest nor a stale publish can lower a raised floor), and an **equal** stamp
+implies an **identical** manifest (same policy commit, same release), so clients can stop the
+candidate walk on ties and keep their cache without flapping between fronts. Unsigned envelopes
+can never displace a verified cache at all.
 
 ## Client tier ladder (src/model/updateStatus.ts)
 

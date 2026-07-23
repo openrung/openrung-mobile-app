@@ -111,8 +111,11 @@ async function hydrate(): Promise<void> {
 /**
  * Replacement trust ladder — the fetched manifest replaces the cached one only when that never
  * DOWNGRADES trust or rolls history back:
- * - verified fetch: accepted unless the cache is verified AND newer (anti-replay monotonicity on
- *   the SIGNED generated_at; a replayed older signed manifest cannot roll back a raised floor).
+ * - verified fetch over verified cache: STRICTLY newer generated_at only. The publisher stamps
+ *   generated_at with the newest of ALL its inputs (latest-main commit time, latest release
+ *   published_at), so an equal stamp means an identical manifest — replacing would be a no-op —
+ *   and on any equal-but-different edge, first-writer-wins avoids cache flapping between fronts.
+ *   A replayed OLDER signed manifest can never roll back a raised floor.
  * - unsigned fetch: accepted only while the cache is absent or itself unsigned. Once any verified
  *   manifest has been seen, an unsigned body (e.g. a front stripping the sig) can never displace
  *   it. Unsigned-over-unsigned is last-write-wins: an unsigned generated_at proves nothing, and
@@ -123,7 +126,7 @@ function shouldReplaceCache(fetched: DecodedUpdateManifest): boolean {
     return true;
   }
   if (fetched.verified) {
-    return !(decoded.verified && fetched.manifest.generatedAtMs < decoded.manifest.generatedAtMs);
+    return !decoded.verified || fetched.manifest.generatedAtMs > decoded.manifest.generatedAtMs;
   }
   return !decoded.verified;
 }

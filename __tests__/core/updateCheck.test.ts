@@ -116,6 +116,24 @@ describe('refreshUpdateManifest', () => {
     expect(failing).toHaveBeenCalledTimes(3);
   });
 
+  it('keeps the cache on an equal-stamp verified fetch (no flapping between fronts)', async () => {
+    // Two different manifests sharing a generated_at should be impossible under the publisher's
+    // stamp-covers-all-inputs invariant; if a front ever serves one anyway, first-writer-wins.
+    const first = envelopeFor(
+      iosPayload({ latest: '9.9.9' }, { generated_at: '2026-07-22T00:00:00Z' }),
+    );
+    const second = envelopeFor(
+      iosPayload({ latest: '8.8.8' }, { generated_at: '2026-07-22T00:00:00Z' }),
+    );
+    mockFetchReturning(first);
+    await refreshUpdateManifest(true);
+    mockFetchReturning(second);
+    await refreshUpdateManifest(true);
+
+    expect(getSnapshot().update.latestVersion).toBe('9.9.9');
+    expect(mockMemoryStore.get(UPDATE_MANIFEST_STORAGE_KEY)).toBe(first);
+  });
+
   it('never lets an older verified manifest roll back a newer one', async () => {
     const newer = envelopeFor(
       iosPayload({ latest: '9.9.9' }, { generated_at: '2026-07-22T00:00:00Z' }),

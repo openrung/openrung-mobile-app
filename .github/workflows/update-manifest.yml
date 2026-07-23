@@ -62,7 +62,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set +e
-          tag=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name 2>gh-error.txt)
+          release_json=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" 2>gh-error.txt)
           status=$?
           set -e
           if [ "$status" -ne 0 ]; then
@@ -75,17 +75,22 @@ jobs:
             cat gh-error.txt
             exit 1
           fi
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "tag=$(jq -r .tag_name <<<"$release_json")" >> "$GITHUB_OUTPUT"
+          # published_at feeds generated_at so the release input is part of the manifest's
+          # ordering stamp (same-commit republishes after a new release must rank strictly newer).
+          echo "published_at=$(jq -r .published_at <<<"$release_json")" >> "$GITHUB_OUTPUT"
 
       - name: Generate update manifest
         if: steps.latest.outputs.tag != ''
         env:
           OPENRUNG_MANIFEST_SIGNING_SEED_B64: ${{ secrets.OPENRUNG_MANIFEST_SIGNING_SEED_B64 }}
           LATEST_TAG: ${{ steps.latest.outputs.tag }}
+          LATEST_PUBLISHED_AT: ${{ steps.latest.outputs.published_at }}
         run: |
           node scripts/update-manifest.mjs generate \
             --out update-manifest.json \
-            --android-latest "${LATEST_TAG#v}"
+            --android-latest "${LATEST_TAG#v}" \
+            --release-published-at "$LATEST_PUBLISHED_AT"
 
       # Clobber the asset on the LATEST release so the stable
       # releases/latest/download/update-manifest.json URL serves the new policy immediately.
