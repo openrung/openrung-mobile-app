@@ -29,7 +29,9 @@ PATH="$(go env GOPATH)/bin:$PATH" gomobile init
 ```
 
 The script downloads the exact sing-box pseudo-version, grafts only the thin
-OpenRung WSS binding into `experimental/libbox`, resolves the tagged `wsscore`
+OpenRung WSS binding into `experimental/libbox`, trims sing-box's libbox build
+tags to OpenRung's feature set (dropping Tailscale, WireGuard, and naiveproxy —
+see [`../../RELEASE.md`](../../RELEASE.md) §2), resolves the tagged `wsscore`
 module, and emits one unified `Libbox.xcframework`. This is required because a
 second gomobile framework would load a second, incompatible Go runtime. The
 transport implementation is never copied into this repository.

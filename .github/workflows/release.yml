@@ -143,7 +143,13 @@ jobs:
           ORG_GRADLE_PROJECT_OPENRUNG_UPLOAD_STORE_PASSWORD: ${{ secrets.OPENRUNG_UPLOAD_STORE_PASSWORD }}
           ORG_GRADLE_PROJECT_OPENRUNG_UPLOAD_KEY_ALIAS: ${{ secrets.OPENRUNG_UPLOAD_KEY_ALIAS }}
           ORG_GRADLE_PROJECT_OPENRUNG_UPLOAD_KEY_PASSWORD: ${{ secrets.OPENRUNG_UPLOAD_KEY_PASSWORD }}
-        run: ./gradlew :app:assembleRelease --no-daemon --stacktrace
+        # -PreactNativeArchitectures ships arm64-v8a ONLY: it keeps React Native's prefab/
+        # Hermes native libs from producing other-ABI slices, while the release-scoped jniLibs
+        # exclude in app/build.gradle strips the AAR-prebuilt libs (libbox, MapLibre) for
+        # armeabi-v7a/x86/x86_64. Together → one arm64-only universal APK (~89 MB, down from
+        # ~360 MB), still offline-share-safe (see RELEASE.md §2/§4). Broker telemetry showed
+        # ~0 genuinely 32-bit devices (all API >= 26, all arm64); x86/x86_64 are emulator-only.
+        run: ./gradlew :app:assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon --stacktrace
 
       - name: Verify signing (must be the real upload key, not the debug key)
         run: |

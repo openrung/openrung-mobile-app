@@ -59,12 +59,14 @@ separate native release inputs. The complete GPL-3.0 text is bundled as
 #### sing-box transitive components (compiled into the apps)
 
 The `libbox` build statically links additional libraries that are therefore
-distributed inside the apps. This list must be completed from the exact build
-(`go-licenses` against the sing-box module); the notable ones include:
+distributed inside the apps. The build scripts trim sing-box's build tags to
+OpenRung's feature set (dropping Tailscale, WireGuard, and naiveproxy — see
+`RELEASE.md` §2), so those trees are **not** linked and are excluded below. This
+list must be completed from the exact trimmed build (`go-licenses` against it);
+the notable remaining ones include:
 
 - `gvisor.dev/gvisor` — Apache-2.0 (ships a NOTICE file that must be reproduced)
 - `github.com/sagernet/quic-go` (SagerNet's sing-box fork of quic-go) — MIT
-- `golang.zx2c4.com/wireguard` (wireguard-go) — MIT
 - `github.com/refraction-networking/utls` — BSD-3-Clause
 - `github.com/gorilla/websocket` — BSD-2-Clause, Copyright (c) 2013 The
   Gorilla WebSocket Authors
