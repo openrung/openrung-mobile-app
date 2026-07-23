@@ -80,6 +80,11 @@ side-by-side with them.
   failure can use a short-lived front-bound ticket and the pinned wsscore
   transport, including SNI-less native CloudFront access, while Reality remains
   end-to-end and local failures stay local.
+- 🔀 **Preset split tunneling** — off by default. When enabled: bypass the
+  local network, Iranian or Chinese sites & apps (bundled sing-box rule sets),
+  and on Android individual apps. Changes apply live via a quick reconnect, and
+  a bad config or missing rule set degrades to full tunnel — it never breaks
+  connect.
 - 🧪 **Demoable without a native build** — a scripted mock engine drives the UI
   through the full connect lifecycle so you can develop and demo with no device.
 
@@ -254,6 +259,13 @@ mock simulator — useful for UI work and demos, but no traffic is routed.
   only their `base.apk` would produce an incomplete, un-installable copy.
 - Telemetry from TypeScript covers only speed-test events; the native connect
   path keeps full production telemetry.
+- Per-app split-tunnel bypass is Android-only; iOS parses and ignores
+  `excluded_packages`.
+- With a country bypass preset enabled, DNS for bypassed domains resolves via
+  in-country public resolvers (Shecan / AliDNS) over the direct path.
+- Android apps excluded from the VPN at the OS level bypass the TUN entirely
+  and are invisible to telemetry/traffic counters; sing-box-routed direct flows
+  (LAN/country bypass) remain counted.
 
 ## License
 

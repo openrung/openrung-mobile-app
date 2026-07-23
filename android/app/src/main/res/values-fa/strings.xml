@@ -15,6 +15,7 @@
     <string name="log_broker_returned">broker تعداد %1$d رله برگرداند؛ %2$d قابل استفاده است</string>
     <string name="log_trying_relay">در حال امتحان رله %1$s در %2$s:%3$d</string>
     <string name="log_checking_relay_reachability">در حال بررسی دسترسی TCP رله</string>
+    <string name="log_split_ruleset_missing">مجموعه قواعد تونل تفکیکی برای %1$s موجود نیست؛ آن ترافیک از داخل تونل عبور می‌کند</string>
     <string name="log_relay_failed">رله %1$s ناموفق بود: %2$s</string>
     <string name="log_error_prefix">خطا: %1$s</string>
     <string name="error_no_usable_relay">هیچ رله خروج مستقیم VLESS Reality Vision قابل استفاده‌ای موجود نیست.</string>

@@ -163,7 +163,44 @@ Bundled in the Android APK:
 
 ---
 
-## 5. Components that are NOT distributed (no obligation)
+## 5. Bundled split-tunneling rule-set data (`rulesets/dist`)
+
+The split-tunneling country presets bundle four compiled sing-box rule-set
+binaries in both apps (Android APK assets `rulesets/<name>.srs`, iOS
+PacketTunnel bundle resources). They are routing data, not linked code. Exact
+source commits, fetch dates, and SHA-256 hashes are pinned in
+[`rulesets/README.md`](rulesets/README.md).
+
+### Iran-sing-box-rules (Chocolate4U) — GPL-3.0
+
+- **Component:** `geosite-ir.srs`, `geoip-ir.srs` (compiled rule sets for the
+  "Iranian sites & apps" preset).
+- **License:** GNU General Public License v3.0 (**GPL-3.0**; the full GPL-3.0
+  text is bundled in this repository as `LICENSE`).
+- **Upstream:** https://github.com/Chocolate4U/Iran-sing-box-rules
+
+### sing-geosite data — v2fly/domain-list-community (MIT)
+
+- **Component:** `geosite-cn.srs` (compiled rule set for the "Chinese sites &
+  apps" preset), built by SagerNet/sing-geosite from the
+  `v2fly/domain-list-community` dataset.
+- **License:** MIT (the domain-list-community data license; the MIT text is
+  reproduced in Appendix A).
+- **Upstream:** https://github.com/SagerNet/sing-geosite,
+  https://github.com/v2fly/domain-list-community
+
+### sing-geoip — MaxMind GeoLite2 data
+
+- **Component:** `geoip-cn.srs` (compiled rule set for the "Chinese sites &
+  apps" preset), built by SagerNet/sing-geoip from MaxMind GeoLite2 country
+  data.
+- **Attribution (required, must be preserved):** This product includes
+  GeoLite2 data created by MaxMind, available from https://www.maxmind.com
+- **Upstream:** https://github.com/SagerNet/sing-geoip
+
+---
+
+## 6. Components that are NOT distributed (no obligation)
 
 Listed so they are deliberately **excluded** from the shipped notices: dev and
 test dependencies (Jest, ESLint, Prettier, Babel toolchain, TypeScript,

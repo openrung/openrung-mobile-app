@@ -138,6 +138,31 @@ export const tr: Partial<Strings> = {
   aboutFootnote:
     'OpenRung özgür bir yazılımdır (GPL-3.0-or-later). Gönüllüler tarafından, herkes için geliştirildi.',
 
+  // --- Split tunneling (settings row + screen + Android app picker) ---
+  splitTunnelSettingTitle: 'Bölünmüş tünel',
+  splitTunnelSettingSubtitleOn: 'Açık — seçilen trafik röleyi atlar.',
+  splitTunnelSettingSubtitleOff: 'Kapalı — tüm trafik röle üzerinden geçer.',
+  splitTunnelHeader: 'Bölünmüş tünel',
+  splitTunnelMasterTitle: 'Bölünmüş tünel',
+  splitTunnelMasterSubtitle: 'Seçilen trafiği röle tünelinin dışına gönderin.',
+  splitTunnelBypassHeader: 'Baypas',
+  splitTunnelLanTitle: 'Yerel ağ',
+  splitTunnelLanSubtitle:
+    "Yazıcılara, TV'lere ve diğer yerel ağ cihazlarına doğrudan erişin.",
+  splitTunnelIranTitle: 'İran siteleri ve uygulamaları',
+  splitTunnelIranSubtitle: 'İran servislerini doğrudan, tam hızda yönlendirin.',
+  splitTunnelChinaTitle: 'Çin siteleri ve uygulamaları',
+  splitTunnelChinaSubtitle: 'Çin servislerini doğrudan, tam hızda yönlendirin.',
+  splitTunnelAppsHeader: 'Uygulamalar',
+  splitTunnelAppsTitle: 'Baypas edilen uygulamalar',
+  splitTunnelAppsSubtitle: (count: number) => `${count} uygulama VPN'i atlıyor.`,
+  splitTunnelAppPickerTitle: 'Baypas edilen uygulamalar',
+  splitTunnelAppPickerLoading: 'yüklü uygulamalar getiriliyor…',
+  splitTunnelAppPickerEmpty: 'başlatılabilir uygulama bulunamadı.',
+  splitTunnelAppPickerClose: 'KAPAT',
+  splitTunnelApplyHint:
+    'değişiklikler hemen uygulanır; tünel birkaç saniyeliğine yeniden bağlanır.',
+
   // --- In-app update check (manifest banner / blocking screen / broadcast notice) ---
   updateRequiredTitle: 'Güncelleme gerekli',
   updateRequiredBody:

@@ -147,6 +147,37 @@ export const my: Partial<Strings> = {
   aboutFootnote:
     'OpenRung သည် အခမဲ့ဆော့ဖ်ဝဲ (GPL-3.0-or-later) ဖြစ်သည်။ စေတနာ့ဝန်ထမ်းများက အားလုံးအတွက် တည်ဆောက်ထားသည်။',
 
+  // --- Split tunneling (settings row + screen + Android app picker) ---
+  splitTunnelSettingTitle: 'ဥမင် ခွဲထုတ်ခြင်း',
+  splitTunnelSettingSubtitleOn:
+    'ဖွင့်ထားသည် — ရွေးချယ်ထားသော ဒေတာအသွားအလာသည် ရီလေးကို ကျော်သွားသည်။',
+  splitTunnelSettingSubtitleOff:
+    'ပိတ်ထားသည် — ဒေတာအသွားအလာ အားလုံး ရီလေးမှတစ်ဆင့် သွားသည်။',
+  splitTunnelHeader: 'ဥမင် ခွဲထုတ်ခြင်း',
+  splitTunnelMasterTitle: 'ဥမင် ခွဲထုတ်ခြင်း',
+  splitTunnelMasterSubtitle:
+    'ရွေးချယ်ထားသော ဒေတာအသွားအလာကို ရီလေး ဥမင်အပြင်ဘက်မှ ပို့ပါ။',
+  splitTunnelBypassHeader: 'ကျော်လွှားခြင်း',
+  splitTunnelLanTitle: 'ဒေသတွင်း ကွန်ရက်',
+  splitTunnelLanSubtitle:
+    'ပရင်တာ၊ တီဗီနှင့် အခြား ဒေသတွင်းကွန်ရက် စက်များကို တိုက်ရိုက် ချိတ်ဆက်ပါ။',
+  splitTunnelIranTitle: 'အီရန် ဝဘ်ဆိုက်နှင့် အက်ပ်များ',
+  splitTunnelIranSubtitle:
+    'အီရန် ဝန်ဆောင်မှုများကို အမြန်နှုန်းအပြည့်ဖြင့် တိုက်ရိုက် လမ်းကြောင်းချပါ။',
+  splitTunnelChinaTitle: 'တရုတ် ဝဘ်ဆိုက်နှင့် အက်ပ်များ',
+  splitTunnelChinaSubtitle:
+    'တရုတ် ဝန်ဆောင်မှုများကို အမြန်နှုန်းအပြည့်ဖြင့် တိုက်ရိုက် လမ်းကြောင်းချပါ။',
+  splitTunnelAppsHeader: 'အက်ပ်များ',
+  splitTunnelAppsTitle: 'ကျော်လွှားသော အက်ပ်များ',
+  splitTunnelAppsSubtitle: (count: number) =>
+    `အက်ပ် ${count} ခုသည် VPN ကို ကျော်သွားသည်။`,
+  splitTunnelAppPickerTitle: 'ကျော်လွှားသော အက်ပ်များ',
+  splitTunnelAppPickerLoading: 'ထည့်သွင်းထားသော အက်ပ်များကို ရယူနေသည်…',
+  splitTunnelAppPickerEmpty: 'ဖွင့်နိုင်သော အက်ပ် မတွေ့ပါ။',
+  splitTunnelAppPickerClose: 'ပိတ်မည်',
+  splitTunnelApplyHint:
+    'ပြောင်းလဲမှုများ ချက်ချင်း သက်ရောက်သည်။ ဥမင်သည် စက္ကန့်အနည်းငယ် ပြန်လည်ချိတ်ဆက်မည်။',
+
   // --- In-app update check (manifest banner / blocking screen / broadcast notice) ---
   updateRequiredTitle: 'အပ်ဒိတ် လုပ်ရန် လိုအပ်သည်',
   updateRequiredBody:

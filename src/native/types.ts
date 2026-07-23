@@ -47,4 +47,11 @@ export interface OpenRungVpnModule {
   disconnect(): Promise<void>;
   getState(): Promise<NativeVpnState>;
   getIdentity(): Promise<NativeIdentity>;
+  /** Persist the split-tunnel config JSON (contract §3: snake_case keys
+   *  version/enabled/bypass_lan/bypass_countries/excluded_packages, serialized
+   *  in exactly that order). When the tunnel is active AND the config actually
+   *  changed (string comparison against the stored value), native reapplies by
+   *  reconnecting to the same target. Resolves after persistence + reapply
+   *  dispatch (NOT completion — progress is reported via events). */
+  setSplitTunnelConfig(configJson: string): Promise<void>;
 }

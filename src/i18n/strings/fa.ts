@@ -135,6 +135,32 @@ export const fa: Partial<Strings> = {
   aboutFootnote:
     'OpenRung نرم‌افزار آزاد است (GPL-3.0-or-later). ساخته‌شده توسط داوطلبان، برای همه.',
 
+  // --- Split tunneling (settings row + screen + Android app picker) ---
+  splitTunnelSettingTitle: 'تونل تفکیکی',
+  splitTunnelSettingSubtitleOn: 'روشن — ترافیک انتخاب‌شده از رله عبور نمی‌کند.',
+  splitTunnelSettingSubtitleOff: 'خاموش — همهٔ ترافیک از رله عبور می‌کند.',
+  splitTunnelHeader: 'تونل تفکیکی',
+  splitTunnelMasterTitle: 'تونل تفکیکی',
+  splitTunnelMasterSubtitle: 'ترافیک انتخاب‌شده را بیرون از تونل رله بفرستید.',
+  splitTunnelBypassHeader: 'عبور مستقیم',
+  splitTunnelLanTitle: 'شبکهٔ محلی',
+  splitTunnelLanSubtitle:
+    'به چاپگرها، تلویزیون‌ها و دیگر دستگاه‌های شبکهٔ محلی مستقیم دسترسی داشته باشید.',
+  splitTunnelIranTitle: 'سایت‌ها و برنامه‌های ایرانی',
+  splitTunnelIranSubtitle: 'سرویس‌های ایرانی را مستقیم و با سرعت کامل هدایت کنید.',
+  splitTunnelChinaTitle: 'سایت‌ها و برنامه‌های چینی',
+  splitTunnelChinaSubtitle: 'سرویس‌های چینی را مستقیم و با سرعت کامل هدایت کنید.',
+  splitTunnelAppsHeader: 'برنامه‌ها',
+  splitTunnelAppsTitle: 'برنامه‌های خارج از VPN',
+  splitTunnelAppsSubtitle: (count: number) =>
+    count === 1 ? '1 برنامه VPN را دور می‌زند.' : `${count} برنامه VPN را دور می‌زنند.`,
+  splitTunnelAppPickerTitle: 'برنامه‌های خارج از VPN',
+  splitTunnelAppPickerLoading: 'در حال بارگذاری برنامه‌های نصب‌شده…',
+  splitTunnelAppPickerEmpty: 'برنامهٔ قابل اجرا پیدا نشد.',
+  splitTunnelAppPickerClose: 'بستن',
+  splitTunnelApplyHint:
+    'تغییرات بلافاصله اعمال می‌شوند؛ تونل برای چند ثانیه دوباره متصل می‌شود.',
+
   // --- In-app update check (manifest banner / blocking screen / broadcast notice) ---
   updateRequiredTitle: 'به‌روزرسانی لازم است',
   updateRequiredBody:

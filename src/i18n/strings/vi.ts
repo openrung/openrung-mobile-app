@@ -132,6 +132,32 @@ export const vi: Partial<Strings> = {
   aboutFootnote:
     'OpenRung là phần mềm tự do (GPL-3.0-or-later). Được xây dựng bởi tình nguyện viên, cho mọi người.',
 
+  // --- Split tunneling (settings row + screen + Android app picker) ---
+  splitTunnelSettingTitle: 'Chia đường hầm',
+  splitTunnelSettingSubtitleOn: 'Bật — lưu lượng được chọn đi vòng qua relay.',
+  splitTunnelSettingSubtitleOff: 'Tắt — toàn bộ lưu lượng đi qua relay.',
+  splitTunnelHeader: 'Chia đường hầm',
+  splitTunnelMasterTitle: 'Chia đường hầm',
+  splitTunnelMasterSubtitle: 'Gửi lưu lượng được chọn ra ngoài đường hầm relay.',
+  splitTunnelBypassHeader: 'Đi vòng',
+  splitTunnelLanTitle: 'Mạng cục bộ',
+  splitTunnelLanSubtitle:
+    'Truy cập trực tiếp máy in, TV và các thiết bị mạng cục bộ khác.',
+  splitTunnelIranTitle: 'Trang web & ứng dụng Iran',
+  splitTunnelIranSubtitle: 'Định tuyến trực tiếp các dịch vụ Iran với tốc độ tối đa.',
+  splitTunnelChinaTitle: 'Trang web & ứng dụng Trung Quốc',
+  splitTunnelChinaSubtitle:
+    'Định tuyến trực tiếp các dịch vụ Trung Quốc với tốc độ tối đa.',
+  splitTunnelAppsHeader: 'Ứng dụng',
+  splitTunnelAppsTitle: 'Ứng dụng đi vòng',
+  splitTunnelAppsSubtitle: (count: number) => `${count} ứng dụng không đi qua VPN.`,
+  splitTunnelAppPickerTitle: 'Ứng dụng đi vòng',
+  splitTunnelAppPickerLoading: 'đang tải các ứng dụng đã cài…',
+  splitTunnelAppPickerEmpty: 'không tìm thấy ứng dụng khởi chạy được.',
+  splitTunnelAppPickerClose: 'ĐÓNG',
+  splitTunnelApplyHint:
+    'thay đổi áp dụng ngay; đường hầm sẽ kết nối lại trong vài giây.',
+
   // --- In-app update check (manifest banner / blocking screen / broadcast notice) ---
   updateRequiredTitle: 'Cần cập nhật',
   updateRequiredBody:

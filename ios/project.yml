@@ -99,6 +99,17 @@ targets:
     sources:
       - path: PacketTunnel
       - path: Shared
+      # Bundled split-tunnel rule sets (provenance + hashes in rulesets/README.md). The provider
+      # verifies each enabled country's pair exists at connect time and drops the country
+      # (fail-open) otherwise.
+      - path: ../rulesets/dist/geosite-ir.srs
+        buildPhase: resources
+      - path: ../rulesets/dist/geoip-ir.srs
+        buildPhase: resources
+      - path: ../rulesets/dist/geosite-cn.srs
+        buildPhase: resources
+      - path: ../rulesets/dist/geoip-cn.srs
+        buildPhase: resources
     dependencies:
       # Static archive (ar) → linked, never embedded. Present locally at ios/ThirdParty/.
       - framework: ThirdParty/Libbox.xcframework
@@ -151,6 +162,7 @@ targets:
       - path: Shared/RelayReachabilityError.swift
       - path: Shared/RelayListVerifier.swift
       - path: Shared/SingBoxConfiguration.swift
+      - path: Shared/SplitTunnelConfig.swift
       - path: Shared/WssFallbackPolicy.swift
       - path: Shared/WssTicketClient.swift
     settings:

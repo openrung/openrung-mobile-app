@@ -5,6 +5,7 @@ import type { DirectoryStatus, ExitNodeRegion, HomeViewMode } from '../model/exi
 import { INITIAL_UPDATE_UI, type UpdateUiState } from '../model/updateStatus';
 import { firstReachable } from '../net/brokerClient';
 import { loadExitNodeDirectory } from '../net/exitNodeDirectory';
+import { OpenRungVpn } from '../native/OpenRungVpn';
 import type { NativeVpnState } from '../native/types';
 
 /**
@@ -13,6 +14,13 @@ import type { NativeVpnState } from '../native/types';
  * reproduces `OpenRungStatusStore.refreshDirectory`.
  */
 
+export interface SplitTunnelState {
+  enabled: boolean;
+  bypassLan: boolean;
+  bypassCountries: string[]; // lowercase ISO codes; v1 recognizes only 'ir' and 'cn'
+  excludedApps: string[]; // Android package names (iOS parses and ignores)
+}
+
 export interface AppState {
   native: NativeVpnState; // mirrored from native
   brokerUrl: string; // fixed to config default (not editable)
@@ -20,6 +28,7 @@ export interface AppState {
   availableRegions: ExitNodeRegion[];
   languageTag: string; // '' = system, persisted in AsyncStorage
   homeViewMode: HomeViewMode; // home directory presentation, persisted in AsyncStorage
+  splitTunnel: SplitTunnelState; // persisted in AsyncStorage, mirrored to the native store
   /**
    * Epoch ms of the moment the native status last ENTERED 'connected' (stamped
    * shell-side, so after an app restart it counts from the first mirrored
@@ -33,6 +42,7 @@ export interface AppState {
 
 export const LANGUAGE_STORAGE_KEY = 'openrung.language';
 export const HOME_VIEW_MODE_STORAGE_KEY = 'openrung.homeViewMode';
+export const SPLIT_TUNNEL_STORAGE_KEY = 'openrung.splitTunnel';
 
 const INITIAL_NATIVE_STATE: NativeVpnState = {
   status: 'disconnected',
@@ -40,6 +50,13 @@ const INITIAL_NATIVE_STATE: NativeVpnState = {
   lastError: null,
   logLines: [],
   recents: [],
+};
+
+const INITIAL_SPLIT_TUNNEL: SplitTunnelState = {
+  enabled: false,
+  bypassLan: true,
+  bypassCountries: [],
+  excludedApps: [],
 };
 
 function initialState(): AppState {
@@ -50,6 +67,7 @@ function initialState(): AppState {
     availableRegions: [],
     languageTag: '',
     homeViewMode: 'map',
+    splitTunnel: INITIAL_SPLIT_TUNNEL,
     connectedAtMs: null,
     update: INITIAL_UPDATE_UI,
   };
@@ -182,13 +200,153 @@ export async function hydrateHomeViewMode(): Promise<void> {
   }
 }
 
+/**
+ * Debounce for the native split-tunnel push: rapid toggle flips collapse into a single
+ * setSplitTunnelConfig call, so a connected tunnel reapplies (tear down + reconnect) once.
+ */
+const SPLIT_TUNNEL_PUSH_DEBOUNCE_MS = 1200;
+
+let splitTunnelPushTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Serializes the contract §3 SplitTunnelConfig JSON with the stable key order the native
+ * stores rely on for their skip-reapply string comparison:
+ * version, enabled, bypass_lan, bypass_countries, excluded_packages.
+ */
+function splitTunnelConfigJson(split: SplitTunnelState): string {
+  return JSON.stringify({
+    version: 1,
+    enabled: split.enabled,
+    bypass_lan: split.bypassLan,
+    bypass_countries: split.bypassCountries,
+    excluded_packages: split.excludedApps,
+  });
+}
+
+function pushSplitTunnelToNative(): Promise<void> {
+  // Best-effort, like the AsyncStorage writes: a failing bridge push must never break the UI.
+  // The try/catch also guards the stale-APK/fresh-JS case — a native binary built before this
+  // feature has no setSplitTunnelConfig method, so the call throws a synchronous TypeError the
+  // trailing .catch would never see; a missing/invalid native config just degrades to full-tunnel
+  // behavior.
+  try {
+    return Promise.resolve(
+      OpenRungVpn.setSplitTunnelConfig(splitTunnelConfigJson(state.splitTunnel)),
+    ).catch(() => {});
+  } catch {
+    return Promise.resolve();
+  }
+}
+
+function scheduleSplitTunnelPush(): void {
+  if (splitTunnelPushTimer != null) {
+    clearTimeout(splitTunnelPushTimer);
+  }
+  splitTunnelPushTimer = setTimeout(() => {
+    splitTunnelPushTimer = null;
+    // Fire-and-forget: pushSplitTunnelToNative resolves an already-caught promise, never rejects.
+    pushSplitTunnelToNative();
+  }, SPLIT_TUNNEL_PUSH_DEBOUNCE_MS);
+}
+
+/**
+ * Fires any pending debounced split-tunnel push immediately and resolves once native has
+ * persisted it. Called right before a connect so the service reads the latest config in its
+ * per-connect snapshot — otherwise a change made within the debounce window just before tapping
+ * Connect would only take effect on the following connect. A no-op when nothing is pending.
+ */
+export async function flushSplitTunnelPush(): Promise<void> {
+  if (splitTunnelPushTimer == null) {
+    return;
+  }
+  clearTimeout(splitTunnelPushTimer);
+  splitTunnelPushTimer = null;
+  await pushSplitTunnelToNative();
+}
+
+/**
+ * Merges a split-tunnel patch into the state, persists it to AsyncStorage, and pushes the
+ * contract §3 config JSON to the native store (debounced).
+ */
+export function setSplitTunnel(patch: Partial<SplitTunnelState>): void {
+  const splitTunnel = { ...state.splitTunnel, ...patch };
+  setState({ ...state, splitTunnel });
+  AsyncStorage.setItem(SPLIT_TUNNEL_STORAGE_KEY, JSON.stringify(splitTunnel)).catch(() => {
+    // Persistence is best-effort, same as the language selection.
+  });
+  scheduleSplitTunnelPush();
+}
+
+/** Validates a persisted SplitTunnelState shape; null on anything malformed. */
+function parsePersistedSplitTunnel(raw: string): SplitTunnelState | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== 'object' || parsed == null) {
+    return null;
+  }
+  const candidate = parsed as Record<string, unknown>;
+  const { enabled, bypassLan, bypassCountries, excludedApps } = candidate;
+  if (typeof enabled !== 'boolean' || typeof bypassLan !== 'boolean') {
+    return null;
+  }
+  if (!Array.isArray(bypassCountries) || !Array.isArray(excludedApps)) {
+    return null;
+  }
+  const isString = (value: unknown): value is string => typeof value === 'string';
+  return {
+    enabled,
+    bypassLan,
+    // Only the v1-recognized countries survive hydration (unknown codes are dropped).
+    bypassCountries: bypassCountries
+      .filter(isString)
+      .filter(code => code === 'ir' || code === 'cn'),
+    excludedApps: excludedApps.filter(isString),
+  };
+}
+
+/**
+ * Loads the persisted split-tunnel state (called once when the split-tunneling screen mounts),
+ * then issues ONE debounced push to native so its store stays in sync after a reinstall or
+ * backup restore — the native side's string comparison makes it a no-op otherwise.
+ */
+export async function hydrateSplitTunnel(): Promise<void> {
+  try {
+    const persisted = await AsyncStorage.getItem(SPLIT_TUNNEL_STORAGE_KEY);
+    const parsed = persisted != null ? parsePersistedSplitTunnel(persisted) : null;
+    if (parsed == null) {
+      // Nothing authoritative persisted (fresh install, or unreadable/garbage value): the native
+      // store is likewise empty and there is nothing to sync. Pushing the pristine default here
+      // would be a wasted bridge call — and, worse, could ask a native store that already holds a
+      // real config to go disabled. Leave both sides as-is; the defaults are full-tunnel behavior.
+      return;
+    }
+    if (JSON.stringify(parsed) !== JSON.stringify(state.splitTunnel)) {
+      setState({ ...state, splitTunnel: parsed });
+    }
+    // Sync native from RN's persisted truth (e.g. after a reinstall/backup restore where the
+    // native store was cleared); the native effective-config comparison makes this a no-op when
+    // the two already agree, so it never bounces a live tunnel.
+    scheduleSplitTunnelPush();
+  } catch {
+    // Best-effort: keep the in-memory state (defaults degrade to full-tunnel behavior).
+  }
+}
+
 /** Mirrors the derived update-check UI state into the store (called by state/updateCheck.ts). */
 export function applyUpdateUiState(update: UpdateUiState): void {
   setState({ ...state, update });
 }
 
-/** Test-only: resets the store to its initial state. */
+/** Test-only: resets the store to its initial state (and cancels any pending native push). */
 export function resetStoreForTests(): void {
   directoryGeneration++;
+  if (splitTunnelPushTimer != null) {
+    clearTimeout(splitTunnelPushTimer);
+    splitTunnelPushTimer = null;
+  }
   state = initialState();
 }

@@ -120,6 +120,31 @@ export const en = {
   telemetryCountriesLabel: 'countries',
   telemetryUptimeLabel: 'uptime',
 
+  // --- Split tunneling (settings row + screen + Android app picker) ---
+  splitTunnelSettingTitle: 'Split tunneling',
+  splitTunnelSettingSubtitleOn: 'On — selected traffic bypasses the relay.',
+  splitTunnelSettingSubtitleOff: 'Off — all traffic goes through the relay.',
+  splitTunnelHeader: 'Split tunneling',
+  splitTunnelMasterTitle: 'Split tunneling',
+  splitTunnelMasterSubtitle: 'Send selected traffic outside the relay tunnel.',
+  splitTunnelBypassHeader: 'Bypass',
+  splitTunnelLanTitle: 'Local network',
+  splitTunnelLanSubtitle: 'Reach printers, TVs and other LAN devices directly.',
+  splitTunnelIranTitle: 'Iranian sites & apps',
+  splitTunnelIranSubtitle: 'Route Iranian services directly, at full speed.',
+  splitTunnelChinaTitle: 'Chinese sites & apps',
+  splitTunnelChinaSubtitle: 'Route Chinese services directly, at full speed.',
+  splitTunnelAppsHeader: 'Apps',
+  splitTunnelAppsTitle: 'Bypassed apps',
+  splitTunnelAppsSubtitle: (count: number) =>
+    count === 1 ? '1 app skips the VPN.' : `${count} apps skip the VPN.`,
+  splitTunnelAppPickerTitle: 'Bypassed apps',
+  splitTunnelAppPickerLoading: 'loading installed apps…',
+  splitTunnelAppPickerEmpty: 'no launchable apps found.',
+  splitTunnelAppPickerClose: 'CLOSE',
+  splitTunnelApplyHint:
+    'changes apply immediately; the tunnel reconnects for a few seconds.',
+
   // --- In-app update check (manifest banner / blocking screen / broadcast notice) ---
   updateRequiredTitle: 'Update required',
   updateRequiredBody:

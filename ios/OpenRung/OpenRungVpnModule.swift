@@ -20,6 +20,11 @@ final class OpenRungVpnModule: RCTEventEmitter {
     private var recentRegions: [RecentNode] = []
     private var hasListeners = false
     private var vpnStatusObserver: NSObjectProtocol?
+    /// Bumped by every explicit connect/disconnect and by a split-tunnel reapply. The reapply
+    /// dance stops the tunnel and restarts it after a 350 ms delay; it captures this value before
+    /// sleeping and aborts the restart if a newer command (e.g. the user tapping Disconnect)
+    /// arrived meanwhile — so a settings reapply never resurrects a tunnel the user just stopped.
+    private var controlEpoch = 0
 
     override init() {
         super.init()
@@ -98,6 +103,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
         rejecter reject: @escaping RCTPromiseRejectBlock
     ) {
         Task { @MainActor in
+            self.controlEpoch += 1
             let normalizedCountry = Self.normalizedCountryCode(targetCountry)
             let normalizedRelayID = targetRelayId?.trimmingCharacters(in: .whitespacesAndNewlines)
             let shouldSwitchRelay = self.status.isConnected || self.status.isWorking
@@ -135,6 +141,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
     @objc(disconnect:rejecter:)
     func disconnect(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
         Task { @MainActor in
+            self.controlEpoch += 1
             self.manager?.connection.stopVPNTunnel()
             self.refreshVPNStatus()
             resolve(nil)
@@ -145,6 +152,64 @@ final class OpenRungVpnModule: RCTEventEmitter {
     func getState(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
         Task { @MainActor in
             resolve(self.statePayload())
+        }
+    }
+
+    /// Persists the split-tunnel config JSON in the app-group defaults (contract §3). When the
+    /// payload actually changed AND the tunnel is up, reapplies it with the same relay-switch
+    /// dance `connect` uses (stop → 350 ms → start; providerConfiguration already carries the last
+    /// targets, so no reconfigure is needed). Resolves after persistence + reapply dispatch — not
+    /// reapply completion — matching Android's ACTION_REAPPLY intent semantics.
+    @objc(setSplitTunnelConfig:resolver:rejecter:)
+    func setSplitTunnelConfig(
+        _ configJson: String,
+        resolver resolve: @escaping RCTPromiseResolveBlock,
+        rejecter reject: @escaping RCTPromiseRejectBlock
+    ) {
+        Task { @MainActor in
+            guard let defaults = UserDefaults(suiteName: AppConfig.appGroupIdentifier) else {
+                resolve(nil)
+                return
+            }
+            let stored = defaults.string(forKey: AppConfig.splitTunnelConfigDefaultsKey)
+            // Persist the raw string always, but only reapply when the EFFECTIVE config changed:
+            // a first push of the default disabled config, or any change that nets to the same
+            // emitted sing-box config, must never bounce a live tunnel (contract §1). iOS ignores
+            // excluded_packages entirely (no OS-level per-app exclusion), so a packages-only change
+            // is not an effective change here.
+            let effectiveChanged = SplitTunnelConfig.effectiveSignature(ofRawJSON: stored)
+                != SplitTunnelConfig.effectiveSignature(ofRawJSON: configJson)
+            if stored != configJson {
+                defaults.set(configJson, forKey: AppConfig.splitTunnelConfigDefaultsKey)
+            }
+            if effectiveChanged,
+               self.status == .connected || self.status == .connecting,
+               Self.canUseNetworkExtension,
+               let manager = self.manager {
+                self.controlEpoch += 1
+                let reapplyEpoch = self.controlEpoch
+                Task { @MainActor in
+                    manager.connection.stopVPNTunnel()
+                    self.refreshVPNStatus()
+                    try? await Task.sleep(nanoseconds: 350_000_000)
+                    // A connect/disconnect during the sleep bumps controlEpoch; if so, that command
+                    // now owns the tunnel — don't resurrect it against the user's explicit action.
+                    guard self.controlEpoch == reapplyEpoch else {
+                        self.refreshVPNStatus()
+                        return
+                    }
+                    do {
+                        try manager.connection.startVPNTunnel()
+                    } catch {
+                        self.lastError = AppError.message(for: error)
+                        self.status = .failed
+                        self.emitStateChanged()
+                        return
+                    }
+                    self.refreshVPNStatus()
+                }
+            }
+            resolve(nil)
         }
     }
 

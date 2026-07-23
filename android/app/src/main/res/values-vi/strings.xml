@@ -15,6 +15,7 @@
     <string name="log_broker_returned">broker trả về %1$d relay; %2$d dùng được</string>
     <string name="log_trying_relay">đang thử relay %1$s tại %2$s:%3$d</string>
     <string name="log_checking_relay_reachability">đang kiểm tra khả năng truy cập TCP của relay</string>
+    <string name="log_split_ruleset_missing">thiếu bộ quy tắc chia đường hầm cho %1$s; lưu lượng đó vẫn đi qua đường hầm</string>
     <string name="log_relay_failed">relay %1$s thất bại: %2$s</string>
     <string name="log_error_prefix">lỗi: %1$s</string>
     <string name="error_no_usable_relay">Không có relay thoát trực tiếp VLESS Reality Vision nào dùng được.</string>

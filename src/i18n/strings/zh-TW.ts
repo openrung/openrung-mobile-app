@@ -124,6 +124,29 @@ export const zhTW: Partial<Strings> = {
   aboutFootnote:
     'OpenRung 是自由軟體（GPL-3.0-or-later）。由志願者打造，獻給每一個人。',
 
+  // --- Split tunneling (settings row + screen + Android app picker) ---
+  splitTunnelSettingTitle: '分流',
+  splitTunnelSettingSubtitleOn: '已開啟 — 選定的流量不經過中繼。',
+  splitTunnelSettingSubtitleOff: '已關閉 — 所有流量都經過中繼。',
+  splitTunnelHeader: '分流',
+  splitTunnelMasterTitle: '分流',
+  splitTunnelMasterSubtitle: '讓選定的流量繞過中繼通道。',
+  splitTunnelBypassHeader: '繞行',
+  splitTunnelLanTitle: '區域網路',
+  splitTunnelLanSubtitle: '直接連線印表機、電視等區域網路裝置。',
+  splitTunnelIranTitle: '伊朗網站與應用程式',
+  splitTunnelIranSubtitle: '將伊朗服務直連，享有全速體驗。',
+  splitTunnelChinaTitle: '中國網站與應用程式',
+  splitTunnelChinaSubtitle: '將中國服務直連，享有全速體驗。',
+  splitTunnelAppsHeader: '應用程式',
+  splitTunnelAppsTitle: '繞行的應用程式',
+  splitTunnelAppsSubtitle: (count: number) => `${count} 個應用程式不走 VPN。`,
+  splitTunnelAppPickerTitle: '繞行的應用程式',
+  splitTunnelAppPickerLoading: '正在載入已安裝的應用程式…',
+  splitTunnelAppPickerEmpty: '找不到可啟動的應用程式。',
+  splitTunnelAppPickerClose: '關閉',
+  splitTunnelApplyHint: '變更會立即生效；通道將重新連線幾秒鐘。',
+
   // --- In-app update check (manifest banner / blocking screen / broadcast notice) ---
   updateRequiredTitle: '需要更新',
   updateRequiredBody:

@@ -1,7 +1,8 @@
 /**
  * refreshDirectory no-op semantics (production OpenRungStatusStore.refreshDirectory):
  * no-op while a load is in flight or after a successful NON-EMPTY load, unless forced.
- * Also covers the persisted homeViewMode preference (map/list home presentation).
+ * Also covers the persisted homeViewMode preference (map/list home presentation) and the
+ * splitTunnel slice (persisted state + the debounced setSplitTunnelConfig push to native).
  */
 jest.mock('@react-native-async-storage/async-storage', () => {
   const storage = new Map<string, string>();
@@ -19,18 +20,30 @@ jest.mock('@react-native-async-storage/async-storage', () => {
   };
 });
 
+// The store pushes split-tunnel configs through the OpenRungVpn bridge; the mock keeps the
+// suite off the scripted simulator and lets the push payloads be asserted verbatim.
+jest.mock('../../src/native/OpenRungVpn', () => ({
+  OpenRungVpn: {
+    setSplitTunnelConfig: jest.fn(async () => {}),
+  },
+}));
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { AppConfig } from '../../src/config';
+import { OpenRungVpn } from '../../src/native/OpenRungVpn';
 import { setRelaySigningKeysForTests } from '../../src/net/brokerClient';
 import {
   HOME_VIEW_MODE_STORAGE_KEY,
+  SPLIT_TUNNEL_STORAGE_KEY,
   applyNativeState,
   getSnapshot,
   hydrateHomeViewMode,
+  hydrateSplitTunnel,
   refreshDirectory,
   resetStoreForTests,
   setHomeViewMode,
+  setSplitTunnel,
 } from '../../src/state/store';
 import type { NativeVpnState } from '../../src/native/types';
 import { TEST_SIGNING_KEY, signedApiBody, signedResponse } from '../helpers/signing';
@@ -196,6 +209,129 @@ describe('homeViewMode', () => {
     await AsyncStorage.setItem(HOME_VIEW_MODE_STORAGE_KEY, 'globe');
     await hydrateHomeViewMode();
     expect(getSnapshot().homeViewMode).toBe('map');
+  });
+});
+
+describe('splitTunnel', () => {
+  const mockSetSplitTunnelConfig = OpenRungVpn.setSplitTunnelConfig as jest.Mock;
+
+  const DEFAULT_SPLIT_TUNNEL = {
+    enabled: false,
+    bypassLan: true,
+    bypassCountries: [],
+    excludedApps: [],
+  };
+
+  beforeEach(async () => {
+    await AsyncStorage.removeItem(SPLIT_TUNNEL_STORAGE_KEY);
+    mockSetSplitTunnelConfig.mockClear();
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    resetStoreForTests(); // cancels any pending debounced push before real timers return
+    jest.useRealTimers();
+  });
+
+  it('defaults to disabled with LAN bypass on', () => {
+    expect(getSnapshot().splitTunnel).toEqual(DEFAULT_SPLIT_TUNNEL);
+  });
+
+  it('setSplitTunnel merges, persists, and pushes the contract JSON after the debounce', async () => {
+    setSplitTunnel({ enabled: true, bypassCountries: ['ir'] });
+    expect(getSnapshot().splitTunnel).toEqual({
+      enabled: true,
+      bypassLan: true,
+      bypassCountries: ['ir'],
+      excludedApps: [],
+    });
+    expect(await AsyncStorage.getItem(SPLIT_TUNNEL_STORAGE_KEY)).toBe(
+      JSON.stringify(getSnapshot().splitTunnel),
+    );
+
+    // The native push waits out the debounce, then sends the §1 JSON with the stable
+    // key order the native stores compare against verbatim.
+    expect(mockSetSplitTunnelConfig).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(1200);
+    expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
+    expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
+      '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["ir"],"excluded_packages":[]}',
+    );
+  });
+
+  it('collapses rapid changes into a single debounced push of the final state', () => {
+    setSplitTunnel({ enabled: true });
+    jest.advanceTimersByTime(600);
+    setSplitTunnel({ bypassLan: false });
+    jest.advanceTimersByTime(1199);
+    expect(mockSetSplitTunnelConfig).not.toHaveBeenCalled();
+
+    jest.advanceTimersByTime(1);
+    expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
+    expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
+      '{"version":1,"enabled":true,"bypass_lan":false,"bypass_countries":[],"excluded_packages":[]}',
+    );
+  });
+
+  it('hydrates a persisted state and re-syncs native with one debounced push', async () => {
+    await AsyncStorage.setItem(
+      SPLIT_TUNNEL_STORAGE_KEY,
+      JSON.stringify({
+        enabled: true,
+        bypassLan: false,
+        bypassCountries: ['cn'],
+        excludedApps: ['com.tencent.mm'],
+      }),
+    );
+    await hydrateSplitTunnel();
+    expect(getSnapshot().splitTunnel).toEqual({
+      enabled: true,
+      bypassLan: false,
+      bypassCountries: ['cn'],
+      excludedApps: ['com.tencent.mm'],
+    });
+
+    jest.advanceTimersByTime(1200);
+    expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
+    expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
+      '{"version":1,"enabled":true,"bypass_lan":false,"bypass_countries":["cn"],"excluded_packages":["com.tencent.mm"]}',
+    );
+  });
+
+  it('does not push to native when nothing is persisted (no live-tunnel bounce on first open)', async () => {
+    // Fresh install / first launch after the feature ships: AsyncStorage is empty, the native
+    // store is likewise empty, and there is nothing to sync — so merely opening the screen must
+    // not push a config (which could otherwise bounce a connected tunnel for a no-op change).
+    await hydrateSplitTunnel();
+    jest.advanceTimersByTime(1200);
+    expect(mockSetSplitTunnelConfig).not.toHaveBeenCalled();
+  });
+
+  it('filters unrecognized countries out of a hydrated selection', async () => {
+    await AsyncStorage.setItem(
+      SPLIT_TUNNEL_STORAGE_KEY,
+      JSON.stringify({
+        enabled: true,
+        bypassLan: true,
+        bypassCountries: ['us', 'ir', 7],
+        excludedApps: [],
+      }),
+    );
+    await hydrateSplitTunnel();
+    expect(getSnapshot().splitTunnel.bypassCountries).toEqual(['ir']);
+  });
+
+  it('ignores garbage persisted values (fail-open: defaults stay in place)', async () => {
+    await AsyncStorage.setItem(SPLIT_TUNNEL_STORAGE_KEY, 'not json');
+    await hydrateSplitTunnel();
+    expect(getSnapshot().splitTunnel).toEqual(DEFAULT_SPLIT_TUNNEL);
+
+    await AsyncStorage.setItem(
+      SPLIT_TUNNEL_STORAGE_KEY,
+      JSON.stringify({ enabled: 'yes', bypassLan: true }),
+    );
+    await hydrateSplitTunnel();
+    expect(getSnapshot().splitTunnel).toEqual(DEFAULT_SPLIT_TUNNEL);
   });
 });
 

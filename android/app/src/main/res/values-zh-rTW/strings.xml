@@ -15,6 +15,7 @@
     <string name="log_broker_returned">broker 回傳了 %1$d 個中繼；%2$d 個可用</string>
     <string name="log_trying_relay">正在嘗試中繼 %1$s，位址 %2$s:%3$d</string>
     <string name="log_checking_relay_reachability">正在檢查中繼 TCP 可達性</string>
+    <string name="log_split_ruleset_missing">缺少 %1$s 的分流規則集；相關流量仍走通道</string>
     <string name="log_relay_failed">中繼 %1$s 失敗：%2$s</string>
     <string name="log_error_prefix">錯誤：%1$s</string>
     <string name="error_no_usable_relay">沒有可用的 VLESS Reality Vision 直連出口中繼。</string>

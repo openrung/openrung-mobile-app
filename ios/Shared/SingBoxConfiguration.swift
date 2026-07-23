@@ -9,6 +9,10 @@ public struct SingBoxConfiguration: Equatable, Sendable {
     /// Optional loopback endpoint owned by a native access transport such as wsscore.
     public let bridgeHost: String?
     public let bridgePort: Int?
+    /// Validated split-tunnel rules, or nil for full-tunnel behavior (byte-identical output to a
+    /// build without split tunneling). Mirrors the Kotlin generator, except iOS NEVER emits
+    /// `exclude_package` — per-app exclusion is Android-only.
+    public let splitTunnel: SplitTunnelRules?
 
     public init(
         relay: RelayDescriptor,
@@ -17,7 +21,8 @@ public struct SingBoxConfiguration: Equatable, Sendable {
         dnsServers: [String] = ["1.1.1.1", "8.8.8.8"],
         mtu: Int = 1400,
         bridgeHost: String? = nil,
-        bridgePort: Int? = nil
+        bridgePort: Int? = nil,
+        splitTunnel: SplitTunnelRules? = nil
     ) {
         self.relay = relay
         self.tunnelIPv4Address = tunnelIPv4Address
@@ -26,6 +31,7 @@ public struct SingBoxConfiguration: Equatable, Sendable {
         self.mtu = mtu
         self.bridgeHost = bridgeHost
         self.bridgePort = bridgePort
+        self.splitTunnel = splitTunnel
     }
 
     public func encodedJSON() throws -> Data {
@@ -63,22 +69,94 @@ public struct SingBoxConfiguration: Equatable, Sendable {
         let outboundHost = bridgeHost ?? relay.publicHost
         let outboundPort = bridgePort ?? relay.publicPort
 
+        // Split-tunnel emission (spec §2): countries were already validated (files on disk) and
+        // normalized to ir,cn order by the caller; unknown codes are dropped here as a last resort.
+        let bypassCountries = (splitTunnel?.bypassCountries ?? []).compactMap(SplitTunnelCountry.forCode)
+        let bypassLan = splitTunnel?.bypassLan == true
+
+        var dnsServerObjects: [[String: Any]] = dnsServers.enumerated().map { index, server in
+            [
+                "tag": "dns-\(index)",
+                "type": "tcp",
+                "server": server,
+                "detour": "proxy"
+            ]
+        }
+        for country in bypassCountries {
+            // Bypassed domains resolve through the country's public resolver over the direct path.
+            dnsServerObjects.append([
+                "tag": "dns-direct-\(country.code)",
+                "type": "udp",
+                "server": country.directResolver,
+                "detour": "direct"
+            ])
+        }
+        var dns: [String: Any] = [
+            "servers": dnsServerObjects,
+            "final": "dns-0"
+        ]
+        if bypassCountries.isEmpty == false {
+            dns["rules"] = bypassCountries.map { country in
+                [
+                    "rule_set": [country.geositeTag],
+                    "server": "dns-direct-\(country.code)"
+                ] as [String: Any]
+            }
+        }
+
+        var routeRules: [[String: Any]] = [
+            [
+                "protocol": "dns",
+                "action": "hijack-dns"
+            ]
+        ]
+        if bypassCountries.isEmpty == false {
+            // Domain rule sets need the sniffed hostname on raw connections.
+            routeRules.append(["action": "sniff"])
+        }
+        if bypassLan {
+            routeRules.append([
+                "ip_is_private": true,
+                "outbound": "direct"
+            ])
+        }
+        for country in bypassCountries {
+            routeRules.append([
+                "rule_set": [country.geositeTag, country.geoipTag],
+                "outbound": "direct"
+            ])
+        }
+        var route: [String: Any] = [
+            "auto_detect_interface": true,
+            "default_domain_resolver": "dns-0",
+            "rules": routeRules,
+            "final": "proxy"
+        ]
+        if bypassCountries.isEmpty == false, let ruleSetDirectory = splitTunnel?.ruleSetDirectory {
+            route["rule_set"] = bypassCountries.flatMap { country in
+                [
+                    [
+                        "type": "local",
+                        "tag": country.geositeTag,
+                        "format": "binary",
+                        "path": "\(ruleSetDirectory)/\(country.geositeTag).srs"
+                    ],
+                    [
+                        "type": "local",
+                        "tag": country.geoipTag,
+                        "format": "binary",
+                        "path": "\(ruleSetDirectory)/\(country.geoipTag).srs"
+                    ]
+                ] as [[String: Any]]
+            }
+        }
+
         return [
             "log": [
                 "level": "info",
                 "timestamp": true
             ],
-            "dns": [
-                "servers": dnsServers.enumerated().map { index, server in
-                    [
-                        "tag": "dns-\(index)",
-                        "type": "tcp",
-                        "server": server,
-                        "detour": "proxy"
-                    ]
-                },
-                "final": "dns-0"
-            ],
+            "dns": dns,
             "inbounds": [
                 tunInbound
             ],
@@ -115,17 +193,7 @@ public struct SingBoxConfiguration: Equatable, Sendable {
                     "tag": "block"
                 ]
             ],
-            "route": [
-                "auto_detect_interface": true,
-                "default_domain_resolver": "dns-0",
-                "rules": [
-                    [
-                        "protocol": "dns",
-                        "action": "hijack-dns"
-                    ]
-                ],
-                "final": "proxy"
-            ],
+            "route": route,
             "experimental": [
                 // No external_controller is set, so nothing listens; an empty clash_api
                 // block just turns on sing-box's traffic accounting, which feeds the

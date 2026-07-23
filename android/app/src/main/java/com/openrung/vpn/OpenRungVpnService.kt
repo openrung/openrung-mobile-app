@@ -32,6 +32,7 @@ import com.openrung.net.PhysicalNetworkEpochMonitor
 import com.openrung.net.RelayRanker
 import com.openrung.net.RelayReachability
 import com.openrung.net.SingBoxConfiguration
+import com.openrung.net.SplitTunnelRules
 import com.openrung.net.WssClient
 import com.openrung.net.WssSession
 import com.openrung.net.WssTicketClient
@@ -56,6 +57,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
+import java.io.File
 import java.io.IOException
 import java.net.InetAddress
 import java.net.URL
@@ -82,6 +84,7 @@ class OpenRungVpnService : VpnService() {
     private var activeRelayId: String? = null
     private var requestedTargetCountry: String? = null
     private var requestedTargetRelayId: String? = null
+    private var splitTunnelRules: SplitTunnelRules? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -109,6 +112,48 @@ class OpenRungVpnService : VpnService() {
                 punchRecoveryCircuitBreaker.reset()
                 connectJob = serviceScope.launch {
                     connect(brokerUrl.ifBlank { AppConfig.DEFAULT_BROKER_URL }, targetCountry, targetRelayId)
+                }
+            }
+            ACTION_REAPPLY -> {
+                // Split-tunnel config changed: reconnect to the same stored target so the new
+                // config takes effect (relay-switch mechanics). Only a fully CONNECTED tunnel with
+                // a live engine in THIS instance reapplies:
+                //  - CONNECTING is skipped on purpose. A connect/recovery in flight re-reads the
+                //    persisted config on its next connect() pass, so a settings change never needs
+                //    to clobber a path-loss recovery that is parked waiting for the physical
+                //    network (doing so would turn a self-healing session into a hard FAILED).
+                //  - Requiring a live epoch ignores a stale persisted CONNECTED/CONNECTING on a
+                //    freshly (re)started service, so a toggle never starts an unsolicited tunnel.
+                // A live epoch includes an in-flight path-loss recovery: recovery runs INSIDE
+                // punchMonitorJob/wssMonitorJob (which call connect() directly, so connectJob is
+                // already complete and engine is momentarily null while it waits for the network).
+                // Missing those jobs here would let the stopSelf branch below tear down a tunnel
+                // that was about to self-heal.
+                val status = OpenRungStatusStore.uiState.value.status
+                val hasLiveEpoch = engine != null ||
+                    connectJob?.isActive == true ||
+                    punchMonitorJob?.isActive == true ||
+                    wssMonitorJob?.isActive == true
+                if (status == ConnectionStatus.CONNECTED && hasLiveEpoch) {
+                    heartbeatJob?.cancel()
+                    engineMonitorJob?.cancel()
+                    engineMonitorJob = null
+                    punchMonitorJob?.cancel()
+                    punchMonitorJob = null
+                    wssMonitorJob?.cancel()
+                    wssMonitorJob = null
+                    connectJob?.cancel()
+                    punchRecoveryCircuitBreaker.reset()
+                    val storedBrokerUrl = brokerUrl
+                    val storedTargetCountry = requestedTargetCountry
+                    val storedTargetRelayId = requestedTargetRelayId
+                    connectJob = serviceScope.launch {
+                        connect(storedBrokerUrl, storedTargetCountry, storedTargetRelayId)
+                    }
+                } else if (!hasLiveEpoch) {
+                    // Nothing to reapply and no active tunnel: don't leave an idle START_STICKY
+                    // service running just because a reapply intent started it.
+                    stopSelf(startId)
                 }
             }
             ACTION_DISCONNECT -> disconnect()
@@ -142,6 +187,10 @@ class OpenRungVpnService : VpnService() {
         requestedTargetRelayId = targetRelayId
         // Tear down any existing tunnel first so tapping a different location cleanly switches relays.
         cleanupActiveTunnel()
+        // One consistent split-tunnel snapshot per connect attempt: every configuration built in
+        // this epoch (preflight, punch, direct, WSS) sees the same rules. Recovery reconnects
+        // re-enter connect() and naturally re-read the persisted config.
+        splitTunnelRules = withContext(Dispatchers.IO) { currentSplitTunnelRules() }
         // Telemetry/heartbeat go DIRECT to the origin IP, not the Cloudflare-fronted discovery broker,
         // so high-frequency heartbeats don't burn the Workers free-tier quota (see AppConfig).
         val telemetrySession = TelemetryManager.beginSession(applicationContext, AppConfig.TELEMETRY_BROKER_URL)
@@ -426,6 +475,7 @@ class OpenRungVpnService : VpnService() {
                         relay = relay,
                         bridgeHost = punched.bridgeHost,
                         bridgePort = punched.bridgePort,
+                        splitTunnel = splitTunnelRules,
                     ),
                     tcpLatencyMs = tcpLatencyMs,
                     attempt = attempt,
@@ -455,7 +505,7 @@ class OpenRungVpnService : VpnService() {
 
         return startTunnel(
             relay = relay,
-            config = SingBoxConfiguration(relay = relay),
+            config = SingBoxConfiguration(relay = relay, splitTunnel = splitTunnelRules),
             tcpLatencyMs = tcpLatencyMs,
             attempt = attempt,
             accessTransport = ACCESS_TRANSPORT_DIRECT,
@@ -481,11 +531,12 @@ class OpenRungVpnService : VpnService() {
             // pure parse/construct/close preflight; it starts no service, opens no TUN and performs
             // no network I/O. The actual adapter port is immaterial to graph validation.
             listOf(
-                SingBoxConfiguration(relay).encodedJsonString(),
+                SingBoxConfiguration(relay, splitTunnel = splitTunnelRules).encodedJsonString(),
                 SingBoxConfiguration(
                     relay = relay,
                     bridgeHost = "127.0.0.1",
                     bridgePort = 1,
+                    splitTunnel = splitTunnelRules,
                 ).encodedJsonString(),
             ).forEach(ProxyEngineFactory::preflight)
         } catch (error: Throwable) {
@@ -576,6 +627,7 @@ class OpenRungVpnService : VpnService() {
                 relay = relay,
                 bridgeHost = result.bridgeHost,
                 bridgePort = result.bridgePort,
+                splitTunnel = splitTunnelRules,
             ),
             tcpLatencyMs = null,
             attempt = attempt,
@@ -806,6 +858,77 @@ class OpenRungVpnService : VpnService() {
             accessTransport = accessTransport,
             frontId = frontId,
         )
+    }
+
+    /**
+     * Builds this connect attempt's split-tunnel rules from the persisted config (fail-open,
+     * CONTRACT §1): an absent/invalid/disabled config returns null, and a country whose staged
+     * rule-set files are missing is dropped with a status log line — split tunneling degrades
+     * toward the full tunnel, it never blocks connect.
+     */
+    private fun currentSplitTunnelRules(): SplitTunnelRules? {
+        val config = SplitTunnelStore.read(applicationContext) ?: return null
+        if (!config.enabled) return null
+        val ruleSetDirectory = stageRuleSetAssets()
+        // Normalize to the canonical ir,cn order and keep only countries whose BOTH .srs files
+        // made it to disk (the generator's contract).
+        val bypassCountries = SplitTunnelRules.SUPPORTED_COUNTRIES.filter { country ->
+            if (country !in config.bypassCountries) return@filter false
+            val staged = File(ruleSetDirectory, "geosite-$country.srs").isFile &&
+                File(ruleSetDirectory, "geoip-$country.srs").isFile
+            if (!staged) {
+                OpenRungStatusStore.appendLog(getString(R.string.log_split_ruleset_missing, country))
+            }
+            staged
+        }
+        // Drop packages that are no longer installed: VpnService.Builder.addDisallowedApplication
+        // throws NameNotFoundException for an unknown package, which would abort every connect
+        // attempt (fail-open violation). A stale entry degrades to full-tunnel for that app.
+        val excludedPackages = config.excludedPackages.filter { pkg ->
+            runCatching { packageManager.getApplicationInfo(pkg, 0) }.isSuccess
+        }
+        if (!config.bypassLan && bypassCountries.isEmpty() && excludedPackages.isEmpty()) {
+            // Nothing effective: pass null so the emitted configuration stays byte-identical.
+            return null
+        }
+        return SplitTunnelRules(
+            bypassLan = config.bypassLan,
+            bypassCountries = bypassCountries,
+            excludedPackages = excludedPackages,
+            ruleSetDirectory = ruleSetDirectory.absolutePath,
+        )
+    }
+
+    /**
+     * Copies the bundled .srs rule sets from APK assets into libbox's working directory. Always
+     * overwrites — the four files total ~437 KB, so unconditional copies are simple and correct.
+     * Each copy is best-effort; a missing file just drops that country above.
+     */
+    private fun stageRuleSetAssets(): File {
+        val directory = File(filesDir, "libbox/rulesets")
+        directory.mkdirs()
+        SplitTunnelRules.SUPPORTED_COUNTRIES.forEach { country ->
+            listOf("geosite-$country.srs", "geoip-$country.srs").forEach { name ->
+                val destination = File(directory, name)
+                val temp = File(directory, "$name.tmp")
+                val copied = runCatching {
+                    assets.open("rulesets/$name").use { input ->
+                        temp.outputStream().use(input::copyTo)
+                    }
+                }.isSuccess
+                if (copied) {
+                    // Only a fully-copied temp becomes the live file, so a mid-copy IO failure
+                    // (e.g. no disk space) can never leave a truncated .srs that passes the isFile
+                    // gate above and then aborts every connect (CONTRACT §1 fail-open).
+                    destination.delete()
+                    if (!temp.renameTo(destination)) temp.delete()
+                } else {
+                    // Discard the partial temp; any previously staged good copy is left intact.
+                    temp.delete()
+                }
+            }
+        }
+        return directory
     }
 
     /**
@@ -1420,6 +1543,7 @@ class OpenRungVpnService : VpnService() {
     companion object {
         private const val ACTION_CONNECT = "com.openrung.action.CONNECT"
         private const val ACTION_DISCONNECT = "com.openrung.action.DISCONNECT"
+        private const val ACTION_REAPPLY = "com.openrung.action.REAPPLY"
         private const val EXTRA_BROKER_URL = "broker_url"
         private const val EXTRA_TARGET_COUNTRY = "target_country"
         private const val EXTRA_TARGET_RELAY_ID = "target_relay_id"
@@ -1452,6 +1576,11 @@ class OpenRungVpnService : VpnService() {
         fun disconnectIntent(context: Context): Intent =
             Intent(context, OpenRungVpnService::class.java).apply {
                 action = ACTION_DISCONNECT
+            }
+
+        fun reapplyIntent(context: Context): Intent =
+            Intent(context, OpenRungVpnService::class.java).apply {
+                action = ACTION_REAPPLY
             }
     }
 }

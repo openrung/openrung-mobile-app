@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import { AppConfig } from '../config';
 import { OpenRungVpn, subscribeVpnState } from '../native/OpenRungVpn';
-import { applyNativeState, useAppState } from './store';
+import { applyNativeState, flushSplitTunnelPush, useAppState } from './store';
 import type { AppState } from './store';
 
 export interface VpnStateHook {
@@ -58,8 +58,13 @@ export function useVpnState(): VpnStateHook {
   }, []);
 
   const connect = useCallback(
-    (country?: string | null, relayId?: string | null) =>
-      OpenRungVpn.connect(AppConfig.DEFAULT_BROKER_URL, country ?? null, relayId ?? null),
+    async (country?: string | null, relayId?: string | null) => {
+      // Persist any just-changed split-tunnel config before the native connect reads its snapshot,
+      // so a setting flipped moments before tapping Connect takes effect this session. No-op when
+      // no push is pending, so the normal connect path is unaffected.
+      await flushSplitTunnelPush();
+      return OpenRungVpn.connect(AppConfig.DEFAULT_BROKER_URL, country ?? null, relayId ?? null);
+    },
     [],
   );
 

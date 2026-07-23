@@ -33,6 +33,7 @@
     <string name="log_tunnel_engine_stopped">the local tunnel engine stopped unexpectedly; WSS recovery was not attempted</string>
     <string name="log_verifying_internet">verifying internet access through the VPN</string>
     <string name="log_internet_verified">internet access verified in %1$d ms</string>
+    <string name="log_split_ruleset_missing">split tunneling rule set for %1$s is missing; keeping that traffic in the tunnel</string>
     <string name="log_relay_failed">relay %1$s failed: %2$s</string>
     <string name="log_error_prefix">error: %1$s</string>
     <string name="error_no_usable_relay">No usable VLESS Reality Vision direct-exit relay is available.</string>

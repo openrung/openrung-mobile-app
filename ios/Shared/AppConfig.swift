@@ -9,6 +9,9 @@ enum AppConfig {
     static let providerBrokerURLKey = "broker_url"
     static let providerTargetCountryKey = "target_country"
     static let providerTargetRelayIDKey = "target_relay_id"
+    /// App-group defaults key holding the raw split-tunnel config JSON (contract §3): written by
+    /// the app's `setSplitTunnelConfig`, read by the extension via `SplitTunnelConfig.load`.
+    static let splitTunnelConfigDefaultsKey = "split_tunnel_config"
 
     /// Discovery broker (relay-list bootstrap) default, and — since discovery is HTTPS-only — the sole
     /// built-in discovery candidate. Discovery is the censorship-critical path: it runs BEFORE the VPN

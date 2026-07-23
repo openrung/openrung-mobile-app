@@ -17,4 +17,7 @@ RCT_EXTERN_METHOD(getState : (RCTPromiseResolveBlock)resolve rejecter : (RCTProm
 
 RCT_EXTERN_METHOD(getIdentity : (RCTPromiseResolveBlock)resolve rejecter : (RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(setSplitTunnelConfig : (NSString *)configJson resolver : (RCTPromiseResolveBlock)resolve
+                      rejecter : (RCTPromiseRejectBlock)reject)
+
 @end
