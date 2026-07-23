@@ -101,6 +101,64 @@ GOMODCACHE="$module_cache" go mod download "github.com/sagernet/sing-box@$sing_b
 cp -R "$module_source" "$work_dir/source"
 chmod -R u+w "$work_dir/source"
 
+# --- OpenRung app-size trim -------------------------------------------------
+# Drop sing-box features OpenRung never uses (Tailscale, WireGuard, naiveproxy)
+# from the libbox build so their Go trees are not statically linked into the
+# shipped binary. OpenRung emits only vless/direct/block outbounds (see
+# net/SingBoxConfiguration), and each dropped feature has a //go:build !<tag>
+# stub in sing-box include/, so the build still compiles and the protocol just
+# reports "not included" at runtime. This patches ONLY the tag literals in
+# sing-box's own build helper, leaving every other flag it sets (-trimpath,
+# -ldflags "-s -w ... constant.Version=…", -javapkg, -androidapi, the JDK/SDK
+# checks) byte-for-byte identical. Assert-then-replace: if a SINGBOX_VERSION
+# bump reshuffles these exact tag literals the build fails here, forcing the tag
+# set to be re-reviewed rather than silently reverting. Keeps with_gvisor and
+# with_quic for now (see RELEASE.md §2 / the size-trim plan).
+python3 - "$work_dir/source/cmd/internal/build_libbox/main.go" <<'PATCH_TAGS'
+import sys
+
+path = sys.argv[1]
+with open(path, "r", encoding="utf-8") as handle:
+    lines = handle.readlines()
+
+patched_shared = False
+removed_tailscale = False
+out = []
+for line in lines:
+    stripped = line.strip()
+    if stripped.startswith('sharedTags = append(sharedTags, "with_gvisor"'):
+        if '"with_wireguard"' not in stripped or '"with_naive_outbound"' not in stripped:
+            sys.exit(
+                "error: build_libbox sharedTags line changed for this "
+                "SINGBOX_VERSION; re-review OpenRung's libbox tag trim.\nsaw: "
+                + stripped
+            )
+        line = line.replace('"with_wireguard", ', "").replace(
+            '"with_naive_outbound", ', ""
+        )
+        patched_shared = True
+    elif stripped.startswith('sharedTags = append(sharedTags, "with_tailscale"'):
+        removed_tailscale = True
+        continue  # drop the whole Tailscale append line
+    out.append(line)
+
+if not patched_shared or not removed_tailscale:
+    sys.exit(
+        "error: build_libbox tag lines not found for this SINGBOX_VERSION "
+        "(shared=%s tailscale=%s); re-review OpenRung's libbox tag trim."
+        % (patched_shared, removed_tailscale)
+    )
+
+with open(path, "w", encoding="utf-8") as handle:
+    handle.writelines(out)
+
+print(
+    "openrung: trimmed libbox build tags "
+    "(dropped with_tailscale, with_wireguard, with_naive_outbound)"
+)
+PATCH_TAGS
+# ---------------------------------------------------------------------------
+
 # gomobile applications must use a single generated Go runtime. A standalone
 # punchbridge.aar would duplicate go.Seq/go.Universe and its native runtime next
 # to libbox.aar, so merge the bindings (and the sagernet-QUIC session layer)

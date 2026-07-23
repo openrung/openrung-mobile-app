@@ -59,12 +59,20 @@ separate native release inputs. The complete GPL-3.0 text is bundled as
 #### sing-box transitive components (compiled into the apps)
 
 The `libbox` build statically links additional libraries that are therefore
-distributed inside the apps. This list must be completed from the exact build
-(`go-licenses` against the sing-box module); the notable ones include:
+distributed inside the apps. The build scripts trim sing-box's build tags to
+disable the Tailscale and WireGuard protocols and the naive outbound that
+OpenRung never configures (see `RELEASE.md` §2). Those tag changes do **not**
+remove every related package: retained `with_gvisor` code links sing-box's
+Tailscale-backed native-shell helpers (including `wireguard-go`), while retained
+`with_quic` code links the naive inbound/QUIC implementation. The notices below
+therefore reflect the dependencies in the exact trimmed build (`go-licenses`
+against it); the notable ones include:
 
 - `gvisor.dev/gvisor` — Apache-2.0 (ships a NOTICE file that must be reproduced)
 - `github.com/sagernet/quic-go` (SagerNet's sing-box fork of quic-go) — MIT
-- `golang.zx2c4.com/wireguard` (wireguard-go) — MIT
+- `github.com/sagernet/tailscale` (SagerNet's Tailscale fork) — BSD-3-Clause,
+  Copyright (c) 2020 Tailscale Inc & AUTHORS
+- `github.com/sagernet/wireguard-go` — MIT
 - `github.com/refraction-networking/utls` — BSD-3-Clause
 - `github.com/gorilla/websocket` — BSD-2-Clause, Copyright (c) 2013 The
   Gorilla WebSocket Authors

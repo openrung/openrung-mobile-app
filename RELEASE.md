@@ -113,11 +113,52 @@ corresponding build script. For the shared cores, CI hashes the *pins*
 source trees — those live in the `openrung/openrung` repository at the recorded
 versions, so the tagged versions, not the cache key, make the build reproducible.
 
-The Android release build now intentionally targets `android` rather than the
-former `android/arm64` target. Its single AAR must contain `armeabi-v7a`,
-`arm64-v8a`, `x86`, and `x86_64`, matching `reactNativeArchitectures` in
-`android/gradle.properties`; inspect the AAR before release and reject a
-partial-ABI artifact.
+Both build scripts trim sing-box's libbox build tags to the feature set OpenRung
+actually uses before invoking sing-box's `build_libbox`: they drop
+`with_tailscale` (and its `ts_omit_*` companions), `with_wireguard`, and
+`with_naive_outbound`, none of which OpenRung ever emits (it uses only
+vless/direct/block outbounds). `with_utls` (Reality), `with_clash_api` (byte
+accounting), `with_gvisor`, and `with_quic` are kept. The trim is an
+assert-then-replace patch of the tag literals in
+`cmd/internal/build_libbox/main.go`, so a `SINGBOX_VERSION` bump that reshuffles
+those literals fails the build and forces the tag set to be re-reviewed. The tag
+set now materially defines the shipped binary, so it is part of the GPL
+corresponding-source recipe and must stay recorded here.
+
+The Android build targets all four ABIs at the **AAR** layer but ships an
+**arm64-only release APK** — two artifacts, two distinct checks:
+
+- **`libbox.aar` must still contain all four ABIs** (`armeabi-v7a`, `arm64-v8a`,
+  `x86`, `x86_64`), matching `reactNativeArchitectures` in
+  `android/gradle.properties`. Debug/emulator builds link this AAR, so an x86_64
+  emulator needs its slice; inspect the AAR before release and reject a
+  partial-ABI AAR (`unzip -l android/app/libs/libbox.aar | grep '\.so'` must list
+  all four ABIs).
+- **The signed release APK is intentionally arm64-only.** Broker telemetry showed
+  ~0 genuinely 32-bit devices (every device is API ≥ 26 / Android 8.0+, all arm64),
+  so armeabi-v7a is dropped along with the emulator-only x86/x86_64; this APK is a
+  direct download, not a Play split delivery. It takes **two coordinated levers**,
+  because non-arm64 `.so` reach the APK by two paths and `ndk.abiFilters` reliably
+  controls neither:
+  1. `android/app/build.gradle` applies a **release-scoped** `packaging.jniLibs`
+     exclude (via `androidComponents`) that drops the armeabi-v7a/x86/x86_64 slices
+     of the **AAR-prebuilt** libs (the libbox AAR, the MapLibre SDK).
+  2. `.github/workflows/release.yml` builds with
+     **`-PreactNativeArchitectures=arm64-v8a`**, so React Native's own prefab/Hermes
+     cores (`libreactnative.so`, `libhermesvm.so`, `libjsi.so`, `libfbjni.so`,
+     `libc++_shared.so`) never get non-arm64 slices. A manual `assembleRelease`
+     **must pass this flag** or the RN cores ship other ABIs.
+
+  Both are scoped to release, so debug keeps all four ABIs (any emulator still
+  runs). It stays one monolithic universal APK, so offline sharing still accepts it
+  (§4). **Verify** with `unzip -l app-release.apk | grep 'lib/'`: expect
+  `lib/arm64-v8a/` entries only, and **no** `lib/armeabi-v7a/`, `lib/x86/`, or
+  `lib/x86_64/`. (Measured: the tag trim + arm64-only took the release APK from
+  ~360 MB to ~89 MB.)
+
+  Should a genuinely 32-bit-only device ever appear (none in 8 days of telemetry;
+  the app's telemetry has no ABI field, so this was inferred from OS level + model),
+  restore `armeabi-v7a` to both levers.
 
 There is currently **no CI gate that builds or inspects the Apple
 XCFramework**. CI runs the Go binding tests and syntax-checks

@@ -135,6 +135,14 @@ android {
             }
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+            // App-size trim: the RELEASE APK ships arm64-v8a ONLY (see the androidComponents
+            // block after android { } and RELEASE.md §4). Broker telemetry showed ~0
+            // genuinely 32-bit devices — every device is API >= 26 (minSdk) and arm64 — so
+            // armeabi-v7a is dropped too. It takes two levers because non-arm64 .so arrive by
+            // two paths: the packaging exclude drops the AAR-prebuilt ones (libbox, maplibre),
+            // and the release build passes -PreactNativeArchitectures=arm64-v8a to keep React
+            // Native's own prefab/Hermes libs arm64-only. ndk.abiFilters here does neither (it
+            // unions with reactNativeArchitectures and ignores prebuilt AAR .so).
         }
     }
 
@@ -164,6 +172,31 @@ tasks.register("copyOpenRungRuleSets", Copy) {
     into "$buildDir/generated/openrungRuleSets/rulesets"
 }
 preBuild.dependsOn "copyOpenRungRuleSets"
+
+// App-size trim (lever 1 of 2): drop every non-arm64 slice of AAR-PREBUILT native libs
+// (the libbox AAR's jni/, the MapLibre SDK) from the RELEASE apk. arm64-v8a covers every
+// real Android phone this app can install on (minSdk 26 / Android 8.0, 2017 — the 32-bit
+// era predates that; broker telemetry confirmed ~0 genuinely 32-bit devices). armeabi-v7a
+// is 32-bit-only legacy hardware; x86/x86_64 are emulator-only. Shipping any of them to
+// every direct-download user (this app is not on Play — no per-device split delivery) is
+// dead weight. Scoped to the release variant, so debug keeps all four ABIs (from
+// reactNativeArchitectures) and any emulator still runs the engine. Stays ONE monolithic
+// base.apk (no splitSourceDirs), so offline APK sharing still accepts it (see
+// share/InstalledApkShare.kt, RELEASE.md §4).
+//
+// This exclude only reaches libs that flow through jniLibs merging. React Native's own
+// prefab/Hermes cores (libreactnative.so, libhermesvm.so, libjsi.so, libfbjni.so,
+// libc++_shared.so) bypass it — those are lever 2: the release build passes
+// -PreactNativeArchitectures=arm64-v8a so RN never produces their non-arm64 slices (wired
+// into .github/workflows/release.yml; see RELEASE.md §2). ndk.abiFilters was tried and
+// does neither reliably.
+androidComponents {
+    onVariants(selector().withBuildType("release")) { variant ->
+        variant.packaging.jniLibs.excludes.add("**/armeabi-v7a/**")
+        variant.packaging.jniLibs.excludes.add("**/x86/**")
+        variant.packaging.jniLibs.excludes.add("**/x86_64/**")
+    }
+}
 
 // Refuse to *assemble* a release without a real signing key rather than silently
 // producing a debug-signed (forgeable) "release". Runs only when a release output task
