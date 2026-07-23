@@ -206,6 +206,10 @@ describe('refreshUpdateManifest', () => {
     try {
       // Persisted under a clock a year ahead; without the hydrate clamp this would throttle
       // every refresh until wall-clock catches up.
+      mockMemoryStore.set(
+        UPDATE_MANIFEST_STORAGE_KEY,
+        envelopeFor(iosPayload({ latest: '9.9.9' })),
+      );
       mockMemoryStore.set(UPDATE_CHECKED_AT_STORAGE_KEY, String(T0 + 365 * 24 * 3_600_000));
       const fetchMock = mockFetchReturning(envelopeFor(iosPayload({ latest: '9.9.9' })));
 
@@ -218,8 +222,7 @@ describe('refreshUpdateManifest', () => {
       nowSpy.mockReturnValue(T0 + 7 * 3_600_000);
       await refreshUpdateManifest();
       stop();
-      // No verified cache (only checkedAt was seeded) -> survey mode consults all 3 candidates.
-      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(getSnapshot().update.latestVersion).toBe('9.9.9');
     } finally {
       nowSpy.mockRestore();
@@ -253,10 +256,14 @@ describe('startUpdateCheck', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('drops a cached envelope that no longer verifies and keeps running', async () => {
+  it('drops a cached envelope that no longer verifies and refreshes immediately', async () => {
     mockMemoryStore.set(UPDATE_MANIFEST_STORAGE_KEY, 'corrupted{{{');
     mockMemoryStore.set(UPDATE_CHECKED_AT_STORAGE_KEY, String(Date.now()));
-    const fetchMock = mockFetchReturning();
+    const fetchMock = mockFetchReturning(
+      new Error('down'),
+      new Error('down'),
+      new Error('down'),
+    );
 
     const stop = startUpdateCheck();
     await flush();
@@ -264,7 +271,20 @@ describe('startUpdateCheck', () => {
 
     expect(getSnapshot().update.tier).toBe('none');
     expect(mockMemoryStore.has(UPDATE_MANIFEST_STORAGE_KEY)).toBe(false);
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not let a checkedAt partial write throttle when the manifest body is missing', async () => {
+    mockMemoryStore.set(UPDATE_CHECKED_AT_STORAGE_KEY, String(Date.now()));
+    const envelope = envelopeFor(iosPayload({ latest: '9.9.9' }));
+    const fetchMock = mockFetchReturning(envelope);
+
+    const stop = startUpdateCheck();
+    await flush();
+    stop();
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(getSnapshot().update.latestVersion).toBe('9.9.9');
   });
 
   it('is idempotent while started', async () => {
@@ -309,6 +329,32 @@ describe('dismissals and the block override', () => {
     expect(JSON.parse(mockMemoryStore.get(UPDATE_DISMISSED_NOTICES_STORAGE_KEY) ?? '[]')).toEqual([
       'maintenance-1',
     ]);
+  });
+
+  it('automatically hides a notice when it expires while the app remains active', async () => {
+    const T0 = 1_800_000_000_000;
+    jest.useFakeTimers();
+    jest.setSystemTime(T0);
+    try {
+      const withNotice = {
+        id: 'maintenance-expiring',
+        level: 'info',
+        title: { en: 'Heads up' },
+        body: { en: 'This message expires shortly.' },
+        url: null,
+        expires: new Date(T0 + 1_000).toISOString(),
+      };
+      mockFetchReturning(envelopeFor(iosPayload({ latest: '9.9.9' }, { notice: withNotice })));
+
+      await refreshUpdateManifest(true);
+      expect(getSnapshot().update.notice?.id).toBe('maintenance-expiring');
+
+      jest.advanceTimersByTime(1_001);
+      expect(getSnapshot().update.notice).toBeNull();
+    } finally {
+      resetUpdateCheckForTests();
+      jest.useRealTimers();
+    }
   });
 
   it('continueDespiteBlock downgrades blocked -> available for the session', async () => {

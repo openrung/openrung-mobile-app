@@ -29,6 +29,8 @@ export const UPDATE_DISMISSED_NOTICES_STORAGE_KEY = 'openrung.updateDismissedNot
 
 /** Dismissed-notice ids kept, newest last — bounds storage while far exceeding realistic use. */
 const MAX_DISMISSED_NOTICE_IDS = 20;
+/** React Native timers use a signed 32-bit millisecond delay; longer waits are rescheduled. */
+const MAX_TIMER_DELAY_MS = 2_147_483_647;
 
 let decoded: DecodedUpdateManifest | null = null;
 let lastSuccessAtMs = 0; // persisted (UPDATE_CHECKED_AT_STORAGE_KEY)
@@ -39,6 +41,7 @@ let blockOverridden = false; // session-scoped "Continue anyway"
 let fetchInFlight = false;
 let started = false;
 let appStateSubscription: NativeEventSubscription | null = null;
+let noticeExpiryTimer: ReturnType<typeof setTimeout> | null = null;
 
 function platformInfo(candidate: DecodedUpdateManifest | null): UpdatePlatformInfo | null {
   if (candidate === null) {
@@ -51,18 +54,37 @@ function platformInfo(candidate: DecodedUpdateManifest | null): UpdatePlatformIn
       : null;
 }
 
+function clearNoticeExpiryTimer(): void {
+  if (noticeExpiryTimer !== null) {
+    clearTimeout(noticeExpiryTimer);
+    noticeExpiryTimer = null;
+  }
+}
+
 function recompute(): void {
-  applyUpdateUiState(
-    deriveUpdateUiState({
-      decoded,
-      platform: Platform.OS,
-      currentVersion: APP_VERSION,
-      dismissedBannerVersion,
-      dismissedNoticeIds,
-      blockOverridden,
-      nowMs: Date.now(),
-    }),
-  );
+  clearNoticeExpiryTimer();
+  const nowMs = Date.now();
+  const update = deriveUpdateUiState({
+    decoded,
+    platform: Platform.OS,
+    currentVersion: APP_VERSION,
+    dismissedBannerVersion,
+    dismissedNoticeIds,
+    blockOverridden,
+    nowMs,
+  });
+  applyUpdateUiState(update);
+
+  const expiresMs = update.notice?.expiresMs;
+  if (expiresMs != null) {
+    // Hide the notice at expiry even while the app remains active. Very distant expiries are
+    // revisited in bounded chunks because native timer delays overflow past signed 32-bit ms.
+    const delayMs = Math.max(1, Math.min(expiresMs - nowMs, MAX_TIMER_DELAY_MS));
+    noticeExpiryTimer = setTimeout(() => {
+      noticeExpiryTimer = null;
+      recompute();
+    }, delayMs);
+  }
 }
 
 async function hydrate(): Promise<void> {
@@ -84,10 +106,12 @@ async function hydrate(): Promise<void> {
       }
     }
     const checkedAtMs = checkedAt !== null ? Number(checkedAt) : Number.NaN;
-    if (Number.isFinite(checkedAtMs) && checkedAtMs > 0) {
+    if (decoded !== null && Number.isFinite(checkedAtMs) && checkedAtMs > 0) {
       // Clamp to now: a timestamp persisted under a fast-forwarded clock must not freeze the 6h
-      // throttle (and thereby all floor/notice delivery) until wall-clock catches up. Max with
-      // the in-memory value so hydration never rolls back a success recorded this session.
+      // throttle (and thereby all floor/notice delivery) until wall-clock catches up. Only honor
+      // it alongside a usable envelope: the body and stamp are separate best-effort writes, so a
+      // missing/corrupt body must fetch immediately. Max with the in-memory value so hydration
+      // never rolls back a success recorded this session.
       lastSuccessAtMs = Math.max(lastSuccessAtMs, Math.min(checkedAtMs, Date.now()));
     }
     if (banner !== null && banner.length > 0) {
@@ -208,6 +232,9 @@ export function startUpdateCheck(): () => void {
     if (started) {
       appStateSubscription = AppState.addEventListener('change', status => {
         if (status === 'active') {
+          // Native timers may be suspended in the background; expire notices synchronously on
+          // foreground even when the network refresh is still inside its six-hour throttle.
+          recompute();
           refreshUpdateManifest().catch(() => {});
         }
       });
@@ -219,6 +246,7 @@ export function startUpdateCheck(): () => void {
   return () => {
     appStateSubscription?.remove();
     appStateSubscription = null;
+    clearNoticeExpiryTimer();
     started = false;
   };
 }
@@ -270,4 +298,5 @@ export function resetUpdateCheckForTests(): void {
   started = false;
   appStateSubscription?.remove();
   appStateSubscription = null;
+  clearNoticeExpiryTimer();
 }
