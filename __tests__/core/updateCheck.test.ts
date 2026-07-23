@@ -86,7 +86,8 @@ describe('refreshUpdateManifest', () => {
 
     await refreshUpdateManifest(true);
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // No verified cache yet -> survey mode: every configured candidate is consulted once.
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(getSnapshot().update.tier).toBe('available');
     expect(getSnapshot().update.latestVersion).toBe('9.9.9');
     expect(mockMemoryStore.get(UPDATE_MANIFEST_STORAGE_KEY)).toBe(envelope);
@@ -96,9 +97,9 @@ describe('refreshUpdateManifest', () => {
   it('throttles after a success and backs off after a failure', async () => {
     const envelope = envelopeFor(iosPayload({ latest: '9.9.9' }));
     const fetchMock = mockFetchReturning(envelope);
-    await refreshUpdateManifest(true);
-    await refreshUpdateManifest(); // within the 6h window — must not fetch
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await refreshUpdateManifest(true); // survey mode: 3 candidate calls
+    await refreshUpdateManifest(); // within the 6h window — must not fetch again
+    expect(fetchMock).toHaveBeenCalledTimes(3);
 
     resetUpdateCheckForTests();
     resetStoreForTests();
@@ -146,6 +147,25 @@ describe('refreshUpdateManifest', () => {
     expect(getSnapshot().update.verified).toBe(true);
   });
 
+  it('does not count an all-stale signed replay against a fresher verified cache as a success', async () => {
+    mockFetchReturning(
+      envelopeFor(iosPayload({ latest: '9.9.9' }, { generated_at: '2026-07-22T00:00:00Z' })),
+    );
+    await refreshUpdateManifest(true);
+    const checkedAtAfterSuccess = mockMemoryStore.get(UPDATE_CHECKED_AT_STORAGE_KEY);
+
+    // Every front replays an older signed manifest: the walk returns the newest stale copy,
+    // which must be treated as a FAILED check — no checkedAt bump, cache untouched.
+    const replayed = envelopeFor(
+      iosPayload({ latest: '8.8.8' }, { generated_at: '2026-07-01T00:00:00Z' }),
+    );
+    mockFetchReturning(replayed, replayed, replayed);
+    await refreshUpdateManifest(true);
+
+    expect(mockMemoryStore.get(UPDATE_CHECKED_AT_STORAGE_KEY)).toBe(checkedAtAfterSuccess);
+    expect(getSnapshot().update.latestVersion).toBe('9.9.9');
+  });
+
   it('does not count a sig-stripped fetch against a verified cache as a success', async () => {
     mockFetchReturning(envelopeFor(iosPayload({ latest: '9.9.9' })));
     await refreshUpdateManifest(true);
@@ -180,7 +200,8 @@ describe('refreshUpdateManifest', () => {
       nowSpy.mockReturnValue(T0 + 7 * 3_600_000);
       await refreshUpdateManifest();
       stop();
-      expect(fetchMock).toHaveBeenCalledTimes(1);
+      // No verified cache (only checkedAt was seeded) -> survey mode consults all 3 candidates.
+      expect(fetchMock).toHaveBeenCalledTimes(3);
       expect(getSnapshot().update.latestVersion).toBe('9.9.9');
     } finally {
       nowSpy.mockRestore();

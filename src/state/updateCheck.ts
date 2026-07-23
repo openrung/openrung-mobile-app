@@ -152,14 +152,26 @@ export async function refreshUpdateManifest(force: boolean = false): Promise<voi
   fetchInFlight = true;
   lastAttemptAtMs = now;
   try {
-    const fetched = await fetchUpdateManifest();
+    const fetched = await fetchUpdateManifest(AppConfig.UPDATE_MANIFEST_URLS, {
+      // The cached verified generated_at is the freshness floor: the walk stops at the first
+      // front at least this fresh and keeps going past staler (replayed) signed copies.
+      atLeastGeneratedAtMs: decoded !== null && decoded.verified ? decoded.manifest.generatedAtMs : null,
+    });
     if (fetched === null) {
       return; // all candidates failed — fail open, retry after UPDATE_CHECK_RETRY_MS
     }
-    if (!fetched.decoded.verified && decoded !== null && decoded.verified) {
-      // Best copy anywhere was sig-stripped while we hold a verified manifest: treat it as a
-      // FAILED check (15-min retry cadence), not a success — otherwise a sig-stripping front
-      // could freeze floor/notice delivery behind the 6h success throttle.
+    const cached = decoded;
+    const trustDowngrade = cached !== null && cached.verified && !fetched.decoded.verified;
+    const staleReplay =
+      cached !== null &&
+      cached.verified &&
+      fetched.decoded.verified &&
+      fetched.decoded.manifest.generatedAtMs < cached.manifest.generatedAtMs;
+    if (trustDowngrade || staleReplay) {
+      // Best copy anywhere was sig-stripped, or every verified copy was OLDER than our cache
+      // (a replayed signed manifest): treat it as a FAILED check (15-min retry cadence), not a
+      // success — otherwise a bad front could freeze floor/notice delivery behind the 6h
+      // success throttle.
       return;
     }
     lastSuccessAtMs = Date.now();

@@ -388,29 +388,56 @@ async function fetchAttempt(url: string): Promise<FetchedUpdateManifest> {
   }
 }
 
+export interface FetchManifestOptions {
+  /**
+   * generatedAtMs of the caller's cached VERIFIED manifest, if any. A verified candidate at
+   * least this fresh ends the walk immediately (the steady state: every front serves the same
+   * manifest, so the first request suffices). A verified-but-STALER candidate does not — the
+   * walk continues, so one front replaying an old signed manifest cannot shadow the fresher copy
+   * on a later front. Null/absent (no verified cache yet) surveys every candidate once and takes
+   * the newest, so a stale first front cannot pin fresh installs either.
+   */
+  atLeastGeneratedAtMs?: number | null;
+}
+
 /**
- * Tries each candidate URL in order (10s per attempt) and returns the first VERIFIED envelope; an
- * unsigned-but-decodable envelope is remembered as a fallback but the walk continues, so a front
- * serving a sig-stripped copy cannot shadow the signed copy on a later front. Returns the
- * unsigned fallback only when no candidate verifies, and null when every candidate fails. Never
- * throws: this is a background check and MUST fail open — no update UI is always an acceptable
- * outcome, a blocked or delayed app never is. Sequential (not the discovery stagger-race) because
- * latency is irrelevant here and order keeps the censorship-resistant fronts preferred.
+ * Tries each candidate URL in order (10s per attempt) and returns the best envelope under a
+ * strict preference order: first verified candidate fresh enough for `atLeastGeneratedAtMs`
+ * (walk ends), else the newest verified candidate seen, else the first unsigned-but-decodable
+ * candidate (a front serving a sig-stripped copy cannot shadow the signed copy on a later
+ * front), else null when every candidate fails. Never throws: this is a background check and
+ * MUST fail open — no update UI is always an acceptable outcome, a blocked or delayed app never
+ * is. Sequential (not the discovery stagger-race) because latency is irrelevant here and order
+ * keeps the censorship-resistant fronts preferred.
  */
 export async function fetchUpdateManifest(
   urls: readonly string[] = AppConfig.UPDATE_MANIFEST_URLS,
+  options: FetchManifestOptions = {},
 ): Promise<FetchedUpdateManifest | null> {
+  const floor = options.atLeastGeneratedAtMs ?? null;
+  let bestVerified: FetchedUpdateManifest | null = null;
   let unsignedFallback: FetchedUpdateManifest | null = null;
   for (const url of urls) {
     try {
       const fetched = await fetchAttempt(url);
-      if (fetched.decoded.verified) {
+      if (!fetched.decoded.verified) {
+        unsignedFallback = unsignedFallback ?? fetched;
+        continue;
+      }
+      if (floor !== null && fetched.decoded.manifest.generatedAtMs >= floor) {
         return fetched;
       }
-      unsignedFallback = unsignedFallback ?? fetched;
+      if (
+        bestVerified === null ||
+        fetched.decoded.manifest.generatedAtMs > bestVerified.decoded.manifest.generatedAtMs
+      ) {
+        bestVerified = fetched;
+      }
+      // Verified but staler than the cache (or no cache to compare against): keep walking — a
+      // later front may hold a fresher signed copy.
     } catch {
       // Failed candidate (network, HTTP status, tampered signature, bad envelope) — try the next.
     }
   }
-  return unsignedFallback;
+  return bestVerified ?? unsignedFallback;
 }

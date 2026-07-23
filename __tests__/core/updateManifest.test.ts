@@ -318,6 +318,62 @@ describe('fetchUpdateManifest — sequential fail-open', () => {
     expect(fetched?.decoded.verified).toBe(false);
   });
 
+  it('walks past a stale signed front to a fresher one when a freshness floor is set', async () => {
+    const stale = envelopeFor(manifestPayload({ generated_at: '2026-07-01T00:00:00Z' }));
+    const fresh = envelopeFor(manifestPayload({ generated_at: '2026-07-22T00:00:00Z' }));
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce(manifestResponse(stale))
+      .mockResolvedValueOnce(manifestResponse(fresh));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const fetched = await fetchUpdateManifest(['https://stale/', 'https://fresh/'], {
+      atLeastGeneratedAtMs: Date.parse('2026-07-22T00:00:00Z'),
+    });
+    expect(fetched?.url).toBe('https://fresh/');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('stops at the first front when it is at least as fresh as the floor (steady state)', async () => {
+    const current = envelopeFor(manifestPayload({ generated_at: '2026-07-22T00:00:00Z' }));
+    const fetchMock = jest.fn().mockResolvedValue(manifestResponse(current));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const fetched = await fetchUpdateManifest(['https://a/', 'https://b/', 'https://c/'], {
+      atLeastGeneratedAtMs: Date.parse('2026-07-22T00:00:00Z'),
+    });
+    expect(fetched?.url).toBe('https://a/');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns the newest stale copy when no front meets the floor', async () => {
+    const older = envelopeFor(manifestPayload({ generated_at: '2026-07-01T00:00:00Z' }));
+    const newer = envelopeFor(manifestPayload({ generated_at: '2026-07-10T00:00:00Z' }));
+    globalThis.fetch = jest
+      .fn()
+      .mockResolvedValueOnce(manifestResponse(older))
+      .mockResolvedValueOnce(manifestResponse(newer)) as unknown as typeof fetch;
+
+    const fetched = await fetchUpdateManifest(['https://a/', 'https://b/'], {
+      atLeastGeneratedAtMs: Date.parse('2026-07-22T00:00:00Z'),
+    });
+    expect(fetched?.decoded.manifest.generatedAtMs).toBe(Date.parse('2026-07-10T00:00:00Z'));
+  });
+
+  it('with no floor (fresh install) surveys every front and takes the newest verified', async () => {
+    const older = envelopeFor(manifestPayload({ generated_at: '2026-07-01T00:00:00Z' }));
+    const newer = envelopeFor(manifestPayload({ generated_at: '2026-07-10T00:00:00Z' }));
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce(manifestResponse(older))
+      .mockResolvedValueOnce(manifestResponse(newer));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const fetched = await fetchUpdateManifest(['https://a/', 'https://b/']);
+    expect(fetched?.url).toBe('https://b/');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('returns null (never throws) when every candidate fails', async () => {
     globalThis.fetch = jest
       .fn()

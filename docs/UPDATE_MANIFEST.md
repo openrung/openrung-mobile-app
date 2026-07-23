@@ -30,10 +30,14 @@ that is the entire point. Therefore:
   3. `https://github.com/openrung/openrung-mobile-app/releases/latest/download/update-manifest.json`
      (zero-infrastructure fallback; works from the first release, but github.com is unreliable in
      several target regions)
-  Candidates are walked in order, fail-open, preferring the first **verified** envelope — an
-  unsigned-but-decodable copy is kept only as a fallback, so one front serving a sig-stripped
-  copy cannot shadow the signed copy on a later front. New URLs may be **added** in new app
-  versions; existing ones must keep serving (or 404 — a 404 is just a failed candidate) forever.
+  Candidates are walked in order, fail-open, stopping at the first **verified** envelope **at
+  least as fresh as the cached one** (steady state: one request). A verified-but-staler copy or
+  an unsigned copy keeps the walk going and is used only as a fallback — so one front replaying
+  an old signed manifest, or serving a sig-stripped one, cannot shadow the fresher/signed copy on
+  a later front; with no cache yet, all fronts are surveyed once and the newest verified wins.
+  An all-stale or all-unsigned result against a verified cache counts as a *failed* check
+  (15-min retry), never a success. New URLs may be **added** in new app versions; existing ones
+  must keep serving (or 404 — a 404 is just a failed candidate) forever.
 - **Schema stays 1, changes are additive-only.** Clients ignore unknown fields and null out
   invalid optional ones. Never rename, retype, or repurpose an existing field; add a new one.
 
