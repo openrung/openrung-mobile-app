@@ -12,6 +12,36 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
+/**
+ * Split-tunneling emission input (split-tunnel spec §2). This is NOT the persisted config
+ * ([com.openrung.vpn.SplitTunnelConfig]): the caller has already validated it — only countries
+ * whose BOTH .srs files exist under [ruleSetDirectory] may appear in [bypassCountries], in
+ * [SUPPORTED_COUNTRIES] order. Callers pass a null [SingBoxConfiguration.splitTunnel] when split
+ * tunneling is disabled.
+ */
+data class SplitTunnelRules(
+    val bypassLan: Boolean,
+    val bypassCountries: List<String>,
+    val excludedPackages: List<String>,
+    /** Absolute directory containing `geosite-<cc>.srs` / `geoip-<cc>.srs`. */
+    val ruleSetDirectory: String,
+) {
+    companion object {
+        const val COUNTRY_IR = "ir"
+        const val COUNTRY_CN = "cn"
+
+        /** Countries with bundled rule sets, in the canonical emission order. */
+        val SUPPORTED_COUNTRIES: List<String> = listOf(COUNTRY_IR, COUNTRY_CN)
+
+        /** In-country public resolver bypassed domains resolve through over the direct path. */
+        fun directDnsServer(country: String): String = when (country) {
+            COUNTRY_IR -> "178.22.122.100" // Shecan
+            COUNTRY_CN -> "223.5.5.5" // AliDNS
+            else -> throw IllegalArgumentException("unsupported split-tunnel country: $country")
+        }
+    }
+}
+
 data class SingBoxConfiguration(
     val relay: RelayDescriptor,
     /** Loopback TCP adapter exposed by a native transport. Empty means use the relay endpoint. */
@@ -21,6 +51,7 @@ data class SingBoxConfiguration(
     val tunnelIPv6Address: String = "fdfe:dcba:9876::1/126",
     val dnsServers: List<String> = listOf("1.1.1.1", "8.8.8.8"),
     val mtu: Int = 1400,
+    val splitTunnel: SplitTunnelRules? = null,
 ) {
     fun encodedJsonString(): String {
         validateRelay()
@@ -38,6 +69,8 @@ data class SingBoxConfiguration(
         }
         val outboundHost = if (useLoopbackAdapter) bridgeHost else relay.publicHost
         val outboundPort = if (useLoopbackAdapter) bridgePort else relay.publicPort
+        val bypassCountries = splitTunnel?.bypassCountries.orEmpty()
+        val excludedPackages = splitTunnel?.excludedPackages.orEmpty()
 
         val tunInbound = mutableMapOf<String, JsonElement>(
             "type" to JsonPrimitive("tun"),
@@ -50,6 +83,11 @@ data class SingBoxConfiguration(
             "dns_mode" to JsonPrimitive("hijack"),
             "endpoint_independent_nat" to JsonPrimitive(true),
         )
+        if (excludedPackages.isNotEmpty()) {
+            // Excluded apps leave the VPN at the OS level. NEVER emit include_package alongside
+            // this: Android forbids mixing the two, and we only ever exclude.
+            tunInbound["exclude_package"] = JsonArray(excludedPackages.map(::JsonPrimitive))
+        }
         if (!useLoopbackAdapter) {
             relayRouteExcludeAddress(relay.publicHost)?.let {
                 tunInbound["route_exclude_address"] = JsonArray(listOf(JsonPrimitive(it)))
@@ -71,7 +109,27 @@ data class SingBoxConfiguration(
                             put("detour", "proxy")
                         })
                     }
+                    bypassCountries.forEach { country ->
+                        add(buildJsonObject {
+                            put("tag", "dns-direct-$country")
+                            put("type", "udp")
+                            put("server", SplitTunnelRules.directDnsServer(country))
+                            // Modern UDP DNS servers use a direct dialer when detour is omitted.
+                            // Detouring to our otherwise-empty tagged direct outbound is rejected
+                            // during sing-box's Start stage ("detour to an empty direct outbound").
+                        })
+                    }
                 })
+                if (bypassCountries.isNotEmpty()) {
+                    put("rules", buildJsonArray {
+                        bypassCountries.forEach { country ->
+                            add(buildJsonObject {
+                                put("rule_set", JsonArray(listOf(JsonPrimitive("geosite-$country"))))
+                                put("server", "dns-direct-$country")
+                            })
+                        }
+                    })
+                }
                 put("final", "dns-0")
             })
             put("inbounds", JsonArray(listOf(JsonObject(tunInbound))))
@@ -112,11 +170,45 @@ data class SingBoxConfiguration(
                 put("auto_detect_interface", true)
                 put("find_process", true)
                 put("default_domain_resolver", "dns-0")
+                if (bypassCountries.isNotEmpty()) {
+                    put("rule_set", buildJsonArray {
+                        bypassCountries.forEach { country ->
+                            add(localRuleSet("geosite-$country"))
+                            add(localRuleSet("geoip-$country"))
+                        }
+                    })
+                }
                 put("rules", buildJsonArray {
                     add(buildJsonObject {
                         put("protocol", "dns")
                         put("action", "hijack-dns")
                     })
+                    if (bypassCountries.isNotEmpty()) {
+                        // Route rules need a sniffed domain before geosite matching can work.
+                        add(buildJsonObject {
+                            put("action", "sniff")
+                        })
+                    }
+                    if (splitTunnel?.bypassLan == true) {
+                        add(buildJsonObject {
+                            put("ip_is_private", true)
+                            put("outbound", "direct")
+                        })
+                    }
+                    bypassCountries.forEach { country ->
+                        add(buildJsonObject {
+                            put(
+                                "rule_set",
+                                JsonArray(
+                                    listOf(
+                                        JsonPrimitive("geosite-$country"),
+                                        JsonPrimitive("geoip-$country"),
+                                    ),
+                                ),
+                            )
+                            put("outbound", "direct")
+                        })
+                    }
                 })
                 put("final", "proxy")
             })
@@ -128,6 +220,13 @@ data class SingBoxConfiguration(
                 put("clash_api", buildJsonObject { })
             })
         }
+    }
+
+    private fun localRuleSet(tag: String): JsonObject = buildJsonObject {
+        put("type", "local")
+        put("tag", tag)
+        put("format", "binary")
+        put("path", "${checkNotNull(splitTunnel).ruleSetDirectory}/$tag.srs")
     }
 
     private fun validateRelay() {

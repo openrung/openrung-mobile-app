@@ -53,10 +53,17 @@ jest.mock('../../src/native/OpenRungApkShare', () => ({
 import { AboutScreen } from '../../src/screens/AboutScreen';
 import { SettingsScreen } from '../../src/screens/SettingsScreen';
 
-async function renderSettings(): Promise<ReactTestRenderer.ReactTestRenderer> {
+async function renderSettings(
+  onOpenSplitTunneling: () => void = jest.fn(),
+): Promise<ReactTestRenderer.ReactTestRenderer> {
   let tree: ReactTestRenderer.ReactTestRenderer | undefined;
   await ReactTestRenderer.act(async () => {
-    tree = ReactTestRenderer.create(<SettingsScreen onOpenDebug={jest.fn()} />);
+    tree = ReactTestRenderer.create(
+      <SettingsScreen
+        onOpenDebug={jest.fn()}
+        onOpenSplitTunneling={onOpenSplitTunneling}
+      />,
+    );
   });
   return tree!;
 }
@@ -201,6 +208,33 @@ describe('SettingsScreen iOS TestFlight sharing', () => {
     );
     share.mockRestore();
     alert.mockRestore();
+    await unmount(tree);
+  });
+});
+
+describe('SettingsScreen split tunneling', () => {
+  it('places the split tunneling row under GENERAL and opens the screen', async () => {
+    const onOpenSplitTunneling = jest.fn();
+    const tree = await renderSettings(onOpenSplitTunneling);
+    const labels = tree.root
+      .findAllByType(Text)
+      .map(text => text.props.children)
+      .filter((label): label is string => typeof label === 'string');
+
+    expect(labels.indexOf('GENERAL')).toBeLessThan(
+      labels.indexOf('Split tunneling'),
+    );
+    expect(labels.indexOf('Split tunneling')).toBeLessThan(
+      labels.indexOf('DIAGNOSTICS'),
+    );
+    // Fresh installs start with all three preset bypasses enabled.
+    expect(labels).toContain('On — selected traffic bypasses the relay.');
+
+    await ReactTestRenderer.act(async () => {
+      findButton(tree, 'Split tunneling').props.onPress();
+    });
+
+    expect(onOpenSplitTunneling).toHaveBeenCalledTimes(1);
     await unmount(tree);
   });
 });

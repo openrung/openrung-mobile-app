@@ -15,6 +15,7 @@
     <string name="log_broker_returned">أعاد broker عدد %1$d مرحلات؛ %2$d صالحة للاستخدام</string>
     <string name="log_trying_relay">تجربة المرحل %1$s عند %2$s:%3$d</string>
     <string name="log_checking_relay_reachability">فحص إمكانية الوصول إلى TCP للمرحل</string>
+    <string name="log_split_ruleset_missing">مجموعة قواعد تقسيم النفق لـ %1$s غير موجودة؛ تبقى حركة المرور تلك داخل النفق</string>
     <string name="log_relay_failed">فشل المرحل %1$s: %2$s</string>
     <string name="log_error_prefix">خطأ: %1$s</string>
     <string name="error_no_usable_relay">لا يوجد مرحل خروج مباشر VLESS Reality Vision صالح للاستخدام.</string>

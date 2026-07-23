@@ -9,10 +9,12 @@
  * underneath the other tabs so the MapLibre view keeps its camera/tiles, and
  * Settings/About render as opaque overlays above it.
  *
- * On both platforms, deep screens (debug console, licenses, license full
- * text) push over everything including the tab bar, with hardware back mapped
- * exactly like their in-header back arrows: LICENSE_TEXT -> LICENSES ->
- * ABOUT, DEBUG -> SETTINGS, any tab -> HOME, HOME -> system default (exit).
+ * On both platforms, deep screens (debug console, split tunneling, licenses,
+ * license full text) push over everything including the tab bar, with
+ * hardware back mapped exactly like their in-header back arrows:
+ * LICENSE_TEXT -> LICENSES -> ABOUT, DEBUG -> SETTINGS,
+ * SPLIT_TUNNELING -> SETTINGS, any tab -> HOME, HOME -> system default
+ * (exit).
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { BackHandler, Platform, StatusBar, StyleSheet, View } from 'react-native';
@@ -27,18 +29,28 @@ import { LicenseTextScreen } from './src/screens/LicenseTextScreen';
 import { LicensesScreen } from './src/screens/LicensesScreen';
 import { MainScreen } from './src/screens/MainScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
+import { SplitTunnelingScreen } from './src/screens/SplitTunnelingScreen';
 import { UpdateRequiredScreen } from './src/screens/UpdateRequiredScreen';
-import { useAppState } from './src/state/store';
+import { hydrateSplitTunnel, useAppState } from './src/state/store';
 import { startUpdateCheck } from './src/state/updateCheck';
 import { palette } from './src/theme';
 
 /** Screens pushed over the tabs (each has its own back arrow). */
-type SubRoute = 'DEBUG' | 'LICENSES' | 'LICENSE_TEXT' | null;
+type SubRoute = 'DEBUG' | 'SPLIT_TUNNELING' | 'LICENSES' | 'LICENSE_TEXT' | null;
 
 function App(): React.JSX.Element {
   // Kick off the fail-open update check (hydrate + throttled fetch + foreground re-checks).
   // It never gates rendering: the manifest only ever changes what AppRoutes shows.
   useEffect(() => startUpdateCheck(), []);
+
+  // Hydrate the split-tunnel slice at launch (not only when the sub-screen mounts) so the
+  // Settings row reflects the routing the native side actually applies — otherwise it would read
+  // "Off / all traffic through the relay" while native bypass rules are live, misreporting the
+  // leak surface in a censorship-circumvention app.
+  useEffect(() => {
+    // hydrateSplitTunnel is best-effort and never rejects.
+    hydrateSplitTunnel();
+  }, []);
 
   return (
     <SafeAreaProvider>
@@ -86,6 +98,9 @@ function AppRoutes(): React.JSX.Element {
     case 'DEBUG':
       subScreen = <DebugScreen onBack={() => setSubRoute(null)} />;
       break;
+    case 'SPLIT_TUNNELING':
+      subScreen = <SplitTunnelingScreen onBack={() => setSubRoute(null)} />;
+      break;
     case 'LICENSES':
       subScreen = (
         <LicensesScreen
@@ -107,7 +122,10 @@ function AppRoutes(): React.JSX.Element {
         {scene === 'home' ? (
           <MainScreen />
         ) : scene === 'settings' ? (
-          <SettingsScreen onOpenDebug={() => setSubRoute('DEBUG')} />
+          <SettingsScreen
+            onOpenDebug={() => setSubRoute('DEBUG')}
+            onOpenSplitTunneling={() => setSubRoute('SPLIT_TUNNELING')}
+          />
         ) : (
           <AboutScreen onOpenLicenses={() => setSubRoute('LICENSES')} />
         )}
@@ -126,7 +144,10 @@ function AppRoutes(): React.JSX.Element {
           <MainScreen />
           {tab === 'settings' ? (
             <View style={styles.tabOverlay}>
-              <SettingsScreen onOpenDebug={() => setSubRoute('DEBUG')} />
+              <SettingsScreen
+                onOpenDebug={() => setSubRoute('DEBUG')}
+                onOpenSplitTunneling={() => setSubRoute('SPLIT_TUNNELING')}
+              />
             </View>
           ) : null}
           {tab === 'about' ? (

@@ -1,8 +1,8 @@
 /**
  * Settings tab. Large title (it's a root tab now — no back arrow), then
- * sectioned panels: GENERAL (language plus per-platform sharing — Android
- * offline APK, iOS TestFlight invite link) and DIAGNOSTICS (relay speed test,
- * debug console). Version and licenses live on the About tab. The language
+ * sectioned panels: GENERAL (language, split tunneling, plus per-platform
+ * sharing — Android offline APK, iOS TestFlight invite link) and DIAGNOSTICS
+ * (relay speed test, debug console). Version and licenses live on the About tab. The language
  * picker mirrors the production dropdown semantics with a dark-styled modal
  * list; the speed test RUN button is enabled only while connected and not
  * already running.
@@ -32,6 +32,7 @@ import {
 } from '../native/OpenRungApkShare';
 import { OpenRungVpn } from '../native/OpenRungVpn';
 import { runSpeedTest, type SpeedTestResult } from '../net/speedTestClient';
+import { useAppState } from '../state/store';
 import {
   buildSpeedTestCompletedEvent,
   buildSpeedTestFailedEvent,
@@ -42,6 +43,7 @@ import { monoFont, palette, tokens } from '../theme';
 
 export interface SettingsScreenProps {
   onOpenDebug: () => void;
+  onOpenSplitTunneling: () => void;
 }
 
 /**
@@ -51,11 +53,15 @@ export interface SettingsScreenProps {
 const isTestFlightShareAvailable =
   Platform.OS === 'ios' && AppConfig.TESTFLIGHT_URL.length > 0;
 
-export function SettingsScreen({ onOpenDebug }: SettingsScreenProps): React.JSX.Element {
+export function SettingsScreen({
+  onOpenDebug,
+  onOpenSplitTunneling,
+}: SettingsScreenProps): React.JSX.Element {
   const s = useStrings();
   const insets = useSafeAreaInsets();
   const { state, isConnected } = useVpnState();
   const { update } = state;
+  const { splitTunnel } = useAppState();
 
   const [speedTestRunning, setSpeedTestRunning] = useState(false);
   const [speedTestResult, setSpeedTestResult] = useState<SpeedTestResult | null>(null);
@@ -200,6 +206,15 @@ export function SettingsScreen({ onOpenDebug }: SettingsScreenProps): React.JSX.
         title={s.languageSettingTitle}
         subtitle={s.languageSettingSubtitle}
         trailing={<LanguagePicker />}
+      />
+      <SettingPanel
+        title={s.splitTunnelSettingTitle}
+        subtitle={
+          splitTunnel.enabled
+            ? s.splitTunnelSettingSubtitleOn
+            : s.splitTunnelSettingSubtitleOff
+        }
+        onPress={onOpenSplitTunneling}
       />
       {isApkShareAvailable ? (
         <SettingPanel

@@ -15,6 +15,7 @@
     <string name="log_broker_returned">broker မှ relay %1$d ခု ပြန်ပေးခဲ့သည်။ %2$d ခု အသုံးပြုနိုင်သည်</string>
     <string name="log_trying_relay">%2$s:%3$d ရှိ relay %1$s ကို စမ်းနေသည်</string>
     <string name="log_checking_relay_reachability">relay TCP ရောက်နိုင်မှုကို စစ်ဆေးနေသည်</string>
+    <string name="log_split_ruleset_missing">%1$s အတွက် split tunneling စည်းမျဉ်းအစု မရှိပါ။ ထိုအသွားအလာသည် tunnel ထဲမှာ ဆက်ရှိနေသည်</string>
     <string name="log_relay_failed">relay %1$s မအောင်မြင်ပါ: %2$s</string>
     <string name="log_error_prefix">အမှား: %1$s</string>
     <string name="error_no_usable_relay">အသုံးပြုနိုင်သော VLESS Reality Vision direct-exit relay မရှိပါ။</string>

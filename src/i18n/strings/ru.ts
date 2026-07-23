@@ -134,6 +134,31 @@ export const ru: Partial<Strings> = {
   aboutFootnote:
     'OpenRung — свободное программное обеспечение (GPL-3.0-or-later). Создано волонтёрами для всех.',
 
+  // --- Split tunneling (settings row + screen + Android app picker) ---
+  splitTunnelSettingTitle: 'Раздельное туннелирование',
+  splitTunnelSettingSubtitleOn: 'Включено — выбранный трафик идёт мимо ретранслятора.',
+  splitTunnelSettingSubtitleOff: 'Выключено — весь трафик идёт через ретранслятор.',
+  splitTunnelHeader: 'Раздельное туннелирование',
+  splitTunnelMasterTitle: 'Раздельное туннелирование',
+  splitTunnelMasterSubtitle: 'Отправлять выбранный трафик мимо туннеля ретранслятора.',
+  splitTunnelBypassHeader: 'Обход',
+  splitTunnelLanTitle: 'Локальная сеть',
+  splitTunnelLanSubtitle:
+    'Прямой доступ к принтерам, телевизорам и другим устройствам локальной сети.',
+  splitTunnelIranTitle: 'Иранские сайты и приложения',
+  splitTunnelIranSubtitle: 'Направлять иранские сервисы напрямую, на полной скорости.',
+  splitTunnelChinaTitle: 'Китайские сайты и приложения',
+  splitTunnelChinaSubtitle: 'Направлять китайские сервисы напрямую, на полной скорости.',
+  splitTunnelAppsHeader: 'Приложения',
+  splitTunnelAppsTitle: 'Приложения в обход',
+  splitTunnelAppsSubtitle: (count: number) => `приложений в обход VPN: ${count}`,
+  splitTunnelAppPickerTitle: 'Приложения в обход',
+  splitTunnelAppPickerLoading: 'загрузка установленных приложений…',
+  splitTunnelAppPickerEmpty: 'запускаемых приложений не найдено.',
+  splitTunnelAppPickerClose: 'ЗАКРЫТЬ',
+  splitTunnelApplyHint:
+    'изменения применяются сразу; туннель переподключается на несколько секунд.',
+
   // --- In-app update check (manifest banner / blocking screen / broadcast notice) ---
   updateRequiredTitle: 'Требуется обновление',
   updateRequiredBody:

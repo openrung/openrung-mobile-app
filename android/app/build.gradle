@@ -145,7 +145,25 @@ android {
             includeAndroidResources = true
         }
     }
+
+    sourceSets {
+        main {
+            // Split-tunneling rule sets ride along as generated assets (copyOpenRungRuleSets
+            // below) so the committed source tree carries them once, at rulesets/dist.
+            assets.srcDirs += "$buildDir/generated/openrungRuleSets"
+        }
+    }
 }
+
+// Bundles the committed split-tunneling rule sets (provenance: rulesets/README.md) as APK assets
+// at rulesets/<name>.srs. OpenRungVpnService stages them into filesDir on every connect; a
+// missing asset just drops that country's bypass (fail-open, docs/CONTRACT.md §1).
+tasks.register("copyOpenRungRuleSets", Copy) {
+    from "$rootDir/../rulesets/dist"
+    include "*.srs"
+    into "$buildDir/generated/openrungRuleSets/rulesets"
+}
+preBuild.dependsOn "copyOpenRungRuleSets"
 
 // Refuse to *assemble* a release without a real signing key rather than silently
 // producing a debug-signed (forgeable) "release". Runs only when a release output task

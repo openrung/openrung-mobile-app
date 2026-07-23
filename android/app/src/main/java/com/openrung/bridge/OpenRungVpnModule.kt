@@ -16,11 +16,13 @@ import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.facebook.react.modules.core.PermissionAwareActivity
+import com.openrung.state.ConnectionStatus
 import com.openrung.state.OpenRungStatusStore
 import com.openrung.state.OpenRungUiState
 import com.openrung.telemetry.ClientIdentity
 import com.openrung.telemetry.TelemetryManager
 import com.openrung.vpn.OpenRungVpnService
+import com.openrung.vpn.SplitTunnelStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -29,8 +31,8 @@ import kotlinx.coroutines.launch
 
 /**
  * Classic NativeModule implementing the OpenRungVpn bridge contract (docs/CONTRACT.md §3):
- * prepare/connect/disconnect/getState/getIdentity plus the `openrungStateChanged` event
- * mirroring [OpenRungStatusStore.uiState].
+ * prepare/connect/disconnect/getState/getIdentity/setSplitTunnelConfig plus the
+ * `openrungStateChanged` event mirroring [OpenRungStatusStore.uiState].
  */
 class OpenRungVpnModule(
     private val reactContext: ReactApplicationContext,
@@ -111,6 +113,35 @@ class OpenRungVpnModule(
             promise.resolve(null)
         } catch (error: Throwable) {
             promise.reject("E_DISCONNECT_FAILED", error)
+        }
+    }
+
+    /**
+     * Persists the split-tunnel config JSON (contract §3). If the tunnel is up and the config
+     * actually changed (string comparison against the stored value), the service reapplies it by
+     * reconnecting to the same target. Resolves after persistence + reapply dispatch — not after
+     * the reconnect completes.
+     */
+    @ReactMethod
+    fun setSplitTunnelConfig(configJson: String, promise: Promise) {
+        try {
+            val context = reactContext.applicationContext
+            // Only an EFFECTIVE change reapplies (writeAndReportEffectiveChange still persists the
+            // raw string): a first push of a disabled config, or any change that nets to
+            // the same emitted config, must never bounce a live tunnel. The service re-validates
+            // the connection state before actually reconnecting.
+            val effectiveChanged = SplitTunnelStore.writeAndReportEffectiveChange(context, configJson)
+            val status = OpenRungStatusStore.uiState.value.status
+            if (effectiveChanged &&
+                (status == ConnectionStatus.PREPARING ||
+                    status == ConnectionStatus.CONNECTING ||
+                    status == ConnectionStatus.CONNECTED)
+            ) {
+                context.startService(OpenRungVpnService.reapplyIntent(context))
+            }
+            promise.resolve(null)
+        } catch (error: Throwable) {
+            promise.reject("E_SPLIT_TUNNEL_FAILED", error)
         }
     }
 

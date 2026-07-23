@@ -33,6 +33,11 @@ handling" above and "report failure if no relay works" elsewhere therefore mean
 the connect attempt *reports failure without leaving a half-open or leaky tunnel* —
 NOT that the OS blocks traffic while the VPN is down.
 
+Split tunneling (§3 `setSplitTunnelConfig`, §6/§7) obeys the same principle:
+a missing or invalid split-tunnel config, or a missing bundled rule-set file,
+degrades toward the tunnel — full-tunnel behavior plus a log line — and never
+blocks traffic or fails a connect.
+
 ## 2. Identifiers
 
 | Thing | Value |
@@ -95,8 +100,51 @@ export interface OpenRungVpnModule {
   disconnect(): Promise<void>;
   getState(): Promise<NativeVpnState>;
   getIdentity(): Promise<NativeIdentity>;
+  /** Persist the split-tunnel config JSON (schema below) natively. If the
+   *  tunnel is CONNECTED AND the *effective* config changed (the emitted
+   *  sing-box config would differ), native reapplies by reconnecting to the
+   *  same target. Resolves after persistence + reapply dispatch (NOT
+   *  completion). */
+  setSplitTunnelConfig(configJson: string): Promise<void>;
 }
 ```
+
+The module has **six** methods (split tunneling raised the count from five).
+
+`setSplitTunnelConfig` payload — the shared split-tunnel config JSON. TS
+serializes with exactly this key order (snake_case):
+
+```json
+{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["ir","cn"],"excluded_packages":["com.tencent.mm"]}
+```
+
+- `version` is currently 1; parsers accept any object with `version >= 1` and
+  ignore unknown fields.
+- `bypass_countries`: lowercase ISO codes. v1 recognizes only `"ir"` and
+  `"cn"`; unknown codes are ignored (forward compatibility).
+- `excluded_packages`: Android package names excluded from the VPN at the OS
+  level. iOS parses and ignores the field.
+- With no saved user preference, RN initializes and persists
+  `enabled:true`, `bypass_lan:true`, and `bypass_countries:["ir","cn"]`;
+  `excluded_packages` starts empty. A valid saved preference, including an
+  explicit `enabled:false`, always wins over these fresh-install defaults.
+- Parse failure, an absent config, or `enabled:false` ⇒ "no split tunneling":
+  the generated sing-box config is byte-identical to the no-split output
+  (fail-open, §1).
+- Both platforms persist the raw JSON string on every push, but reapply only
+  when the *effective* config changes — the signature that determines the
+  emitted sing-box config (Android: `enabled`, `bypass_lan`, recognized
+  countries, excluded packages; iOS ignores `excluded_packages`). Two payloads
+  that both resolve to disabled, or to the same rule set, do not reconnect. So
+  a redundant push (RN rehydration after a restore), the first persistence of
+  any disabled config, or a change that nets to the same routing is a
+  no-op — a live tunnel is never bounced for a no-op change (§1).
+- Reapply targets a **CONNECTED** tunnel only. A connect or path-loss recovery
+  in flight is left alone: it re-reads the persisted config on its next
+  connect pass, so a settings change never has to tear down a recovery that is
+  waiting for the network (which would turn a self-healing session into a hard
+  failure). RN also flushes any pending push just before a connect, so a change
+  made moments before tapping Connect is applied on that connect.
 
 Event: name **`openrungStateChanged`**, payload `NativeVpnState`. Emitted on every
 status/log/relay/recents change. TS subscribes via `NativeEventEmitter`.
@@ -297,6 +345,64 @@ used as evidence that Reality or WSS carried end-to-end traffic.
   Collects `OpenRungStatusStore.uiState`, maps to a WritableMap, emits events.
   `prepare()` uses VpnService.prepare + ActivityEventListener (request code 7001)
   and POST_NOTIFICATIONS via PermissionAwareActivity on API 33+.
+- Split-tunnel emission (`net/SingBoxConfiguration.kt`): optional constructor
+  input `splitTunnel: SplitTunnelRules? = null` (bypassLan, bypassCountries —
+  pre-validated by the caller and normalized to `ir`,`cn` order,
+  excludedPackages, ruleSetDirectory). `null`, or rules with nothing effective,
+  emit JSON byte-identical to the no-split output; callers pass `null` when the
+  feature is disabled. With rules, the deltas are exactly: `exclude_package` on
+  the tun inbound (after `endpoint_independent_nat`; only when excludedPackages
+  is non-empty; `include_package` is NEVER emitted); per enabled country, `ir`
+  first, an appended dns server
+  `{"tag":"dns-direct-<cc>","type":"udp","server":<resolver>}` (no `detour`:
+  modern UDP DNS servers already dial directly, while detouring through the
+  otherwise-empty tagged direct outbound fails during the sing-box Start stage)
+  (`ir` → `178.22.122.100` Shecan, `cn` → `223.5.5.5` AliDNS) and a `dns.rules`
+  entry `{"rule_set":["geosite-<cc>"],"server":"dns-direct-<cc>"}` between
+  `servers` and `final`; `route.rule_set` local/binary entries for
+  `geosite-<cc>.srs` and `geoip-<cc>.srs` under `ruleSetDirectory`, before
+  `rules`; and `route.rules` ordered [hijack-dns (existing, first),
+  `{"action":"sniff"}` (only when countries non-empty),
+  `{"ip_is_private":true,"outbound":"direct"}` (only when bypassLan),
+  per-country `{"rule_set":["geosite-<cc>","geoip-<cc>"],"outbound":"direct"}`,
+  `ir` before `cn`]. `final:"proxy"`, `route_exclude_address` logic,
+  `find_process`, and everything else are unchanged.
+- `vpn/SplitTunnelStore.kt` — persists the raw config JSON in the
+  SharedPreferences file `openrung_split_tunnel`, key `config_json`; `parse`
+  uses kotlinx-serialization with `ignoreUnknownKeys`, invalid JSON ⇒ null.
+  `writeAndReportEffectiveChange` persists and reports whether the *effective*
+  config changed (a canonical signature over enabled / bypass_lan / recognized
+  countries / excluded packages), so a no-op push never reapplies.
+- `OpenRungVpnService` `ACTION_REAPPLY` (`com.openrung.action.REAPPLY`) —
+  dispatched by the bridge when `setSplitTunnelConfig` made an effective change
+  while status is PREPARING/CONNECTING/CONNECTED. The service reconnects only
+  when status is **CONNECTED** with a live engine in this instance, reusing the
+  stored `brokerUrl`, `requestedTargetCountry`, and `requestedTargetRelayId`; it
+  skips CONNECTING (a connect or recovery in flight re-reads the config on its
+  next pass, so a settings change never clobbers a recovery waiting for the
+  network) and `stopSelf`s when a reapply intent started an otherwise idle
+  service. The service reads ONE split-tunnel snapshot at connect() start, so
+  every config construction site in that attempt uses consistent rules.
+- Rule-set staging: build.gradle copies `rulesets/dist/*.srs` into a generated
+  assets dir (`copyOpenRungRuleSets`; APK asset path `rulesets/<name>.srs`);
+  on every connect the service copies the four assets to
+  `<filesDir>/libbox/rulesets/` via a temp file renamed into place (a mid-copy
+  IO failure can never leave a truncated `.srs`) and that absolute path is
+  `ruleSetDirectory`. A country whose files are missing is dropped and
+  `log_split_ruleset_missing` (present in every locale `strings.xml`) logged;
+  an `excluded_packages` entry whose app is no longer installed is dropped
+  (`addDisallowedApplication` would otherwise throw and abort the connect) —
+  connect proceeds either way (fail-open, §1).
+- `bridge/OpenRungAppListModule.kt` — separate module **`OpenRungAppList`**
+  (registered in OpenRungVpnPackage; does not widen this §3 contract):
+  `getInstalledApps()` resolves `[{ "packageName": string, "label": string }]`
+  of launcher-intent activities, deduped by package, excluding our own
+  applicationId, sorted by label case-insensitively, resolved on a background
+  executor. The manifest carries a `<queries>` element with the MAIN/LAUNCHER
+  intent for API 30+ package visibility. TS accessor
+  `src/native/OpenRungAppList.ts` follows the OpenRungApkShare optional-module
+  pattern: on iOS or when the module is absent, `isAppListAvailable` is false
+  and `getInstalledApps()` resolves `[]`.
 - Manifest: INTERNET, ACCESS_NETWORK_STATE, FOREGROUND_SERVICE,
   FOREGROUND_SERVICE_SPECIAL_USE, POST_NOTIFICATIONS; service
   `.vpn.OpenRungVpnService` with BIND_VPN_SERVICE + specialUse;
@@ -379,6 +485,29 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   (RCT_EXTERN_MODULE) — implements §3 over NETunnelProviderManager +
   SharedConnectionState (Darwin observer + NEVPNStatusDidChange), including the
   production relay-switch dance (stop → 350 ms → reconfigure → start).
+- Split tunneling: the raw config JSON is stored in app-group UserDefaults
+  under `AppConfig.splitTunnelConfigDefaultsKey` (`"split_tunnel_config"`).
+  `ios/Shared/SplitTunnelConfig.swift` (compiled into both targets) decodes it
+  — `load(from:)` returns nil on absence, parse failure, or `enabled == false`
+  — and defines `SplitTunnelRules` (bypassLan, bypassCountries,
+  ruleSetDirectory; no package field) plus the §6 country constants.
+  `setSplitTunnelConfig` writes the raw string always but reapplies only on an
+  *effective* change (`SplitTunnelConfig.effectiveSignature`, which ignores
+  `excluded_packages` since iOS never emits it) while both the shared lifecycle
+  and `NEVPNStatus` report fully connected. Connecting/reasserting recovery is
+  left alone to read the persisted config on its next connect pass. A qualified
+  reapply runs the existing relay-switch dance (stop → 350 ms → start — the
+  persisted providerConfiguration already carries the last targets, so no
+  reconfigure). The dance captures a `controlEpoch` before the delay and aborts
+  the restart if a connect/disconnect arrived meanwhile, so a reapply never
+  resurrects a tunnel the user stopped during the window.
+  The four `.srs` files are explicit PacketTunnel bundle resources
+  (project.yml); `ruleSetDirectory` is the extension bundle resource path, and
+  at connect() start the provider verifies each enabled country's two files
+  exist, dropping the country with an ActivityLog line otherwise (fail-open,
+  §1). iOS has no per-app bypass: `excluded_packages` is parsed and ignored,
+  so a config whose only effective content is excluded packages yields nil
+  rules.
 - Both targets: packet-tunnel-provider entitlement + app group; no ATS exceptions —
   default App Transport Security is enforced because every production endpoint
   is HTTPS (see ARCHITECTURE.md § "Network transport"). PacketTunnel links `ThirdParty/Libbox.xcframework`
@@ -410,4 +539,12 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   separate per-app HTTP-batch budgets, with the still-suppressed tail flushed atomically
   when the session ends or is replaced (relay switch) so the broker's summed rollup
   stays accurate within the existing bounded-outbox and at-least-once-delivery limits.
+- Per-app split-tunnel bypass is Android-only: `excluded_packages` is parsed
+  and ignored on iOS (no iOS per-app tunnel exclusion).
+- With a country bypass preset enabled, DNS for bypassed domains resolves via
+  in-country public resolvers over the direct path (Shecan `178.22.122.100`
+  for `ir`, AliDNS `223.5.5.5` for `cn`).
+- Apps excluded at the OS level (Android `exclude_package`) bypass the TUN
+  entirely and are invisible to telemetry/traffic counters; sing-box-routed
+  direct flows (LAN/country bypass) remain counted.
 - License: GPL-3.0-or-later (statically links sing-box), same as production.

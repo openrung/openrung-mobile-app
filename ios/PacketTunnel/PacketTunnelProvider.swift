@@ -148,6 +148,9 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         let brokerURL = resolveBrokerURL()
         let targetCountry = resolveTargetCountry()
         let targetRelayID = resolveTargetRelayID()
+        // One snapshot per connect attempt: every candidate (and its preflight) below uses the
+        // same rules; recovery reconnects re-read on their next connect() pass.
+        let splitTunnelRules = resolveSplitTunnelRules()
         self.brokerURL = brokerURL
         // Telemetry/heartbeat go DIRECT to the origin IP, not the Cloudflare-fronted discovery broker,
         // so high-frequency heartbeats don't burn the Workers free-tier quota (see AppConfig).
@@ -240,7 +243,10 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             }
 
             failureStage = "relay_connect"
-            let connected = try await connectFirstAvailableRelay(rankedCandidates.map(\.relay))
+            let connected = try await connectFirstAvailableRelay(
+                rankedCandidates.map(\.relay),
+                splitTunnel: splitTunnelRules
+            )
 
             // A stop may have arrived while we were connecting. Don't publish .connected or start
             // the heartbeat for a tunnel that's being torn down; stopTunnel awaited this task and
@@ -363,7 +369,10 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         }
     }
 
-    private func connectFirstAvailableRelay(_ candidates: [RelayDescriptor]) async throws -> ConnectedRelay {
+    private func connectFirstAvailableRelay(
+        _ candidates: [RelayDescriptor],
+        splitTunnel: SplitTunnelRules?
+    ) async throws -> ConnectedRelay {
         var lastError: Error?
 
         for (index, relay) in candidates.enumerated() {
@@ -372,10 +381,15 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 return try await wssFallbackPolicy.connect(
                     relay: relay,
                     attemptDirect: { [self] in
-                        try await attemptDirectCandidate(relay, attempt: index + 1)
+                        try await attemptDirectCandidate(relay, attempt: index + 1, splitTunnel: splitTunnel)
                     },
                     attemptWss: { [self] front in
-                        try await attemptWssCandidate(relay, front: front, attempt: index + 1)
+                        try await attemptWssCandidate(
+                            relay,
+                            front: front,
+                            attempt: index + 1,
+                            splitTunnel: splitTunnel
+                        )
                     },
                     onDirectFallback: { [self] failure in
                         cleanupActiveTransport()
@@ -420,18 +434,24 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         throw PacketTunnelError.allRelaysFailed(lastError)
     }
 
-    private func attemptDirectCandidate(_ relay: RelayDescriptor, attempt: Int) async throws -> ConnectedRelay {
-        let configuration = SingBoxConfiguration(relay: relay)
+    private func attemptDirectCandidate(
+        _ relay: RelayDescriptor,
+        attempt: Int,
+        splitTunnel: SplitTunnelRules?
+    ) async throws -> ConnectedRelay {
+        let configuration = SingBoxConfiguration(relay: relay, splitTunnel: splitTunnel)
         do {
             try EmbeddedProxyEngine.preflight(configuration: configuration)
             // Validate the WSS bridge graph before any remote reachability check can unlock ticket
             // acquisition. Port 1 is only a structurally valid placeholder; the actual loopback
-            // port returned by wsscore is validated again when that engine is started.
+            // port returned by wsscore is validated again when that engine is started. Carries the
+            // same split-tunnel rules so preflight validates the real fallback config shape.
             try EmbeddedProxyEngine.preflight(
                 configuration: SingBoxConfiguration(
                     relay: relay,
                     bridgeHost: "127.0.0.1",
-                    bridgePort: 1
+                    bridgePort: 1,
+                    splitTunnel: splitTunnel
                 )
             )
         } catch is CancellationError {
@@ -476,7 +496,8 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     private func attemptWssCandidate(
         _ relay: RelayDescriptor,
         front: WssFrontDescriptor,
-        attempt: Int
+        attempt: Int,
+        splitTunnel: SplitTunnelRules?
     ) async throws -> ConnectedRelay {
         let telemetrySession = TelemetryManager.activeSession()
         let ticket: WssSessionTicket
@@ -554,7 +575,8 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             configuration: SingBoxConfiguration(
                 relay: relay,
                 bridgeHost: endpoint.bridgeHost,
-                bridgePort: endpoint.bridgePort
+                bridgePort: endpoint.bridgePort,
+                splitTunnel: splitTunnel
             ),
             tcpLatencyMs: nil,
             attempt: attempt,
@@ -1298,6 +1320,42 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         }
         let normalized = countryCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         return normalized.isEmpty ? nil : normalized
+    }
+
+    /// Builds the validated split-tunnel rules for this connect attempt, or nil for full-tunnel
+    /// behavior. Fail-open (contract §1): a missing/invalid config, `enabled:false`, or missing
+    /// bundled `.srs` files always degrade toward the tunnel — a country whose rule-set files are
+    /// absent is dropped with a log line, and a config that contributes nothing on iOS (only
+    /// `excluded_packages` set) yields nil so the emitted JSON stays byte-identical to today's.
+    private func resolveSplitTunnelRules() -> SplitTunnelRules? {
+        guard
+            let defaults = UserDefaults(suiteName: AppConfig.appGroupIdentifier),
+            let config = SplitTunnelConfig.load(from: defaults)
+        else {
+            return nil
+        }
+        let ruleSetDirectory = Bundle(for: PacketTunnelProvider.self).resourcePath
+        var bypassCountries: [String] = []
+        // Iterating the supported list (not the config order) normalizes to ir,cn order.
+        for country in SplitTunnelCountry.supported where config.bypassCountries.contains(country.code) {
+            let hasBothFiles = ruleSetDirectory.map { directory in
+                FileManager.default.fileExists(atPath: "\(directory)/\(country.geositeTag).srs")
+                    && FileManager.default.fileExists(atPath: "\(directory)/\(country.geoipTag).srs")
+            } ?? false
+            if hasBothFiles {
+                bypassCountries.append(country.code)
+            } else {
+                SharedConnectionState.appendLog(
+                    "split tunneling: rule-set files for \(country.code) are missing; keeping its traffic in the tunnel"
+                )
+            }
+        }
+        guard config.bypassLan || bypassCountries.isEmpty == false else { return nil }
+        return SplitTunnelRules(
+            bypassLan: config.bypassLan,
+            bypassCountries: bypassCountries,
+            ruleSetDirectory: ruleSetDirectory ?? ""
+        )
     }
 
     private func resolveTargetRelayID() -> String? {

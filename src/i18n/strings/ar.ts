@@ -135,6 +135,32 @@ export const ar: Partial<Strings> = {
   aboutFootnote:
     'OpenRung برمجية حرة (GPL-3.0-or-later). بناه متطوّعون، للجميع.',
 
+  // --- Split tunneling (settings row + screen + Android app picker) ---
+  splitTunnelSettingTitle: 'تقسيم النفق',
+  splitTunnelSettingSubtitleOn: 'مفعّل — المرور المحدد يتجاوز المُرحّل.',
+  splitTunnelSettingSubtitleOff: 'متوقف — كل المرور يمر عبر المُرحّل.',
+  splitTunnelHeader: 'تقسيم النفق',
+  splitTunnelMasterTitle: 'تقسيم النفق',
+  splitTunnelMasterSubtitle: 'أرسل المرور المحدد خارج نفق المُرحّل.',
+  splitTunnelBypassHeader: 'تجاوز',
+  splitTunnelLanTitle: 'الشبكة المحلية',
+  splitTunnelLanSubtitle:
+    'الوصول مباشرة إلى الطابعات وأجهزة التلفاز وسائر أجهزة الشبكة المحلية.',
+  splitTunnelIranTitle: 'المواقع والتطبيقات الإيرانية',
+  splitTunnelIranSubtitle: 'وجّه الخدمات الإيرانية مباشرة وبالسرعة الكاملة.',
+  splitTunnelChinaTitle: 'المواقع والتطبيقات الصينية',
+  splitTunnelChinaSubtitle: 'وجّه الخدمات الصينية مباشرة وبالسرعة الكاملة.',
+  splitTunnelAppsHeader: 'التطبيقات',
+  splitTunnelAppsTitle: 'التطبيقات المتجاوِزة',
+  splitTunnelAppsSubtitle: (count: number) =>
+    `التطبيقات التي تتجاوز VPN: ${count}.`,
+  splitTunnelAppPickerTitle: 'التطبيقات المتجاوِزة',
+  splitTunnelAppPickerLoading: 'جار تحميل التطبيقات المثبّتة…',
+  splitTunnelAppPickerEmpty: 'لم يُعثر على تطبيقات قابلة للتشغيل.',
+  splitTunnelAppPickerClose: 'إغلاق',
+  splitTunnelApplyHint:
+    'تُطبَّق التغييرات فورًا؛ يعيد النفق الاتصال لبضع ثوانٍ.',
+
   // --- In-app update check (manifest banner / blocking screen / broadcast notice) ---
   updateRequiredTitle: 'التحديث مطلوب',
   updateRequiredBody:

@@ -10,6 +10,7 @@ class OpenRungVpnPackage : ReactPackage {
         listOf(
             OpenRungVpnModule(reactContext),
             OpenRungApkShareModule(reactContext),
+            OpenRungAppListModule(reactContext),
         )
 
     override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> =

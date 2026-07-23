@@ -10,8 +10,9 @@ the production OpenRung clients, while the entire VPN connect path is a
 verbatim port of the production native code — a Kotlin `VpnService` on
 Android, a Swift `NEPacketTunnelProvider` extension on iOS — exposed to
 TypeScript through one small cross-platform bridge module, `OpenRungVpn`.
-Android-only OS integrations, such as installed-APK sharing, use separate
-modules so they do not widen the VPN contract.
+Android-only OS integrations, such as installed-APK sharing and the
+split-tunneling app picker, use separate modules so they do not widen the VPN
+contract.
 
 ## Division of responsibility
 
@@ -62,6 +63,7 @@ without leaving a leaky tunnel — not that traffic is blocked. See CONTRACT.md 
   +-----|--------------------------------^------------------------------+
         | prepare() / connect(brokerUrl, | event on every status/log/
         | targetCountry) / disconnect()  | relay/recents change
+        | / setSplitTunnelConfig(json)   |
         v                                |
   +---------------------------------------------------------------------+
   |                    NATIVE BRIDGE  (module 'OpenRungVpn')            |
@@ -89,8 +91,8 @@ without leaving a leaky tunnel — not that traffic is blocked. See CONTRACT.md 
 
 State flows one way: native emits a full `NativeVpnState` snapshot on every
 change; TS mirrors it into the store and never mutates it. Commands flow the
-other way as the five bridge methods (`prepare`, `connect`, `disconnect`,
-`getState`, `getIdentity`).
+other way as the six bridge methods (`prepare`, `connect`, `disconnect`,
+`getState`, `getIdentity`, `setSplitTunnelConfig`).
 
 ## Network transport
 
@@ -205,12 +207,43 @@ shape (the RN 0.86 bridgeless interop layer handles it):
   `targetCountry` is ISO alpha-2 or null (broker picks). Resolves when the
   start is *dispatched*; completion arrives via events.
 - `disconnect()`, `getState()`, `getIdentity()`.
+- `setSplitTunnelConfig(configJson)` — persist the split-tunnel preset config
+  JSON natively (schema in the contract §3); when the tunnel is connected and
+  the *effective* config changed (the emitted sing-box config would differ),
+  native reapplies by reconnecting to the same target. Resolves when the
+  reapply is *dispatched*.
 - Event `openrungStateChanged` with payload `NativeVpnState`:
   `{ status, relayLabel, lastError, logLines (cap 80), recents (cap 8) }`.
   `status` is one of disconnected / preparing / connecting / connected /
   disconnecting / failed.
 
 `src/native/types.ts` is the single source of truth for these types.
+
+### Split tunneling (presets)
+
+Settings → Split tunneling is presets-only: a master toggle (default on), with
+"bypass local network" plus the Iranian and Chinese sites & apps presets also
+on by default, and — Android only — a bypassed-apps picker (no individual apps
+are preselected). RN persists its own slice, debounces changes, and pushes one
+small snake_case JSON config (`version`, `enabled`, `bypass_lan`,
+`bypass_countries`, `excluded_packages`) through `setSplitTunnelConfig`.
+Native persists the raw string (Android SharedPreferences
+`openrung_split_tunnel`, iOS app-group defaults key `split_tunnel_config`)
+and, when the tunnel is up and the string changed, reapplies by reconnecting
+to the same relay target through the existing relay-switch mechanics.
+
+At connect time the native generators translate the stored config into
+sing-box deltas: an `ip_is_private` → direct route rule for LAN bypass;
+per-country local rule sets (`geosite-<cc>.srs` / `geoip-<cc>.srs`, bundled
+from `rulesets/dist/` — Android stages them into `<filesDir>/libbox/rulesets/`,
+iOS reads them from the PacketTunnel bundle) routed direct, with a sniff rule
+and per-country DNS over the direct path (Shecan `178.22.122.100` for Iran,
+AliDNS `223.5.5.5` for China); and on Android an OS-level `exclude_package`
+list on the TUN inbound. The Android app picker is fed by the separate
+`OpenRungAppList` module (launcher apps, background-resolved). Everything
+fails open (CONTRACT §1): a bad/missing config or a missing rule-set file
+degrades to full-tunnel behavior with a log line — split tunneling never
+blocks a connect.
 
 ### Android-only offline APK sharing
 
@@ -333,4 +366,10 @@ LICENSE_TEXT) with hardware-back mapping — no navigation library.
 - NAT punching is currently Android-only; iOS uses the advertised RelayHub path.
 - Telemetry from TS covers only speed-test events; the native connect path
   keeps full production telemetry.
+- Per-app split-tunnel bypass is Android-only; iOS parses and ignores
+  `excluded_packages`.
+- With a country bypass preset on, DNS for bypassed domains resolves via
+  in-country public resolvers (Shecan / AliDNS) over the direct path.
+- Android apps excluded at the OS level are invisible to telemetry/traffic
+  counters; sing-box-routed direct flows (LAN/country bypass) remain counted.
 - License: GPL-3.0-or-later (statically links sing-box), same as production.

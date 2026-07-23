@@ -55,6 +55,7 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
   private timers: Array<ReturnType<typeof setTimeout>> = [];
   private readonly clientId = uuid4();
   private sessionId: string | null = null;
+  private splitTunnelConfigJson: string | null = null;
 
   subscribe(listener: (state: NativeVpnState) => void): () => void {
     this.listeners.add(listener);
@@ -161,6 +162,29 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
 
   getState(): Promise<NativeVpnState> {
     return Promise.resolve(this.snapshot());
+  }
+
+  setSplitTunnelConfig(configJson: string): Promise<void> {
+    // Production stores the raw JSON and skips the reapply-reconnect when the incoming payload
+    // is string-equal to the stored one (contract §3); the mock mirrors that comparison.
+    const changed = configJson !== this.splitTunnelConfigJson;
+    this.splitTunnelConfigJson = configJson;
+    if (changed && this.state.status === 'connected') {
+      // Production reapplies by tearing down + reconnecting to the same target; the mock walks
+      // a quick connecting -> connected sequence so the UI shows the brief reconnect.
+      this.cancelScript();
+      this.setStatus('connecting');
+      this.appendLog('applying split tunnel config');
+      this.runScript([
+        {
+          delayMs: 400,
+          run: () => {
+            this.setStatus('connected');
+          },
+        },
+      ]);
+    }
+    return Promise.resolve();
   }
 
   getIdentity(): Promise<NativeIdentity> {

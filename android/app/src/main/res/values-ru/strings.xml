@@ -15,6 +15,7 @@
     <string name="log_broker_returned">broker вернул %1$d ретрансляторов; %2$d пригодно</string>
     <string name="log_trying_relay">попытка ретранслятора %1$s по адресу %2$s:%3$d</string>
     <string name="log_checking_relay_reachability">проверка доступности TCP ретранслятора</string>
+    <string name="log_split_ruleset_missing">набор правил раздельного туннелирования для %1$s отсутствует; этот трафик остаётся в туннеле</string>
     <string name="log_relay_failed">ретранслятор %1$s не сработал: %2$s</string>
     <string name="log_error_prefix">ошибка: %1$s</string>
     <string name="error_no_usable_relay">Нет пригодного ретранслятора прямого выхода VLESS Reality Vision.</string>
