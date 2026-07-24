@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Builds ios/ThirdParty/Libbox.xcframework from the exact sing-box revision in
-# ../SINGBOX_VERSION and grafts OpenRung's WSS binding into libbox's existing
-# gomobile package. This deliberately produces one XCFramework and one Go
-# runtime: do not ship the binding as a second gomobile framework.
+# ../SINGBOX_VERSION and grafts OpenRung's broker and WSS bindings into
+# libbox's existing gomobile package. This deliberately produces one
+# XCFramework and one Go runtime: do not ship either binding as a second
+# gomobile framework.
 #
-# The WSS transport itself is resolved from the exact wsscore module version in
-# android/punchbridge/go.mod. Set WSSCORE_SRC=/path/to/wsscore only for local
-# development; release artifacts must use the pinned module tag.
+# The transports resolve from the exact brokerapi and wsscore module versions
+# in android/punchbridge/go.mod. BROKERAPI_SRC and WSSCORE_SRC are absolute
+# local-development overrides only; release artifacts must use the pinned tags.
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"
@@ -52,16 +53,40 @@ if [ -z "$wsscore_version" ]; then
   exit 1
 fi
 
+brokerapi_version="$(go mod edit -json "$binding_source/go.mod" | python3 -c '
+import json, sys
+data = json.load(sys.stdin)
+for require in data.get("Require") or []:
+    if require["Path"] == "github.com/openrung/openrung/brokerapi":
+        print(require["Version"])
+        break
+')"
+if [ -z "$brokerapi_version" ]; then
+  echo "error: $binding_source/go.mod has no brokerapi module pin" >&2
+  exit 1
+fi
+
 dev_workspace=""
-if [ -n "${WSSCORE_SRC:-}" ]; then
-  WSSCORE_SRC="$(cd "$WSSCORE_SRC" && pwd)"
-  dev_workspace="$work_dir/openrung-wsscore-dev.work"
+if [ -n "${WSSCORE_SRC:-}" ] || [ -n "${BROKERAPI_SRC:-}" ]; then
+  if [ -n "${WSSCORE_SRC:-}" ]; then
+    WSSCORE_SRC="$(cd "$WSSCORE_SRC" && pwd)"
+  fi
+  if [ -n "${BROKERAPI_SRC:-}" ]; then
+    BROKERAPI_SRC="$(cd "$BROKERAPI_SRC" && pwd)"
+  fi
+  dev_workspace="$work_dir/openrung-core-dev.work"
   {
     echo "go 1.25.0"
     echo
     echo "use $binding_source"
-    echo
-    echo "replace github.com/openrung/openrung/wsscore => $WSSCORE_SRC"
+    if [ -n "${WSSCORE_SRC:-}" ]; then
+      echo
+      echo "replace github.com/openrung/openrung/wsscore => $WSSCORE_SRC"
+    fi
+    if [ -n "${BROKERAPI_SRC:-}" ]; then
+      echo
+      echo "replace github.com/openrung/openrung/brokerapi => $BROKERAPI_SRC"
+    fi
   } > "$dev_workspace"
 fi
 
@@ -75,7 +100,7 @@ echo "Testing the OpenRung native bindings"
   fi
 )
 
-echo "Building Libbox.xcframework from sing-box $sing_box_version with wsscore $wsscore_version"
+echo "Building Libbox.xcframework from sing-box $sing_box_version with brokerapi $brokerapi_version and wsscore $wsscore_version"
 
 module_cache="${GOMODCACHE:-$(go env GOMODCACHE)}"
 module_source="$module_cache/github.com/sagernet/sing-box@$sing_box_version"
@@ -142,30 +167,50 @@ print(
 PATCH_TAGS
 # ---------------------------------------------------------------------------
 
-# The gomobile-generated Objective-C API, wsscore client, and sing-box engine
-# must share libbox's Go runtime. Only the thin binding is copied; WebSocket,
-# TLS, yamux, stream copying, and transport bounds remain in the tagged module.
+# The gomobile-generated Objective-C APIs, brokerapi and wsscore clients, and
+# sing-box engine must share libbox's Go runtime. Only the thin bindings are
+# copied; broker policy, ECH/TLS, WebSocket, yamux, stream copying, and transport
+# bounds remain in the tagged modules.
 cp "$binding_source/wss_binding.go" \
   "$work_dir/source/experimental/libbox/openrung_wss.go"
+cp "$binding_source/broker_binding.go" \
+  "$work_dir/source/experimental/libbox/openrung_broker.go"
 
 (
   cd "$work_dir/source"
   go_mod_edits=(
+    -require "github.com/openrung/openrung/brokerapi@$brokerapi_version"
     -require "github.com/openrung/openrung/wsscore@$wsscore_version"
   )
+  if [ -n "${BROKERAPI_SRC:-}" ]; then
+    go_mod_edits+=(
+      -replace "github.com/openrung/openrung/brokerapi=$BROKERAPI_SRC"
+    )
+  fi
   if [ -n "${WSSCORE_SRC:-}" ]; then
     go_mod_edits+=(
       -replace "github.com/openrung/openrung/wsscore=$WSSCORE_SRC"
     )
+  fi
+  if [ -n "$dev_workspace" ]; then
     echo "==============================================================" >&2
-    echo "WARNING: building with local WSSCORE_SRC: $WSSCORE_SRC" >&2
-    echo "This is for development only; releases must use $wsscore_version." >&2
+    echo "WARNING: building with local OpenRung shared-module source." >&2
+    if [ -n "${BROKERAPI_SRC:-}" ]; then
+      echo "BROKERAPI_SRC: $BROKERAPI_SRC" >&2
+    fi
+    if [ -n "${WSSCORE_SRC:-}" ]; then
+      echo "WSSCORE_SRC: $WSSCORE_SRC" >&2
+    fi
+    echo "This is for development only. Release XCFrameworks must" >&2
+    echo "resolve the versions pinned in android/punchbridge/go.mod." >&2
     echo "==============================================================" >&2
   fi
 
   GOWORK=off go mod edit "${go_mod_edits[@]}"
   GOFLAGS=-mod=mod GOMODCACHE="$module_cache" GOWORK=off \
-    go get "github.com/openrung/openrung/wsscore@$wsscore_version"
+    go get \
+      "github.com/openrung/openrung/brokerapi@$brokerapi_version" \
+      "github.com/openrung/openrung/wsscore@$wsscore_version"
   GOMODCACHE="$module_cache" GOWORK=off \
     go run ./cmd/internal/build_libbox \
       -target apple \
@@ -180,8 +225,16 @@ for slice in ios-arm64 ios-arm64_x86_64-simulator; do
     echo "error: Apple build is missing required $slice framework files" >&2
     exit 1
   fi
-  if ! grep -q 'LibboxNewOpenRungWSSClientForIOS' "$header"; then
+  if ! grep -Fq 'LibboxNewOpenRungWSSClientForIOS' "$header"; then
     echo "error: Apple build is missing the OpenRung iOS WSS API in $slice" >&2
+    exit 1
+  fi
+  if ! grep -Fq 'LibboxNewOpenRungBrokerOperationForIOS' "$header"; then
+    echo "error: Apple build is missing the OpenRung iOS broker constructor in $slice" >&2
+    exit 1
+  fi
+  if ! grep -Fq 'LibboxOpenRungBrokerRelayResult' "$header"; then
+    echo "error: Apple build is missing the OpenRung broker relay result in $slice" >&2
     exit 1
   fi
 done
