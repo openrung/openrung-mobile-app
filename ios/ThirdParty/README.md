@@ -38,7 +38,9 @@ naiveproxy — see [`../../RELEASE.md`](../../RELEASE.md) §2), resolves the tag
 would load a second, incompatible Go runtime. Shared transport implementations
 are never copied into this repository. The broker symbols are foundation for a
 later call-site migration; current Swift and React Native broker clients remain
-unchanged.
+unchanged. Before installation, the build script links a small broker-constructor
+executable against both Apple slices and verifies that the OpenRung host target
+declares its own `libresolv.tbd` dependency.
 
 For development against unpublished local checkouts, use either or both of:
 

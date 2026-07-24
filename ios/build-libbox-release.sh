@@ -239,6 +239,60 @@ for slice in ios-arm64 ios-arm64_x86_64-simulator; do
   fi
 done
 
+# The app and extension are separate executables, so project.yml must give the
+# OpenRung host its own resolver linkage. A normal host build can otherwise pass
+# until a native call site first pulls Libbox's static Go archive into the link.
+python3 - "$script_dir/project.yml" <<'CHECK_HOST_LINKAGE'
+from pathlib import Path
+import re
+import sys
+
+project = Path(sys.argv[1]).read_text(encoding="utf-8")
+match = re.search(
+    r"(?ms)^  OpenRung:\n(?P<body>.*?)(?=^  [A-Za-z0-9_]+:\n|\Z)",
+    project,
+)
+if match is None:
+    sys.exit("error: ios/project.yml has no OpenRung target")
+
+target = match.group("body")
+for dependency in (
+    "- framework: ThirdParty/Libbox.xcframework",
+    "- sdk: libresolv.tbd",
+):
+    if dependency not in target:
+        sys.exit("error: the OpenRung target must link " + dependency[2:])
+CHECK_HOST_LINKAGE
+
+# Exercise a broker constructor in both generated slices. This deliberately
+# links the static archive (rather than only checking its headers), surfacing
+# unresolved resolver symbols before a later native call-site migration.
+link_smoke_source="$script_dir/scripts/libbox-broker-link-smoke.m"
+link_smoke() {
+  local sdk="$1"
+  local arch="$2"
+  local deployment_flag="$3"
+  local slice="$4"
+  local module_cache="$work_dir/clang-modules-$sdk"
+
+  xcrun --sdk "$sdk" clang \
+    -arch "$arch" \
+    "$deployment_flag" \
+    -fobjc-arc \
+    -fmodules \
+    -fmodules-cache-path="$module_cache" \
+    -F "$artifact/$slice" \
+    -framework Libbox \
+    -framework Foundation \
+    -framework Network \
+    -lresolv \
+    "$link_smoke_source" \
+    -o "$work_dir/libbox-broker-link-smoke-$sdk"
+}
+
+link_smoke iphoneos arm64 -miphoneos-version-min=16.0 ios-arm64
+link_smoke iphonesimulator arm64 -mios-simulator-version-min=16.0 ios-arm64_x86_64-simulator
+
 mkdir -p "$script_dir/ThirdParty"
 cp -R "$artifact" "$incoming_artifact"
 rm -rf "$script_dir/ThirdParty/Libbox.xcframework"

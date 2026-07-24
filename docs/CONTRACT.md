@@ -519,8 +519,8 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   default App Transport Security is enforced because every production endpoint
   is HTTPS (see ARCHITECTURE.md § "Network transport"). The OpenRung host and
   PacketTunnel extension each link the same static
-  `ThirdParty/Libbox.xcframework` (`embed:false`); PacketTunnel also links
-  libresolv.tbd, sets `APPLICATION_EXTENSION_API_ONLY=YES`, and compiles without
+  `ThirdParty/Libbox.xcframework` (`embed:false`) plus `libresolv.tbd`;
+  PacketTunnel sets `APPLICATION_EXTENSION_API_ONLY=YES` and compiles without
   the xcframework via the existing `#if canImport(Libbox)` stub.
 - `ios/build-libbox-release.sh` generates that one device+simulator
   `Libbox.xcframework` by grafting `broker_binding.go` and `wss_binding.go` into
