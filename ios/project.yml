@@ -60,6 +60,10 @@ targets:
     dependencies:
       # Embeds the PacketTunnel appex into PlugIns/.
       - target: PacketTunnel
+      # Static archive (ar) → linked, never embedded. The app and extension are
+      # separate executables and each links the same unified XCFramework.
+      - framework: ThirdParty/Libbox.xcframework
+        embed: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.openrung.app

@@ -126,8 +126,8 @@ src/screens/         Main, Settings, Debug, Licenses, LicenseText.
 src/components/      Map, status chip, recents, panels, header.
 src/licenses/        Bundled license text for the in-app screen.
 android/             RN Android app + ported VPN service and bridge.
-  punchbridge/       Go gomobile adapters over pinned shared punchcore/wsscore
-                     modules, injected into the generated libbox AAR.
+  punchbridge/       Go gomobile adapters over pinned brokerapi, punchcore, and
+                     wsscore modules, injected into the generated libbox AAR.
 ios/                 RN iOS app + PacketTunnel extension (xcodegen).
 docs/                CONTRACT.md (binding), ARCHITECTURE.md (overview).
 ```
@@ -151,13 +151,15 @@ android/app/libs/libbox.aar
 
 The AAR is intentionally ignored by Git because it is generated and large. Build
 it from the pinned sing-box revision (in `SINGBOX_VERSION`), the committed
-Android native adapters (`android/punchbridge`), and the shared punch and WSS
-cores consumed as the pinned `github.com/openrung/openrung/punchcore` and
+Android native adapters (`android/punchbridge`), and the shared broker, punch,
+and WSS implementations consumed as the pinned
+`github.com/openrung/openrung/brokerapi`,
+`github.com/openrung/openrung/punchcore`, and
 `github.com/openrung/openrung/wsscore` Go modules, with
 [`android/build-libbox-release.sh`](android/build-libbox-release.sh) — it needs
 JDK 17, the Android SDK + NDK `29.0.14206865`, and Go and `python3` on `PATH`
-(python3 extracts both pins from `go.mod`). The sing-box revision, this
-repository commit, and both pinned module versions together are the GPL §6
+(python3 extracts all three pins from `go.mod`). The sing-box revision, this
+repository commit, and all three pinned module versions together are the GPL §6
 corresponding source for the shipped native engine; the
 per-release procedure is in [`RELEASE.md`](RELEASE.md).
 
@@ -191,22 +193,26 @@ brew install xcodegen
 
 (Run `bundle install` once first to install CocoaPods via the Gemfile.)
 
-The tunnel extension expects a locally generated framework at:
+The OpenRung host application and PacketTunnel extension both link a locally
+generated static framework at:
 
 ```text
 ios/ThirdParty/Libbox.xcframework
 ```
 
 Also Git-ignored. Build one unified device+simulator framework from the pinned
-sing-box revision and wsscore tag (the same pin as Android) with:
+sing-box revision plus the brokerapi and wsscore tags shared with Android:
 
 ```sh
 ./ios/build-libbox-release.sh
 ```
 
 See [`ios/ThirdParty/README.md`](ios/ThirdParty/README.md) for prerequisites and
-the non-release local-wsscore development mode. The extension compiles without
-it via a `#if canImport(Libbox)` stub, but cannot carry traffic.
+the non-release local-module development modes. The framework includes the
+broker binding foundation for later native consumers; this change does not
+migrate the existing Swift or React Native broker clients. PacketTunnel still
+compiles without the artifact via a `#if canImport(Libbox)` stub, but cannot
+carry traffic.
 
 **Signing:** both targets need a development team (production uses `9VLV9A7KS9`)
 with the **Network Extension (packet-tunnel-provider)** capability and the app

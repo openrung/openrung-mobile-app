@@ -413,8 +413,8 @@ used as evidence that Reality or WSS carried end-to-end traffic.
   kotlinx-coroutines-android 1.9.0, conditional `implementation(files("libs/libbox.aar"))`
   (file is copied locally, git-ignored). Status strings the service logs live in
   `res/values*/strings.xml` (ported subset, all 10 locales).
-- `android/punchbridge/` (the gomobile `binding.go` plus its sagernet-QUIC
-  session/transport/bridge layer, tests excluded) is copied into sing-box's
+- `android/punchbridge/` (the gomobile punch, WSS, and broker bindings plus the
+  sagernet-QUIC session/transport/bridge layer, tests excluded) is copied into sing-box's
   temporary `experimental/libbox` tree by `build-libbox-release.sh`, so punch
   and libbox share one gomobile runtime/AAR. The shared punch protocol core is
   not copied: it is resolved as the `github.com/openrung/openrung/punchcore`
@@ -428,6 +428,13 @@ used as evidence that Reality or WSS carried end-to-end traffic.
   TLS, yamux, transport-bound, and loopback-adapter code from the exact wsscore
   version in `android/punchbridge/go.mod`. `WSSCORE_SRC` is a local-development
   replace only and MUST NOT be used for a release artifact.
+- The AAR also grafts `broker_binding.go` and resolves
+  `github.com/openrung/openrung/brokerapi v0.1.0` from the same `go.mod`.
+  Production constructors use `brokerapi.NewClient(nil, options)`, retaining
+  its shared opportunistic-ECH transport and verified ordinary-TLS fallback.
+  `BROKERAPI_SRC` is an explicit local-development replace only. No Kotlin,
+  Swift, React Native, or TypeScript call site consumes this binding in this
+  foundation change.
 - The signed descriptor must advertise an explicit HTTPS punch endpoint. Bare-IP
   self-signed coordinators are accepted only when their exact certificate SHA-256
   appears in `AppConfig.PUNCH_COORDINATOR_CERT_SHA256_BY_HOST`; hostname endpoints
@@ -510,17 +517,19 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   rules.
 - Both targets: packet-tunnel-provider entitlement + app group; no ATS exceptions —
   default App Transport Security is enforced because every production endpoint
-  is HTTPS (see ARCHITECTURE.md § "Network transport"). PacketTunnel links `ThirdParty/Libbox.xcframework`
-  (embed:false) + libresolv.tbd, `APPLICATION_EXTENSION_API_ONLY=YES`; compiles
-  without the xcframework via the existing `#if canImport(Libbox)` stub.
+  is HTTPS (see ARCHITECTURE.md § "Network transport"). The OpenRung host and
+  PacketTunnel extension each link the same static
+  `ThirdParty/Libbox.xcframework` (`embed:false`); PacketTunnel also links
+  libresolv.tbd, sets `APPLICATION_EXTENSION_API_ONLY=YES`, and compiles without
+  the xcframework via the existing `#if canImport(Libbox)` stub.
 - `ios/build-libbox-release.sh` generates that one device+simulator
-  `Libbox.xcframework` by grafting only `wss_binding.go` into the pinned sing-box
-  libbox package and resolving wsscore v0.2.0 from
-  `android/punchbridge/go.mod`. PacketTunnel calls the generated
+  `Libbox.xcframework` by grafting `broker_binding.go` and `wss_binding.go` into
+  the pinned sing-box libbox package and resolving brokerapi v0.1.0 and wsscore
+  v0.2.0 from `android/punchbridge/go.mod`. PacketTunnel calls the generated
   `LibboxNewOpenRungWSSClientForIOS(frontURL,ticket,listener)` export, whose
   nil `SocketProtector` deliberately selects wsscore's Apple nil-protector
   path. A second gomobile framework/runtime or an artifact built with
-  `WSSCORE_SRC` is not releasable.
+  `BROKERAPI_SRC` or `WSSCORE_SRC` is not releasable.
 
 ## 8. Known prototype limitations (documented in README)
 

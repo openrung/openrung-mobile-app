@@ -5,7 +5,8 @@
 > extension, so the whole iOS app is GPL-3.0-or-later (see the repo `LICENSE`
 > and `THIRD_PARTY_NOTICES.md`). The build below pins the **exact sing-box
 > revision** recorded in [`../../SINGBOX_VERSION`](../../SINGBOX_VERSION). The
-> OpenRung WSS wrapper also resolves the exact `wsscore` tag pinned in
+> OpenRung's broker and WSS wrappers also resolve the exact `brokerapi` and
+> `wsscore` tags pinned in
 > [`../../android/punchbridge/go.mod`](../../android/punchbridge/go.mod), so the
 > GPL §6 corresponding source is reproducible — keep those pins in lockstep
 > with the shipped binary (see [`../../RELEASE.md`](../../RELEASE.md)).
@@ -29,17 +30,26 @@ PATH="$(go env GOPATH)/bin:$PATH" gomobile init
 ```
 
 The script downloads the exact sing-box pseudo-version, grafts only the thin
-OpenRung WSS binding into `experimental/libbox`, trims sing-box's libbox build
-tags to OpenRung's feature set (dropping Tailscale, WireGuard, and naiveproxy —
-see [`../../RELEASE.md`](../../RELEASE.md) §2), resolves the tagged `wsscore`
-module, and emits one unified `Libbox.xcframework`. This is required because a
-second gomobile framework would load a second, incompatible Go runtime. The
-transport implementation is never copied into this repository.
+OpenRung broker and WSS bindings into `experimental/libbox`, trims sing-box's
+libbox build tags to OpenRung's feature set (dropping Tailscale, WireGuard, and
+naiveproxy — see [`../../RELEASE.md`](../../RELEASE.md) §2), resolves the tagged
+`brokerapi` and `wsscore` modules, and emits one unified
+`Libbox.xcframework`. This is required because a second gomobile framework
+would load a second, incompatible Go runtime. Shared transport implementations
+are never copied into this repository. The broker symbols are foundation for a
+later call-site migration; current Swift and React Native broker clients remain
+unchanged.
 
-For development against an unpublished local wsscore checkout, use
-`WSSCORE_SRC=/absolute/path/to/wsscore ./ios/build-libbox-release.sh`. Artifacts
-built this way are explicitly non-release builds; omit `WSSCORE_SRC` to verify
-the pinned tag used for distribution.
+For development against unpublished local checkouts, use either or both of:
+
+```sh
+BROKERAPI_SRC=/absolute/path/to/brokerapi \
+WSSCORE_SRC=/absolute/path/to/wsscore \
+./ios/build-libbox-release.sh
+```
+
+Artifacts built this way are explicitly non-release builds; omit both
+variables to verify the pinned tags used for distribution.
 
 The Android AAR is built from the same pinned revision by
 [`../../android/build-libbox-release.sh`](../../android/build-libbox-release.sh).
