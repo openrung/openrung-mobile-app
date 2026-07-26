@@ -47,27 +47,6 @@ object AppConfig {
         "43.201.172.102" to "70c3a26b9ac7315d1975f417eb9eabbecc98ec0e2d5baadb6c224e87fd99c8b5",
     )
 
-    /**
-     * Ordered Ed25519 public keys (raw 32-byte keys as lowercase hex) trusted to sign the relay
-     * list (SPEC v1 §4.2): the active broker key first, then the offline standby that a routine
-     * rotation promotes. Signing detaches relay-list authenticity from the transport — a valid
-     * signature from one of these keys, not the TLS cert of whichever front answered, is what
-     * lets discovery trust a response (see [com.openrung.net.RelayListVerifier]). The `key_id`
-     * in the signature header is advisory routing only: on mismatch every key here is tried, so
-     * a broker-side key_id bug costs one wasted verify, not an outage. MUST stay in sync with
-     * the desktop Go, RN and iOS pinned lists; the pinned-key CI guard in RelayListVerifierTest
-     * verifies each entry against its committed rotation vector, so a truncated or typo'd
-     * constant fails the build instead of being discovered on promotion day. A key may be
-     * dropped only per the rotation runbook (broker no longer signs with it AND key_id
-     * telemetry shows zero verifications under it).
-     */
-    val RELAY_SIGNING_PUBLIC_KEYS_HEX: List<String> = listOf(
-        // Active broker signing key (key_id 627405615601c589).
-        "176c03cbc70833285abcea75f2a0e137bd687629142408c22806a86308bd4974",
-        // Offline standby, promoted on rotation or key loss (key_id 672f79aa99a573cd).
-        "5b2698cfa7a796c671a30aabd5475d55095b91464221f051837eb8fe01f36ea2",
-    )
-
     const val RELAY_LIMIT = 5
     const val VPN_SESSION_NAME = "OpenRung VPN"
     const val STATUS_PREFS = "openrung_status"

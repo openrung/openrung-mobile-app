@@ -138,13 +138,9 @@ targets:
   # Sanitizer.
   #   - FailureClassifierTests: FailureClassifier + the small error types it maps.
   #   - BrokerClientTests: native discovery argument forwarding and verified-result decoding.
-  #   - RelayListVerifierTests: RelayListVerifier, plus AppConfig and its compile closure
-  #     (BrokerClient/RelayDescriptor/DeviceAttributes/NetworkPathMonitor/BrokerEndpoint) so the §11
-  #     pinned-key CI guard verifies the committed rotation vectors against the REAL
-  #     AppConfig.relaySigningKeys constant — a typo'd pin fails CI here, not on rotation day.
   #   - RelayRankerTests: the latency-bucket ladder reorder (RelayRanker + RelayReachability,
   #     which its default probe closure references).
-  # All sources are Foundation/UIKit/Network/CryptoKit only (no CocoaPods, no Libbox).
+  # All sources are Foundation/UIKit/Network only (no CocoaPods, no Libbox).
   OpenRungTests:
     type: bundle.unit-test
     platform: iOS
@@ -169,7 +165,6 @@ targets:
       - path: Shared/RelayRanker.swift
       - path: Shared/RelayReachability.swift
       - path: Shared/RelayReachabilityError.swift
-      - path: Shared/RelayListVerifier.swift
       - path: Shared/SingBoxConfiguration.swift
       - path: Shared/SplitTunnelConfig.swift
       - path: Shared/TelemetryClient.swift

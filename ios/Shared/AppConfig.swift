@@ -33,33 +33,11 @@ enum AppConfig {
     /// default order, custom-override handling, racing, and relay-list verification.
     ///
     /// Two independent fronts are deployed — the Cloudflare Worker and an AWS CloudFront distribution
-    /// (different provider AND DNS zone) — so a single CDN/zone/account failure no longer fails
-    /// discovery CLOSED. Both proxy the one signing broker, so both serve verifiable lists. With
-    /// signing in place, non-TLS / out-of-band channels (direct-IP fallback, signed mirrors, cached
-    /// lists) become possible in later phases. Keep this in sync with the other clients' AppConfig.
+    /// (different provider AND DNS zone). Keep this order stable for WSS failover.
     static let defaultBrokerURLs: [URL] = [
         defaultBrokerURL,
         // Independent second front: AWS CloudFront (different provider + DNS zone).
         URL(string: "https://d2r7mdpyevvs1m.cloudfront.net/")!,
-    ]
-
-    /// Ed25519 public keys trusted to sign the relay list, in pinned order — active key first, then
-    /// the offline standby (a third "previous" slot appears during rotations; signing spec §4.2/§11).
-    /// `keyID` is the lowercase hex of the first 8 bytes of SHA-256 over the raw 32-byte public key;
-    /// it routes verification to the matching key first but is advisory only — on a miss every pinned
-    /// key is tried. These constants MUST stay byte-identical to `testdata/signing_vectors.json`
-    /// (`pinned_keys`), which is what the committed-vector CI guard compares them against, and in
-    /// sync with the other clients' pinned lists. Rotating keys means shipping a release with the
-    /// updated list — see the signing spec's promotion runbook.
-    static let relaySigningKeys: [RelaySigningKey] = [
-        RelaySigningKey(
-            keyID: "627405615601c589",
-            publicKeyHex: "176c03cbc70833285abcea75f2a0e137bd687629142408c22806a86308bd4974"
-        ),
-        RelaySigningKey(
-            keyID: "672f79aa99a573cd",
-            publicKeyHex: "5b2698cfa7a796c671a30aabd5475d55095b91464221f051837eb8fe01f36ea2"
-        ),
     ]
 
     static let loggingSubsystem = "com.openrung.app.PacketTunnel"
