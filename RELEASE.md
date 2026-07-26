@@ -39,6 +39,15 @@ WebSocket/TLS/yamux transport into this repository. A wsscore bump, like a
 punchcore bump, MUST update the exact module pin and checksum and rebuild both
 the combined Android AAR and unified Apple XCFramework in the same change.
 
+Both artifacts also consume the broker control-plane implementation as the
+tagged Go module `github.com/openrung/openrung/brokerapi`, pinned to **v0.1.0**
+in the same `go.mod` with its checksum in `go.sum`. Its thin gomobile binding is
+compiled into the existing libbox runtime; never create a second AAR or
+XCFramework for it. Production constructors pass a nil HTTP client so eligible
+direct connections to `broker.openrung.org:443` opportunistically try ECH and
+retain brokerapi's verified ordinary-TLS fallback. The binding is native
+foundation only until later changes migrate platform call sites.
+
 ### Bumping the punchcore pin
 
 A punch wire/protocol change flows like this:
@@ -53,7 +62,7 @@ A punch wire/protocol change flows like this:
    version: if `proxy.golang.org` was asked early, it negative-caches the
    miss — wait a few minutes for the cache TTL to expire and re-fetch.
 3. Dependabot ([`.github/dependabot.yml`](.github/dependabot.yml), scoped to
-   the two shared OpenRung modules only) opens the bump PR here — the require in
+   the three shared OpenRung modules only) opens the bump PR here — the require in
    `android/punchbridge/go.mod` plus `go.sum`. Manual fallback:
    `go get github.com/openrung/openrung/punchcore@vX.Y.Z` inside
    `android/punchbridge`. Either way the bump automatically busts the AAR CI
@@ -66,12 +75,12 @@ For local cross-repo development against an untagged punchcore checkout, use an
 uncommitted `go.work` (see `.gitignore`) and/or
 `PUNCHCORE_SRC=/path/to/openrung/punchcore android/build-libbox-release.sh`.
 Both are **dev-only**: never commit a `replace`, and never release an AAR built
-with `PUNCHCORE_SRC` or `WSSCORE_SRC` set.
+with `PUNCHCORE_SRC`, `WSSCORE_SRC`, or `BROKERAPI_SRC` set.
 
 ### Bumping the wsscore pin
 
 Use only a released `wsscore/vX.Y.Z` tag from `openrung/openrung`; do not pin a
-branch or pseudo-version. Dependabot is scoped to open bump PRs for both shared
+branch or pseudo-version. Dependabot is scoped to open bump PRs for all shared
 OpenRung modules. Manual fallback, from `android/punchbridge`:
 
 ```sh
@@ -84,31 +93,46 @@ For cross-repository development, set
 development-only: never commit that replace and never distribute an AAR built
 with `WSSCORE_SRC` set.
 
+### Bumping the brokerapi pin
+
+Use only a released `brokerapi/vX.Y.Z` tag from `openrung/openrung`; never add a
+committed local `replace`. Manual fallback, from `android/punchbridge`:
+
+```sh
+GOWORK=off go get github.com/openrung/openrung/brokerapi@vX.Y.Z
+```
+
+Rebuild and validate both Libbox artifacts in the same change. For coordinated
+cross-repository development only, both build scripts accept
+`BROKERAPI_SRC=/absolute/path/to/openrung/brokerapi`; artifacts built with that
+override are not releasable.
+
 ## 2. Rebuild both engine artifacts from their corresponding source
 
 Both are git-ignored (large, generated). Rebuild from the pinned revision:
 
 ```sh
 # One-time Android build tools (the fork/version pinned by sing-box).
-# The build script also needs python3 on PATH (parses both shared-module pins).
+# The build script also needs python3 on PATH (parses all shared-module pins).
 go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.12
 go install github.com/sagernet/gomobile/cmd/gobind@v0.1.12
 
 # Android → android/app/libs/libbox.aar
-#   (all four Android ABIs; bindings + pinned punchcore/wsscore modules)
+#   (all four Android ABIs; bindings + pinned brokerapi/punchcore/wsscore)
 ./android/build-libbox-release.sh
 
 # iOS → ios/ThirdParty/Libbox.xcframework
-#   (one device+simulator framework: sing-box + WSS adapter + pinned wsscore)
+#   (device+simulator framework: sing-box + broker/WSS bindings and modules)
 ./ios/build-libbox-release.sh
 ```
 
-The Android artifact has four native source inputs: the sing-box pin, the tagged
-`android/punchbridge` source, and the punchcore and wsscore module versions in
-`android/punchbridge/go.mod`. The Apple artifact has three: the same sing-box
-pin, the shared `wss_binding.go`, and that same wsscore pin. A stale cached AAR
-or XCFramework is a release blocker; release CI must hash all inputs and the
-corresponding build script. For the shared cores, CI hashes the *pins*
+The Android artifact inputs are the sing-box pin, the tagged
+`android/punchbridge` source, and the brokerapi, punchcore, and wsscore module
+versions in `android/punchbridge/go.mod`. The Apple artifact inputs are the
+same sing-box pin, `broker_binding.go`, `wss_binding.go`, and the brokerapi and
+wsscore pins. A stale cached AAR or XCFramework is a release blocker; release
+CI must hash all inputs and the corresponding build script. For the shared
+modules, CI hashes the *pins*
 (`go.mod`/`go.sum`), not their
 source trees — those live in the `openrung/openrung` repository at the recorded
 versions, so the tagged versions, not the cache key, make the build reproducible.
@@ -165,7 +189,7 @@ XCFramework**. CI runs the Go binding tests and syntax-checks
 `ios/build-libbox-release.sh`, but the device/simulator framework build still
 requires macOS tooling and is a manual release gate. Until CI builds the
 XCFramework, the release owner must run the script and verify both required
-slices and exported WSS symbols as described below.
+slices and exported WSS and broker symbols as described below.
 
 For Android releases, also verify every live bare-IP punch coordinator's leaf
 SHA-256 against `AppConfig.PUNCH_COORDINATOR_CERT_SHA256_BY_HOST`. Coordinate
@@ -187,10 +211,13 @@ Roll out in this order:
 2. Build `android/app/libs/libbox.aar` and
    `ios/ThirdParty/Libbox.xcframework` from their pinned inputs with the two
    release scripts. Confirm the AAR contains the WSS client, protector,
-   listener, result, and front-validation symbols. Confirm both Apple device
-   arm64 and simulator arm64/x86_64 slices export matching
-   `LibboxNewOpenRungWSSClientForIOS` headers. A local `WSSCORE_SRC` or
-   `PUNCHCORE_SRC` artifact is a release blocker.
+   listener, result, and front-validation symbols plus the broker operation
+   constructors/results. Confirm both Apple device arm64 and simulator
+   arm64/x86_64 slices export matching
+   `LibboxNewOpenRungWSSClientForIOS`,
+   `LibboxNewOpenRungBrokerOperationForIOS`, and broker result headers. A local
+   `BROKERAPI_SRC`, `WSSCORE_SRC`, or `PUNCHCORE_SRC` artifact is a release
+   blocker.
 3. Run `go test -race ./...` and `go vet ./...` in `android/punchbridge`, the
    complete Android JVM and iOS unit suites, and Android/iOS platform builds.
    Smoke-test real devices on both platforms: direct success (no ticket),
@@ -294,11 +321,15 @@ engine out-of-process. Google Play does not have the equivalent conflict.
 OpenRung provides the corresponding source for at least **three (3) years**
 after distribution. Keep the tagged commit (including `android/punchbridge`) +
 the matching `SINGBOX_VERSION` + the pinned
+`github.com/openrung/openrung/brokerapi` version (the
+`brokerapi/vX.Y.Z` tag) +
+the pinned
 `github.com/openrung/openrung/punchcore` version (the `punchcore/vX.Y.Z` tag in
 the `openrung/openrung` repository recorded in `android/punchbridge/go.mod`) +
 the pinned `github.com/openrung/openrung/wsscore` version (`wsscore/vX.Y.Z`)
 reachable for that long. This extends the 3-year retention promise to both
-shared modules in the `openrung/openrung` repository's tagged history.
+artifacts and all shared modules in the `openrung/openrung` repository's tagged
+history.
 
 ## 8. Bumping the app version
 

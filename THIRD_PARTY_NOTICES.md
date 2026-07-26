@@ -44,6 +44,17 @@ GPL-3.0-or-later (see `LICENSE`), same as the production OpenRung project.
 OpenRung is **not affiliated with or endorsed by** sing-box or SagerNet; the
 sing-box name is used only descriptively.
 
+### OpenRung brokerapi — GPL-3.0-or-later
+
+- **Component:** `github.com/openrung/openrung/brokerapi` at the exact version
+  pinned in `android/punchbridge/go.mod` (linked into both Libbox artifacts).
+- **License:** GNU General Public License v3.0 or later.
+- **Upstream/source:** https://github.com/openrung/openrung/tree/main/brokerapi
+
+This is first-party shared broker transport code rather than a third-party
+project, but its tagged source is a separate native release input. The complete
+GPL-3.0 text is bundled as `LICENSE`.
+
 ### OpenRung wsscore — GPL-3.0-or-later
 
 - **Component:** `github.com/openrung/openrung/wsscore` at the exact version
@@ -232,18 +243,20 @@ scripts — is available from the app's source repository:
 The apps statically link a specific sing-box commit. That commit is pinned in
 this repository at [`SINGBOX_VERSION`](SINGBOX_VERSION). Android's same-runtime
 AAR also includes the first-party native bindings under `android/punchbridge`
-and the shared OpenRung punch and WSS cores, consumed as the Go modules
-`github.com/openrung/openrung/punchcore` and
+and the shared OpenRung broker, punch, and WSS modules, consumed as
+`github.com/openrung/openrung/brokerapi`,
+`github.com/openrung/openrung/punchcore`, and
 `github.com/openrung/openrung/wsscore` at the versions pinned in
-`android/punchbridge/go.mod`. The Apple framework includes the WSS binding and
-the same wsscore pin. Both cores are first-party GPL-3.0-or-later code; their
-complete tagged source is available from **https://github.com/openrung/openrung**,
-which this offer also covers. The build paths
+`android/punchbridge/go.mod`. The Apple framework includes the broker and WSS
+bindings with the same brokerapi and wsscore pins. All three modules are
+first-party GPL-3.0-or-later code; their complete tagged source is available
+from **https://github.com/openrung/openrung**, which this offer also covers. The
+build paths
 (`android/build-libbox-release.sh` and `ios/build-libbox-release.sh`) and the
 per-release procedure in [`RELEASE.md`](RELEASE.md) make both artifacts
-reproducible. Record and verify the sing-box, punchcore, and wsscore pins against
-every shipped binary. OpenRung will provide the corresponding source for at
-least three (3) years on request.
+reproducible. Record and verify the sing-box, brokerapi, punchcore, and wsscore
+pins against every shipped binary. OpenRung will provide the corresponding
+source for at least three (3) years on request.
 
 ---
 
