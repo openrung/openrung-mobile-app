@@ -22,6 +22,7 @@ import com.openrung.model.RelayDescriptor
 import com.openrung.model.RelaySelector
 import com.openrung.model.WssFrontDescriptor
 import com.openrung.net.BrokerClient
+import com.openrung.net.BrokerNativeFailure
 import com.openrung.net.GeoIpClient
 import com.openrung.net.InternetProbe
 import com.openrung.net.NatPunchClient
@@ -191,8 +192,8 @@ class OpenRungVpnService : VpnService() {
         // this epoch (preflight, punch, direct, WSS) sees the same rules. Recovery reconnects
         // re-enter connect() and naturally re-read the persisted config.
         splitTunnelRules = withContext(Dispatchers.IO) { currentSplitTunnelRules() }
-        // Telemetry/heartbeat go DIRECT to the origin IP, not the Cloudflare-fronted discovery broker,
-        // so high-frequency heartbeats don't burn the Workers free-tier quota (see AppConfig).
+        // Telemetry/heartbeats intentionally keep using the dedicated configured target. Discovery's
+        // winning front is not automatically substituted for AppConfig.TELEMETRY_BROKER_URL.
         val telemetrySession = TelemetryManager.beginSession(applicationContext, AppConfig.TELEMETRY_BROKER_URL)
         var failureStage = "preparing"
         TelemetryManager.record("connection_attempted")
@@ -205,20 +206,17 @@ class OpenRungVpnService : VpnService() {
             OpenRungStatusStore.setStatus(ConnectionStatus.CONNECTING)
             OpenRungStatusStore.appendLog(getString(R.string.log_fetching_relays, brokerUrl))
             failureStage = "broker_fetch"
-            val brokerEndpoints = AppConfig.brokerCandidates(brokerUrl)
             val (fetch, brokerFetchMs) = coroutineScope {
                 val geoLookup = async {
                     runCatching { GeoIpClient().lookup() }.getOrNull()
                 }
                 val brokerStarted = SystemClock.elapsedRealtime()
                 // When targeting a specific country or relay, fetch the full relay set so the
-                // target is present (the default page may otherwise miss it). A genuine user
-                // override is tried strictly first with its full attempt timeout; the defaults
-                // race with a staggered start, so a blocked front costs one DISCOVERY_STAGGER_MS
-                // of extra latency instead of taking discovery offline.
+                // target is present (the default page may otherwise miss it). brokerapi owns
+                // custom-override ordering and its staggered race across default candidates.
                 val targeted = targetCountry != null || targetRelayId != null
                 val result = BrokerClient.firstReachable(
-                    candidates = brokerEndpoints,
+                    primary = brokerUrl,
                     limit = if (targeted) AppConfig.DIRECTORY_RELAY_LIMIT else AppConfig.RELAY_LIMIT,
                     clientId = telemetrySession.clientId,
                     sessionId = telemetrySession.id,
@@ -228,11 +226,9 @@ class OpenRungVpnService : VpnService() {
                 result to elapsed
             }
             val relayResponse = fetch.response
-            // If a fallback front won discovery — a genuine override is beaten only by FAILING
-            // outright (it is tried strictly first); a default primary also when merely slower than
-            // its head start — pin the rest of this session's broker traffic (telemetry, heartbeats)
-            // to the endpoint that worked. The persisted/configured broker URL is left untouched so a
-            // user's custom choice survives.
+            // Pin the winning front for native session-scoped control-plane work such as WSS
+            // tickets and recovery. Telemetry/heartbeats retain their dedicated configured target.
+            // The persisted/configured URL stays untouched so a user's custom choice survives.
             if (fetch.brokerUrl != brokerUrl) {
                 this.brokerUrl = fetch.brokerUrl
                 OpenRungStatusStore.appendLog(getString(R.string.log_broker_fallback, fetch.brokerUrl))
@@ -685,6 +681,7 @@ class OpenRungVpnService : VpnService() {
         val seen = HashSet<Throwable>()
         var current: Throwable? = error
         while (current != null && seen.add(current)) {
+            if (current is BrokerNativeFailure && current.isLocalPlatformFailure) return true
             if (current is RuntimeException || current is LinkageError) return true
             current = current.cause
         }
@@ -1379,13 +1376,29 @@ class OpenRungVpnService : VpnService() {
         }
         if (physicalNetworks.isEmpty()) return false
 
-        val fronts = AppConfig.brokerCandidates(brokerUrl).urls
+        // Deferred to PR 3: this liveness probe must stay bound to the selected non-VPN Network.
+        // The broker binding cannot preserve Network.openConnection routing and exposes no health
+        // selector, so using an ordinary Go request here could accidentally traverse the bad VPN.
+        val fronts = physicalProbeBrokerFronts(brokerUrl)
         for (network in physicalNetworks) {
             for (front in fronts) {
                 if (probePhysicalNetwork(network, front)) return true
             }
         }
         return false
+    }
+
+    /**
+     * Preserves the old winner-first/default ordering solely for the explicitly deferred physical
+     * Network-bound HEAD probe. Production relay discovery no longer consumes this list.
+     */
+    private fun physicalProbeBrokerFronts(primary: String?): List<String> {
+        val defaults = AppConfig.DEFAULT_BROKER_URLS.map(String::trim).filter(String::isNotEmpty)
+        val selected = primary?.trim().orEmpty()
+        return buildList {
+            if (selected.isNotEmpty() && selected !in defaults) add(selected)
+            addAll(defaults)
+        }.distinct()
     }
 
     private suspend fun awaitPhysicalNetworkAlive() {

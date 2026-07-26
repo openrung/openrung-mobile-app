@@ -237,6 +237,21 @@ for slice in ios-arm64 ios-arm64_x86_64-simulator; do
     echo "error: Apple build is missing the OpenRung broker relay result in $slice" >&2
     exit 1
   fi
+  for broker_symbol in \
+    'sendTelemetryBatchJSON:' \
+    'requestWSSTicket:' \
+    'LibboxOpenRungBrokerWSSTicketResult' \
+    ')ticket;' \
+    ')url;' \
+    ')expiresAtMillis;' \
+    ')errorKind;' \
+    ')httpStatus;' \
+    ')retryAfterMillis;'; do
+    if ! grep -Fq "$broker_symbol" "$header"; then
+      echo "error: Apple build is missing generated broker symbol in $slice: $broker_symbol" >&2
+      exit 1
+    fi
+  done
 done
 
 # The app and extension are separate executables, so project.yml must give the

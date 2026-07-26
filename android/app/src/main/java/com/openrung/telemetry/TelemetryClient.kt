@@ -1,55 +1,27 @@
 package com.openrung.telemetry
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import com.openrung.net.NativeBrokerOperationFactory
+import com.openrung.net.NativeBrokerTransport
+import com.openrung.net.requireNativeBrokerSuccess
+import com.openrung.net.runNativeBrokerOperation
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import java.io.IOException
-import java.net.HttpURLConnection
-import java.net.URI
-import java.net.URL
 
+/** Native telemetry uploader backed by one single-use brokerapi operation per non-empty batch. */
 class TelemetryClient(
     private val baseUrl: String,
+    private val operationFactory: NativeBrokerOperationFactory = NativeBrokerTransport.operationFactory,
     private val json: Json = Json { encodeDefaults = true },
 ) {
-    suspend fun send(events: List<TelemetryEvent>) = withContext(Dispatchers.IO) {
-        if (events.isEmpty()) return@withContext
-        val connection = (URL(telemetryUrl(baseUrl)).openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            connectTimeout = 10_000
-            readTimeout = 15_000
-            doOutput = true
-            setRequestProperty("Content-Type", "application/json")
-            setRequestProperty("X-OpenRung-Client-ID", events.first().clientId)
-            setRequestProperty("X-OpenRung-Session-ID", events.first().sessionId)
-        }
-        try {
-            connection.outputStream.bufferedWriter().use {
-                it.write(json.encodeToString(TelemetryBatch(events)))
-            }
-            val status = connection.responseCode
-            if (status !in 200..299) {
-                val body = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                throw IOException("broker telemetry: ${body.ifBlank { connection.responseMessage }}")
-            }
-            connection.inputStream.close()
-        } finally {
-            connection.disconnect()
-        }
-    }
+    suspend fun send(events: List<TelemetryEvent>) {
+        if (events.isEmpty()) return
 
-    companion object {
-        fun telemetryUrl(baseUrl: String): String {
-            val uri = URI(baseUrl.trim())
-            require(!uri.scheme.isNullOrBlank() && !uri.host.isNullOrBlank()) {
-                "broker URL must include scheme and host"
-            }
-            val basePath = uri.rawPath.orEmpty().trim('/')
-            val path = listOf(basePath, "api/v1/telemetry/events")
-                .filter { it.isNotBlank() }
-                .joinToString(separator = "/", prefix = "/")
-            return URI(uri.scheme, uri.userInfo, uri.host, uri.port, path, null, null).toString()
+        // Encode once. brokerapi validates this exact UTF-8 JSON and derives the complete identity
+        // pair from its events; Android must not construct identity headers independently.
+        val batchJson = json.encodeToString(TelemetryBatch(events))
+        val native = runNativeBrokerOperation(operationFactory) { operation ->
+            operation.sendTelemetryBatchJSON(baseUrl, batchJson)
         }
+        requireNativeBrokerSuccess(native, "native telemetry upload")
     }
 }

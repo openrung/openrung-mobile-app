@@ -3,6 +3,8 @@ package com.openrung.vpn
 import android.system.ErrnoException
 import android.system.OsConstants
 import com.openrung.net.BrokerHttpException
+import com.openrung.net.BrokerNativeFailure
+import com.openrung.net.BrokerNativeFailureKind
 import com.openrung.net.WssTicketStatusException
 import java.io.InterruptedIOException
 import java.net.SocketTimeoutException
@@ -48,7 +50,13 @@ object FailureClassifier {
             }
         }
 
-        // (3) broker HTTP status (429 → rate_limited, else http_<code>)
+        // (3) brokerapi's bounded native failure contract. Never emit raw Go kind strings:
+        // project them into the existing mobile dashboard taxonomy.
+        chain.firstNotNullOfOrNull { it as? BrokerNativeFailure }?.let {
+            return classifyNativeFailure(it)
+        }
+
+        // (4) legacy/status projections (429 → rate_limited, else http_<code>)
         chain.firstNotNullOfOrNull { it as? BrokerHttpException }?.let {
             return if (it.status == 429) "rate_limited" else "http_${it.status}"
         }
@@ -56,7 +64,7 @@ object FailureClassifier {
             return if (it.status == 429) "rate_limited" else "http_${it.status}"
         }
 
-        // (4) socket errno — refused / reset / unreachable. EACCES/EPERM and ETIMEDOUT are handled
+        // (5) socket errno — refused / reset / unreachable. EACCES/EPERM and ETIMEDOUT are handled
         // later (permission / timeout) to match the Go errno switch, which only maps these three.
         val errno = chain.firstNotNullOfOrNull { it as? ErrnoException }
         errno?.let {
@@ -67,13 +75,13 @@ object FailureClassifier {
             }
         }
 
-        // (5) DNS — before generic timeout, so a name-lookup timeout reports as dns_failure.
+        // (6) DNS — before generic timeout, so a name-lookup timeout reports as dns_failure.
         if (chain.any { it is UnknownHostException }) return "dns_failure"
 
-        // (6) TLS / SSL handshake or certificate failure (SSLHandshakeException is an SSLException).
+        // (7) TLS / SSL handshake or certificate failure (SSLHandshakeException is an SSLException).
         if (chain.any { it is SSLException }) return "tls_handshake"
 
-        // (7) OS-denied permission (revoked VPN consent, EACCES/EPERM).
+        // (8) OS-denied permission (revoked VPN consent, EACCES/EPERM).
         if (chain.any { it is SecurityException }) return "permission_denied"
         errno?.let {
             if (it.errno == OsConstants.EACCES || it.errno == OsConstants.EPERM) {
@@ -81,16 +89,37 @@ object FailureClassifier {
             }
         }
 
-        // (8) embedded proxy engine failed to start / stopped unexpectedly.
+        // (9) embedded proxy engine failed to start / stopped unexpectedly.
         if (chain.any { it is EngineStartException }) return "process_exited"
 
-        // (9) generic timeout — only after the typed checks above.
+        // (10) generic timeout — only after the typed checks above.
         errno?.let { if (it.errno == OsConstants.ETIMEDOUT) return "timeout" }
         // SocketTimeoutException is an InterruptedIOException; the base type also covers a bare
         // connect/read timeout raised without the more specific subclass.
         if (chain.any { it is InterruptedIOException }) return "timeout"
 
         return "unknown"
+    }
+
+    internal fun classifyNativeFailure(error: BrokerNativeFailure): String = when (error.kind) {
+        BrokerNativeFailureKind.CANCELLED -> "cancelled"
+        BrokerNativeFailureKind.TIMEOUT -> "timeout"
+        BrokerNativeFailureKind.RATE_LIMITED -> "rate_limited"
+        BrokerNativeFailureKind.HTTP_STATUS ->
+            when (error.httpStatus) {
+                429 -> "rate_limited"
+                null -> "unknown"
+                else -> "http_${error.httpStatus}"
+            }
+        BrokerNativeFailureKind.DNS -> "dns_failure"
+        BrokerNativeFailureKind.TLS -> "tls_handshake"
+        BrokerNativeFailureKind.NETWORK -> "network_unreachable"
+        BrokerNativeFailureKind.VERIFICATION,
+        BrokerNativeFailureKind.VALIDATION,
+        BrokerNativeFailureKind.UNAVAILABLE,
+        BrokerNativeFailureKind.DECODE,
+        BrokerNativeFailureKind.UNKNOWN,
+        -> "unknown"
     }
 
     /**

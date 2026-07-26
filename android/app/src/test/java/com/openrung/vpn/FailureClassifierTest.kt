@@ -1,6 +1,8 @@
 package com.openrung.vpn
 
 import com.openrung.net.BrokerHttpException
+import com.openrung.net.BrokerNativeFailure
+import com.openrung.net.BrokerNativeFailureKind
 import com.openrung.net.WssTicketStatusException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -70,6 +72,64 @@ class FailureClassifierTest {
     fun `WSS ticket status keeps HTTP classification transport scoped`() {
         assertEquals("rate_limited", FailureClassifier.classify(WssTicketStatusException(429, 5_000)))
         assertEquals("http_503", FailureClassifier.classify(WssTicketStatusException(503, null)))
+    }
+
+    @Test
+    fun `every native binding kind maps to the bounded mobile taxonomy`() {
+        val cases = listOf(
+            BrokerNativeFailureKind.CANCELLED to "cancelled",
+            BrokerNativeFailureKind.TIMEOUT to "timeout",
+            BrokerNativeFailureKind.RATE_LIMITED to "rate_limited",
+            BrokerNativeFailureKind.HTTP_STATUS to "http_503",
+            BrokerNativeFailureKind.DNS to "dns_failure",
+            BrokerNativeFailureKind.TLS to "tls_handshake",
+            BrokerNativeFailureKind.NETWORK to "network_unreachable",
+            BrokerNativeFailureKind.VERIFICATION to "unknown",
+            BrokerNativeFailureKind.VALIDATION to "unknown",
+            BrokerNativeFailureKind.UNKNOWN to "unknown",
+        )
+
+        cases.forEach { (kind, expected) ->
+            val error = BrokerNativeFailure(
+                kind = kind,
+                httpStatus = if (kind == BrokerNativeFailureKind.HTTP_STATUS) 503 else null,
+                message = "bounded native failure",
+            )
+            assertEquals("$kind", expected, FailureClassifier.classify(error))
+        }
+    }
+
+    @Test
+    fun `native HTTP 429 remains rate limited and absent status stays unknown`() {
+        assertEquals(
+            "rate_limited",
+            FailureClassifier.classify(
+                BrokerNativeFailure(
+                    kind = BrokerNativeFailureKind.HTTP_STATUS,
+                    httpStatus = 429,
+                    message = "too many requests",
+                ),
+            ),
+        )
+        assertEquals(
+            "unknown",
+            FailureClassifier.classify(
+                BrokerNativeFailure(
+                    kind = BrokerNativeFailureKind.HTTP_STATUS,
+                    message = "missing status",
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun `platform native failures remain bounded unknown`() {
+        listOf(BrokerNativeFailureKind.UNAVAILABLE, BrokerNativeFailureKind.DECODE).forEach { kind ->
+            assertEquals(
+                "unknown",
+                FailureClassifier.classify(BrokerNativeFailure(kind = kind, message = "local")),
+            )
+        }
     }
 
     @Test

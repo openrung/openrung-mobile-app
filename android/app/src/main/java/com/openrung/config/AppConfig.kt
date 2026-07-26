@@ -2,13 +2,9 @@ package com.openrung.config
 
 object AppConfig {
     /**
-     * Discovery broker (relay-list bootstrap) default, and — since discovery is HTTPS-only — the sole
-     * built-in discovery candidate. Discovery is the censorship-critical path: it runs BEFORE the VPN
-     * tunnel is up, and the relay list it returns defines which server the client trusts as its exit.
-     * The relay list is Ed25519-signed by the broker and verified against
-     * [RELAY_SIGNING_PUBLIC_KEYS_HEX], so its authenticity no longer rests on the transport; the
-     * Cloudflare-fronted HTTPS endpoint stays the default because it is hard to block and keeps the
-     * client identity headers off the wire in cleartext.
+     * Primary relay-discovery URL passed to brokerapi. The native Go client owns built-in
+     * candidates, override policy, racing, relay verification, and transport selection; Kotlin
+     * receives only the winning URL and a verified relay-list snapshot.
      */
     const val DEFAULT_BROKER_URL = "https://broker.openrung.org/"
 
@@ -25,50 +21,16 @@ object AppConfig {
     const val TELEMETRY_BROKER_URL = "https://broker.openrung.org/"
 
     /**
-     * Ordered discovery candidates, raced with a staggered start: the first entry starts
-     * immediately, each later entry joins [DISCOVERY_STAGGER_MS] after the previous one, and the
-     * first candidate to return relays wins (see [com.openrung.net.BrokerClient.firstReachable]).
-     * Every response is Ed25519-verified against [RELAY_SIGNING_PUBLIC_KEYS_HEX] (see
-     * [com.openrung.net.RelayListVerifier]), so a candidate's TLS cert is no longer what
-     * authenticates the list — an entry that fails verification is simply a failed candidate.
-     *
-     * Two independent fronts are deployed — the Cloudflare Worker and an AWS CloudFront distribution
-     * (different provider AND DNS zone) — so a single CDN/zone/account failure no longer fails
-     * discovery CLOSED. Both proxy the one signing broker, so both serve verifiable lists. Non-TLS
-     * channels (direct IP, signed mirrors) become safe to add in later phases now that the list is
-     * signed. Entries stay HTTPS for now because the discovery request carries the client identity
-     * headers, which must not travel in cleartext. Keep this in sync with the other clients' AppConfig.
+     * Stable broker-front order retained for WSS-ticket failover and the temporarily deferred,
+     * physical-Network-bound Android health probe. Native relay discovery now passes only the
+     * configured primary to brokerapi; Go owns its default candidates, override detection, racing,
+     * URL policy, ECH transport selection, and relay verification.
      */
     val DEFAULT_BROKER_URLS: List<String> = listOf(
         DEFAULT_BROKER_URL,
         // Independent second front: AWS CloudFront (different provider + DNS zone).
         "https://d2r7mdpyevvs1m.cloudfront.net/",
     )
-
-    /**
-     * Ordered discovery candidates for a connection attempt: the caller-selected [primary] (a user
-     * override or the persisted choice) first, then the built-in [DEFAULT_BROKER_URLS], de-duplicated
-     * while preserving order. A GENUINE override (a primary that is not one of the defaults) is
-     * flagged `overrideFirst`: `firstReachable` tries it strictly first with its full per-attempt
-     * timeout — a user's custom broker is never silently outrun by a default front merely for being
-     * slower than the stagger — and the defaults race as fallbacks only after it fails. A primary
-     * that echoes a default keeps the pure staggered race, where list position is just a head start
-     * of [DISCOVERY_STAGGER_MS] per position.
-     */
-    fun brokerCandidates(primary: String?): com.openrung.net.BrokerClient.Candidates =
-        com.openrung.net.BrokerClient.candidates(primary, DEFAULT_BROKER_URLS)
-
-    /**
-     * Stagger interval of the discovery race ([com.openrung.net.BrokerClient.firstReachable]):
-     * candidate N+1 is started this many milliseconds after candidate N unless an attempt has
-     * already succeeded. Small enough that a blocked/blackholed primary front only delays discovery
-     * by ~2.5 s per fallback position (instead of a full request timeout), large enough that a
-     * healthy primary almost always answers before the first fallback is ever contacted, keeping
-     * fallback-front load near zero. MUST stay in sync with desktop `DiscoveryStagger` (Go config
-     * package) and the RN/Swift AppConfigs — the staggered-race semantics are identical across all
-     * four clients.
-     */
-    const val DISCOVERY_STAGGER_MS = 2_500L
 
     /**
      * SHA-256 pins for self-signed punch-coordinator leaf certificates, keyed by the exact host in
@@ -83,27 +45,6 @@ object AppConfig {
     val PUNCH_COORDINATOR_CERT_SHA256_BY_HOST: Map<String, String> = mapOf(
         "43.201.124.63" to "70c3a26b9ac7315d1975f417eb9eabbecc98ec0e2d5baadb6c224e87fd99c8b5",
         "43.201.172.102" to "70c3a26b9ac7315d1975f417eb9eabbecc98ec0e2d5baadb6c224e87fd99c8b5",
-    )
-
-    /**
-     * Ordered Ed25519 public keys (raw 32-byte keys as lowercase hex) trusted to sign the relay
-     * list (SPEC v1 §4.2): the active broker key first, then the offline standby that a routine
-     * rotation promotes. Signing detaches relay-list authenticity from the transport — a valid
-     * signature from one of these keys, not the TLS cert of whichever front answered, is what
-     * lets discovery trust a response (see [com.openrung.net.RelayListVerifier]). The `key_id`
-     * in the signature header is advisory routing only: on mismatch every key here is tried, so
-     * a broker-side key_id bug costs one wasted verify, not an outage. MUST stay in sync with
-     * the desktop Go, RN and iOS pinned lists; the pinned-key CI guard in RelayListVerifierTest
-     * verifies each entry against its committed rotation vector, so a truncated or typo'd
-     * constant fails the build instead of being discovered on promotion day. A key may be
-     * dropped only per the rotation runbook (broker no longer signs with it AND key_id
-     * telemetry shows zero verifications under it).
-     */
-    val RELAY_SIGNING_PUBLIC_KEYS_HEX: List<String> = listOf(
-        // Active broker signing key (key_id 627405615601c589).
-        "176c03cbc70833285abcea75f2a0e137bd687629142408c22806a86308bd4974",
-        // Offline standby, promoted on rotation or key loss (key_id 672f79aa99a573cd).
-        "5b2698cfa7a796c671a30aabd5475d55095b91464221f051837eb8fe01f36ea2",
     )
 
     const val RELAY_LIMIT = 5

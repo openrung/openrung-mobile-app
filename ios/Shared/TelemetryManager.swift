@@ -1,6 +1,6 @@
 import Foundation
 
-/// Façade combining session, outbox, device attributes, and the telemetry HTTP client.
+/// Façade combining session, outbox, device attributes, and the native broker telemetry client.
 /// Usable from both processes — the extension drives the connection lifecycle/heartbeat, the app
 /// records speed-test results. Port of Android `TelemetryManager`.
 enum TelemetryManager {
@@ -124,8 +124,10 @@ enum TelemetryManager {
         )
     }
 
-    /// Sends a heartbeat plus a batch of queued events (mirrors Android's piggyback strategy).
-    /// Best-effort: failures leave queued events intact for the next attempt.
+    /// Sends a heartbeat while draining queued events in FIFO, identity-homogeneous batches. The
+    /// heartbeat piggybacks only when the queue head has its exact client/session pair; otherwise
+    /// it sends immediately by itself so historical backlog cannot delay heartbeat cadence.
+    /// Best-effort failures leave the current queued batch and everything after it.
     static func sendHeartbeat() async {
         guard
             let session = TelemetrySessionStore.current(),
@@ -142,14 +144,22 @@ enum TelemetryManager {
             trafficCounters: trafficCounters()
         ) else { return }
 
-        let queued = TelemetryOutbox.peek(max: TelemetryOutboxState.uploadBatchSize - 1)
         do {
             let client = try TelemetryClient(brokerURL: brokerURL)
-            try await client.send(queued + [heartbeat])
-            if queued.isEmpty == false {
-                TelemetryOutbox.remove(ids: Set(queued.map(\.eventId)))
-                try? await flush(brokerURL: session.brokerURL)
-            }
+            try await TelemetryUploadCoordinator.sendHeartbeat(
+                heartbeat,
+                maxBatchSize: TelemetryOutboxState.uploadBatchSize,
+                peek: { maxCount in
+                    TelemetryOutbox.peek(max: maxCount)
+                },
+                send: { events, queuedIDs in
+                    try await client.sendAndCommit(events) {
+                        if queuedIDs.isEmpty == false {
+                            TelemetryOutbox.remove(ids: queuedIDs)
+                        }
+                    }
+                }
+            )
         } catch {
             // best-effort
         }
@@ -158,12 +168,17 @@ enum TelemetryManager {
     static func flush(brokerURL: String) async throws {
         guard let url = URL(string: brokerURL) else { return }
         let client = try TelemetryClient(brokerURL: url)
-        while true {
-            let batch = TelemetryOutbox.peek(max: TelemetryOutboxState.uploadBatchSize)
-            if batch.isEmpty { return }
-            try await client.send(batch)
-            TelemetryOutbox.remove(ids: Set(batch.map(\.eventId)))
-        }
+        try await TelemetryUploadCoordinator.flush(
+            maxBatchSize: TelemetryOutboxState.uploadBatchSize,
+            peek: { maxCount in
+                TelemetryOutbox.peek(max: maxCount)
+            },
+            send: { events, queuedIDs in
+                try await client.sendAndCommit(events) {
+                    TelemetryOutbox.remove(ids: queuedIDs)
+                }
+            }
+        )
     }
 
     private static func iso8601Now() -> String {

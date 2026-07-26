@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.SystemClock
 import com.openrung.BuildConfig
 import com.openrung.net.ClientGeoInfo
+import kotlinx.coroutines.ensureActive
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -14,6 +15,7 @@ import java.time.Instant
 import java.util.Locale
 import java.util.TimeZone
 import java.util.UUID
+import kotlin.coroutines.coroutineContext
 
 internal const val APPLICATION_CONNECTION_EVENT = "application_connection"
 internal const val APPLICATION_CONNECTION_COUNT_MEASUREMENT = "connection_count"
@@ -274,17 +276,20 @@ object TelemetryManager {
             attributes = deviceAttributes(appContext) + session.geoAttributes,
             trafficCounters = trafficCounters(),
         ) ?: return
-        val queued = synchronized(lock) {
-            telemetryUploadBatch(readOutbox(appContext), UPLOAD_BATCH_SIZE - 1)
-        }
-        TelemetryClient(session.brokerUrl).send(queued + event)
-        if (queued.isNotEmpty()) {
-            synchronized(lock) {
-                val sentIDs = queued.mapTo(hashSetOf()) { it.eventId }
-                writeOutbox(appContext, readOutbox(appContext).filterNot { it.eventId in sentIDs })
-            }
-            flush(session.brokerUrl)
-        }
+        sendHeartbeatWithQueuedEvents(
+            heartbeat = event,
+            batchSize = UPLOAD_BATCH_SIZE,
+            readQueued = {
+                synchronized(lock) { readOutbox(appContext) }
+            },
+            send = { TelemetryClient(session.brokerUrl).send(it) },
+            commit = { sentIDs ->
+                synchronized(lock) {
+                    writeOutbox(appContext, readOutbox(appContext).filterNot { it.eventId in sentIDs })
+                }
+            },
+            flushQueued = { flush(session.brokerUrl) },
+        )
     }
 
     suspend fun flush(brokerUrl: String) {
@@ -294,11 +299,19 @@ object TelemetryManager {
                 telemetryUploadBatch(readOutbox(appContext), UPLOAD_BATCH_SIZE)
             }
             if (batch.isEmpty()) return
-            TelemetryClient(brokerUrl).send(batch)
-            synchronized(lock) {
-                val sentIDs = batch.mapTo(hashSetOf()) { it.eventId }
-                writeOutbox(appContext, readOutbox(appContext).filterNot { it.eventId in sentIDs })
-            }
+            sendTelemetryBatchAndCommit(
+                events = batch,
+                queuedEventIds = batch.mapTo(hashSetOf()) { it.eventId },
+                send = { TelemetryClient(brokerUrl).send(it) },
+                commit = { sentIDs ->
+                    synchronized(lock) {
+                        writeOutbox(
+                            appContext,
+                            readOutbox(appContext).filterNot { it.eventId in sentIDs },
+                        )
+                    }
+                },
+            )
         }
     }
 
@@ -358,6 +371,53 @@ object TelemetryManager {
 }
 
 /**
+ * Commits queued IDs only after a send completed while the caller is still active. Keeping this
+ * check adjacent to the outbox mutation closes the native-success/caller-cancellation race.
+ */
+internal suspend fun sendTelemetryBatchAndCommit(
+    events: List<TelemetryEvent>,
+    queuedEventIds: Set<String>,
+    send: suspend (List<TelemetryEvent>) -> Unit,
+    commit: (Set<String>) -> Unit,
+) {
+    send(events)
+    coroutineContext.ensureActive()
+    if (queuedEventIds.isNotEmpty()) commit(queuedEventIds)
+}
+
+/**
+ * Sends a heartbeat without ever mixing identity pairs in one brokerapi batch.
+ *
+ * Only a head prefix matching [heartbeat] may piggyback. If the head belongs to an older session,
+ * the heartbeat is sent alone first so historical backlog (or a failure uploading it) cannot
+ * suppress heartbeat cadence. [flushQueued] then drains every remaining homogeneous prefix in
+ * queue order. A failed or cancelled send commits nothing from that request.
+ */
+internal suspend fun sendHeartbeatWithQueuedEvents(
+    heartbeat: TelemetryEvent,
+    batchSize: Int,
+    readQueued: () -> List<TelemetryEvent>,
+    send: suspend (List<TelemetryEvent>) -> Unit,
+    commit: (Set<String>) -> Unit,
+    flushQueued: suspend () -> Unit,
+) {
+    require(batchSize > 1) { "heartbeat telemetry batch size must exceed one" }
+    val pending = readQueued()
+    val queued = if (pending.firstOrNull()?.hasSameTelemetryIdentity(heartbeat) == true) {
+        telemetryUploadBatch(pending, batchSize - 1)
+    } else {
+        emptyList()
+    }
+    sendTelemetryBatchAndCommit(
+        events = queued + heartbeat,
+        queuedEventIds = queued.mapTo(hashSetOf()) { it.eventId },
+        send = send,
+        commit = commit,
+    )
+    flushQueued()
+}
+
+/**
  * Removes client metadata that the broker never retains from application-connection records.
  * Applying this on every outbox read also scrubs events queued by an older app version before
  * either upload path can put them on the wire.
@@ -370,17 +430,21 @@ internal fun sanitizeTelemetryEvent(event: TelemetryEvent): TelemetryEvent =
     }
 
 /**
- * Selects one upload request while honoring the broker's 100,000 represented-flow budget per
- * application. Events that would exceed an application's remaining budget are deferred along
- * with later events for that application, preserving its FIFO order; unrelated events can still
- * fill the request. The caller removes selected event IDs after a successful send.
+ * Selects one upload request from the first event's client/session identity prefix while honoring
+ * the broker's 100,000 represented-flow budget per application. The identity boundary is strict:
+ * brokerapi rejects mixed pairs, and later sessions cannot leapfrog the head session. Within that
+ * prefix, events that exceed an application's remaining budget are deferred along with later
+ * events for that application; unrelated events may still fill the request as before. The caller
+ * removes selected event IDs only after a successful send.
  */
 internal fun telemetryUploadBatch(events: List<TelemetryEvent>, limit: Int): List<TelemetryEvent> {
     require(limit > 0) { "telemetry upload batch limit must be positive" }
+    val first = events.firstOrNull() ?: return emptyList()
+    val identityPrefix = events.takeWhile { it.hasSameTelemetryIdentity(first) }
     val representedByApplication = mutableMapOf<String, Long>()
     val deferredApplications = mutableSetOf<String>()
     return buildList {
-        for (event in events) {
+        for (event in identityPrefix) {
             if (size >= limit) break
             if (event.event != APPLICATION_CONNECTION_EVENT) {
                 add(event)
@@ -400,6 +464,9 @@ internal fun telemetryUploadBatch(events: List<TelemetryEvent>, limit: Int): Lis
         }
     }
 }
+
+private fun TelemetryEvent.hasSameTelemetryIdentity(other: TelemetryEvent): Boolean =
+    clientId == other.clientId && sessionId == other.sessionId
 
 /** Mirrors the broker's compatibility behavior for missing or malformed typed counts. */
 internal fun TelemetryEvent.brokerApplicationConnectionCount(): Long {
