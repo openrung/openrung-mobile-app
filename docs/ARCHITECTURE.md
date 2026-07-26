@@ -8,11 +8,12 @@ binding specification. Where they disagree, the contract wins.
 A React Native (TypeScript) shell owns all UI and the "app-process" logic of
 the production OpenRung clients, while the entire VPN connect path is a
 verbatim port of the production native code — a Kotlin `VpnService` on
-Android, a Swift `NEPacketTunnelProvider` extension on iOS — exposed to
-TypeScript through one small cross-platform bridge module, `OpenRungVpn`.
+Android, a Swift `NEPacketTunnelProvider` extension on iOS — exposed through
+narrow cross-platform bridge modules. `OpenRungVpn` owns the VPN lifecycle.
 Android-only OS integrations, such as installed-APK sharing and the
 split-tunneling app picker, use separate modules so they do not widen the VPN
-contract.
+contract. Broker control-plane calls use a second, deliberately narrow classic
+module, `OpenRungBroker`; it never exposes WSS tickets.
 
 ## Division of responsibility
 
@@ -24,13 +25,14 @@ lifecycle, recents recording, and status/log persistence. If the RN process
 dies, the tunnel keeps running.
 
 **TypeScript owns everything the production app processes own**: all screens
-and navigation, the exit-node map directory (its own broker fetch, grouped by
-the broker-served relay locations — the app never geolocates relay IPs), the
-speed test, language selection, and the licenses screens.
+and navigation, exit-node directory modeling, speed-test UI and telemetry event
+construction, manifest verification/selection, language selection, and the
+licenses screens. Eligible network requests for those features are executed by
+native brokerapi operations.
 
 Note that the broker is queried from *both* sides, matching production: the
-native service fetches relays to connect, and the TS shell independently
-fetches relays to draw the map directory.
+native VPN service fetches relays to connect, and the TS shell independently
+requests a relay snapshot for the map directory through `OpenRungBroker`.
 
 **Availability over "never leak."** OpenRung is availability-first. The only leak
 protection is sing-box `strict_route` while the tunnel is up; there is deliberately
@@ -53,7 +55,7 @@ without leaving a leaky tunnel — not that traffic is blocked. See CONTRACT.md 
   |     |                                    |                          |
   |     |   DIRECTORY PATH (TS-owned)        |                          |
   |     |   store.refreshDirectory()         |                          |
-  |     |     -> src/net/brokerClient.ts  GET /api/v1/relays?limit=N    |
+  |     |     -> OpenRungBroker.firstReachable(...)                     |
   |     |        (relays carry broker-served city/country/coords)       |
   |     |     -> group into ExitNodeRegion[] -> map pins                |
   |     v                                    |                          |
@@ -66,9 +68,9 @@ without leaving a leaky tunnel — not that traffic is blocked. See CONTRACT.md 
         | / setSplitTunnelConfig(json)   |
         v                                |
   +---------------------------------------------------------------------+
-  |                    NATIVE BRIDGE  (module 'OpenRungVpn')            |
-  |  Android: bridge/OpenRungVpnModule.kt (collects StatusStore flow)   |
-  |  iOS:     OpenRungVpnModule.swift (Darwin notify + NEVPNStatus)     |
+  |               NATIVE BRIDGES (two dedicated classic modules)       |
+  |  VPN: OpenRungVpn -> lifecycle, state, logs, split-tunnel config   |
+  |  Broker: OpenRungBroker -> one single-use brokerapi operation      |
   +-----|--------------------------------^------------------------------+
         | start / stop                   | status, logs, relay label,
         v                                | recents, errors
@@ -104,9 +106,20 @@ URL parser has one code-level development allowance for an explicit
 literal-loopback HTTP base; it cannot authorize a remote cleartext endpoint or
 weaken the production OS policy.
 
-- **Relay discovery** — independent HTTPS fronts return an Ed25519-signed relay
-  list. Native and TypeScript clients verify the raw response bytes against the
-  pinned operator keys before accepting any relay or punch endpoint.
+- **Eligible direct broker requests attempt opportunistic ECH with verified
+  ordinary-TLS fallback.** Go `brokerapi` owns request policy, headers,
+  timeouts, candidate racing, and relay-list verification for both the native
+  VPN clients and `OpenRungBroker`. ECH is opportunistic, not guaranteed; this
+  wording does not claim that SNI is never visible or that every app request
+  uses ECH.
+- **React Native broker surface** — each directory, speed-test, speed-test
+  telemetry, or broker-hosted manifest call receives a new single-use native
+  operation. Cancelling its Kotlin coroutine or Swift task makes the shared
+  PR 2 runner call `Close`; generated objects are copied into value snapshots
+  before close. The RN-only directory projection removes `wss_fronts` before
+  TypeScript decodes the relay JSON; the full signed envelope remains available
+  to the native VPN owners. WSS ticket requests, front URLs, and credentials
+  remain exclusively owned by `VpnService` and `PacketTunnelProvider`.
 - **Android punch coordination** — a punch-capable relay advertises an explicit
   `https://...` coordinator in that signed list. The deployed bare-IP endpoint
   has a self-signed certificate whose exact SHA-256 leaf pin is built into the
@@ -153,9 +166,21 @@ weaken the production OS policy.
   or recovery.
 - **Telemetry / heartbeat / speed-test** — currently also `https://broker.openrung.org/`
   (the same Cloudflare-fronted broker); see the trade-off below.
+- **Update manifest** — the exact direct broker and CloudFront candidates use
+  `OpenRungBroker.fetchManifestCandidate`. The exact redirecting GitHub release
+  asset remains the only JavaScript-fetch exception; signature, freshness,
+  rollback, cache re-verification, and candidate selection stay in TypeScript.
 - **Geo lookup** (`https://ipwho.is/`) and **connectivity probes**
   (`https://www.gstatic.com/generate_204`, `https://cp.cloudflare.com/generate_204`)
-  are HTTPS.
+  are HTTPS. Android's physical-network recovery probe deliberately uses
+  `Network.openConnection` against those two independent connectivity
+  endpoints so the check cannot accidentally traverse the unhealthy VPN; it
+  sends no OpenRung identity or broker headers.
+
+There is no runtime switch back to the removed JavaScript broker transports.
+A missing or stale `OpenRungBroker` binding rejects as `unavailable` and
+requires a native rebuild. Rollback is by reverting or shipping a new app
+version, not by enabling a hidden legacy transport.
 
 ### Telemetry transport: current (Option B) vs. future (Option A)
 
@@ -302,8 +327,10 @@ are not ported (TS owns them). Key pieces:
   yamux, copying, and transport bounds remain entirely in the pinned wsscore Go
   module compiled into the combined AAR.
 - `android/punchbridge/broker_binding.go` — the single-use gomobile foundation
-  over pinned `brokerapi v0.1.0`, compiled into that same AAR/Go runtime. It is
-  not wired to Kotlin or React Native call sites in this foundation change.
+  over pinned `brokerapi v0.1.0`, compiled into that same AAR/Go runtime.
+  `NativeBrokerTransport` confines generated objects and serves both the
+  Android VPN clients and the separate `OpenRungBroker` module through
+  constructor-specific factories.
 - `net/`, `model/`, `config/AppConfig.kt` — verbatim. `telemetry/` — ported,
   then diverged: `application_connection` flow events are aggregated
   client-side (see "Telemetry transport" above) via the new
@@ -345,8 +372,9 @@ template app target plus the `PacketTunnel` app-extension target);
   `ios/build-libbox-release.sh` with `embed: false`, and each also links
   `libresolv.tbd` for libbox's Go DNS resolver. The framework contains libbox
   plus the thin brokerapi and Apple wsscore adapters in one gomobile runtime.
-  The broker API is not yet called from Swift; PacketTunnel source still
-  compiles without the artifact via `#if canImport(Libbox)`.
+  Swift value snapshots and the shared cancellation-safe runner serve both
+  PacketTunnel and the `OpenRungBroker` host module; hostless tests use fakes
+  and never load Libbox.
 
 ## UI fidelity (§5)
 
@@ -364,8 +392,6 @@ LICENSE_TEXT) with hardware-back mapping — no navigation library.
 
 ## Known limitations (§8)
 
-- Speed test TTFB/throughput measured via whole-body fetch (no streaming in
-  RN `fetch`).
 - In-app language switch does not relayout RTL (fa/ar) without app restart.
 - iOS simulator: UI + map + directory work; connect fails by design
   (NetworkExtension requires a signed device build).

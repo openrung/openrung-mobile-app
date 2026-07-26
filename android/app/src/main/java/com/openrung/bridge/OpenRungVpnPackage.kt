@@ -9,6 +9,7 @@ class OpenRungVpnPackage : ReactPackage {
     override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> =
         listOf(
             OpenRungVpnModule(reactContext),
+            OpenRungBrokerModule(reactContext),
             OpenRungApkShareModule(reactContext),
             OpenRungAppListModule(reactContext),
         )

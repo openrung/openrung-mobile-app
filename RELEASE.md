@@ -44,9 +44,10 @@ tagged Go module `github.com/openrung/openrung/brokerapi`, pinned to **v0.1.0**
 in the same `go.mod` with its checksum in `go.sum`. Its thin gomobile binding is
 compiled into the existing libbox runtime; never create a second AAR or
 XCFramework for it. Production constructors pass a nil HTTP client so eligible
-direct connections to `broker.openrung.org:443` opportunistically try ECH and
-retain brokerapi's verified ordinary-TLS fallback. The binding is native
-foundation only until later changes migrate platform call sites.
+direct broker requests attempt opportunistic ECH with verified ordinary-TLS
+fallback. The binding serves both platform-native VPN clients and the dedicated
+React Native `OpenRungBroker` module through constructor-specific factories;
+never add a second Go runtime or a legacy JavaScript fallback.
 
 ### Bumping the punchcore pin
 
@@ -215,7 +216,9 @@ Roll out in this order:
    constructors/results. Confirm both Apple device arm64 and simulator
    arm64/x86_64 slices export matching
    `LibboxNewOpenRungWSSClientForIOS`,
-   `LibboxNewOpenRungBrokerOperationForIOS`, and broker result headers. A local
+   `LibboxNewOpenRungBrokerOperationForIOS`,
+   `LibboxNewOpenRungBrokerOperationForReactNative`, speed/manifest operation
+   methods, and their result getters. A local
    `BROKERAPI_SRC`, `WSSCORE_SRC`, or `PUNCHCORE_SRC` artifact is a release
    blocker.
 3. Run `go test -race ./...` and `go vet ./...` in `android/punchbridge`, the
@@ -259,6 +262,42 @@ to return new sessions to direct-only behavior, while keeping the ticket API and
 fronts alive long enough for already-issued short-lived tickets and active
 sessions to drain. Do not reuse a ticket during rollback or after a physical
 network change.
+
+### React Native broker transport release gate
+
+`OpenRungBroker` exposes only directory discovery, speed test, speed-test
+telemetry, manifest-candidate fetch, and request cancellation. Confirm WSS
+tickets or front URLs never cross that bridge: RN discovery must remove the
+VPN-only `wss_fronts` field before resolving JavaScript. Every request must
+create one single-use operation, and cancelling the Kotlin coroutine or Swift
+task must reach the shared `Close` runner. A stale native artifact must reject
+`unavailable`; there is no runtime fallback to the removed JavaScript broker
+transports.
+
+Run the static broker-transport guard, Jest, TypeScript, Android unit/build
+checks, Go test/vet/race checks, iOS hostless tests/builds, and both artifact
+symbol/slice checks. The ordinary HTTP exceptions are deliberately narrow:
+the exact redirecting GitHub manifest URL, non-broker GeoIP/connectivity
+checks, and Android's physical-Network-bound gstatic/Cloudflare connectivity
+probe. The broker and CloudFront manifest candidates use brokerapi.
+
+Before release, perform these checks on physical devices and do not infer them
+from simulator/unit results:
+
+- directory refresh while disconnected;
+- normal VPN connect and WSS fallback/recovery;
+- telemetry delivery;
+- speed test and cancellation;
+- direct, CloudFront, and GitHub manifest paths;
+- Wi-Fi/cellular transitions and captive-portal behavior;
+- system proxy behavior;
+- deliberate ECH-blocked verified ordinary-TLS fallback;
+- packet capture showing ECH on a supported direct attempt; and
+- confirmation that no WSS ticket or URL appears in JavaScript, logs, errors,
+  or telemetry.
+
+Rollback of the React Native broker transport itself is by shipping or
+reverting the app version, never a hidden legacy-transport switch.
 
 ## 4. Verify the license surfaces are current
 

@@ -8,7 +8,8 @@ broadcasts (`notice`). Checking happens silently on every cold start and app for
 to 6h); what the user *sees* is decided entirely by the manifest contents — so routine daily
 releases produce zero prompts.
 
-Client pieces: `src/net/updateManifestClient.ts` (fetch + verify + decode),
+Client pieces: `src/net/updateManifestClient.ts` (transport routing + verify + decode),
+`src/native/OpenRungBroker.ts` (typed native wrapper),
 `src/model/updateStatus.ts` (tier derivation), `src/state/updateCheck.ts` (orchestration),
 `src/screens/UpdateRequiredScreen.tsx` + `src/components/UpdateBanner.tsx` (UI).
 Publishing pieces: `release/update-policy.json` (operator knobs, see `release/README.md`),
@@ -30,6 +31,11 @@ that is the entire point. Therefore:
   3. `https://github.com/openrung/openrung-mobile-app/releases/latest/download/update-manifest.json`
      (zero-infrastructure fallback; works from the first release, but github.com is unreliable in
      several target regions)
+  The first two exact candidates use the native `OpenRungBroker` brokerapi
+  transport. The exact GitHub release URL is the narrow JavaScript `fetch`
+  exception because it redirects and the native binding intentionally rejects
+  redirects and arbitrary hosts. There is no generic native HTTP method and no
+  JavaScript fallback for either broker-hosted candidate.
   Candidates are walked in order, fail-open, stopping at the first **verified** envelope **at
   least as fresh as the cached one** (steady state: one request). A verified-but-staler copy or
   an unsigned copy keeps the walk going and is used only as a fallback — so one front replaying
@@ -131,6 +137,11 @@ works end-to-end from the first release. To light up the fronts, serve the R2 ob
 
 Integrity does not depend on these fronts (the payload is signed; a tampered copy just fails that
 candidate), so caching/proxying is safe.
+
+Native transport changes none of the trust policy: TypeScript retains the exact
+raw envelope string, Ed25519 verification, freshness and rollback protection,
+cached-manifest re-verification, newest-verified selection, unsigned passive
+fallback, sequential ordering, and fail-open background behavior.
 
 ## Signing key
 

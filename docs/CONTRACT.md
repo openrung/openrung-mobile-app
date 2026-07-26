@@ -18,9 +18,11 @@ handling, heartbeat telemetry, VPN permission + background lifecycle, recents
 recording, status/log persistence.
 
 **TypeScript (RN shell)** owns everything the production *app processes* own:
-all UI, navigation, exit-node map directory (broker fetch, grouped by the
-broker-served relay locations — relay IPs are never geolocated client-side),
-speed test, language selection, licenses screens.
+all UI, navigation, exit-node map directory modeling (grouped by broker-served
+relay locations — relay IPs are never geolocated client-side), speed-test UI
+and telemetry event construction, update-manifest verification/selection,
+language selection, and licenses screens. Eligible broker networking for those
+features is performed by the separate native `OpenRungBroker` module.
 
 **Availability over "never leak."** OpenRung is availability-first: keeping the
 user reachable matters more than guaranteeing no traffic ever leaves the tunnel.
@@ -111,6 +113,39 @@ export interface OpenRungVpnModule {
 
 The module has **six** methods (split tunneling raised the count from five).
 
+### Dedicated broker module
+
+Module name: **`OpenRungBroker`** (separate classic NativeModule; never add
+these methods to `OpenRungVpn`):
+
+```ts
+firstReachable(requestId, primary, limit, clientId, sessionId): Promise<RelaySnapshot>
+runSpeedTest(requestId, brokerUrl): Promise<SpeedSnapshot>
+sendTelemetryBatchJSON(requestId, brokerUrl, batchJson): Promise<void>
+fetchManifestCandidate(requestId, candidateUrl): Promise<ManifestSnapshot>
+cancel(requestId): Promise<boolean>
+```
+
+Each request ID owns a new single-use gomobile operation. Android constructs it
+with `NewOpenRungBrokerOperationForReactNative(appVersion, "android")`; iOS
+uses the same constructor with `"ios"`. The VPN service and PacketTunnel keep
+their platform constructors. A thread-safe registry rejects duplicate active
+IDs, cancellation cancels the Kotlin coroutine or Swift task so the shared
+runner calls `Close`, and invalidation/deinitialization cancels every
+outstanding request. Generated objects never cross the generated adapters:
+plain value snapshots are copied before close.
+
+Failures carry a bounded structured kind (`cancelled`, `timeout`,
+`rate_limited`, `http_status`, `dns`, `tls`, `network`, `verification`,
+`validation`, `unknown`, plus local `unavailable`/`decode`), optional HTTP
+status, and optional retry-after milliseconds. Policy never parses diagnostic
+messages. A stale or absent module rejects `unavailable` and requires a native
+rebuild; there is no JavaScript broker-network fallback. No ticket request,
+ticket, or WSS URL is exposed to React Native. For directory discovery, each
+platform removes the VPN-only `wss_fronts` member from the verified relay
+envelope before returning `relayJson`; TypeScript still decodes the remaining
+directory payload into its existing data model.
+
 `setSplitTunnelConfig` payload — the shared split-tunnel config JSON. TS
 serializes with exactly this key order (snake_case):
 
@@ -173,15 +208,15 @@ src/
     countryGeo.ts      # 51-entry centroid table, verbatim from CountryGeo.kt
     exitNode.ts        # ExitNodeRegion (country+city marker), DirectoryStatus
   net/
-    brokerClient.ts    # GET /api/v1/relays?limit=N, candidates(), firstReachable()
+    brokerClient.ts    # decode native firstReachable relay snapshot
     exitNodeDirectory.ts # groups relays by broker-served geo (no client-side GeoIP)
-    speedTestClient.ts # warmup 1MB + measure 10MB via /api/v1/speed-test
-    telemetryClient.ts # POST /api/v1/telemetry/events (speed-test events only)
+    speedTestClient.ts # map native brokerapi speed snapshot
+    telemetryClient.ts # build + serialize speed-test event batches
   state/
     store.ts           # app store: native slice (mirrored) + directory slice
     useVpnState.ts     # hook wiring native events into the store
   native/
-    types.ts, OpenRungVpn.ts, mock.ts
+    types.ts, OpenRungVpn.ts, OpenRungBroker.ts, mock.ts
   screens/
     MainScreen.tsx, SettingsScreen.tsx, DebugScreen.tsx,
     LicensesScreen.tsx, LicenseTextScreen.tsx
@@ -212,9 +247,9 @@ Derived: `isWorking` = preparing|connecting|disconnecting; `isConnected` = conne
 
 Speed test runs only while connected, against `config.TELEMETRY_BROKER_URL`,
 and posts `speed_test_completed` / `speed_test_failed` telemetry with the
-identity from `getIdentity()` (skipped when `sessionId` is null). RN `fetch`
-cannot stream progressively; measure wall time to full body and note TTFB as
-headers-arrival time (documented limitation).
+identity from `getIdentity()` (skipped when `sessionId` is null).
+`OpenRungBroker.runSpeedTest` runs brokerapi's warmup/measurement flow; Go
+`TotalDurationMillis` maps to the established TypeScript `durationMs`.
 
 ## 5. UI fidelity
 
@@ -430,20 +465,22 @@ used as evidence that Reality or WSS carried end-to-end traffic.
   replace only and MUST NOT be used for a release artifact.
 - The AAR also grafts `broker_binding.go` and resolves
   `github.com/openrung/openrung/brokerapi v0.1.0` from the same `go.mod`.
-  Production constructors use `brokerapi.NewClient(nil, options)`, retaining
-  its shared opportunistic-ECH transport and verified ordinary-TLS fallback.
-  `BROKERAPI_SRC` is an explicit local-development replace only. No Kotlin,
-  Swift, React Native, or TypeScript call site consumes this binding in this
-  foundation change.
+  Eligible direct broker requests attempt opportunistic ECH with verified
+  ordinary-TLS fallback. `BROKERAPI_SRC` is an explicit local-development
+  replace only. Kotlin/Swift generated adapters serve both platform-native
+  VPN clients and the dedicated React Native module without a second runtime.
 - The signed descriptor must advertise an explicit HTTPS punch endpoint. Bare-IP
   self-signed coordinators are accepted only when their exact certificate SHA-256
   appears in `AppConfig.PUNCH_COORDINATOR_CERT_SHA256_BY_HOST`; hostname endpoints
   use normal public-CA validation. Redirects and cleartext are always rejected.
 - After a direct connection reaches CONNECTED, Android races native QUIC closure
   against a jittered end-to-end health monitor. Three failed tunnel sweeps plus a
-  successful physical-network broker probe trigger fresh discovery/re-punch and
+  successful physical-network connectivity probe trigger fresh discovery/re-punch and
   RelayHub fallback. Native path loss waits for a reachable physical network, so
   a local outage leaves the foreground service CONNECTING instead of failing it.
+  That probe stays bound to `Network.openConnection` but targets only
+  `www.gstatic.com/generate_204` and `cp.cloudflare.com/generate_204`; any HTTP
+  response proves connectivity, and no OpenRung identity/broker header is sent.
 - A transport-independent engine monitor watches libbox during direct, punched,
   and WSS sessions. Unexpected engine exit is a terminal local failure and never
   starts reladdering or ticket acquisition. WSS network, adapter, and end-to-end
@@ -492,6 +529,10 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   (RCT_EXTERN_MODULE) — implements §3 over NETunnelProviderManager +
   SharedConnectionState (Darwin observer + NEVPNStatusDidChange), including the
   production relay-switch dance (stop → 350 ms → reconfigure → start).
+- `ios/OpenRung/OpenRungBrokerModule.swift` plus its Objective-C extern module
+  implement the separate §3 broker surface. The Foundation-only request
+  coordinator is included in hostless tests, which use fake operations and do
+  not load React or Libbox.
 - Split tunneling: the raw config JSON is stored in app-group UserDefaults
   under `AppConfig.splitTunnelConfigDefaultsKey` (`"split_tunnel_config"`).
   `ios/Shared/SplitTunnelConfig.swift` (compiled into both targets) decodes it
@@ -531,9 +572,15 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   path. A second gomobile framework/runtime or an artifact built with
   `BROKERAPI_SRC` or `WSSCORE_SRC` is not releasable.
 
+The exact direct-broker and CloudFront manifest candidates use
+`fetchManifestCandidate`; the GitHub release asset remains the narrowly allowed
+redirecting JavaScript fetch. TypeScript still verifies exact envelope bytes,
+freshness, rollback monotonicity, cache contents, and candidate preference.
+Rollback of this migration is by shipping/reverting the app version, never a
+hidden legacy transport switch.
+
 ## 8. Known prototype limitations (documented in README)
 
-- Speed test TTFB/throughput measured via whole-body fetch (no streaming).
 - In-app language switch does not relayout RTL (fa/ar) without app restart.
 - iOS simulator: UI + map + directory work; connect fails by design
   (NetworkExtension requires a signed device build).

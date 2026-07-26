@@ -35,6 +35,66 @@ class NativeBrokerTransportTest {
     }
 
     @Test
+    fun `React Native factory selects production app and Android token without loading Go`() {
+        val operation = RecordingNativeBrokerOperation()
+        var metadata: Pair<String, String>? = null
+        val factory = AndroidReactNativeBrokerOperationFactory(
+            constructor = ReactNativeBrokerOperationConstructor { appVersion, osToken ->
+                metadata = appVersion to osToken
+                operation
+            },
+        )
+
+        assertSame(operation, factory.create())
+        assertEquals(BuildConfig.VERSION_NAME to "android", metadata)
+    }
+
+    @Test
+    fun `React Native factory maps stale binding linkage to unavailable without fallback`() {
+        val factory = AndroidReactNativeBrokerOperationFactory(
+            constructor = ReactNativeBrokerOperationConstructor { _, _ ->
+                throw NoSuchMethodError("stale React Native constructor")
+            },
+            appVersion = "1.0",
+        )
+
+        val failure = try {
+            factory.create()
+            throw AssertionError("expected unavailable")
+        } catch (error: BrokerNativeFailure) {
+            error
+        }
+        assertEquals(BrokerNativeFailureKind.UNAVAILABLE, failure.kind)
+        assertFalse(failure.message.orEmpty().contains("stale React Native constructor"))
+    }
+
+    @Test
+    fun `speed and manifest snapshots retain all platform owned fields`() {
+        val speed = NativeBrokerSpeedTestResult(
+            succeeded = true,
+            bytes = 1_048_576,
+            ttfbMillis = 17,
+            downloadDurationMillis = 81,
+            totalDurationMillis = 101,
+            mbps = 83.05,
+        )
+        val manifest = NativeBrokerManifestResult(
+            succeeded = true,
+            bodyJson = """{"payload":"exact"}""",
+            sourceUrl = "https://broker.openrung.org/api/v1/app-manifest",
+        )
+
+        assertEquals(1_048_576L, speed.bytes)
+        assertEquals(17L, speed.ttfbMillis)
+        assertEquals(81L, speed.downloadDurationMillis)
+        assertEquals(101L, speed.totalDurationMillis)
+        assertEquals(83.05, speed.mbps, 0.0)
+        assertEquals("""{"payload":"exact"}""", manifest.bodyJson)
+        assertEquals("https://broker.openrung.org/api/v1/app-manifest", manifest.sourceUrl)
+        assertFalse(manifest.toString().contains("exact"))
+    }
+
+    @Test
     fun `missing or stale AAR linkage is local unavailable with no fallback`() {
         val factory = AndroidNativeBrokerOperationFactory(
             constructor = AndroidBrokerOperationConstructor { _, _ ->

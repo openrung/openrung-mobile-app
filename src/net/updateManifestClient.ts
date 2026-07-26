@@ -4,9 +4,10 @@ import { sha512 } from '@noble/hashes/sha2.js';
 import { Platform } from 'react-native';
 
 import { APP_VERSION, AppConfig } from '../config';
+import { fetchManifestCandidate as nativeFetchManifestCandidate } from '../native/OpenRungBroker';
 
 // Hermes has no SubtleCrypto, so @noble/ed25519's async (WebCrypto-hashed) path is unavailable;
-// wiring the pure-JS SHA-512 enables the sync verify path (same wiring as brokerClient.ts).
+// wiring the pure-JS SHA-512 enables the sync manifest-verification path.
 ed.etc.sha512Sync = (...messages: Uint8Array[]) => sha512(ed.etc.concatBytes(...messages));
 
 /**
@@ -24,6 +25,11 @@ ed.etc.sha512Sync = (...messages: Uint8Array[]) => sha512(ed.etc.concatBytes(...
  */
 
 const REQUEST_TIMEOUT_MS = 10_000;
+const DIRECT_MANIFEST_URL = 'https://broker.openrung.org/api/v1/app-manifest';
+const CLOUDFRONT_MANIFEST_URL =
+  'https://d2r7mdpyevvs1m.cloudfront.net/api/v1/app-manifest';
+const GITHUB_MANIFEST_URL =
+  'https://github.com/openrung/openrung-mobile-app/releases/latest/download/update-manifest.json';
 
 export interface UpdatePlatformInfo {
   /** Latest released version ("x.y.z"), or null if absent/unparseable. */
@@ -66,7 +72,7 @@ export interface ManifestSigningKey {
   publicKeyHex: string;
 }
 
-// Pinned-key override for tests only (same convention as setRelaySigningKeysForTests).
+// Pinned-key override for deterministic manifest-verification tests only.
 let signingKeysOverride: readonly ManifestSigningKey[] | null = null;
 
 export function setManifestSigningKeysForTests(keys: readonly ManifestSigningKey[] | null): void {
@@ -82,8 +88,7 @@ function manifestFailure(reason: string): Error {
 }
 
 // --- byte codecs ------------------------------------------------------------------------------
-// Duplicated from brokerClient.ts internals (which are deliberately unexported and spec-pinned):
-// Hermes has no atob, and TextDecoder may be absent.
+// Manifest-specific strict codecs: Hermes has no atob, and TextDecoder may be absent.
 
 const BASE64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
@@ -362,17 +367,18 @@ export interface FetchedUpdateManifest {
   decoded: DecodedUpdateManifest;
 }
 
-async function fetchAttempt(url: string): Promise<FetchedUpdateManifest> {
+async function fetchGitHubAttempt(): Promise<FetchedUpdateManifest> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    const response = await fetch(url, {
+    // Intentional narrow exception: this exact release asset redirects, while brokerapi refuses
+    // redirects and arbitrary hosts. Broker and CloudFront candidates never reach JS fetch.
+    const response = await fetch(GITHUB_MANIFEST_URL, {
       method: 'GET',
       headers: {
         'X-OpenRung-App-Version': APP_VERSION,
         'X-OpenRung-RN': Platform.OS,
-        // Same OkHttp-cache reasoning as the relay list: without this, the platform HTTP cache
-        // replays a stale manifest and a freshly published floor/notice never arrives.
+        // Do not let the ordinary platform cache replay a stale release-asset response.
         'Cache-Control': 'no-cache, no-store',
         Pragma: 'no-cache',
       },
@@ -382,10 +388,29 @@ async function fetchAttempt(url: string): Promise<FetchedUpdateManifest> {
       throw manifestFailure(`HTTP ${response.status}`);
     }
     const raw = await response.text();
-    return { url, raw, decoded: decodeUpdateEnvelope(raw) };
+    return {
+      url: GITHUB_MANIFEST_URL,
+      raw,
+      decoded: decodeUpdateEnvelope(raw),
+    };
   } finally {
     clearTimeout(timer);
   }
+}
+
+async function fetchAttempt(url: string): Promise<FetchedUpdateManifest> {
+  if (url === DIRECT_MANIFEST_URL || url === CLOUDFRONT_MANIFEST_URL) {
+    const result = await nativeFetchManifestCandidate({ candidateUrl: url });
+    return {
+      url: result.sourceUrl,
+      raw: result.bodyJson,
+      decoded: decodeUpdateEnvelope(result.bodyJson),
+    };
+  }
+  if (url === GITHUB_MANIFEST_URL) {
+    return fetchGitHubAttempt();
+  }
+  throw manifestFailure('unsupported candidate URL');
 }
 
 export interface FetchManifestOptions {

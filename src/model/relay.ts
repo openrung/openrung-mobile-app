@@ -47,8 +47,9 @@ export interface RelayListResponse {
   server_time: string;
   relays: RelayDescriptor[];
   // Relay-list signing fields (SPEC v1 §2.2), absent on pre-signing brokers. They live INSIDE the
-  // signed body (never in headers) so an attacker cannot rewrite them; net/brokerClient.ts checks
-  // them after the Ed25519 signature over the raw body bytes has verified.
+  // signed body (never in headers) so an attacker cannot rewrite them. Native brokerapi verifies
+  // the Ed25519 signature and freshness over the raw body before this projected snapshot reaches
+  // TypeScript; brokerClient only decodes the already-verified directory fields.
   not_after?: string; // RFC3339 freshness bound: server_time + 30 min on the API channel
   key_id?: string; // advisory id of the signing key (first 8 bytes of SHA-256 over the raw pubkey)
   channel?: string; // 'api' or 'mirror' — binds the body to the channel it was fetched from

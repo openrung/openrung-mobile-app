@@ -169,7 +169,13 @@ public struct NativeBrokerResultSnapshot: NativeBrokerResult, Equatable, Sendabl
     }
 }
 
-public struct NativeBrokerRelayResultSnapshot: NativeBrokerResult, Equatable, Sendable {
+public struct NativeBrokerRelayResultSnapshot:
+    NativeBrokerResult,
+    CustomStringConvertible,
+    CustomDebugStringConvertible,
+    Equatable,
+    Sendable
+{
     public let succeeded: Bool
     public let errorKind: String
     public let errorText: String
@@ -201,6 +207,96 @@ public struct NativeBrokerRelayResultSnapshot: NativeBrokerResult, Equatable, Se
         self.keyID = keyID
         self.signatureVerified = signatureVerified
     }
+
+    public var description: String {
+        "NativeBrokerRelayResultSnapshot(succeeded: \(succeeded), " +
+            "errorKind: \(errorKind), httpStatus: \(httpStatus), " +
+            "retryAfterMilliseconds: \(retryAfterMilliseconds), brokerURL: <redacted>, " +
+            "relayJSON: <redacted>, keyID: \(keyID), " +
+            "signatureVerified: \(signatureVerified))"
+    }
+
+    public var debugDescription: String { description }
+}
+
+public struct NativeBrokerSpeedTestResultSnapshot: NativeBrokerResult, Equatable, Sendable {
+    public let succeeded: Bool
+    public let errorKind: String
+    public let errorText: String
+    public let httpStatus: Int32
+    public let retryAfterMilliseconds: Int64
+    public let bytes: Int64
+    public let timeToFirstByteMilliseconds: Int64
+    public let downloadDurationMilliseconds: Int64
+    public let totalDurationMilliseconds: Int64
+    public let megabitsPerSecond: Double
+
+    public init(
+        succeeded: Bool,
+        errorKind: String = "",
+        errorText: String = "",
+        httpStatus: Int32 = 0,
+        retryAfterMilliseconds: Int64 = 0,
+        bytes: Int64 = 0,
+        timeToFirstByteMilliseconds: Int64 = 0,
+        downloadDurationMilliseconds: Int64 = 0,
+        totalDurationMilliseconds: Int64 = 0,
+        megabitsPerSecond: Double = 0
+    ) {
+        self.succeeded = succeeded
+        self.errorKind = errorKind
+        self.errorText = BrokerNativeFailure.sanitize(errorText)
+        self.httpStatus = httpStatus
+        self.retryAfterMilliseconds = retryAfterMilliseconds
+        self.bytes = bytes
+        self.timeToFirstByteMilliseconds = timeToFirstByteMilliseconds
+        self.downloadDurationMilliseconds = downloadDurationMilliseconds
+        self.totalDurationMilliseconds = totalDurationMilliseconds
+        self.megabitsPerSecond = megabitsPerSecond
+    }
+}
+
+public struct NativeBrokerManifestResultSnapshot:
+    NativeBrokerResult,
+    Equatable,
+    Sendable,
+    CustomStringConvertible,
+    CustomDebugStringConvertible
+{
+    public let succeeded: Bool
+    public let errorKind: String
+    public let errorText: String
+    public let httpStatus: Int32
+    public let retryAfterMilliseconds: Int64
+    public let bodyJSON: String
+    public let sourceURL: String
+
+    public init(
+        succeeded: Bool,
+        errorKind: String = "",
+        errorText: String = "",
+        httpStatus: Int32 = 0,
+        retryAfterMilliseconds: Int64 = 0,
+        bodyJSON: String = "",
+        sourceURL: String = ""
+    ) {
+        self.succeeded = succeeded
+        self.errorKind = errorKind
+        self.errorText = BrokerNativeFailure.sanitize(errorText)
+        self.httpStatus = httpStatus
+        self.retryAfterMilliseconds = retryAfterMilliseconds
+        self.bodyJSON = bodyJSON
+        self.sourceURL = sourceURL
+    }
+
+    public var description: String {
+        "NativeBrokerManifestResultSnapshot(succeeded: \(succeeded), " +
+            "errorKind: \(errorKind), httpStatus: \(httpStatus), " +
+            "retryAfterMilliseconds: \(retryAfterMilliseconds), bodyJSON: <redacted>, " +
+            "sourceURL: \(sourceURL))"
+    }
+
+    public var debugDescription: String { description }
 }
 
 public struct NativeBrokerWSSTicketResultSnapshot:
@@ -264,6 +360,14 @@ public protocol NativeBrokerOperation: AnyObject, Sendable {
         batchJSON: String
     ) -> NativeBrokerResultSnapshot?
 
+    func runSpeedTest(
+        brokerURL: String
+    ) -> NativeBrokerSpeedTestResultSnapshot?
+
+    func fetchManifestCandidate(
+        candidateURL: String
+    ) -> NativeBrokerManifestResultSnapshot?
+
     func requestWSSTicket(
         brokerURL: String,
         relayID: String,
@@ -278,6 +382,62 @@ public protocol NativeBrokerOperation: AnyObject, Sendable {
 
 public protocol NativeBrokerOperationFactory: Sendable {
     func makeOperation() -> (any NativeBrokerOperation)?
+}
+
+/// Constructor selection remains platform-owned and testable without importing Libbox.
+///
+/// Production implements this protocol in `LibboxBrokerTransport.swift`, after wrapping the
+/// generated object in `NativeBrokerOperation`. Hostless tests use a spy constructor and therefore
+/// never load the generated framework or a Go runtime.
+protocol NativeBrokerOperationConstructing: Sendable {
+    func makeIOSOperation(
+        appVersion: String,
+        osVersion: String
+    ) -> (any NativeBrokerOperation)?
+
+    func makeReactNativeOperation(
+        appVersion: String,
+        osToken: String
+    ) -> (any NativeBrokerOperation)?
+}
+
+enum NativeBrokerOperationClient: Equatable, Sendable {
+    case ios(osVersion: String)
+    case reactNative(osToken: String)
+}
+
+struct ConfiguredNativeBrokerOperationFactory: NativeBrokerOperationFactory {
+    let appVersion: String
+    let client: NativeBrokerOperationClient
+    let constructor: any NativeBrokerOperationConstructing
+
+    /// Fixed platform selection for React Native callers. Keeping the token here makes the exact
+    /// production constructor choice testable without importing or loading Libbox.
+    static func forReactNativeIOS(
+        appVersion: String,
+        constructor: any NativeBrokerOperationConstructing
+    ) -> Self {
+        Self(
+            appVersion: appVersion,
+            client: .reactNative(osToken: "ios"),
+            constructor: constructor
+        )
+    }
+
+    func makeOperation() -> (any NativeBrokerOperation)? {
+        switch client {
+        case .ios(let osVersion):
+            return constructor.makeIOSOperation(
+                appVersion: appVersion,
+                osVersion: osVersion
+            )
+        case .reactNative(let osToken):
+            return constructor.makeReactNativeOperation(
+                appVersion: appVersion,
+                osToken: osToken
+            )
+        }
+    }
 }
 
 /// Cancellation-safe bridge for gomobile's synchronous broker selectors.

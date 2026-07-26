@@ -8,7 +8,7 @@ import { sha512 } from '@noble/hashes/sha2.js';
 
 import type { ManifestSigningKey } from '../../src/net/updateManifestClient';
 import vectors from '../../testdata/update_manifest_vectors.json';
-import { base64ToBytes, bytesToBase64, deriveKeyId, utf8Bytes } from './signing';
+import { base64ToBytes, bytesToBase64, deriveKeyId, utf8Bytes } from './bytes';
 
 // Same wiring as updateManifestClient.ts — @noble/ed25519's sync API needs an explicit SHA-512.
 ed.etc.sha512Sync = (...messages: Uint8Array[]) => sha512(ed.etc.concatBytes(...messages));
@@ -64,7 +64,7 @@ export function envelopeFor(
   });
 }
 
-/** The Response surface fetchUpdateManifest actually touches. */
+/** The Response surface used by the narrowly allowed GitHub manifest fallback. */
 export interface MockManifestResponse {
   status: number;
   text(): Promise<string>;

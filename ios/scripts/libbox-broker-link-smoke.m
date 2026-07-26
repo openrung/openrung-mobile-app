@@ -9,6 +9,9 @@ int main(void) {
     id<LibboxOpenRungBrokerOperation> operation =
         LibboxNewOpenRungBrokerOperationForIOS(@"link-smoke", @"build");
     [operation close];
+    id<LibboxOpenRungBrokerOperation> reactNativeOperation =
+        LibboxNewOpenRungBrokerOperationForReactNative(@"link-smoke", @"ios");
+    [reactNativeOperation close];
   }
   return 0;
 }

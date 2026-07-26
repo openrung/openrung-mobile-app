@@ -267,6 +267,8 @@ required_classes = [
     "io/nekohasekai/libbox/OpenRungBrokerOperation.class",
     "io/nekohasekai/libbox/OpenRungBrokerResult.class",
     "io/nekohasekai/libbox/OpenRungBrokerRelayResult.class",
+    "io/nekohasekai/libbox/OpenRungBrokerSpeedTestResult.class",
+    "io/nekohasekai/libbox/OpenRungBrokerManifestResult.class",
     "io/nekohasekai/libbox/OpenRungBrokerWSSTicketResult.class",
 ]
 required_native_libraries = [
@@ -298,6 +300,8 @@ javap_output="$(
     io.nekohasekai.libbox.OpenRungBrokerOperation \
     io.nekohasekai.libbox.OpenRungBrokerResult \
     io.nekohasekai.libbox.OpenRungBrokerRelayResult \
+    io.nekohasekai.libbox.OpenRungBrokerSpeedTestResult \
+    io.nekohasekai.libbox.OpenRungBrokerManifestResult \
     io.nekohasekai.libbox.OpenRungBrokerWSSTicketResult
 )"
 for generated_symbol in \
@@ -306,8 +310,18 @@ for generated_symbol in \
   'newOpenRungBrokerOperationForReactNative(java.lang.String, java.lang.String);' \
   'firstReachable(java.lang.String, int, java.lang.String, java.lang.String);' \
   'sendTelemetryBatchJSON(java.lang.String, java.lang.String);' \
+  'runSpeedTest(java.lang.String);' \
+  'downloadSpeedTest(java.lang.String, int);' \
+  'fetchManifestCandidate(java.lang.String);' \
   'requestWSSTicket(java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.String);' \
   'relayJSON();' \
+  'bytes();' \
+  'ttfbMillis();' \
+  'downloadDurationMillis();' \
+  'totalDurationMillis();' \
+  'mbps();' \
+  'bodyJSON();' \
+  'sourceURL();' \
   'ticket();' \
   'url();' \
   'expiresAtMillis();' \

@@ -1,8 +1,9 @@
 import Foundation
 
-/// Façade combining session, outbox, device attributes, and the native broker telemetry client.
-/// Usable from both processes — the extension drives the connection lifecycle/heartbeat, the app
-/// records speed-test results. Port of Android `TelemetryManager`.
+/// PacketTunnel façade combining session, outbox, device attributes, and native VPN telemetry.
+/// The app process reads only the active session ID through `OpenRungVpn.getIdentity`; React Native
+/// constructs and sends speed-test events through the separate `OpenRungBroker` module.
+/// Port of Android `TelemetryManager`.
 enum TelemetryManager {
     /// Traffic counters for the active session, kept in memory only: the engine, the heartbeat
     /// loop, and endSession all run in the packet tunnel extension, so nothing needs to cross
@@ -109,19 +110,6 @@ enum TelemetryManager {
         record("connection_ended", relayId: session.relayId, attributes: ["reason": reason], measurements: measurements)
         resetTrafficCounters()
         TelemetrySessionStore.save(nil)
-    }
-
-    static func recordSpeedTest(_ result: SpeedTestResult) {
-        record(
-            "speed_test_completed",
-            attributes: ["provider": "openrung_broker", "test_type": "manual_download"],
-            measurements: [
-                "bytes_downloaded": result.bytesDownloaded,
-                "download_duration_ms": result.durationMs,
-                "time_to_first_byte_ms": result.timeToFirstByteMs,
-                "download_mbps_milli": Int64(result.downloadMbps * 1_000),
-            ]
-        )
     }
 
     /// Sends a heartbeat while draining queued events in FIFO, identity-homogeneous batches. The
