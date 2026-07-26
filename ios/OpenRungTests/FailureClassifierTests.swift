@@ -70,6 +70,43 @@ final class FailureClassifierTests: XCTestCase {
         XCTAssertEqual(FailureClassifier.classify(BrokerClientError.invalidResponse), "unknown")
     }
 
+    func testEveryNativeBrokerKindUsesTheBoundedMobileTaxonomy() {
+        let cases: [(BrokerNativeFailure, String)] = [
+            (.init(kind: .cancelled), "cancelled"),
+            (.init(kind: .timeout), "timeout"),
+            (.init(kind: .rateLimited), "rate_limited"),
+            (.init(kind: .httpStatus, httpStatus: 429), "rate_limited"),
+            (.init(kind: .httpStatus, httpStatus: 503), "http_503"),
+            (.init(kind: .httpStatus), "unknown"),
+            (.init(kind: .dns), "dns_failure"),
+            (.init(kind: .tls), "tls_handshake"),
+            (.init(kind: .network), "network_unreachable"),
+            (.init(kind: .verification), "unknown"),
+            (.init(kind: .validation), "unknown"),
+            (.init(kind: .unknown), "unknown"),
+            (.init(kind: .unavailable), "unknown"),
+            (.init(kind: .decode), "unknown"),
+        ]
+        for (failure, expected) in cases {
+            XCTAssertEqual(
+                FailureClassifier.classify(failure),
+                expected,
+                "kind \(failure.kind.rawValue)"
+            )
+        }
+        XCTAssertEqual(
+            FailureClassifier.classify(
+                BrokerNativeFailure(
+                    bindingKind: "future_kind",
+                    httpStatus: 0,
+                    retryAfterMilliseconds: 0,
+                    message: ""
+                )
+            ),
+            "unknown"
+        )
+    }
+
     // MARK: - URLError codes
 
     func testURLErrorCodes() {

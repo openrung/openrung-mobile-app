@@ -30,6 +30,9 @@ enum FailureClassifier {
         if let ticketStatus = error as? WssTicketStatusError {
             return ticketStatus.status == 429 ? "rate_limited" : "http_\(ticketStatus.status)"
         }
+        if let brokerNative = error as? BrokerNativeFailure {
+            return brokerNative.failureReason
+        }
         if let recorded = error as? RelayFailureAlreadyRecordedError {
             if let lastWssFailure = recorded.wssFailures.last {
                 return classify(lastWssFailure)

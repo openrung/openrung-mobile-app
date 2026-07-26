@@ -152,8 +152,8 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         // same rules; recovery reconnects re-read on their next connect() pass.
         let splitTunnelRules = resolveSplitTunnelRules()
         self.brokerURL = brokerURL
-        // Telemetry/heartbeat go DIRECT to the origin IP, not the Cloudflare-fronted discovery broker,
-        // so high-frequency heartbeats don't burn the Workers free-tier quota (see AppConfig).
+        // Telemetry and heartbeats deliberately keep using the separately configured telemetry
+        // target; they do not automatically follow the front that wins relay discovery.
         let session = TelemetryManager.beginSession(brokerURL: AppConfig.telemetryBrokerURL.absoluteString)
         var failureStage = "preparing"
 
@@ -170,12 +170,11 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             // Resolve our own geo concurrently with the broker fetch (both before the tunnel is up).
             async let geoLookup: ClientGeoInfo? = try? await GeoIpClient().lookup()
             let brokerStartedNs = DispatchTime.now().uptimeNanoseconds
-            // Discovery across the broker candidates: a genuine user override is tried strictly
-            // first with its full attempt timeout; the defaults race with a staggered start, so
-            // a blocked front costs one stagger interval of extra latency (not a full request
-            // timeout) and discovery never goes offline while any candidate answers.
+            // brokerapi owns candidate defaults, strict custom-override handling, staggered racing,
+            // verified relay-list selection, and opportunistic ECH with verified ordinary-TLS
+            // fallback.
             let fetch = try await BrokerClient.firstReachable(
-                candidates: AppConfig.brokerCandidates(primary: brokerURL),
+                primary: brokerURL,
                 // Targeted connects (country or exact relay) need the full set so the target is present.
                 limit: targetCountry == nil && targetRelayID == nil
                     ? AppConfig.relayLimit
@@ -185,10 +184,8 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             )
             let response = fetch.response
             let brokerFetchMs = Int64((DispatchTime.now().uptimeNanoseconds - brokerStartedNs) / 1_000_000)
-            // If a fallback front won discovery — a genuine override is beaten only by FAILING
-            // outright (it is tried strictly first); a default primary also when merely slower
-            // than its head start — pin the rest of this session's broker traffic (telemetry,
-            // heartbeats) to the endpoint that worked.
+            // Pin the winning front at the head of this session's native WSS-ticket ladder.
+            // Telemetry remains on AppConfig.telemetryBrokerURL as described above.
             if fetch.brokerURL != brokerURL {
                 self.brokerURL = fetch.brokerURL
                 SharedConnectionState.appendLog("configured broker did not win discovery; using fallback \(fetch.brokerURL.absoluteString)")
@@ -511,6 +508,8 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             )
         } catch is CancellationError {
             throw CancellationError()
+        } catch let failure as BrokerNativeFailure where failure.isLocalPlatformFailure {
+            throw LocalTunnelError(stage: "wss_ticket", underlying: failure)
         } catch {
             throw WssTransportError(stage: "ticket", frontID: front.id, underlying: error)
         }
@@ -519,6 +518,13 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 stage: "ticket_binding",
                 frontID: front.id,
                 underlying: URLError(.cannotParseResponse)
+            )
+        }
+        guard ticket.isFresh(at: Date()) else {
+            throw WssTransportError(
+                stage: "ticket_expired",
+                frontID: front.id,
+                underlying: URLError(.userAuthenticationRequired)
             )
         }
 
@@ -545,14 +551,6 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         guard installed else {
             session.close()
             throw CancellationError()
-        }
-        guard ticket.isFresh(at: Date()) else {
-            closeWssSession(session)
-            throw WssTransportError(
-                stage: "ticket_expired",
-                frontID: front.id,
-                underlying: URLError(.userAuthenticationRequired)
-            )
         }
         let endpoint: WssNativeConnectResult
         do {

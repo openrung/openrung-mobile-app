@@ -133,10 +133,11 @@ targets:
   # Hostless logic-test bundle. It compiles the units under test and their source closure directly
   # into the test module (rather than @testable-importing the app/extension), so the suites build and
   # run without the app, CocoaPods, or Libbox. The source closure also includes the pure WSS policy,
-  # ticket client, bridge config, network-epoch tracker, and the exact production EngineStopSignal
-  # so cancellation/re-wait behavior is exercised under Thread Sanitizer.
+  # ticket policy, native broker runner, bridge config, network-epoch tracker, and the exact
+  # production EngineStopSignal so cancellation/re-wait behavior is exercised under Thread
+  # Sanitizer.
   #   - FailureClassifierTests: FailureClassifier + the small error types it maps.
-  #   - BrokerClientTests: the broker discovery flow (staggered race + override-first).
+  #   - BrokerClientTests: native discovery argument forwarding and verified-result decoding.
   #   - RelayListVerifierTests: RelayListVerifier, plus AppConfig and its compile closure
   #     (BrokerClient/RelayDescriptor/DeviceAttributes/NetworkPathMonitor/BrokerEndpoint) so the §11
   #     pinned-key CI guard verifies the committed rotation vectors against the REAL
@@ -163,6 +164,7 @@ targets:
       - path: Shared/DeviceAttributes.swift
       - path: Shared/InternetProbe.swift
       - path: Shared/NetworkPathMonitor.swift
+      - path: Shared/NativeBrokerTransport.swift
       - path: Shared/RelayDescriptor.swift
       - path: Shared/RelayRanker.swift
       - path: Shared/RelayReachability.swift
@@ -170,6 +172,8 @@ targets:
       - path: Shared/RelayListVerifier.swift
       - path: Shared/SingBoxConfiguration.swift
       - path: Shared/SplitTunnelConfig.swift
+      - path: Shared/TelemetryClient.swift
+      - path: Shared/TelemetryEvent.swift
       - path: Shared/WssFallbackPolicy.swift
       - path: Shared/WssTicketClient.swift
     settings:

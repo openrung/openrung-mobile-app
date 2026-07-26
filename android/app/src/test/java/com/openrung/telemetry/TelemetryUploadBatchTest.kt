@@ -57,6 +57,26 @@ class TelemetryUploadBatchTest {
     }
 
     @Test
+    fun `batch stops at first client session identity boundary`() {
+        val queued = listOf(
+            event("a-1", clientId = "client-a", sessionId = "session-a"),
+            event("a-2", clientId = "client-a", sessionId = "session-a"),
+            event("b-1", clientId = "client-b", sessionId = "session-b"),
+            event("a-3", clientId = "client-a", sessionId = "session-a"),
+        )
+
+        val first = telemetryUploadBatch(queued, limit = 200)
+        assertEquals(listOf("a-1", "a-2"), first.map { it.eventId })
+
+        val afterFirst = queued.filterNot { event -> first.any { it.eventId == event.eventId } }
+        val second = telemetryUploadBatch(afterFirst, limit = 200)
+        assertEquals(listOf("b-1"), second.map { it.eventId })
+
+        val afterSecond = afterFirst.filterNot { event -> second.any { it.eventId == event.eventId } }
+        assertEquals(listOf("a-3"), telemetryUploadBatch(afterSecond, 200).map { it.eventId })
+    }
+
+    @Test
     fun `sanitizer strips only application connection attributes`() {
         val attributes = mapOf("client_ip" to "203.0.113.9", "city" to "Example City")
         val applicationEvent = event("app", application = "app.a", count = 1).copy(attributes = attributes)
@@ -70,13 +90,15 @@ class TelemetryUploadBatchTest {
         id: String,
         application: String? = null,
         count: Long? = null,
+        clientId: String = "client-1",
+        sessionId: String = "session-1",
     ): TelemetryEvent =
         TelemetryEvent(
             eventId = id,
             event = if (application == null) "ordinary" else APPLICATION_CONNECTION_EVENT,
             occurredAt = "2026-07-21T00:00:00Z",
-            clientId = "client-1",
-            sessionId = "session-1",
+            clientId = clientId,
+            sessionId = sessionId,
             applicationPackage = application,
             measurements = count?.let { mapOf(APPLICATION_CONNECTION_COUNT_MEASUREMENT to it) }.orEmpty(),
         )

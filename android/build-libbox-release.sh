@@ -263,11 +263,13 @@ import sys
 import zipfile
 
 aar_path, classes_path = sys.argv[1:]
-required = [
-    "classes.jar",
+required_classes = [
     "io/nekohasekai/libbox/OpenRungBrokerOperation.class",
     "io/nekohasekai/libbox/OpenRungBrokerResult.class",
     "io/nekohasekai/libbox/OpenRungBrokerRelayResult.class",
+    "io/nekohasekai/libbox/OpenRungBrokerWSSTicketResult.class",
+]
+required_native_libraries = [
     "jni/armeabi-v7a/libbox.so",
     "jni/arm64-v8a/libbox.so",
     "jni/x86/libbox.so",
@@ -279,13 +281,13 @@ with zipfile.ZipFile(aar_path) as aar_file:
         sys.exit("error: libbox AAR is missing classes.jar")
     with open(classes_path, "wb") as output:
         output.write(aar_file.read("classes.jar"))
-    for entry in required[4:]:
+    for entry in required_native_libraries:
         if entry not in aar_entries:
             sys.exit("error: libbox AAR is missing " + entry)
 
 with zipfile.ZipFile(classes_path) as classes_file:
     class_entries = set(classes_file.namelist())
-    for entry in required[1:4]:
+    for entry in required_classes:
         if entry not in class_entries:
             sys.exit("error: libbox classes.jar is missing " + entry)
 CHECK_AAR
@@ -294,14 +296,24 @@ javap_output="$(
   "$JAVA_HOME/bin/javap" -classpath "$classes_jar" \
     io.nekohasekai.libbox.Libbox \
     io.nekohasekai.libbox.OpenRungBrokerOperation \
-    io.nekohasekai.libbox.OpenRungBrokerRelayResult
+    io.nekohasekai.libbox.OpenRungBrokerResult \
+    io.nekohasekai.libbox.OpenRungBrokerRelayResult \
+    io.nekohasekai.libbox.OpenRungBrokerWSSTicketResult
 )"
 for generated_symbol in \
   'newOpenRungBrokerOperationForAndroid(java.lang.String, java.lang.String);' \
   'newOpenRungBrokerOperationForIOS(java.lang.String, java.lang.String);' \
   'newOpenRungBrokerOperationForReactNative(java.lang.String, java.lang.String);' \
   'firstReachable(java.lang.String, int, java.lang.String, java.lang.String);' \
-  'relayJSON();'; do
+  'sendTelemetryBatchJSON(java.lang.String, java.lang.String);' \
+  'requestWSSTicket(java.lang.String, java.lang.String, java.lang.String, java.lang.String, java.lang.String);' \
+  'relayJSON();' \
+  'ticket();' \
+  'url();' \
+  'expiresAtMillis();' \
+  'errorKind();' \
+  'httpStatus();' \
+  'retryAfterMillis();'; do
   if ! grep -Fq "$generated_symbol" <<< "$javap_output"; then
     echo "error: libbox AAR is missing generated broker symbol: $generated_symbol" >&2
     exit 1

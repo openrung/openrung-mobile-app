@@ -13,13 +13,9 @@ enum AppConfig {
     /// the app's `setSplitTunnelConfig`, read by the extension via `SplitTunnelConfig.load`.
     static let splitTunnelConfigDefaultsKey = "split_tunnel_config"
 
-    /// Discovery broker (relay-list bootstrap) default, and — since discovery is HTTPS-only — the sole
-    /// built-in discovery candidate. Discovery is the censorship-critical path: it runs BEFORE the VPN
-    /// tunnel is up, and the relay list it returns defines which server the client trusts as its exit.
-    /// The relay list is Ed25519-signed by the broker and verified against `relaySigningKeys` before
-    /// it is decoded (see `RelayListVerifier`), so its authenticity no longer rests on the transport;
-    /// the Cloudflare-fronted HTTPS endpoint stays the default because TLS + CDN edge IPs are hard to
-    /// block and keep the client identity headers off the wire in cleartext.
+    /// Primary relay-discovery URL passed to brokerapi. The native Go client owns built-in
+    /// candidates, override policy, racing, relay verification, and transport selection; Swift
+    /// receives only the winning URL and a verified relay-list snapshot.
     static let defaultBrokerURL = URL(string: "https://broker.openrung.org/")!
 
     /// Telemetry / heartbeat / speed-test target. Uses the same Cloudflare-fronted HTTPS broker as
@@ -32,13 +28,9 @@ enum AppConfig {
     /// the user's real pre-VPN IP, geo and stable client ID in cleartext.
     static let telemetryBrokerURL = URL(string: "https://broker.openrung.org/")!
 
-    /// Ordered discovery candidates, raced with a staggered start: the first entry starts
-    /// immediately, each later entry joins `discoveryStaggerMs` after the previous one, and the first
-    /// candidate to return relays wins (see `BrokerClient.firstReachable`). Every non-loopback
-    /// candidate's relay list must carry a valid Ed25519 signature under `relaySigningKeys`
-    /// (`RelayListVerifier`), so a censor or on-path attacker controlling a candidate can only fail
-    /// it, never feed a forged relay set. Entries stay HTTPS regardless — TLS keeps the client
-    /// identity headers confidential, which the signature does not.
+    /// Broker fronts retained for WSS-ticket ordering and other paths that have their own explicit
+    /// policy. Native relay discovery no longer constructs candidates here: brokerapi owns its
+    /// default order, custom-override handling, racing, and relay-list verification.
     ///
     /// Two independent fronts are deployed — the Cloudflare Worker and an AWS CloudFront distribution
     /// (different provider AND DNS zone) — so a single CDN/zone/account failure no longer fails
@@ -69,27 +61,6 @@ enum AppConfig {
             publicKeyHex: "5b2698cfa7a796c671a30aabd5475d55095b91464221f051837eb8fe01f36ea2"
         ),
     ]
-
-    /// Ordered broker candidates for a connection attempt: the caller-selected `primary` (the provider
-    /// configuration's broker, today the default) first, then the built-in `defaultBrokerURLs`,
-    /// de-duplicated while preserving order. A GENUINE override (a primary that is not one of the
-    /// defaults) is flagged `overrideFirst`: `BrokerClient.firstReachable` tries it strictly first
-    /// with its full per-attempt timeout — a user's custom broker is never silently outrun by a
-    /// default front merely for being slower than the stagger — and the defaults race as fallbacks
-    /// only after it fails. A primary that echoes a default keeps the pure staggered race, where
-    /// list position is just a head start of `discoveryStaggerMs` per position.
-    static func brokerCandidates(primary: URL?) -> BrokerCandidates {
-        BrokerClient.candidates(primary: primary, fallbacks: defaultBrokerURLs)
-    }
-
-    /// Stagger interval of the discovery race (`BrokerClient.firstReachable`): candidate N+1 is
-    /// started this many milliseconds after candidate N unless an attempt has already succeeded.
-    /// Small enough that a blocked/blackholed primary front only delays discovery by ~2.5 s per
-    /// fallback position (instead of a full request timeout), large enough that a healthy primary
-    /// almost always answers before the first fallback is ever contacted, keeping fallback-front load
-    /// near zero. MUST stay in sync with desktop `DiscoveryStagger` (Go config package) and the
-    /// RN/Kotlin AppConfigs — the staggered-race semantics are identical across all four clients.
-    static let discoveryStaggerMs: UInt64 = 2_500
 
     static let loggingSubsystem = "com.openrung.app.PacketTunnel"
     static let engineDirectoryName = "OpenRungPacketTunnel"

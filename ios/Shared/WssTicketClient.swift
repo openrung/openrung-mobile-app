@@ -1,6 +1,6 @@
 import Foundation
 
-struct WssSessionTicket: Equatable, Sendable {
+struct WssSessionTicket: Equatable, Sendable, CustomStringConvertible, CustomDebugStringConvertible {
     /// Opaque bearer credential. It must never enter a URL, log, metric or error message.
     let ticket: String
     let expiresAt: Date
@@ -10,6 +10,12 @@ struct WssSessionTicket: Equatable, Sendable {
     func isFresh(at now: Date) -> Bool {
         expiresAt > now
     }
+
+    var description: String {
+        "WssSessionTicket(ticket: <redacted>, expiresAt: \(expiresAt), url: <redacted>)"
+    }
+
+    var debugDescription: String { description }
 }
 
 struct WssTicketStatusError: Error, Equatable {
@@ -49,43 +55,14 @@ typealias WssTicketAttempt = @Sendable (
     _ timeoutMilliseconds: UInt64
 ) async throws -> WssSessionTicket
 
-/// URLSession normally follows redirects. Ticket POSTs instead retain the 3xx response so neither
-/// the request body nor stable client/session identity headers can be forwarded to another origin.
-final class WssRedirectRejectingDelegate: NSObject, URLSessionTaskDelegate {
-    func urlSession(
-        _: URLSession,
-        task _: URLSessionTask,
-        willPerformHTTPRedirection _: HTTPURLResponse,
-        newRequest _: URLRequest,
-        completionHandler: @escaping (URLRequest?) -> Void
-    ) {
-        completionHandler(nil)
-    }
-}
-
-/// HTTPS control-plane client for one relay/front-bound, short-lived WSS ticket.
+/// Policy-preserving WSS ticket client. Front ordering, total/per-attempt budgets, first-error
+/// semantics, and the bounded 429/503 retry round remain Swift-owned; each individual transport
+/// attempt is one fresh brokerapi operation.
 final class WssTicketClient: @unchecked Sendable {
-    private static let ticketPath = "api/v1/wss/tickets"
-    private static let maxResponseBytes = 64 * 1024
-    private static let maxTicketBytes = 4_096
+    private let operationFactory: any NativeBrokerOperationFactory
 
-    private let redirectDelegate: WssRedirectRejectingDelegate
-    private let session: URLSession
-
-    init(configuration: URLSessionConfiguration = .ephemeral) {
-        configuration.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-        configuration.urlCache = nil
-        configuration.httpCookieStorage = nil
-        configuration.httpShouldSetCookies = false
-        configuration.timeoutIntervalForRequest = 5
-        configuration.timeoutIntervalForResource = 15
-        let redirectDelegate = WssRedirectRejectingDelegate()
-        self.redirectDelegate = redirectDelegate
-        session = URLSession(configuration: configuration, delegate: redirectDelegate, delegateQueue: nil)
-    }
-
-    deinit {
-        session.invalidateAndCancel()
+    init(operationFactory: any NativeBrokerOperationFactory) {
+        self.operationFactory = operationFactory
     }
 
     func requestWithFailover(
@@ -106,11 +83,15 @@ final class WssTicketClient: @unchecked Sendable {
                 UInt64(max(ProcessInfo.processInfo.systemUptime * 1_000, 0))
             },
             wait: { milliseconds in
-                try await Task.sleep(nanoseconds: milliseconds.multipliedReportingOverflow(by: 1_000_000).partialValue)
+                let nanoseconds = milliseconds.multipliedReportingOverflow(by: 1_000_000)
+                try await Task.sleep(
+                    nanoseconds: nanoseconds.overflow ? UInt64.max : nanoseconds.partialValue
+                )
             },
-            attempt: { [session] brokerURL, requestedRelayID, requestedFrontID, requestedClientID, requestedSessionID, timeout in
+            attempt: { [operationFactory] brokerURL, requestedRelayID, requestedFrontID,
+                requestedClientID, requestedSessionID, timeout in
                 try await Self.requestOnce(
-                    session: session,
+                    operationFactory: operationFactory,
                     brokerURL: brokerURL,
                     relayID: requestedRelayID,
                     frontID: requestedFrontID,
@@ -136,16 +117,18 @@ final class WssTicketClient: @unchecked Sendable {
         attempt: @escaping WssTicketAttempt
     ) async throws -> WssSessionTicket {
         guard relayID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
-            throw URLError(.badURL)
+            throw BrokerNativeFailure(kind: .validation, message: "The relay ID is empty.")
         }
         guard frontID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
-            throw URLError(.badURL)
+            throw BrokerNativeFailure(kind: .validation, message: "The WSS front ID is empty.")
         }
         var fronts: [URL] = []
         for url in brokerURLs where fronts.contains(url) == false {
             fronts.append(url)
         }
-        guard fronts.isEmpty == false else { throw URLError(.badURL) }
+        guard fronts.isEmpty == false else {
+            throw BrokerNativeFailure(kind: .validation, message: "No WSS ticket broker is available.")
+        }
 
         let started = monotonicMilliseconds()
         let deadline = saturatedAdd(started, policy.totalDeadlineMilliseconds)
@@ -171,6 +154,10 @@ final class WssTicketClient: @unchecked Sendable {
                     }
                 } catch is CancellationError {
                     throw CancellationError()
+                } catch let failure as BrokerNativeFailure where failure.isLocalPlatformFailure {
+                    // Another front cannot repair a stale binding, nil result, or local schema
+                    // mismatch. Abort before another short-lived bearer credential is minted.
+                    throw failure
                 } catch {
                     if firstFailure == nil { firstFailure = error }
                     if round == 0, let candidate = retryDelay(for: error, policy: policy) {
@@ -196,143 +183,65 @@ final class WssTicketClient: @unchecked Sendable {
     }
 
     static func requestOnce(
-        session: URLSession,
+        operationFactory: any NativeBrokerOperationFactory,
         brokerURL: URL,
         relayID: String,
         frontID: String,
         clientID: String? = nil,
         sessionID: String? = nil,
-        timeoutMilliseconds: UInt64 = 5_000,
-        now: Date = Date()
+        timeoutMilliseconds _: UInt64 = 5_000
     ) async throws -> WssSessionTicket {
-        let request = try ticketRequest(
-            brokerURL: brokerURL,
-            relayID: relayID,
-            frontID: frontID,
-            clientID: clientID,
-            sessionID: sessionID,
-            timeoutMilliseconds: timeoutMilliseconds
-        )
-
-        let (bytes, response) = try await session.bytes(for: request)
-        guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
-        guard (200..<300).contains(http.statusCode) else {
-            throw WssTicketStatusError(
-                status: http.statusCode,
-                retryAfterMilliseconds: parseRetryAfterMilliseconds(
-                    http.value(forHTTPHeaderField: "Retry-After"),
-                    now: now
-                )
+        let result: NativeBrokerWSSTicketResultSnapshot = try await NativeBrokerRunner.run(
+            factory: operationFactory
+        ) { operation in
+            operation.requestWSSTicket(
+                brokerURL: brokerURL.absoluteString,
+                relayID: relayID,
+                frontID: frontID,
+                clientID: clientID ?? "",
+                sessionID: sessionID ?? ""
             )
         }
 
-        var body = Data()
-        body.reserveCapacity(min(maxResponseBytes, 8 * 1024))
-        for try await byte in bytes {
-            guard body.count < maxResponseBytes else { throw URLError(.dataLengthExceedsMaximum) }
-            body.append(byte)
-        }
-        return try decodeTicketResponse(body, now: now)
-    }
-
-    /// Parses a bounded response without retaining attacker-controlled decoder diagnostics.
-    static func decodeTicketResponse(_ body: Data, now: Date) throws -> WssSessionTicket {
-        guard body.count <= maxResponseBytes else { throw URLError(.dataLengthExceedsMaximum) }
-        let decoded: TicketResponse
         do {
-            decoded = try JSONDecoder().decode(TicketResponse.self, from: body)
-        } catch {
-            // Never retain a parser error that can quote attacker-controlled body bytes.
-            throw URLError(.cannotParseResponse)
-        }
-        let ticketSize = decoded.ticket.lengthOfBytes(using: .utf8)
-        guard
-            (1...maxTicketBytes).contains(ticketSize),
-            // Swift treats CRLF as one extended grapheme cluster, so String.contains("\r") and
-            // contains("\n") both return false for the dangerous pair. Inspect raw UTF-8 bytes.
-            decoded.ticket.utf8.contains(0x0D) == false,
-            decoded.ticket.utf8.contains(0x0A) == false,
-            decoded.url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
-            let expiresAt = parseISO8601(decoded.expiresAt),
-            expiresAt > now
-        else {
-            throw URLError(.cannotParseResponse)
-        }
-        return WssSessionTicket(ticket: decoded.ticket, expiresAt: expiresAt, url: decoded.url)
-    }
-
-    /// Pure request construction keeps exact ticket POST bytes and security headers testable even
-    /// on URLProtocol implementations that normalize `httpBody` into an upload stream.
-    static func ticketRequest(
-        brokerURL: URL,
-        relayID: String,
-        frontID: String,
-        clientID: String? = nil,
-        sessionID: String? = nil,
-        timeoutMilliseconds: UInt64 = 5_000
-    ) throws -> URLRequest {
-        let endpoint = try ticketEndpoint(for: brokerURL)
-        let payload = try JSONEncoder().encode(TicketRequest(relayID: relayID, frontID: frontID))
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.timeoutInterval = TimeInterval(timeoutMilliseconds) / 1_000
-        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-        request.httpBody = payload
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("no-store", forHTTPHeaderField: "Cache-Control")
-        request.setValue("no-cache", forHTTPHeaderField: "Pragma")
-        request.setValue(DeviceAttributes.appVersion, forHTTPHeaderField: "X-OpenRung-App-Version")
-        request.setValue(DeviceAttributes.osVersion, forHTTPHeaderField: "X-OpenRung-iOS-Version")
-        if let clientID, clientID.isEmpty == false, let sessionID, sessionID.isEmpty == false {
-            request.setValue(clientID, forHTTPHeaderField: "X-OpenRung-Client-ID")
-            request.setValue(sessionID, forHTTPHeaderField: "X-OpenRung-Session-ID")
-        }
-        return request
-    }
-
-    static func ticketEndpoint(for baseURL: URL) throws -> URL {
-        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
-            throw URLError(.badURL)
-        }
-        guard
-            let scheme = components.scheme?.lowercased(),
-            let host = components.host,
-            components.user == nil,
-            components.password == nil,
-            components.port == nil || (1...65_535).contains(components.port!)
-        else {
-            throw URLError(.badURL)
-        }
-        let permitted = scheme == "https" || (scheme == "http" && hostIsLoopback(host))
-        guard permitted else { throw URLError(.secureConnectionFailed) }
-        let basePath = components.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        components.path = "/" + [basePath, ticketPath].filter { $0.isEmpty == false }.joined(separator: "/")
-        components.query = nil
-        components.fragment = nil
-        guard let endpoint = components.url else { throw URLError(.badURL) }
-        return endpoint
-    }
-
-    static func parseRetryAfterMilliseconds(_ value: String?, now: Date) -> UInt64? {
-        let value = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard value.isEmpty == false else { return nil }
-        if value.allSatisfy(\.isNumber) {
-            let seconds = UInt64(value) ?? UInt64.max
-            return seconds.multipliedReportingOverflow(by: 1_000).overflow
-                ? UInt64.max
-                : seconds * 1_000
-        }
-        for format in ["EEE',' dd MMM yyyy HH':'mm':'ss z", "EEEE',' dd-MMM-yy HH':'mm':'ss z", "EEE MMM d HH':'mm':'ss yyyy"] {
-            let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: "en_US_POSIX")
-            formatter.timeZone = TimeZone(secondsFromGMT: 0)
-            formatter.dateFormat = format
-            if let date = formatter.date(from: value), date > now {
-                return UInt64(date.timeIntervalSince(now) * 1_000)
+            try result.throwIfFailed()
+        } catch let failure as BrokerNativeFailure {
+            if failure.isLocalPlatformFailure {
+                throw failure
             }
+            if let status = failure.httpStatus {
+                throw WssTicketStatusError(
+                    status: status,
+                    retryAfterMilliseconds: failure.retryAfterMilliseconds
+                )
+            }
+            throw failure
         }
-        return nil
+
+        // Foundation's Date accepts non-finite/out-of-domain values. Keep the conversion bounded
+        // to positive Unix milliseconds through the end of year 9999.
+        let maximumUnixMilliseconds: Int64 = 253_402_300_799_999
+        guard (1...maximumUnixMilliseconds).contains(result.expiresAtMilliseconds) else {
+            throw BrokerNativeFailure(
+                kind: .decode,
+                message: "The native WSS ticket expiry is invalid."
+            )
+        }
+        let seconds = Double(result.expiresAtMilliseconds) / 1_000
+        guard seconds.isFinite else {
+            throw BrokerNativeFailure(
+                kind: .decode,
+                message: "The native WSS ticket expiry is invalid."
+            )
+        }
+        let expiresAt = Date(timeIntervalSince1970: seconds)
+        guard expiresAt.timeIntervalSince1970.isFinite else {
+            throw BrokerNativeFailure(
+                kind: .decode,
+                message: "The native WSS ticket expiry is invalid."
+            )
+        }
+        return WssSessionTicket(ticket: result.ticket, expiresAt: expiresAt, url: result.url)
     }
 
     private static func retryDelay(for error: Error, policy: WssTicketPolicy) -> UInt64? {
@@ -352,7 +261,9 @@ final class WssTicketClient: @unchecked Sendable {
             group.addTask { try await operation() }
             group.addTask {
                 let nanoseconds = milliseconds.multipliedReportingOverflow(by: 1_000_000)
-                try await Task.sleep(nanoseconds: nanoseconds.overflow ? UInt64.max : nanoseconds.partialValue)
+                try await Task.sleep(
+                    nanoseconds: nanoseconds.overflow ? UInt64.max : nanoseconds.partialValue
+                )
                 throw URLError(.timedOut)
             }
             defer { group.cancelAll() }
@@ -361,49 +272,11 @@ final class WssTicketClient: @unchecked Sendable {
         }
     }
 
-    private static func parseISO8601(_ value: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let parsed = formatter.date(from: value) { return parsed }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: value)
-    }
-
-    private static func hostIsLoopback(_ host: String) -> Bool {
-        let normalized = host.trimmingCharacters(in: CharacterSet(charactersIn: "[]")).lowercased()
-        if normalized == "localhost" || normalized == "::1" { return true }
-        let octets = normalized.split(separator: ".", omittingEmptySubsequences: false)
-        guard octets.count == 4, octets.first == "127" else { return false }
-        return octets.allSatisfy { UInt8($0) != nil }
-    }
-
     private static func saturatedAdd(_ value: UInt64, _ increment: UInt64) -> UInt64 {
         value.addingReportingOverflow(increment).overflow ? UInt64.max : value + increment
     }
 
     private static func remainingMilliseconds(deadline: UInt64, now: UInt64) -> UInt64 {
         now >= deadline ? 0 : deadline - now
-    }
-
-    private struct TicketRequest: Encodable {
-        let relayID: String
-        let frontID: String
-
-        enum CodingKeys: String, CodingKey {
-            case relayID = "relay_id"
-            case frontID = "front_id"
-        }
-    }
-
-    private struct TicketResponse: Decodable {
-        let ticket: String
-        let expiresAt: String
-        let url: String
-
-        enum CodingKeys: String, CodingKey {
-            case ticket
-            case expiresAt = "expires_at"
-            case url
-        }
     }
 }
