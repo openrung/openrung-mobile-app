@@ -249,7 +249,7 @@ class OpenRungVpnService : VpnService() {
                 }
                 val picked = matched.first()
                 OpenRungStatusStore.appendLog(
-                    getString(R.string.log_connecting_relay, picked.label.ifBlank { picked.id }),
+                    getString(R.string.log_connecting_relay, picked.displayName()),
                 )
                 matched
             } else if (targetCountry != null) {
@@ -297,7 +297,7 @@ class OpenRungVpnService : VpnService() {
             OpenRungStatusStore.setStatus(
                 ConnectionStatus.CONNECTED,
                 relayLabel = null,
-                relayName = relay.label.trim().ifBlank { relay.id },
+                relayName = relay.displayName(),
                 lastError = null,
             )
             updateNotification(getString(R.string.status_connected))
@@ -988,7 +988,7 @@ class OpenRungVpnService : VpnService() {
                 countryCode = code,
                 relayId = relay.id,
                 label = relay.locationLabel().ifBlank { centroid?.name ?: code },
-                relayName = relay.label.trim().ifBlank { relay.id },
+                relayName = relay.displayName(),
                 latitude = centroid?.latitude ?: relay.latitude ?: 0.0,
                 longitude = centroid?.longitude ?: relay.longitude ?: 0.0,
             ),

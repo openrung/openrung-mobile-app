@@ -69,7 +69,10 @@ enum SharedConnectionState {
     ) {
         mutate { snapshot in
             snapshot.status = status
-            snapshot.relayName = status == .connected ? relayName : nil
+            // While connected, nil keeps the current name (mirroring the Android store's
+            // default) so a mid-session status re-assert never blanks the UI; every other
+            // status always clears it.
+            snapshot.relayName = status == .connected ? (relayName ?? snapshot.relayName) : nil
             if clearRelayLabel { snapshot.relayLabel = nil }
             if clearError { snapshot.lastError = nil }
             snapshot.logLines = ActivityLog.appended(snapshot.logLines, ActivityLog.line(status.displayLabel))

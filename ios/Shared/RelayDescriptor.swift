@@ -250,4 +250,28 @@ public extension RelayDescriptor {
     func locationLabel() -> String {
         [city, country].compactMap { $0 }.filter { $0.isEmpty == false }.joined(separator: ", ")
     }
+
+    /// Relay name as surfaced in the UI (connect card status row, recents pills, log lines).
+    /// `label` is operator-supplied free text, so strip control/format scalars (a bidi override
+    /// could reorder or spoof surrounding UI text), collapse whitespace, and clamp the length,
+    /// falling back to the broker-assigned id when nothing printable remains. Keep in sync with
+    /// the Kotlin `RelayDescriptor.displayName()`.
+    func displayName() -> String {
+        let cleaned = Self.sanitizeDisplayName(label ?? "")
+        return cleaned.isEmpty ? Self.sanitizeDisplayName(id) : cleaned
+    }
+
+    private static let maxDisplayNameCharacters = 24
+
+    private static func sanitizeDisplayName(_ raw: String) -> String {
+        let stripped = raw.unicodeScalars.filter { scalar in
+            let category = scalar.properties.generalCategory
+            return category != .control && category != .format
+        }
+        let collapsed = String(String.UnicodeScalarView(stripped))
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+        return String(collapsed.prefix(maxDisplayNameCharacters))
+            .trimmingCharacters(in: .whitespaces)
+    }
 }

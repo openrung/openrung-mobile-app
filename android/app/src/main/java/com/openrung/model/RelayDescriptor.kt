@@ -169,6 +169,42 @@ data class RelayDescriptor(
 
     /** Human-readable exit location such as "Tokyo, Japan", or "" while the broker has no geo. */
     fun locationLabel(): String = listOf(city, country).filter { it.isNotBlank() }.joinToString(", ")
+
+    /**
+     * Relay name as surfaced in the UI (connect card status row, recents pills, log lines).
+     * [label] is operator-supplied free text, so strip control/format characters (a bidi
+     * override could reorder or spoof surrounding UI text), collapse whitespace, and clamp the
+     * length, falling back to the broker-assigned id when nothing printable remains. Keep in
+     * sync with the Swift `RelayDescriptor.displayName()`.
+     */
+    fun displayName(): String = sanitizeDisplayName(label).ifEmpty { sanitizeDisplayName(id) }
+
+    private companion object {
+        const val MAX_DISPLAY_NAME_CHARS = 24
+
+        fun sanitizeDisplayName(raw: String): String {
+            // Iterate code points, not chars, so astral-plane format characters
+            // (e.g. U+E00xx tags) are stripped rather than slipping through as surrogates.
+            val stripped = buildString(raw.length) {
+                var i = 0
+                while (i < raw.length) {
+                    val codePoint = raw.codePointAt(i)
+                    when (Character.getType(codePoint)) {
+                        Character.CONTROL.toInt(), Character.FORMAT.toInt() -> Unit
+                        else -> appendCodePoint(codePoint)
+                    }
+                    i += Character.charCount(codePoint)
+                }
+            }
+            val collapsed = stripped.split(WHITESPACE_RUN).filter { it.isNotEmpty() }.joinToString(" ")
+            if (collapsed.length <= MAX_DISPLAY_NAME_CHARS) return collapsed
+            val clamped = collapsed.substring(0, MAX_DISPLAY_NAME_CHARS)
+            // Never end on half a surrogate pair.
+            return (if (clamped.last().isHighSurrogate()) clamped.dropLast(1) else clamped).trimEnd()
+        }
+
+        val WHITESPACE_RUN = Regex("\\s+")
+    }
 }
 
 @Serializable

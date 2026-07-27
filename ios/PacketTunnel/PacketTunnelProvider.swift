@@ -209,7 +209,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 guard let picked = matched.first else {
                     throw PacketTunnelError.relayNotAvailable
                 }
-                let displayName = (picked.label?.isEmpty == false ? picked.label : nil) ?? picked.id
+                let displayName = picked.displayName()
                 SharedConnectionState.appendLog("connecting to relay \(displayName)")
                 targetedCandidates = matched
             } else if let targetCountry {
@@ -268,10 +268,9 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             }
             guard promoted else { throw CancellationError() }
             TelemetryManager.markConnected(relayId: relay.id)
-            let relayName = relay.label?.trimmingCharacters(in: .whitespacesAndNewlines)
             SharedConnectionState.setStatus(
                 .connected,
-                relayName: relayName.flatMap { $0.isEmpty ? nil : $0 } ?? relay.id,
+                relayName: relay.displayName(),
                 clearRelayLabel: true,
                 clearError: true
             )
@@ -1271,8 +1270,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         if code.isEmpty { return }
         let centroid = CountryGeo.centroid(code)
         let label = relay.locationLabel()
-        let friendlyName = relay.label?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let relayName = friendlyName.flatMap { $0.isEmpty ? nil : $0 } ?? relay.id
+        let relayName = relay.displayName()
         SharedConnectionState.recordRecent(
             RecentNode(
                 countryCode: code,

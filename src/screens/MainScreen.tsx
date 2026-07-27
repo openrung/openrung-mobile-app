@@ -167,8 +167,8 @@ export function MainScreen(): React.JSX.Element {
             directoryStatus={directoryStatus}
             status={native.status}
             relayLabel={native.relayLabel}
+            relayName={native.relayName}
             lastError={native.lastError}
-            logLines={native.logLines}
             connectedAtMs={connectedAtMs}
           />
         </ExitNodeMap>
