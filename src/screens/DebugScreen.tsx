@@ -1,11 +1,11 @@
 /**
  * Debug console screen. 1:1 port of the production OpenRungDebugScreen:
  * header row, flex-1 console panel with "> line" entries and the last error
- * as "! error", and the traffic-route footer. Additionally shows a dim
- * "[mock native module]" notice when the JS fallback simulator is active.
+ * as "! error". Additionally shows a dim "[mock native module]" notice when
+ * the JS fallback simulator is active.
  */
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ConsolePanel } from '../components/ConsolePanel';
@@ -13,7 +13,7 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { useStrings } from '../i18n';
 import { isMock } from '../native/OpenRungVpn';
 import { useVpnState } from '../state/useVpnState';
-import { monoFont, palette } from '../theme';
+import { palette } from '../theme';
 
 export interface DebugScreenProps {
   onBack: () => void;
@@ -22,7 +22,7 @@ export interface DebugScreenProps {
 export function DebugScreen({ onBack }: DebugScreenProps): React.JSX.Element {
   const s = useStrings();
   const insets = useSafeAreaInsets();
-  const { state, isConnected } = useVpnState();
+  const { state } = useVpnState();
 
   return (
     <View
@@ -39,10 +39,6 @@ export function DebugScreen({ onBack }: DebugScreenProps): React.JSX.Element {
         showMockNotice={isMock}
         style={styles.console}
       />
-
-      <View style={styles.footerSlot}>
-        {isConnected ? <Text style={styles.footer}>{s.trafficRouteConnected}</Text> : null}
-      </View>
     </View>
   );
 }
@@ -56,16 +52,5 @@ const styles = StyleSheet.create({
   },
   console: {
     flex: 1,
-  },
-  footerSlot: {
-    minHeight: 16,
-    justifyContent: 'center',
-  },
-  footer: {
-    alignSelf: 'center',
-    color: palette.dimText,
-    fontFamily: monoFont,
-    fontSize: 12,
-    lineHeight: 16,
   },
 });

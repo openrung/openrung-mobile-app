@@ -455,6 +455,7 @@ describe('connectedAtMs (session uptime stamp)', () => {
   const nativeState = (partial: Partial<NativeVpnState>): NativeVpnState => ({
     status: 'disconnected',
     relayLabel: null,
+    relayName: null,
     lastError: null,
     logLines: [],
     recents: [],

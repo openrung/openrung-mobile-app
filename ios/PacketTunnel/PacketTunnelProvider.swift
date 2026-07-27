@@ -268,7 +268,13 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             }
             guard promoted else { throw CancellationError() }
             TelemetryManager.markConnected(relayId: relay.id)
-            SharedConnectionState.setStatus(.connected, clearRelayLabel: true, clearError: true)
+            let relayName = relay.label?.trimmingCharacters(in: .whitespacesAndNewlines)
+            SharedConnectionState.setStatus(
+                .connected,
+                relayName: relayName.flatMap { $0.isEmpty ? nil : $0 } ?? relay.id,
+                clearRelayLabel: true,
+                clearError: true
+            )
             applyRelayLocation(relay)
             var successMeasurements: [String: Int64] = [
                 "broker_fetch_ms": brokerFetchMs,

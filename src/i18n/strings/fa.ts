@@ -12,7 +12,6 @@ export const fa: Partial<Strings> = {
   readyLog: 'آماده است. برای عبور از رله، روی اتصال ضربه بزنید.',
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
-  trafficRouteConnected: 'مسیر ترافیک: دستگاه -> OpenRung VPN -> رله',
   settingsContentDescription: 'باز کردن تنظیمات',
   settingsTitle: 'تنظیمات',
   backContentDescription: 'بازگشت',

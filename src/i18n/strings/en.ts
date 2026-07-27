@@ -17,7 +17,6 @@ export const en = {
   readyLog: 'ready. tap connect to route through a relay.',
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
-  trafficRouteConnected: 'traffic route: device -> OpenRung VPN -> relay',
   settingsContentDescription: 'Open settings',
   settingsTitle: 'Settings',
   backContentDescription: 'Back',

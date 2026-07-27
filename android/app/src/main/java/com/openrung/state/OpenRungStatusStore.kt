@@ -38,8 +38,9 @@ object OpenRungStatusStore {
         state.value = OpenRungUiState(
             status = if (restoredStatus == ConnectionStatus.CONNECTED) ConnectionStatus.DISCONNECTED else restoredStatus,
             brokerUrl = prefs.getString(KEY_BROKER_URL, AppConfig.DEFAULT_BROKER_URL) ?: AppConfig.DEFAULT_BROKER_URL,
-            // A cold start always reconnects fresh, so never restore a stale relay label (would leak a prior relay).
+            // A cold start always reconnects fresh, so never restore stale relay details.
             relayLabel = null,
+            relayName = null,
             lastError = prefs.getString(KEY_LAST_ERROR, null),
             logLines = prefs.getString(KEY_LOG_LINES, null)?.lines()?.filter { it.isNotBlank() }.orEmpty(),
             recentRegions = loadRecents(prefs.getString(KEY_RECENT_NODES, null)),
@@ -60,12 +61,14 @@ object OpenRungStatusStore {
     fun setStatus(
         status: ConnectionStatus,
         relayLabel: String? = state.value.relayLabel,
+        relayName: String? = if (status == ConnectionStatus.CONNECTED) state.value.relayName else null,
         lastError: String? = state.value.lastError,
     ) {
         state.update {
             it.copy(
                 status = status,
                 relayLabel = relayLabel,
+                relayName = relayName,
                 lastError = lastError,
             )
         }
@@ -91,6 +94,7 @@ object OpenRungStatusStore {
                 status = ConnectionStatus.FAILED,
                 lastError = message,
                 relayLabel = null,
+                relayName = null,
                 logLines = (it.logLines + "[${LocalTime.now().format(timeFormatter)}] $logMessage")
                     .takeLast(MAX_LOG_LINES),
             )

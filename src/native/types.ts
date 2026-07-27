@@ -21,6 +21,7 @@ export interface RecentNode {
 export interface NativeVpnState {
   status: ConnectionStatus;
   relayLabel: string | null; // resolved geo label, never a raw IP
+  relayName: string | null; // friendly name of the connected relay, falling back to relay id
   lastError: string | null;
   logLines: string[]; // "[HH:mm:ss] message", newest last, cap 80
   recents: RecentNode[]; // newest first, deduped by relayId, cap 8

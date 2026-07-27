@@ -244,7 +244,7 @@ export function MainScreen(): React.JSX.Element {
           />
           <ConnectCard
             status={native.status}
-            relayLabel={native.relayLabel}
+            relayName={native.relayName}
             isConnected={isConnected}
             isWorking={isWorking}
             onToggle={onToggle}

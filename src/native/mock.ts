@@ -46,6 +46,7 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
   private state: NativeVpnState = {
     status: 'disconnected',
     relayLabel: null,
+    relayName: null,
     lastError: null,
     logLines: [],
     recents: [],
@@ -85,7 +86,7 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
     const relayLabel = code === 'JP' ? 'Tokyo, Japan' : countryName;
     const relayId = targetRelayId ?? `${code.toLowerCase()}-relay-1`;
 
-    this.setStatus('preparing', { relayLabel: null, lastError: null });
+    this.setStatus('preparing', { relayLabel: null, relayName: null, lastError: null });
     this.runScript([
       {
         delayMs: 300,
@@ -122,7 +123,7 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
         delayMs: 2300,
         run: () => {
           this.appendLog('internet access verified in 812 ms');
-          this.setStatus('connected', { relayLabel: null, lastError: null });
+          this.setStatus('connected', { relayLabel: null, relayName: relayId, lastError: null });
         },
       },
       {
@@ -155,7 +156,7 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
         delayMs: 300,
         run: () => {
           this.sessionId = null;
-          this.setStatus('disconnected', { relayLabel: null, lastError: null });
+          this.setStatus('disconnected', { relayLabel: null, relayName: null, lastError: null });
         },
       },
     ]);
@@ -208,12 +209,22 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
 
   private setStatus(
     status: ConnectionStatus,
-    overrides: { relayLabel?: string | null; lastError?: string | null } = {},
+    overrides: {
+      relayLabel?: string | null;
+      relayName?: string | null;
+      lastError?: string | null;
+    } = {},
   ): void {
     this.state = {
       ...this.state,
       status,
       relayLabel: overrides.relayLabel !== undefined ? overrides.relayLabel : this.state.relayLabel,
+      relayName:
+        overrides.relayName !== undefined
+          ? overrides.relayName
+          : status === 'connected'
+            ? this.state.relayName
+            : null,
       lastError: overrides.lastError !== undefined ? overrides.lastError : this.state.lastError,
     };
     // Production setStatus appends the (localized) status label as a log line.

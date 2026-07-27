@@ -12,7 +12,6 @@ export const zhCN: Partial<Strings> = {
   readyLog: '就绪。点按"连接"即可通过中继路由。',
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
-  trafficRouteConnected: '流量路径：设备 -> OpenRung VPN -> 中继',
   settingsContentDescription: '打开设置',
   settingsTitle: '设置',
   backContentDescription: '返回',

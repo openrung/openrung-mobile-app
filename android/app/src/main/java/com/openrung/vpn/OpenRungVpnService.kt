@@ -297,6 +297,7 @@ class OpenRungVpnService : VpnService() {
             OpenRungStatusStore.setStatus(
                 ConnectionStatus.CONNECTED,
                 relayLabel = null,
+                relayName = relay.label.trim().ifBlank { relay.id },
                 lastError = null,
             )
             updateNotification(getString(R.string.status_connected))

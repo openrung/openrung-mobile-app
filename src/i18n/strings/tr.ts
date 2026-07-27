@@ -12,7 +12,6 @@ export const tr: Partial<Strings> = {
   readyLog: "hazır. röle üzerinden yönlendirmek için bağlan'a dokunun.",
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
-  trafficRouteConnected: 'trafik yolu: cihaz -> OpenRung VPN -> röle',
   settingsContentDescription: 'Ayarları aç',
   settingsTitle: 'Ayarlar',
   backContentDescription: 'Geri',

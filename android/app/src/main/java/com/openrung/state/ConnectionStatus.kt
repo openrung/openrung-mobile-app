@@ -17,6 +17,7 @@ data class OpenRungUiState(
     val status: ConnectionStatus = ConnectionStatus.DISCONNECTED,
     val brokerUrl: String = "",
     val relayLabel: String? = null,
+    val relayName: String? = null,
     val lastError: String? = null,
     val logLines: List<String> = emptyList(),
     val recentRegions: List<RecentNode> = emptyList(),

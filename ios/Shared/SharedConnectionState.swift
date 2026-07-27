@@ -21,14 +21,15 @@ enum SharedConnectionState {
         return snapshot
     }
 
-    /// What the app shows on a cold launch: a stale CONNECTED never survives, and the relay label
-    /// (which could leak a prior relay) is dropped until re-resolved.
+    /// What the app shows on a cold launch: a stale CONNECTED never survives, and relay details
+    /// (which could leak a prior relay) are dropped until re-resolved.
     static func sanitizedForColdStart() -> ConnectionStateSnapshot {
         var snapshot = snapshot()
         if snapshot.status == .connected {
             snapshot.status = .disconnected
         }
         snapshot.relayLabel = nil
+        snapshot.relayName = nil
         return snapshot
     }
 
@@ -60,9 +61,15 @@ enum SharedConnectionState {
         mutate { $0.lastError = nil }
     }
 
-    static func setStatus(_ status: ConnectionStatus, clearRelayLabel: Bool = false, clearError: Bool = false) {
+    static func setStatus(
+        _ status: ConnectionStatus,
+        relayName: String? = nil,
+        clearRelayLabel: Bool = false,
+        clearError: Bool = false
+    ) {
         mutate { snapshot in
             snapshot.status = status
+            snapshot.relayName = status == .connected ? relayName : nil
             if clearRelayLabel { snapshot.relayLabel = nil }
             if clearError { snapshot.lastError = nil }
             snapshot.logLines = ActivityLog.appended(snapshot.logLines, ActivityLog.line(status.displayLabel))
@@ -80,6 +87,7 @@ enum SharedConnectionState {
             snapshot.status = .failed
             snapshot.lastError = message
             snapshot.relayLabel = nil
+            snapshot.relayName = nil
             snapshot.logLines = ActivityLog.appended(snapshot.logLines, ActivityLog.line("error: \(message)"))
         }
     }

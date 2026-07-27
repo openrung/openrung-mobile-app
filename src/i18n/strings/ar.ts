@@ -12,7 +12,6 @@ export const ar: Partial<Strings> = {
   readyLog: 'جاهز. اضغط على «اتصال» للتوجيه عبر مُرحّل.',
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
-  trafficRouteConnected: 'مسار المرور: الجهاز -> OpenRung VPN -> مرحل',
   settingsContentDescription: 'فتح الإعدادات',
   settingsTitle: 'الإعدادات',
   backContentDescription: 'رجوع',

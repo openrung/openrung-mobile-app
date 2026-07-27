@@ -12,7 +12,6 @@ export const vi: Partial<Strings> = {
   readyLog: 'sẵn sàng. nhấn kết nối để định tuyến qua relay.',
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
-  trafficRouteConnected: 'đường đi lưu lượng: thiết bị -> OpenRung VPN -> relay',
   settingsContentDescription: 'Mở cài đặt',
   settingsTitle: 'Cài đặt',
   backContentDescription: 'Quay lại',

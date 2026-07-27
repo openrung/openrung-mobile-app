@@ -13,7 +13,6 @@ export const my: Partial<Strings> = {
     'အသင့်ဖြစ်ပါပြီ။ ရီလေးမှတစ်ဆင့် ချိတ်ဆက်ရန် ချိတ်ဆက်မည် ကိုနှိပ်ပါ။',
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
-  trafficRouteConnected: 'traffic route: device -> OpenRung VPN -> relay',
   settingsContentDescription: 'ဆက်တင်များ ဖွင့်ရန်',
   settingsTitle: 'ဆက်တင်များ',
   backContentDescription: 'နောက်သို့',

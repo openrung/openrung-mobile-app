@@ -12,8 +12,6 @@ export const ru: Partial<Strings> = {
   readyLog: 'готово. нажмите «подключить», чтобы пройти через ретранслятор.',
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
-  trafficRouteConnected:
-    'маршрут трафика: устройство -> OpenRung VPN -> ретранслятор',
   settingsContentDescription: 'Открыть настройки',
   settingsTitle: 'Настройки',
   backContentDescription: 'Назад',

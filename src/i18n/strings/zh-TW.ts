@@ -12,7 +12,6 @@ export const zhTW: Partial<Strings> = {
   readyLog: '就緒。點選「連線」即可透過中繼路由。',
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
-  trafficRouteConnected: '流量路徑：裝置 -> OpenRung VPN -> 中繼',
   settingsContentDescription: '開啟設定',
   settingsTitle: '設定',
   backContentDescription: '返回',

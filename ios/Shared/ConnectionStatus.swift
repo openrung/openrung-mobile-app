@@ -36,6 +36,7 @@ public struct ConnectionStateSnapshot: Codable, Sendable, Equatable {
     public var status: ConnectionStatus
     public var brokerURL: String
     public var relayLabel: String?
+    public var relayName: String?
     public var lastError: String?
     public var logLines: [String]
     public var recentRegions: [RecentNode]
@@ -44,6 +45,7 @@ public struct ConnectionStateSnapshot: Codable, Sendable, Equatable {
         status: ConnectionStatus = .disconnected,
         brokerURL: String = "",
         relayLabel: String? = nil,
+        relayName: String? = nil,
         lastError: String? = nil,
         logLines: [String] = [],
         recentRegions: [RecentNode] = []
@@ -51,6 +53,7 @@ public struct ConnectionStateSnapshot: Codable, Sendable, Equatable {
         self.status = status
         self.brokerURL = brokerURL
         self.relayLabel = relayLabel
+        self.relayName = relayName
         self.lastError = lastError
         self.logLines = logLines
         self.recentRegions = recentRegions
@@ -63,6 +66,7 @@ public struct ConnectionStateSnapshot: Codable, Sendable, Equatable {
         case status
         case brokerURL
         case relayLabel
+        case relayName
         case lastError
         case logLines
         case recentRegions
@@ -73,6 +77,7 @@ public struct ConnectionStateSnapshot: Codable, Sendable, Equatable {
         status = try container.decodeIfPresent(ConnectionStatus.self, forKey: .status) ?? .disconnected
         brokerURL = try container.decodeIfPresent(String.self, forKey: .brokerURL) ?? ""
         relayLabel = try container.decodeIfPresent(String.self, forKey: .relayLabel)
+        relayName = try container.decodeIfPresent(String.self, forKey: .relayName)
         lastError = try container.decodeIfPresent(String.self, forKey: .lastError)
         logLines = try container.decodeIfPresent([String].self, forKey: .logLines) ?? []
         recentRegions = try container.decodeIfPresent([RecentNode].self, forKey: .recentRegions) ?? []
@@ -83,6 +88,7 @@ public struct ConnectionStateSnapshot: Codable, Sendable, Equatable {
         try container.encode(status, forKey: .status)
         try container.encode(brokerURL, forKey: .brokerURL)
         try container.encodeIfPresent(relayLabel, forKey: .relayLabel)
+        try container.encodeIfPresent(relayName, forKey: .relayName)
         try container.encodeIfPresent(lastError, forKey: .lastError)
         try container.encode(logLines, forKey: .logLines)
         try container.encode(recentRegions, forKey: .recentRegions)
