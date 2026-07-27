@@ -3,13 +3,6 @@ package com.openrung.net
 import com.openrung.model.RelayListResponse
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
-import java.io.IOException
-
-/**
- * Legacy typed HTTP projection retained for stable failure classification at unmigrated call
- * boundaries. Native discovery itself throws [BrokerNativeFailure].
- */
-class BrokerHttpException(val status: Int, message: String) : IOException(message)
 
 /** Thin Android adapter over brokerapi's verified, ECH-capable FirstReachable operation. */
 object BrokerClient {
