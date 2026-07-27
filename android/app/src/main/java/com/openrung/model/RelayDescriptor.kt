@@ -175,35 +175,50 @@ data class RelayDescriptor(
      * [label] is operator-supplied free text, so strip control/format characters (a bidi
      * override could reorder or spoof surrounding UI text), collapse whitespace, and clamp the
      * length, falling back to the broker-assigned id when nothing printable remains. Keep in
-     * sync with the Swift `RelayDescriptor.displayName()`.
+     * sync with the Swift `RelayDescriptor.displayName()` and the TS `sanitizeRelayName()`
+     * in `src/model/exitNode.ts`.
      */
     fun displayName(): String = sanitizeDisplayName(label).ifEmpty { sanitizeDisplayName(id) }
 
     private companion object {
-        const val MAX_DISPLAY_NAME_CHARS = 24
+        const val MAX_DISPLAY_NAME_CODE_POINTS = 24
 
         fun sanitizeDisplayName(raw: String): String {
             // Iterate code points, not chars, so astral-plane format characters
-            // (e.g. U+E00xx tags) are stripped rather than slipping through as surrogates.
-            val stripped = buildString(raw.length) {
+            // (e.g. U+E00xx tags) are classified whole rather than as surrogates. After the
+            // control/format strip the only whitespace left is the space separators
+            // (Zs/Zl/Zp = Character.isSpaceChar) — collapse those; tab/newline are CONTROL
+            // and already gone. Same rules as the Swift and TS sanitizers.
+            val collapsed = buildString(raw.length) {
+                var pendingSpace = false
                 var i = 0
                 while (i < raw.length) {
                     val codePoint = raw.codePointAt(i)
-                    when (Character.getType(codePoint)) {
-                        Character.CONTROL.toInt(), Character.FORMAT.toInt() -> Unit
-                        else -> appendCodePoint(codePoint)
-                    }
                     i += Character.charCount(codePoint)
+                    when {
+                        Character.getType(codePoint) == Character.CONTROL.toInt() ||
+                            Character.getType(codePoint) == Character.FORMAT.toInt() -> Unit
+                        Character.isSpaceChar(codePoint) -> pendingSpace = isNotEmpty()
+                        else -> {
+                            if (pendingSpace) {
+                                append(' ')
+                                pendingSpace = false
+                            }
+                            appendCodePoint(codePoint)
+                        }
+                    }
                 }
             }
-            val collapsed = stripped.split(WHITESPACE_RUN).filter { it.isNotEmpty() }.joinToString(" ")
-            if (collapsed.length <= MAX_DISPLAY_NAME_CHARS) return collapsed
-            val clamped = collapsed.substring(0, MAX_DISPLAY_NAME_CHARS)
-            // Never end on half a surrogate pair.
-            return (if (clamped.last().isHighSurrogate()) clamped.dropLast(1) else clamped).trimEnd()
+            // Clamp by code points (never mid-surrogate-pair by construction), matching
+            // Swift's unicode-scalar prefix and TS's Array.from slice.
+            var end = 0
+            var count = 0
+            while (end < collapsed.length && count < MAX_DISPLAY_NAME_CODE_POINTS) {
+                end += Character.charCount(collapsed.codePointAt(end))
+                count += 1
+            }
+            return collapsed.substring(0, end).trimEnd(' ')
         }
-
-        val WHITESPACE_RUN = Regex("\\s+")
     }
 }
 

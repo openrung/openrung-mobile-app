@@ -47,16 +47,31 @@ class RelayDescriptorDisplayNameTest {
     }
 
     @Test
-    fun `clamps to 24 characters`() {
+    fun `collapses unicode space separators like NBSP and ideographic space`() {
+        // U+00A0 NBSP and U+3000 IDEOGRAPHIC SPACE are Zs — Java's ASCII \s misses them,
+        // which used to diverge from the Swift sanitizer.
+        assertEquals("proud falcon", relay(label = "proud\u00A0\u00A0falcon").displayName())
+        assertEquals("proud falcon", relay(label = "proud\u3000falcon").displayName())
+    }
+
+    @Test
+    fun `clamps to 24 code points`() {
         assertEquals("x".repeat(24), relay(label = "x".repeat(80)).displayName())
     }
 
     @Test
-    fun `never ends on half a surrogate pair when clamping`() {
-        // 23 ASCII chars then U+1F680 (a surrogate pair): a naive 24-char cut would
-        // keep only the high surrogate.
+    fun `clamps by code points not UTF-16 units`() {
+        // 30 rockets = 60 UTF-16 units; a code-point clamp keeps 24 rockets where a
+        // UTF-16 clamp would keep 12 (and could split a pair). Matches Swift/TS.
+        val rocket = "\uD83D\uDE80"
+        assertEquals(rocket.repeat(24), relay(label = rocket.repeat(30)).displayName())
+    }
+
+    @Test
+    fun `keeps a whole surrogate pair at the clamp boundary`() {
+        // 23 ASCII chars then U+1F680: the pair is the 24th code point and survives whole.
         val name = relay(label = "x".repeat(23) + "\uD83D\uDE80rocket").displayName()
-        assertEquals("x".repeat(23), name)
+        assertEquals("x".repeat(23) + "\uD83D\uDE80", name)
     }
 
     @Test

@@ -255,23 +255,40 @@ public extension RelayDescriptor {
     /// `label` is operator-supplied free text, so strip control/format scalars (a bidi override
     /// could reorder or spoof surrounding UI text), collapse whitespace, and clamp the length,
     /// falling back to the broker-assigned id when nothing printable remains. Keep in sync with
-    /// the Kotlin `RelayDescriptor.displayName()`.
+    /// the Kotlin `RelayDescriptor.displayName()` and the TS `sanitizeRelayName()` in
+    /// `src/model/exitNode.ts`.
     func displayName() -> String {
         let cleaned = Self.sanitizeDisplayName(label ?? "")
         return cleaned.isEmpty ? Self.sanitizeDisplayName(id) : cleaned
     }
 
-    private static let maxDisplayNameCharacters = 24
+    private static let maxDisplayNameCodePoints = 24
 
     private static func sanitizeDisplayName(_ raw: String) -> String {
-        let stripped = raw.unicodeScalars.filter { scalar in
-            let category = scalar.properties.generalCategory
-            return category != .control && category != .format
+        // Scalar-level pipeline: strip control/format, collapse space-separator runs
+        // (Zs/Zl/Zp — tab/newline are .control and already stripped), clamp by unicode
+        // scalar (= code point) so the cut can never land mid-surrogate. Same rules as
+        // the Kotlin and TS sanitizers.
+        var collapsed = String.UnicodeScalarView()
+        var pendingSpace = false
+        for scalar in raw.unicodeScalars {
+            switch scalar.properties.generalCategory {
+            case .control, .format:
+                continue
+            case .spaceSeparator, .lineSeparator, .paragraphSeparator:
+                pendingSpace = !collapsed.isEmpty
+            default:
+                if pendingSpace {
+                    collapsed.append(" ")
+                    pendingSpace = false
+                }
+                collapsed.append(scalar)
+            }
         }
-        let collapsed = String(String.UnicodeScalarView(stripped))
-            .split(whereSeparator: { $0.isWhitespace })
-            .joined(separator: " ")
-        return String(collapsed.prefix(maxDisplayNameCharacters))
-            .trimmingCharacters(in: .whitespaces)
+        var clamped = String.UnicodeScalarView(collapsed.prefix(maxDisplayNameCodePoints))
+        while clamped.last == " " {
+            clamped.removeLast()
+        }
+        return String(clamped)
     }
 }
