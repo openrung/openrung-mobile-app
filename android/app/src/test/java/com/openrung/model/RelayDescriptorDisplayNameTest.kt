@@ -22,6 +22,20 @@ class RelayDescriptorDisplayNameTest {
     }
 
     @Test
+    fun `fallback drops the relay_ prefix and clamps to 12 code points`() {
+        // Same compact handle the TS relay list shows for label-less relays.
+        val relay = relay(label = "", id = "relay_03a7324205e22463b4919345337c96fa")
+        assertEquals("03a7324205e2", relay.displayName())
+    }
+
+    @Test
+    fun `fallback id is sanitized too`() {
+        // A hostile directory could put bidi controls in ids; the fallback path
+        // must strip them exactly like labels.
+        assertEquals("0123456789ab", relay(label = "", id = "relay_\u202E0123456789abcdef").displayName())
+    }
+
+    @Test
     fun `strips control characters`() {
         assertEquals("proudfalcon", relay(label = "proud\u0007fal\u001Bcon").displayName())
     }
@@ -79,8 +93,8 @@ class RelayDescriptorDisplayNameTest {
         assertEquals("relay-1", relay(label = "\u202E\u200B\u0007").displayName())
     }
 
-    private fun relay(label: String): RelayDescriptor = RelayDescriptor(
-        id = "relay-1",
+    private fun relay(label: String, id: String = "relay-1"): RelayDescriptor = RelayDescriptor(
+        id = id,
         label = label,
         publicHost = "203.0.113.10",
         publicPort = 443,

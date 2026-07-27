@@ -26,6 +26,9 @@ export interface ExitNodeRegion {
 const CONTROL_OR_FORMAT = /[\p{Cc}\p{Cf}]/u;
 const SPACE_SEPARATOR = /[\p{Zs}\u2028\u2029]/u;
 const MAX_RELAY_NAME_CODE_POINTS = 24;
+// Fallback ids are shortened harder than labels: 12 code points reads as a compact
+// handle ("03a7324205e2") in the pill/list rather than a hex wall.
+const ID_FALLBACK_CODE_POINTS = 12;
 
 /**
  * Renders operator-supplied relay label text safe for the UI: control/format
@@ -34,7 +37,10 @@ const MAX_RELAY_NAME_CODE_POINTS = 24;
  * rules as the native `RelayDescriptor.displayName()` sanitizers (Kotlin and
  * Swift) — keep all three in sync.
  */
-export function sanitizeRelayName(raw: string): string {
+export function sanitizeRelayName(
+  raw: string,
+  maxCodePoints: number = MAX_RELAY_NAME_CODE_POINTS,
+): string {
   let collapsed = '';
   let pendingSpace = false;
   for (const ch of raw) {
@@ -51,17 +57,23 @@ export function sanitizeRelayName(raw: string): string {
     }
     collapsed += ch;
   }
-  return Array.from(collapsed).slice(0, MAX_RELAY_NAME_CODE_POINTS).join('').trimEnd();
+  return Array.from(collapsed).slice(0, maxCodePoints).join('').trimEnd();
 }
 
 /**
  * Display name for a single relay wherever one is shown (list picker child
- * rows and their accessibility labels): the sanitized friendly label, or the
- * bare broker id as fallback when nothing printable remains.
+ * rows and their accessibility labels): the sanitized friendly label, or —
+ * when nothing printable remains — the sanitized broker id with its `relay_`
+ * prefix dropped, clamped to 12 code points. The native
+ * `RelayDescriptor.displayName()` implementations use the identical fallback
+ * so a label-less relay reads the same before and after connection.
  */
 export function relayDisplayName(relay: ExitNodeRelay): string {
   const sanitized = relay.label != null ? sanitizeRelayName(relay.label) : '';
-  return sanitized !== '' ? sanitized : relay.id.replace(/^relay_/, '').slice(0, 12);
+  if (sanitized !== '') {
+    return sanitized;
+  }
+  return sanitizeRelayName(relay.id.replace(/^relay_/, ''), ID_FALLBACK_CODE_POINTS);
 }
 
 /** Load state of the exit-node map directory (the list of available exit-node regions). */

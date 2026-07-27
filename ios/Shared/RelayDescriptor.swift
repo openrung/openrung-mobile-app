@@ -254,17 +254,25 @@ public extension RelayDescriptor {
     /// Relay name as surfaced in the UI (connect card status row, recents pills, log lines).
     /// `label` is operator-supplied free text, so strip control/format scalars (a bidi override
     /// could reorder or spoof surrounding UI text), collapse whitespace, and clamp the length,
-    /// falling back to the broker-assigned id when nothing printable remains. Keep in sync with
-    /// the Kotlin `RelayDescriptor.displayName()` and the TS `sanitizeRelayName()` in
-    /// `src/model/exitNode.ts`.
+    /// When nothing printable remains, fall back to the broker-assigned id with its `relay_`
+    /// prefix dropped, clamped to 12 code points — the same compact handle the TS relay list
+    /// shows, so a label-less relay reads identically before and after connection. Keep in
+    /// sync with the Kotlin `RelayDescriptor.displayName()` and the TS `sanitizeRelayName()`
+    /// in `src/model/exitNode.ts`.
     func displayName() -> String {
         let cleaned = Self.sanitizeDisplayName(label ?? "")
-        return cleaned.isEmpty ? Self.sanitizeDisplayName(id) : cleaned
+        if cleaned.isEmpty == false { return cleaned }
+        let bareID = id.hasPrefix("relay_") ? String(id.dropFirst("relay_".count)) : id
+        return Self.sanitizeDisplayName(bareID, maxCodePoints: Self.idFallbackCodePoints)
     }
 
     private static let maxDisplayNameCodePoints = 24
+    private static let idFallbackCodePoints = 12
 
-    private static func sanitizeDisplayName(_ raw: String) -> String {
+    private static func sanitizeDisplayName(
+        _ raw: String,
+        maxCodePoints: Int = maxDisplayNameCodePoints
+    ) -> String {
         // Scalar-level pipeline: strip control/format, collapse space-separator runs
         // (Zs/Zl/Zp — tab/newline are .control and already stripped), clamp by unicode
         // scalar (= code point) so the cut can never land mid-surrogate. Same rules as
@@ -285,7 +293,7 @@ public extension RelayDescriptor {
                 collapsed.append(scalar)
             }
         }
-        var clamped = String.UnicodeScalarView(collapsed.prefix(maxDisplayNameCodePoints))
+        var clamped = String.UnicodeScalarView(collapsed.prefix(maxCodePoints))
         while clamped.last == " " {
             clamped.removeLast()
         }

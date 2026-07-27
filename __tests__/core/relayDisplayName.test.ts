@@ -57,4 +57,14 @@ describe('relayDisplayName', () => {
     expect(relayDisplayName({ id: 'relay_abcdef1234567890', label: null })).toBe('abcdef123456');
     expect(relayDisplayName({ id: 'relay_jp1', label: '\u{202E}\u{200B}' })).toBe('jp1');
   });
+
+  it('sanitizes and code-point-clamps the fallback id like native does', () => {
+    // A hostile directory could put bidi controls or astral chars in ids.
+    expect(relayDisplayName({ id: 'relay_\u{202E}0123456789abcdef', label: null })).toBe(
+      '0123456789ab',
+    );
+    expect(relayDisplayName({ id: 'relay_' + '\u{1F680}'.repeat(20), label: null })).toBe(
+      '\u{1F680}'.repeat(12),
+    );
+  });
 });

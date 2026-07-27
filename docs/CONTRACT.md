@@ -85,7 +85,7 @@ export interface NativeVpnState {
   relayName: string | null;    // connected relay's display name: native sanitizes the
                                // operator-supplied label (control/bidi-format characters
                                // stripped, whitespace collapsed, clamped to 24 code points) and
-                               // falls back to the relay id
+                               // falls back to the id, `relay_` prefix dropped, <=12 code points
   lastError: string | null;
   logLines: string[];          // "[HH:mm:ss] message", newest last, cap 80
   recents: RecentNode[];       // newest first, deduped by relayId, cap 8
