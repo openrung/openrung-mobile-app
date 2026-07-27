@@ -94,6 +94,13 @@ export function decodeRelayListResponse(body: string): RelayListResponse {
  * Thin React Native adapter over brokerapi's selector. Go owns candidate construction, override
  * handling, racing, timeouts, relay verification, and transport selection; TypeScript only
  * decodes the copied JSON snapshot into the directory's established data model.
+ *
+ * `signatureVerified` is ENFORCED here rather than merely carried across the bridge. brokerapi
+ * reports false only on its explicit loopback-endpoint development short-circuit; every remote
+ * candidate either verifies against a pinned operator key or fails the fetch outright. The
+ * directory's `brokerUrl` is fixed to the config default (never user-editable, never loopback),
+ * so an unverified snapshot reaching this layer means the invariant broke — draw no map pins
+ * from it. Relay verification living in Go must not make this repo silently indifferent to it.
  */
 export async function firstReachable(
   primary: string,
@@ -108,6 +115,9 @@ export async function firstReachable(
     },
     options.signal,
   );
+  if (!result.signatureVerified) {
+    throw relayVerificationError();
+  }
   return {
     brokerUrl: result.brokerUrl,
     response: decodeRelayListResponse(result.relayJson),
@@ -116,4 +126,11 @@ export async function firstReachable(
 
 function relayDecodeError(): OpenRungBrokerError {
   return new OpenRungBrokerError('decode', 'The native relay directory could not be decoded.');
+}
+
+function relayVerificationError(): OpenRungBrokerError {
+  return new OpenRungBrokerError(
+    'verification',
+    'The native relay directory was not signature-verified.',
+  );
 }

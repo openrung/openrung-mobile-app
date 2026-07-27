@@ -67,6 +67,10 @@ export const AppConfig = {
    * the narrow redirecting JavaScript-fetch exception and remains last because github.com is
    * unreliable in several target regions.
    * These URLs are a FOREVER CONTRACT with shipped clients: never repurpose or break them.
+   * This list MUST stay identical (same entries, same order) to `MANIFEST_CANDIDATE_URLS` in
+   * net/updateManifestClient.ts, which is the routing allowlist: an entry the router does not
+   * recognize throws inside the fail-open walk and is swallowed, silently demoting the app to the
+   * GitHub-only candidate. `npm run transport:check` and updateManifest.test.ts enforce the match.
    */
   UPDATE_MANIFEST_URLS: [
     'https://broker.openrung.org/api/v1/app-manifest',

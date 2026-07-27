@@ -36,6 +36,13 @@ that is the entire point. Therefore:
   exception because it redirects and the native binding intentionally rejects
   redirects and arbitrary hosts. There is no generic native HTTP method and no
   JavaScript fallback for either broker-hosted candidate.
+  These URLs are pinned independently in `AppConfig.UPDATE_MANIFEST_URLS` (what
+  the walk consumes) and `MANIFEST_CANDIDATE_URLS` in `updateManifestClient.ts`
+  (what the router will accept), because the router accepts nothing else and an
+  unrecognized candidate is swallowed by the fail-open walk — editing one copy
+  alone would quietly leave only the GitHub candidate. `npm run transport:check`
+  asserts both source copies against a single pin, and `updateManifest.test.ts`
+  asserts the config list, the exported list, and its own fixtures agree.
   Candidates are walked in order, fail-open, stopping at the first **verified** envelope **at
   least as fresh as the cached one** (steady state: one request). A verified-but-staler copy or
   an unsigned copy keeps the walk going and is used only as a fallback — so one front replaying

@@ -15,6 +15,7 @@ import * as ed from '@noble/ed25519';
 
 import { APP_VERSION, AppConfig } from '../../src/config';
 import {
+  MANIFEST_CANDIDATE_URLS,
   compareVersions,
   decodeUpdateEnvelope,
   fetchUpdateManifest,
@@ -290,6 +291,41 @@ describe('fetchUpdateManifest — sequential fail-open', () => {
       },
     );
   }
+
+  // AppConfig.UPDATE_MANIFEST_URLS and the routing allowlist in updateManifestClient.ts are
+  // separate pins of the same FOREVER CONTRACT. Drift is silent at runtime — an unrecognized
+  // candidate throws inside the fail-open walk — so assert the two lists here as well as in the
+  // transport:check guard, and prove the DEFAULT argument (production's actual input) routes.
+  it('keeps AppConfig.UPDATE_MANIFEST_URLS identical to the routed candidate list', () => {
+    expect(AppConfig.UPDATE_MANIFEST_URLS).toEqual([...MANIFEST_CANDIDATE_URLS]);
+    expect(MANIFEST_CANDIDATE_URLS).toEqual([
+      DIRECT_MANIFEST_URL,
+      CLOUDFRONT_MANIFEST_URL,
+      GITHUB_MANIFEST_URL,
+    ]);
+  });
+
+  it('routes every default AppConfig candidate — none is silently unsupported', async () => {
+    const direct = envelopeFor(manifestPayload({ generated_at: '2026-07-20T00:00:00Z' }));
+    const cloudFront = envelopeFor(manifestPayload({ generated_at: '2026-07-10T00:00:00Z' }));
+    const gitHub = envelopeFor(manifestPayload({ generated_at: '2026-07-05T00:00:00Z' }));
+    installNativeBodies(direct, cloudFront);
+    const fetchMock = jest.fn().mockResolvedValue(manifestResponse(gitHub));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    // No explicit URL list: exercises fetchUpdateManifest's default parameter exactly as the
+    // update-check service calls it in production. With no cached floor the walk surveys every
+    // candidate, so a config entry the router does not recognize would show up as a missing call.
+    const fetched = await fetchUpdateManifest();
+
+    expect(mockNativeFetchManifestCandidate.mock.calls).toEqual([
+      [{ candidateUrl: DIRECT_MANIFEST_URL }],
+      [{ candidateUrl: CLOUDFRONT_MANIFEST_URL }],
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe(GITHUB_MANIFEST_URL);
+    expect(fetched).toMatchObject({ url: DIRECT_MANIFEST_URL, decoded: { verified: true } });
+  });
 
   it('routes broker and CloudFront through native, then only the exact GitHub URL through fetch', async () => {
     const unsignedDirect = envelopeFor(

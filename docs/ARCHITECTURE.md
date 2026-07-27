@@ -120,6 +120,10 @@ weaken the production OS policy.
   TypeScript decodes the relay JSON; the full signed envelope remains available
   to the native VPN owners. WSS ticket requests, front URLs, and credentials
   remain exclusively owned by `VpnService` and `PacketTunnelProvider`.
+  `brokerClient.firstReachable` then ENFORCES the returned `signatureVerified`
+  flag — an unverified snapshot fails the fetch instead of becoming map pins —
+  so consolidating verification into Go does not make the shell indifferent to
+  whether it happened.
 - **Android punch coordination** — a punch-capable relay advertises an explicit
   `https://...` coordinator in that signed list. The deployed bare-IP endpoint
   has a self-signed certificate whose exact SHA-256 leaf pin is built into the
@@ -170,6 +174,11 @@ weaken the production OS policy.
   `OpenRungBroker.fetchManifestCandidate`. The exact redirecting GitHub release
   asset remains the only JavaScript-fetch exception; signature, freshness,
   rollback, cache re-verification, and candidate selection stay in TypeScript.
+  The candidate URLs are pinned twice on purpose — `AppConfig.UPDATE_MANIFEST_URLS`
+  (what the walk consumes) and `MANIFEST_CANDIDATE_URLS` (what the router will
+  accept) — because an unrecognized candidate throws inside the fail-open walk
+  and would silently demote the app to the GitHub-only path. `transport:check`
+  and `updateManifest.test.ts` both assert the two lists are identical.
 - **Geo lookup** (`https://ipwho.is/`) and **connectivity probes**
   (`https://www.gstatic.com/generate_204`, `https://cp.cloudflare.com/generate_204`)
   are HTTPS. Android's physical-network recovery probe deliberately uses

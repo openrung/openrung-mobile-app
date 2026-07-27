@@ -191,4 +191,23 @@ describe('firstReachable native adapter', () => {
     ).rejects.toMatchObject({ kind: 'decode' });
     expect(mockNativeFirstReachable).toHaveBeenCalledTimes(1);
   });
+
+  // Relay verification lives in Go now, but this repo must not become indifferent to whether it
+  // happened: an unverified snapshot is rejected here rather than drawn as map pins. brokerapi
+  // only reports false for a loopback endpoint, and the directory broker URL is never loopback.
+  it('rejects an unverified relay snapshot instead of decoding it', async () => {
+    mockNativeFirstReachable.mockResolvedValue({
+      brokerUrl: 'https://winner.example/',
+      relayJson: relayBody([{ ...BASE_RELAY, ...GEO_FIELDS }]),
+      keyId: '',
+      signatureVerified: false,
+    });
+
+    await expect(
+      firstReachable('https://primary.example/', {
+        clientId: 'client-a',
+      }),
+    ).rejects.toMatchObject({ kind: 'verification' });
+    expect(mockNativeFirstReachable).toHaveBeenCalledTimes(1);
+  });
 });

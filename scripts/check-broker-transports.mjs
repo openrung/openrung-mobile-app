@@ -118,8 +118,7 @@ for (const relativePath of brokerSensitiveFiles) {
   );
 }
 
-function javascriptFetchReferences(relativePath) {
-  const source = read(relativePath);
+function parseSourceFile(relativePath) {
   const scriptKind = relativePath.endsWith('.tsx')
     ? ts.ScriptKind.TSX
     : relativePath.endsWith('.jsx')
@@ -127,13 +126,43 @@ function javascriptFetchReferences(relativePath) {
       : relativePath.endsWith('.js')
         ? ts.ScriptKind.JS
         : ts.ScriptKind.TS;
-  const sourceFile = ts.createSourceFile(
+  return ts.createSourceFile(
     relativePath,
-    source,
+    read(relativePath),
     ts.ScriptTarget.Latest,
     true,
     scriptKind,
   );
+}
+
+/**
+ * Reads one `name: ['a', 'b']` object property as plain strings. Parsing the AST (rather than
+ * importing the module or regex-scraping it) keeps this guard runnable on raw TypeScript source
+ * and makes a non-literal entry visible as `null` instead of silently matching.
+ */
+function configStringArray(relativePath, propertyName) {
+  const sourceFile = parseSourceFile(relativePath);
+  let values = null;
+
+  function visit(node) {
+    if (
+      ts.isPropertyAssignment(node) &&
+      (ts.isIdentifier(node.name) || ts.isStringLiteralLike(node.name)) &&
+      node.name.text === propertyName &&
+      ts.isArrayLiteralExpression(node.initializer)
+    ) {
+      values = node.initializer.elements.map(element =>
+        ts.isStringLiteralLike(element) ? element.text : null,
+      );
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(sourceFile);
+  return values;
+}
+
+function javascriptFetchReferences(relativePath) {
+  const sourceFile = parseSourceFile(relativePath);
   const references = [];
 
   function visit(node) {
@@ -176,7 +205,14 @@ requirePolicy(
   )}`,
 );
 
+// The manifest URLs are a FOREVER CONTRACT with shipped clients and exist in exactly two source
+// copies on purpose: AppConfig.UPDATE_MANIFEST_URLS (what the walk consumes) and the routing
+// allowlist in updateManifestClient.ts (what fetchAttempt will accept). Pin each URL once HERE and
+// assert both copies against it, so drift fails CI instead of silently demoting the app to the
+// GitHub-only candidate at runtime.
 const manifestClient = stripComments(read('src/net/updateManifestClient.ts'));
+const directManifest = 'https://broker.openrung.org/api/v1/app-manifest';
+const cloudFrontManifest = 'https://d2r7mdpyevvs1m.cloudfront.net/api/v1/app-manifest';
 const githubManifest =
   'https://github.com/openrung/openrung-mobile-app/releases/latest/download/update-manifest.json';
 requirePolicy(
@@ -189,16 +225,27 @@ requirePolicy(
   'updateManifestClient.ts: the sole JS fetch must receive GITHUB_MANIFEST_URL directly',
 );
 requirePolicy(
-  manifestClient.includes(
-    "const DIRECT_MANIFEST_URL = 'https://broker.openrung.org/api/v1/app-manifest'",
-  ) &&
-    manifestClient.includes(
-      "'https://d2r7mdpyevvs1m.cloudfront.net/api/v1/app-manifest'",
-    ) &&
+  manifestClient.includes(`const DIRECT_MANIFEST_URL = '${directManifest}'`) &&
+    manifestClient.includes(`'${cloudFrontManifest}'`) &&
     /\bnativeFetchManifestCandidate\s*\(\s*\{\s*candidateUrl:\s*url\s*\}/s.test(
       manifestClient,
     ),
   'updateManifestClient.ts: direct broker and CloudFront candidates must use the native candidate API',
+);
+const routedManifestUrls = [directManifest, cloudFrontManifest, githubManifest];
+const configuredManifestUrls = configStringArray('src/config.ts', 'UPDATE_MANIFEST_URLS');
+requirePolicy(
+  JSON.stringify(configuredManifestUrls) === JSON.stringify(routedManifestUrls),
+  `config.ts: AppConfig.UPDATE_MANIFEST_URLS must be exactly the routed candidates, in order ${JSON.stringify(
+    routedManifestUrls,
+  )}; found ${JSON.stringify(configuredManifestUrls)}`,
+);
+requirePolicy(
+  manifestClient.includes('export const MANIFEST_CANDIDATE_URLS') &&
+    /MANIFEST_CANDIDATE_URLS[^=]*=\s*\[\s*DIRECT_MANIFEST_URL,\s*CLOUDFRONT_MANIFEST_URL,\s*GITHUB_MANIFEST_URL,?\s*\]/s.test(
+      manifestClient,
+    ),
+  'updateManifestClient.ts: MANIFEST_CANDIDATE_URLS must export the three routed constants in order',
 );
 requirePolicy(
   /\bnativeFirstReachable\s*\(/.test(stripComments(read('src/net/brokerClient.ts'))),

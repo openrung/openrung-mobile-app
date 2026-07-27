@@ -144,7 +144,11 @@ rebuild; there is no JavaScript broker-network fallback. No ticket request,
 ticket, or WSS URL is exposed to React Native. For directory discovery, each
 platform removes the VPN-only `wss_fronts` member from the verified relay
 envelope before returning `relayJson`; TypeScript still decodes the remaining
-directory payload into its existing data model.
+directory payload into its existing data model. `signatureVerified` is an
+enforced invariant, not advisory metadata: brokerapi reports false only for its
+loopback development short-circuit, and `brokerClient.firstReachable` rejects an
+unverified snapshot with kind `verification` rather than decoding it. Relay
+verification moving into Go must not leave the shell indifferent to it.
 
 `setSplitTunnelConfig` payload — the shared split-tunnel config JSON. TS
 serializes with exactly this key order (snake_case):

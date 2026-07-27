@@ -31,6 +31,20 @@ const CLOUDFRONT_MANIFEST_URL =
 const GITHUB_MANIFEST_URL =
   'https://github.com/openrung/openrung-mobile-app/releases/latest/download/update-manifest.json';
 
+/**
+ * The routable candidates, in the order `AppConfig.UPDATE_MANIFEST_URLS` must list them. These
+ * literals are a deliberately independent pin of the transport-routing allowlist — `fetchAttempt`
+ * accepts nothing else — so they are NOT derived from AppConfig. That leaves exactly one way for
+ * the two copies to drift, and drift is silent (an unrecognized candidate throws and is swallowed
+ * by the fail-open walk, quietly demoting the app to the GitHub-only path). Both the
+ * `transport:check` guard and updateManifest.test.ts assert the two lists are identical.
+ */
+export const MANIFEST_CANDIDATE_URLS: readonly string[] = [
+  DIRECT_MANIFEST_URL,
+  CLOUDFRONT_MANIFEST_URL,
+  GITHUB_MANIFEST_URL,
+];
+
 export interface UpdatePlatformInfo {
   /** Latest released version ("x.y.z"), or null if absent/unparseable. */
   latest: string | null;
