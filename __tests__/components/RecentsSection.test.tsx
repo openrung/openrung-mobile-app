@@ -35,6 +35,7 @@ describe('RecentsSection', () => {
             longitude: 138.25,
           },
         ]}
+        liveRelayIds={new Set(['relay_jp1'])}
         onPress={jest.fn()}
       />,
     );
@@ -61,6 +62,7 @@ describe('RecentsSection', () => {
             longitude: 138.25,
           },
         ]}
+        liveRelayIds={new Set(['relay_jp1'])}
         onPress={onPress}
       />,
     );
@@ -93,6 +95,7 @@ describe('RecentsSection', () => {
             longitude: 138.25,
           },
         ]}
+        liveRelayIds={new Set(['relay_jp1', 'relay_jp2'])}
         onPress={jest.fn()}
       />,
     );
@@ -115,10 +118,101 @@ describe('RecentsSection', () => {
             longitude: 138.25,
           },
         ]}
+        liveRelayIds={new Set(['relay_jp1'])}
         onPress={jest.fn()}
       />,
     );
 
     expect(tree.toJSON()).toBeNull();
+  });
+
+  it('hides relays the broker no longer lists', async () => {
+    const tree = await render(
+      <RecentsSection
+        recents={[
+          {
+            countryCode: 'JP',
+            relayId: 'relay_jp1',
+            label: 'Tokyo, Japan',
+            relayName: 'proud-falcon',
+            latitude: 36.2,
+            longitude: 138.25,
+          },
+          {
+            countryCode: 'DE',
+            relayId: 'relay_de9',
+            label: 'Berlin, Germany',
+            relayName: 'retired-otter',
+            latitude: 52.5,
+            longitude: 13.4,
+          },
+        ]}
+        liveRelayIds={new Set(['relay_jp1'])}
+        onPress={jest.fn()}
+      />,
+    );
+
+    const text = tree.root
+      .findAllByType(Text)
+      .flatMap(node => node.props.children)
+      .filter((value): value is string => typeof value === 'string');
+    expect(text).toContain('proud-falcon');
+    expect(text).not.toContain('retired-otter');
+  });
+
+  it('hides the whole row when no recent relay is still listed', async () => {
+    const tree = await render(
+      <RecentsSection
+        recents={[
+          {
+            countryCode: 'JP',
+            relayId: 'relay_jp1',
+            label: 'Tokyo, Japan',
+            relayName: 'proud-falcon',
+            latitude: 36.2,
+            longitude: 138.25,
+          },
+        ]}
+        liveRelayIds={new Set(['relay_de9'])}
+        onPress={jest.fn()}
+      />,
+    );
+
+    expect(tree.toJSON()).toBeNull();
+  });
+
+  it('keeps every pinned entry while the directory is unavailable', async () => {
+    // A failed or in-flight directory load is not evidence a relay is gone — hiding the row then
+    // would empty it exactly when the user most needs a known-good relay.
+    const tree = await render(
+      <RecentsSection
+        recents={[
+          {
+            countryCode: 'JP',
+            relayId: 'relay_jp1',
+            label: 'Tokyo, Japan',
+            relayName: 'proud-falcon',
+            latitude: 36.2,
+            longitude: 138.25,
+          },
+          {
+            countryCode: 'DE',
+            relayId: 'relay_de9',
+            label: 'Berlin, Germany',
+            relayName: 'retired-otter',
+            latitude: 52.5,
+            longitude: 13.4,
+          },
+        ]}
+        liveRelayIds={null}
+        onPress={jest.fn()}
+      />,
+    );
+
+    const text = tree.root
+      .findAllByType(Text)
+      .flatMap(node => node.props.children)
+      .filter((value): value is string => typeof value === 'string');
+    expect(text).toEqual(expect.arrayContaining(['proud-falcon', 'retired-otter']));
   });
 });

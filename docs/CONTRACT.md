@@ -187,6 +187,13 @@ serializes with exactly this key order (snake_case):
   failure). RN also flushes any pending push just before a connect, so a change
   made moments before tapping Connect is applied on that connect.
 
+Native keeps every recent entry; the Recents row decides which are offerable. A pill
+pins its exact `relayId`, and a pinned connect fails outright when the broker no
+longer lists that relay, so TS renders a pill only while its relay is present in the
+loaded exit-node directory (that directory and the pinned-connect path fetch the same
+`DIRECTORY_RELAY_LIMIT` page and apply the same usability predicate). While the
+directory is unloaded or failed nothing is hidden — absence is not evidence.
+
 Event: name **`openrungStateChanged`**, payload `NativeVpnState`. Emitted on every
 status/log/relay/recents change. TS subscribes via `NativeEventEmitter`.
 Android also honors `addListener`/`removeListeners` no-op methods (RN interop).

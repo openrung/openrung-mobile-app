@@ -4,7 +4,8 @@
  * over the map. Hidden entirely while there is no history, so a fresh install
  * keeps the map uncluttered.
  *
- * Tapping a pill pins the exact relay that produced that recent entry.
+ * Tapping a pill pins the exact relay that produced that recent entry, so a
+ * pill is only shown while the broker still lists that relay.
  */
 import React from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -16,6 +17,11 @@ import { countryFlag } from './countryFlag';
 
 export interface RecentsSectionProps {
   recents: RecentNode[];
+  /**
+   * Relay ids the broker currently lists, or null while the directory has not loaded (failed
+   * fetch, still loading, offline). Null means "no evidence either way" — never a hint to hide.
+   */
+  liveRelayIds: ReadonlySet<string> | null;
   onPress: (relayId: string, countryCode: string) => void;
 }
 
@@ -28,11 +34,24 @@ function hasPinnedRelay(node: RecentNode): node is PinnedRecentNode {
   return (node.relayId?.trim().length ?? 0) > 0 && (node.relayName?.trim().length ?? 0) > 0;
 }
 
-export function RecentsSection({ recents, onPress }: RecentsSectionProps): React.JSX.Element | null {
+export function RecentsSection({
+  recents,
+  liveRelayIds,
+  onPress,
+}: RecentsSectionProps): React.JSX.Element | null {
   const s = useStrings();
   // Legacy entries cannot pin the relay they describe, so keep them hidden until a successful
   // connection replaces them with an entry containing both relayId and relayName.
-  const pinnedRecents = recents.filter(hasPinnedRelay);
+  //
+  // A pin the broker no longer lists cannot connect either: native filters the relay list by id
+  // and fails the whole attempt rather than silently substituting a different relay. Hide those
+  // pills too, so the row only offers relays that can actually be reached. The directory this
+  // set comes from is fetched at the same page size the pinned-connect path uses
+  // (DIRECTORY_RELAY_LIMIT) and filtered by the same usability predicate, so it sees the same
+  // relays native will.
+  const pinnedRecents = recents
+    .filter(hasPinnedRelay)
+    .filter(node => liveRelayIds === null || liveRelayIds.has(node.relayId));
 
   if (pinnedRecents.length === 0) {
     return null;
