@@ -40,9 +40,7 @@ export function DebugScreen({ onBack }: DebugScreenProps): React.JSX.Element {
         style={styles.console}
       />
 
-      <Text style={styles.footer}>
-        {isConnected ? s.trafficRouteConnected : s.trafficRouteDisconnected}
-      </Text>
+      {isConnected ? <Text style={styles.footer}>{s.trafficRouteConnected}</Text> : null}
     </View>
   );
 }

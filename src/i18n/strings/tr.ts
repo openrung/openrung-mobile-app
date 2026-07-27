@@ -13,7 +13,6 @@ export const tr: Partial<Strings> = {
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
   trafficRouteConnected: 'trafik yolu: cihaz -> OpenRung VPN -> röle',
-  trafficRouteDisconnected: 'vpn fail-closed çalışır: röle yoksa bağlantı yok.',
   settingsContentDescription: 'Ayarları aç',
   settingsTitle: 'Ayarlar',
   backContentDescription: 'Geri',
@@ -118,25 +117,14 @@ export const tr: Partial<Strings> = {
   shareTestFlightErrorBody:
     'TestFlight bağlantısı paylaşılamadı. Tekrar deneyin.',
 
-  // Home overlay tagline.
+  // Home overlay and about screen.
   homeTagline: 'röle ağı',
-
-  // About screen (mission, how it works, project).
+  aboutMissionLead: 'İnternete erişimin bir ayrıcalık değil, hak olduğuna inanıyoruz',
   aboutMissionBody:
-    'OpenRung, trafiğinizi dünyanın dört bir yanındaki röleler üzerinden yönlendirir; böylece ağlar filtrelendiğinde açık internet erişilebilir kalır. Hesap gerekmez ve reklam yoktur. Erken test sırasında OpenRung, güvenilirliği artırmak için tanısal bağlantı meta verileri toplar.',
-  aboutHowHeader: 'Nasıl çalışır',
-  aboutProjectHeader: 'Proje',
-  aboutHow1Title: 'Röle operatörleri kapasite sağlar',
-  aboutHow1Body:
-    'OpenRung Foundation ve topluluk gönüllüleri röleleri çalıştırıp bunları ağa kaydeder.',
-  aboutHow2Title: 'Aracı rölenizi bulur',
-  aboutHow2Body:
-    'Bağlandığınızda aracı, cihazınıza sağlıklı rölelerden oluşan kısa bir liste verir ve uygulama yanıt veren ilk röleyi seçer.',
-  aboutHow3Title: 'Trafik şifreli bir tünelden geçer',
-  aboutHow3Body:
-    'Her şey, sıradan TLS gibi görünen bir VLESS/REALITY tüneli üzerinden akar ve VPN fail-closed çalışır: röle yoksa trafik yok.',
-  aboutFootnote:
-    'OpenRung özgür bir yazılımdır (GPL-3.0-or-later). Gönüllüler tarafından, herkes için geliştirildi.',
+    'Bu hak, iktidardakilerin pazarlık konusu yapabileceği bir koz değildir. Bilgi edinme hakkı insan oluşumuzun özünde vardır ve hiçbir güvenlik duvarının bunu silmesine izin verilmemelidir. Yine de bugün milyarlarca insan, bilgiyi dışarıda ve sessizliği içeride tutmak için örülmüş duvarların arkasında yaşıyor; Google aramasının 404 döndürdüğü, soru sormanın tehlikeli olabildiği ve merakın engellenmiş bir sayfada sona erdiği yerlerde.\n\nOpenRung bunu değiştirmek için var.\n\nBu duvarların üzerinden bir merdiven inşa ediyoruz. Dünyanın dört bir yanındaki sıradan insanlar bağlantılarını paylaşıyor; böylece bir güvenlik duvarının diğer tarafındaki biri açık internete ulaşabiliyor.\n\nBilgi güçtür ve bu güç, onu bizden almak isteyenlere değil, bize aittir.',
+  aboutLegalHeader: 'Yasal',
+  aboutFollowHeader: 'Bizi takip edin',
+
 
   // --- Split tunneling (settings row + screen + Android app picker) ---
   splitTunnelSettingTitle: 'Bölünmüş tünel',

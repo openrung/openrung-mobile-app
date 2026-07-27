@@ -13,7 +13,6 @@ export const zhTW: Partial<Strings> = {
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
   trafficRouteConnected: '流量路徑：裝置 -> OpenRung VPN -> 中繼',
-  trafficRouteDisconnected: 'VPN 採用失敗關閉：沒有中繼，就不連線。',
   settingsContentDescription: '開啟設定',
   settingsTitle: '設定',
   backContentDescription: '返回',
@@ -108,21 +107,11 @@ export const zhTW: Partial<Strings> = {
 
   // Home tagline + about screen.
   homeTagline: '中繼網路',
+  aboutMissionLead: '我們相信，網際網路存取是一項權利，而不是特權',
   aboutMissionBody:
-    'OpenRung 會透過世界各地的中繼路由你的流量，在網路遭到過濾時，仍讓開放的網際網路保持可連線。不需要帳號，也沒有廣告。在早期測試期間，OpenRung 會收集診斷性的連線中繼資料，以提升可靠性。',
-  aboutHowHeader: '運作方式',
-  aboutProjectHeader: '專案',
-  aboutHow1Title: '中繼營運者提供網路容量',
-  aboutHow1Body:
-    'OpenRung 基金會與社群志願者營運中繼，並向網路註冊。',
-  aboutHow2Title: '中介為你找到中繼',
-  aboutHow2Body:
-    '當你連線時，中介會將一份簡短的健康中繼清單交給你的裝置，而應用程式會挑選第一個有回應的中繼。',
-  aboutHow3Title: '流量行經加密通道',
-  aboutHow3Body:
-    '一切都會流經看起來就像一般 TLS 的 VLESS/REALITY 通道，而 VPN 採用失敗關閉：沒有中繼，就沒有流量。',
-  aboutFootnote:
-    'OpenRung 是自由軟體（GPL-3.0-or-later）。由志願者打造，獻給每一個人。',
+    '更不應成為掌權者用來交易的籌碼。取得資訊的權利根植於我們身而為人的本質之中，任何防火牆都不應抹去它。然而今天，數十億人生活在高牆之後；這些牆把資訊擋在外面，把沉默困在裡面。在那裡，Google 搜尋只回傳 404，提出問題可能帶來危險，好奇心止步於遭封鎖的頁面。\n\nOpenRung 的存在就是為了改變這一切。\n\n我們正在搭建一架越過高牆的梯子。世界各地的普通人分享自己的網路連線，讓防火牆另一邊的人能夠存取開放的網際網路。\n\n資訊就是力量，這份力量屬於我們，而不屬於那些企圖從我們手中奪走它的人。',
+  aboutLegalHeader: '法律資訊',
+  aboutFollowHeader: '關注我們',
 
   // --- Split tunneling (settings row + screen + Android app picker) ---
   splitTunnelSettingTitle: '分流',

@@ -1,7 +1,7 @@
 /**
  * Floating glass control card anchored above the tab bar on the home screen:
  * a live status row (pulsing dot + uppercase status + relay location), the
- * primary connect action, and the fail-closed footer line.
+ * primary connect action, and the connected traffic-route footer.
  *
  * The connect button narrates the whole connection lifecycle instead of
  * flipping between two labels:
@@ -258,9 +258,11 @@ export function ConnectCard({
         </Animated.View>
       </Pressable>
 
-      <Text style={styles.footer} numberOfLines={2}>
-        {isConnected ? s.trafficRouteConnected : s.trafficRouteDisconnected}
-      </Text>
+      {isConnected ? (
+        <Text style={styles.footer} numberOfLines={2}>
+          {s.trafficRouteConnected}
+        </Text>
+      ) : null}
     </View>
   );
 }

@@ -18,7 +18,6 @@ export const en = {
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
   trafficRouteConnected: 'traffic route: device -> OpenRung VPN -> relay',
-  trafficRouteDisconnected: 'vpn is fail-closed: no relay, no connection.',
   settingsContentDescription: 'Open settings',
   settingsTitle: 'Settings',
   backContentDescription: 'Back',
@@ -96,21 +95,11 @@ export const en = {
   settingsGeneralHeader: 'General',
   settingsDiagnosticsHeader: 'Diagnostics',
   aboutTitle: 'About us',
+  aboutMissionLead: 'We believe internet access is a right, not a privilege',
   aboutMissionBody:
-    'OpenRung routes your traffic through relays around the world, keeping the open internet reachable when networks are filtered. No account is required and there are no ads. During early testing, OpenRung collects diagnostic connection metadata to improve reliability.',
-  aboutHowHeader: 'How it works',
-  aboutProjectHeader: 'Project',
-  aboutHow1Title: 'Relay operators provide capacity',
-  aboutHow1Body:
-    'The OpenRung Foundation and community volunteers run relays and register them with the network.',
-  aboutHow2Title: 'The broker finds your relay',
-  aboutHow2Body:
-    'When you connect, the broker hands your device a short list of healthy relays and the app picks the first one that answers.',
-  aboutHow3Title: 'Traffic rides an encrypted tunnel',
-  aboutHow3Body:
-    'Everything flows through a VLESS/REALITY tunnel that looks like ordinary TLS, and the VPN is fail-closed: no relay, no traffic.',
-  aboutFootnote:
-    'OpenRung is free software (GPL-3.0-or-later). Built by volunteers, for everyone.',
+    'and not a bargaining chip to be traded away by those in power. The right to information is written into who we are as human beings - and no firewall should be allowed to erase it. Yet today billions of people live behind walls built to keep information out and keep silence in, where a Google search returns 404, a question can be dangerous and curiosity ends at a blocked page.\n\nOpenRung exists to change that.\n\nWe are building a ladder over those walls. Ordinary people around the world share their connections so that someone on the other side of a firewall can reach the open internet.\n\nInformation is power - and that power belongs to us, and not to those who would take it from us.',
+  aboutLegalHeader: 'Legal',
+  aboutFollowHeader: 'Follow us',
 
   // --- Ocean telemetry panel (map view, anchored over the Pacific) ---
   telemetryNetworkHeader: 'NETWORK',

@@ -986,6 +986,7 @@ class OpenRungVpnService : VpnService() {
             RecentNode(
                 countryCode = code,
                 label = relay.locationLabel().ifBlank { centroid?.name ?: code },
+                relayName = relay.label.trim().ifBlank { relay.id },
                 latitude = centroid?.latitude ?: relay.latitude ?: 0.0,
                 longitude = centroid?.longitude ?: relay.longitude ?: 0.0,
             ),

@@ -13,7 +13,6 @@ export const ar: Partial<Strings> = {
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
   trafficRouteConnected: 'مسار المرور: الجهاز -> OpenRung VPN -> مرحل',
-  trafficRouteDisconnected: 'يعمل VPN بوضع fail-closed: لا مرحل، لا اتصال.',
   settingsContentDescription: 'فتح الإعدادات',
   settingsTitle: 'الإعدادات',
   backContentDescription: 'رجوع',
@@ -119,21 +118,11 @@ export const ar: Partial<Strings> = {
 
   // Home overlay and about screen.
   homeTagline: 'شبكة المُرحّلات',
+  aboutMissionLead: 'نؤمن بأن الوصول إلى الإنترنت حق، وليس امتيازًا',
   aboutMissionBody:
-    'يوجّه OpenRung حركة مرورك عبر مُرحّلات حول العالم، مع إبقاء الإنترنت المفتوح في المتناول عند تصفية الشبكات. لا حاجة إلى حساب ولا توجد إعلانات. خلال مرحلة الاختبار المبكر، يجمع OpenRung بيانات وصفية تشخيصية عن الاتصال لتحسين الموثوقية.',
-  aboutHowHeader: 'كيف يعمل',
-  aboutProjectHeader: 'المشروع',
-  aboutHow1Title: 'مشغّلو المُرحّلات يوفّرون السعة',
-  aboutHow1Body:
-    'تشغّل مؤسسة OpenRung ومتطوّعو المجتمع مُرحِّلات ويسجّلونها في الشبكة.',
-  aboutHow2Title: 'الوسيط يعثر على مُرحّلك',
-  aboutHow2Body:
-    'عند الاتصال، يُسلّم الوسيط جهازك قائمة قصيرة بالمُرحّلات السليمة، ويختار التطبيق أوّل مُرحّل يستجيب.',
-  aboutHow3Title: 'المرور يعبُر نفقًا مشفّرًا',
-  aboutHow3Body:
-    'يتدفّق كل شيء عبر نفق VLESS/REALITY يبدو كأنه TLS عادي، ويعمل VPN بوضع fail-closed: لا مرحل، لا مرور.',
-  aboutFootnote:
-    'OpenRung برمجية حرة (GPL-3.0-or-later). بناه متطوّعون، للجميع.',
+    'وليس ورقة مساومة يتداولها أصحاب السلطة. إن الحق في المعلومات متأصل في إنسانيتنا، ولا ينبغي السماح لأي جدار ناري بمَحوه. ومع ذلك، يعيش اليوم مليارات البشر خلف جدران بُنيت لإبقاء المعلومات خارجًا والصمت داخلًا؛ حيث يُرجع بحث Google خطأ 404، وقد يكون طرح سؤال أمرًا خطيرًا، وينتهي الفضول عند صفحة محجوبة.\n\nوُجد OpenRung ليغيّر ذلك.\n\nنحن نبني سُلّمًا يتجاوز تلك الجدران. يشارك أشخاص عاديون حول العالم اتصالاتهم كي يتمكن شخص على الجانب الآخر من جدار ناري من الوصول إلى الإنترنت المفتوح.\n\nالمعلومات قوة، وهذه القوة ملك لنا، لا لمن يريدون انتزاعها منا.',
+  aboutLegalHeader: 'الشؤون القانونية',
+  aboutFollowHeader: 'تابعنا',
 
   // --- Split tunneling (settings row + screen + Android app picker) ---
   splitTunnelSettingTitle: 'تقسيم النفق',

@@ -1,6 +1,6 @@
 /**
  * "Recents" strip on the home screen: a small uppercase section label and a
- * horizontal row of compact glass pills (flag + recorded location) floating
+ * horizontal row of compact glass pills (flag + relay name) floating
  * over the map. Hidden entirely while there is no history, so a fresh install
  * keeps the map uncluttered.
  *
@@ -20,10 +20,21 @@ export interface RecentsSectionProps {
   onPress: (countryCode: string) => void;
 }
 
+interface NamedRecentNode extends RecentNode {
+  relayName: string;
+}
+
+function hasRelayName(node: RecentNode): node is NamedRecentNode {
+  return (node.relayName?.trim().length ?? 0) > 0;
+}
+
 export function RecentsSection({ recents, onPress }: RecentsSectionProps): React.JSX.Element | null {
   const s = useStrings();
+  // Entries persisted by older app versions only contain a city/country label. Do not show that
+  // stale location copy; each entry returns after its next successful connection with relayName.
+  const namedRecents = recents.filter(hasRelayName);
 
-  if (recents.length === 0) {
+  if (namedRecents.length === 0) {
     return null;
   }
 
@@ -32,7 +43,7 @@ export function RecentsSection({ recents, onPress }: RecentsSectionProps): React
       <Text style={styles.label}>{s.recentsLabel.toUpperCase()}</Text>
       <FlatList
         horizontal
-        data={recents}
+        data={namedRecents}
         keyExtractor={item => item.countryCode}
         renderItem={({ item }) => (
           <Pressable
@@ -41,7 +52,7 @@ export function RecentsSection({ recents, onPress }: RecentsSectionProps): React
           >
             <Text style={styles.flag}>{countryFlag(item.countryCode)}</Text>
             <Text style={styles.pillLabel} numberOfLines={1}>
-              {item.label}
+              {item.relayName.trim()}
             </Text>
           </Pressable>
         )}

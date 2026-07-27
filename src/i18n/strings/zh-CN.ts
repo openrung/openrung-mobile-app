@@ -13,7 +13,6 @@ export const zhCN: Partial<Strings> = {
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
   trafficRouteConnected: '流量路径：设备 -> OpenRung VPN -> 中继',
-  trafficRouteDisconnected: 'VPN 采用失败关闭：没有中继，就不连接。',
   settingsContentDescription: '打开设置',
   settingsTitle: '设置',
   backContentDescription: '返回',
@@ -116,21 +115,11 @@ export const zhCN: Partial<Strings> = {
 
   // Home tagline and about screen.
   homeTagline: '中继网络',
+  aboutMissionLead: '我们相信，互联网接入是一项权利，而不是特权',
   aboutMissionBody:
-    'OpenRung 通过世界各地的中继来路由你的流量，在网络被过滤时依然让开放互联网保持可达。无需账户，也没有广告。在早期测试期间，OpenRung 会收集诊断性连接元数据，以提升可靠性。',
-  aboutHowHeader: '工作原理',
-  aboutProjectHeader: '项目',
-  aboutHow1Title: '中继运营者提供网络容量',
-  aboutHow1Body:
-    'OpenRung 基金会和社区志愿者运行中继，并将其注册到网络中。',
-  aboutHow2Title: '中介为你找到中继',
-  aboutHow2Body:
-    '当你连接时，中介会向你的设备提供一份健康中继的简短列表，应用会选择第一个响应的中继。',
-  aboutHow3Title: '流量通过加密隧道传输',
-  aboutHow3Body:
-    '所有流量都通过一条看起来像普通 TLS 的 VLESS/REALITY 隧道传输，并且 VPN 采用失败关闭：没有中继，就没有流量。',
-  aboutFootnote:
-    'OpenRung 是自由软件（GPL-3.0-or-later）。由志愿者打造，为所有人服务。',
+    '更不应成为掌权者用来交易的筹码。获取信息的权利根植于我们作为人的本质之中，任何防火墙都不应抹去它。然而今天，数十亿人生活在高墙之后；这些墙把信息挡在外面，把沉默困在里面。在那里，Google 搜索只返回 404，提出问题可能带来危险，好奇心止步于被屏蔽的页面。\n\nOpenRung 的存在就是为了改变这一切。\n\n我们正在搭建一架越过高墙的梯子。世界各地的普通人分享自己的网络连接，让防火墙另一边的人能够访问开放的互联网。\n\n信息就是力量，这份力量属于我们，而不属于那些企图从我们手中夺走它的人。',
+  aboutLegalHeader: '法律信息',
+  aboutFollowHeader: '关注我们',
 
   // --- Split tunneling (settings row + screen + Android app picker) ---
   splitTunnelSettingTitle: '分流',

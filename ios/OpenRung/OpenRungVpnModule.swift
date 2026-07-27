@@ -359,6 +359,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
                 [
                     "countryCode": node.countryCode,
                     "label": node.label,
+                    "relayName": node.relayName ?? NSNull(),
                     "latitude": node.latitude,
                     "longitude": node.longitude,
                 ] as [String: Any]

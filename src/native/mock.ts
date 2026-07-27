@@ -135,6 +135,7 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
           this.recordRecent({
             countryCode: code,
             label: relayLabel,
+            relayName: relayId,
             latitude: geo?.latitude ?? 0,
             longitude: geo?.longitude ?? 0,
           });

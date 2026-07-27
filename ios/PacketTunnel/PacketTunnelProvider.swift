@@ -1265,10 +1265,13 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         if code.isEmpty { return }
         let centroid = CountryGeo.centroid(code)
         let label = relay.locationLabel()
+        let friendlyName = relay.label?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let relayName = friendlyName.flatMap { $0.isEmpty ? nil : $0 } ?? relay.id
         SharedConnectionState.recordRecent(
             RecentNode(
                 countryCode: code,
                 label: label.isEmpty ? (centroid?.name ?? code) : label,
+                relayName: relayName,
                 latitude: centroid?.latitude ?? relay.latitude ?? 0,
                 longitude: centroid?.longitude ?? relay.longitude ?? 0
             )

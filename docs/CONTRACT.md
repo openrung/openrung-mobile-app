@@ -73,6 +73,7 @@ export type ConnectionStatus =
 export interface RecentNode {
   countryCode: string;   // ISO 3166-1 alpha-2, uppercase
   label: string;         // "City, Country" or country name
+  relayName?: string;    // friendly broker label or relay id; absent on legacy entries
   latitude: number;
   longitude: number;
 }
