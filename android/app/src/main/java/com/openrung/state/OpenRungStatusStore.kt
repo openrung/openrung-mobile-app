@@ -38,8 +38,9 @@ object OpenRungStatusStore {
         state.value = OpenRungUiState(
             status = if (restoredStatus == ConnectionStatus.CONNECTED) ConnectionStatus.DISCONNECTED else restoredStatus,
             brokerUrl = prefs.getString(KEY_BROKER_URL, AppConfig.DEFAULT_BROKER_URL) ?: AppConfig.DEFAULT_BROKER_URL,
-            // A cold start always reconnects fresh, so never restore a stale relay label (would leak a prior relay).
+            // A cold start always reconnects fresh, so never restore stale relay details.
             relayLabel = null,
+            relayName = null,
             lastError = prefs.getString(KEY_LAST_ERROR, null),
             logLines = prefs.getString(KEY_LOG_LINES, null)?.lines()?.filter { it.isNotBlank() }.orEmpty(),
             recentRegions = loadRecents(prefs.getString(KEY_RECENT_NODES, null)),
@@ -60,12 +61,14 @@ object OpenRungStatusStore {
     fun setStatus(
         status: ConnectionStatus,
         relayLabel: String? = state.value.relayLabel,
+        relayName: String? = if (status == ConnectionStatus.CONNECTED) state.value.relayName else null,
         lastError: String? = state.value.lastError,
     ) {
         state.update {
             it.copy(
                 status = status,
                 relayLabel = relayLabel,
+                relayName = relayName,
                 lastError = lastError,
             )
         }
@@ -91,6 +94,7 @@ object OpenRungStatusStore {
                 status = ConnectionStatus.FAILED,
                 lastError = message,
                 relayLabel = null,
+                relayName = null,
                 logLines = (it.logLines + "[${LocalTime.now().format(timeFormatter)}] $logMessage")
                     .takeLast(MAX_LOG_LINES),
             )
@@ -104,12 +108,19 @@ object OpenRungStatusStore {
     }
 
     /**
-     * Records a location the user just connected through so it appears in the "Recents" row.
-     * Deduplicates by country (most recent first) and caps the list to [AppConfig.MAX_RECENTS].
+     * Records a relay the user just connected through so it appears in the "Recents" row.
+     * Deduplicates by relay id (most recent first) and caps the list to [AppConfig.MAX_RECENTS].
+     * A new pinned entry also replaces an unpinned legacy entry from the same country.
      */
     fun recordRecent(node: RecentNode) {
         state.update { current ->
-            val deduped = (listOf(node) + current.recentRegions.filterNot { it.countryCode == node.countryCode })
+            val deduped = (
+                listOf(node) +
+                    current.recentRegions.filterNot { recent ->
+                        recent.relayId == node.relayId ||
+                            (recent.relayId.isBlank() && recent.countryCode == node.countryCode)
+                    }
+                )
                 .take(AppConfig.MAX_RECENTS)
             current.copy(recentRegions = deduped)
         }

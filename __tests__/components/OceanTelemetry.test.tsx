@@ -3,9 +3,9 @@
  *  - NETWORK totals derive from the directory regions (relay sum, location
  *    count, distinct countries), with '…' before the first load and '--'
  *    after a failed one;
- *  - LINK narrates the connection: status label always; relay location and a
- *    ticking hh:mm:ss uptime clock only while connected; the native lastError
- *    line only when failed.
+ *  - LINK narrates the connection: status label always; native relayName,
+ *    relay location, and a ticking hh:mm:ss uptime clock only while
+ *    connected; the native lastError line only when failed.
  */
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
@@ -38,11 +38,7 @@ jest.mock('@maplibre/maplibre-react-native', () => {
   return { Marker };
 });
 
-import {
-  OceanTelemetry,
-  formatUptime,
-  lastDialledRelay,
-} from '../../src/components/OceanTelemetry';
+import { OceanTelemetry, formatUptime } from '../../src/components/OceanTelemetry';
 import type { OceanTelemetryProps } from '../../src/components/OceanTelemetry';
 import type { ExitNodeRegion } from '../../src/model/exitNode';
 
@@ -88,8 +84,8 @@ const BASE_PROPS: OceanTelemetryProps = {
   directoryStatus: 'loaded',
   status: 'disconnected',
   relayLabel: null,
+  relayName: null,
   lastError: null,
-  logLines: [],
   connectedAtMs: null,
 };
 
@@ -122,29 +118,6 @@ describe('formatUptime', () => {
   it('pins at 99:59:59 without widening the column', () => {
     expect(formatUptime(99 * 3_600_000)).toBe('99:00:00');
     expect(formatUptime(500 * 3_600_000)).toBe('99:59:59');
-  });
-});
-
-describe('lastDialledRelay', () => {
-  it('recovers the most recently dialled relay by id token, across localized log text', () => {
-    const logLines = [
-      '[09:00:01] trying relay relay_de1 at 198.51.100.7:443',
-      '[09:00:03] relay relay_de1 failed: timeout',
-      '[09:00:04] 正在嘗試中繼 relay_jp1（203.0.113.10:443）',
-      '[09:00:06] Connected',
-    ];
-    expect(lastDialledRelay(logLines, REGIONS)?.label).toBe('proud-falcon');
-  });
-
-  it('matches whole tokens only, never an id inside a longer token', () => {
-    const logLines = ['[09:00:00] trying relay relay_jp2x at 203.0.113.11:443'];
-    expect(lastDialledRelay(logLines, REGIONS)).toBeNull();
-  });
-
-  it('returns null when the log mentions no known relay id', () => {
-    expect(lastDialledRelay(['[09:00:00] fetching relays'], REGIONS)).toBeNull();
-    expect(lastDialledRelay([], REGIONS)).toBeNull();
-    expect(lastDialledRelay(['[09:00:00] trying relay relay_jp1 at h:443'], [])).toBeNull();
   });
 });
 
@@ -222,46 +195,27 @@ describe('OceanTelemetry', () => {
     }
   });
 
-  it('shows the friendly name of the relay the tunnel dialled, only while connected', async () => {
+  it('shows the native relayName only while connected', async () => {
     jest.useFakeTimers();
     try {
-      const logLines = ['[09:00:00] trying relay relay_jp1 at 203.0.113.10:443'];
       const connected = await render(
         <OceanTelemetry
           {...BASE_PROPS}
           status="connected"
           relayLabel="Tokyo, Japan"
-          logLines={logLines}
+          relayName="proud-falcon"
           connectedAtMs={Date.now()}
         />,
       );
       expect(texts(connected)).toContain('proud-falcon');
       connected.unmount();
 
-      // The same log lines show no name while disconnected (stale sessions).
-      const disconnected = await render(<OceanTelemetry {...BASE_PROPS} logLines={logLines} />);
+      // A stale name from a briefly-lagging native mirror is never shown while disconnected.
+      const disconnected = await render(
+        <OceanTelemetry {...BASE_PROPS} relayName="proud-falcon" />,
+      );
       expect(texts(disconnected)).not.toContain('proud-falcon');
       disconnected.unmount();
-    } finally {
-      jest.useRealTimers();
-    }
-  });
-
-  it('falls back to the bare relay id when the relay has no friendly name', async () => {
-    jest.useFakeTimers();
-    try {
-      const tree = await render(
-        <OceanTelemetry
-          {...BASE_PROPS}
-          status="connected"
-          relayLabel="Tokyo, Japan"
-          logLines={['[09:00:00] trying relay relay_jp2 at 203.0.113.11:443']}
-          connectedAtMs={Date.now()}
-        />,
-      );
-      // Same fallback as the list picker's child rows ("relay_" prefix stripped).
-      expect(texts(tree)).toContain('jp2');
-      tree.unmount();
     } finally {
       jest.useRealTimers();
     }

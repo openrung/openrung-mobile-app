@@ -21,7 +21,7 @@
  * All overlay containers use pointerEvents="box-none" so map gestures pass
  * through everywhere except the actual controls.
  */
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Animated, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -124,6 +124,18 @@ export function MainScreen(): React.JSX.Element {
     refreshDirectory(true);
   }, []);
 
+  // Recents pin an exact relay, so a pill whose relay has left the broker's list would fail the
+  // connect outright. Hand RecentsSection the ids the directory currently knows so it can drop
+  // those pills — and null while the directory is unloaded/failed, where absence proves nothing
+  // and hiding would empty the row exactly when the network is least reachable.
+  const liveRelayIds = useMemo(
+    () =>
+      directoryStatus === 'loaded'
+        ? new Set(availableRegions.flatMap(region => region.relays.map(relay => relay.id)))
+        : null,
+    [directoryStatus, availableRegions],
+  );
+
   const onOpenUpdate = useCallback(() => {
     // Pinned destination only — never a manifest-supplied URL (see AppConfig.UPDATE_URL_ANDROID).
     const url = Platform.OS === 'ios' ? AppConfig.TESTFLIGHT_URL : AppConfig.UPDATE_URL_ANDROID;
@@ -155,8 +167,8 @@ export function MainScreen(): React.JSX.Element {
             directoryStatus={directoryStatus}
             status={native.status}
             relayLabel={native.relayLabel}
+            relayName={native.relayName}
             lastError={native.lastError}
-            logLines={native.logLines}
             connectedAtMs={connectedAtMs}
           />
         </ExitNodeMap>
@@ -225,10 +237,14 @@ export function MainScreen(): React.JSX.Element {
         )}
 
         <View style={styles.bottomStack} pointerEvents="box-none">
-          <RecentsSection recents={native.recents} onPress={onConnectRegion} />
+          <RecentsSection
+            recents={native.recents}
+            liveRelayIds={liveRelayIds}
+            onPress={onConnectRelay}
+          />
           <ConnectCard
             status={native.status}
-            relayLabel={native.relayLabel}
+            relayName={native.relayName}
             isConnected={isConnected}
             isWorking={isWorking}
             onToggle={onToggle}

@@ -12,8 +12,6 @@ export const vi: Partial<Strings> = {
   readyLog: 'sẵn sàng. nhấn kết nối để định tuyến qua relay.',
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
-  trafficRouteConnected: 'đường đi lưu lượng: thiết bị -> OpenRung VPN -> relay',
-  trafficRouteDisconnected: 'vpn ở chế độ fail-closed: không có relay, không kết nối.',
   settingsContentDescription: 'Mở cài đặt',
   settingsTitle: 'Cài đặt',
   backContentDescription: 'Quay lại',
@@ -116,21 +114,11 @@ export const vi: Partial<Strings> = {
 
   // Home overlay and about screen.
   homeTagline: 'mạng lưới relay',
+  aboutMissionLead: 'Chúng tôi tin rằng truy cập internet là một quyền, không phải đặc ân',
   aboutMissionBody:
-    'OpenRung định tuyến lưu lượng của bạn qua các relay trên khắp thế giới, giữ cho internet mở luôn truy cập được khi mạng bị lọc chặn. Không cần tài khoản và không có quảng cáo. Trong giai đoạn thử nghiệm sớm, OpenRung thu thập siêu dữ liệu chẩn đoán kết nối để cải thiện độ tin cậy.',
-  aboutHowHeader: 'Cách hoạt động',
-  aboutProjectHeader: 'Dự án',
-  aboutHow1Title: 'Nhà vận hành relay cung cấp năng lực',
-  aboutHow1Body:
-    'OpenRung Foundation và các tình nguyện viên cộng đồng vận hành các relay và đăng ký chúng với mạng lưới.',
-  aboutHow2Title: 'Bộ điều phối tìm relay cho bạn',
-  aboutHow2Body:
-    'Khi bạn kết nối, bộ điều phối trao cho thiết bị của bạn một danh sách ngắn các relay khỏe mạnh và ứng dụng chọn relay đầu tiên phản hồi.',
-  aboutHow3Title: 'Lưu lượng đi qua đường hầm mã hóa',
-  aboutHow3Body:
-    'Mọi thứ đều đi qua một đường hầm VLESS/REALITY trông như TLS thông thường, và VPN ở chế độ fail-closed: không có relay, không có lưu lượng.',
-  aboutFootnote:
-    'OpenRung là phần mềm tự do (GPL-3.0-or-later). Được xây dựng bởi tình nguyện viên, cho mọi người.',
+    'và không phải quân bài mặc cả để những người nắm quyền đem ra trao đổi. Quyền tiếp cận thông tin nằm trong chính bản chất con người, và không tường lửa nào được phép xóa bỏ quyền đó. Thế nhưng ngày nay, hàng tỷ người sống sau những bức tường được dựng lên để ngăn thông tin đi vào và giữ sự im lặng ở lại; nơi một tìm kiếm Google trả về lỗi 404, một câu hỏi có thể trở nên nguy hiểm và sự tò mò kết thúc tại một trang bị chặn.\n\nOpenRung tồn tại để thay đổi điều đó.\n\nChúng tôi đang dựng một chiếc thang vượt qua những bức tường ấy. Những người bình thường trên khắp thế giới chia sẻ kết nối của họ để ai đó ở phía bên kia tường lửa có thể tiếp cận internet mở.\n\nThông tin là sức mạnh, và sức mạnh đó thuộc về chúng ta, không thuộc về những kẻ muốn lấy nó khỏi tay chúng ta.',
+  aboutLegalHeader: 'Pháp lý',
+  aboutFollowHeader: 'Theo dõi chúng tôi',
 
   // --- Split tunneling (settings row + screen + Android app picker) ---
   splitTunnelSettingTitle: 'Chia đường hầm',

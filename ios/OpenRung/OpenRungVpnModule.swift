@@ -15,6 +15,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
     private var vpnStatus: NEVPNStatus = .invalid
     private var status: ConnectionStatus = .disconnected
     private var relayLabel: String?
+    private var relayName: String?
     private var lastError: String?
     private var logLines: [String] = []
     private var recentRegions: [RecentNode] = []
@@ -326,6 +327,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
            status == .connected || status == .connecting || status == .preparing {
             status = .disconnected
             relayLabel = nil
+            relayName = nil
         }
         emitStateChanged()
     }
@@ -333,6 +335,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
     private func apply(_ snapshot: ConnectionStateSnapshot, emit: Bool = true) {
         status = snapshot.status
         relayLabel = snapshot.relayLabel
+        relayName = snapshot.relayName
         lastError = snapshot.lastError
         logLines = snapshot.logLines
         recentRegions = snapshot.recentRegions
@@ -353,12 +356,15 @@ final class OpenRungVpnModule: RCTEventEmitter {
         [
             "status": status.rawValue,
             "relayLabel": relayLabel ?? NSNull(),
+            "relayName": relayName ?? NSNull(),
             "lastError": lastError ?? NSNull(),
             "logLines": logLines,
             "recents": recentRegions.map { node in
                 [
                     "countryCode": node.countryCode,
+                    "relayId": node.relayId ?? NSNull(),
                     "label": node.label,
+                    "relayName": node.relayName ?? NSNull(),
                     "latitude": node.latitude,
                     "longitude": node.longitude,
                 ] as [String: Any]

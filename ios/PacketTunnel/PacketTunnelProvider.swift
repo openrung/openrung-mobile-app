@@ -209,7 +209,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 guard let picked = matched.first else {
                     throw PacketTunnelError.relayNotAvailable
                 }
-                let displayName = (picked.label?.isEmpty == false ? picked.label : nil) ?? picked.id
+                let displayName = picked.displayName()
                 SharedConnectionState.appendLog("connecting to relay \(displayName)")
                 targetedCandidates = matched
             } else if let targetCountry {
@@ -268,7 +268,12 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             }
             guard promoted else { throw CancellationError() }
             TelemetryManager.markConnected(relayId: relay.id)
-            SharedConnectionState.setStatus(.connected, clearRelayLabel: true, clearError: true)
+            SharedConnectionState.setStatus(
+                .connected,
+                relayName: relay.displayName(),
+                clearRelayLabel: true,
+                clearError: true
+            )
             applyRelayLocation(relay)
             var successMeasurements: [String: Int64] = [
                 "broker_fetch_ms": brokerFetchMs,
@@ -1259,16 +1264,19 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         recordRecentNode(relay)
     }
 
-    /** Adds the connected relay's broker-served country to the "Recents" row (best-effort). */
+    /** Adds the exact connected relay to the "Recents" row (best-effort). */
     private func recordRecentNode(_ relay: RelayDescriptor) {
         let code = (relay.countryCode ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         if code.isEmpty { return }
         let centroid = CountryGeo.centroid(code)
         let label = relay.locationLabel()
+        let relayName = relay.displayName()
         SharedConnectionState.recordRecent(
             RecentNode(
                 countryCode: code,
+                relayId: relay.id,
                 label: label.isEmpty ? (centroid?.name ?? code) : label,
+                relayName: relayName,
                 latitude: centroid?.latitude ?? relay.latitude ?? 0,
                 longitude: centroid?.longitude ?? relay.longitude ?? 0
             )

@@ -1,11 +1,11 @@
 /**
  * "Recents" strip on the home screen: a small uppercase section label and a
- * horizontal row of compact glass pills (flag + recorded location) floating
+ * horizontal row of compact glass pills (flag + relay name) floating
  * over the map. Hidden entirely while there is no history, so a fresh install
  * keeps the map uncluttered.
  *
- * Tapping a pill reconnects to that country, same flow as tapping a region
- * on the map (broker still picks the specific relay within it).
+ * Tapping a pill pins the exact relay that produced that recent entry, so a
+ * pill is only shown while the broker still lists that relay.
  */
 import React from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -17,13 +17,43 @@ import { countryFlag } from './countryFlag';
 
 export interface RecentsSectionProps {
   recents: RecentNode[];
-  onPress: (countryCode: string) => void;
+  /**
+   * Relay ids the broker currently lists, or null while the directory has not loaded (failed
+   * fetch, still loading, offline). Null means "no evidence either way" — never a hint to hide.
+   */
+  liveRelayIds: ReadonlySet<string> | null;
+  onPress: (relayId: string, countryCode: string) => void;
 }
 
-export function RecentsSection({ recents, onPress }: RecentsSectionProps): React.JSX.Element | null {
-  const s = useStrings();
+interface PinnedRecentNode extends RecentNode {
+  relayId: string;
+  relayName: string;
+}
 
-  if (recents.length === 0) {
+function hasPinnedRelay(node: RecentNode): node is PinnedRecentNode {
+  return (node.relayId?.trim().length ?? 0) > 0 && (node.relayName?.trim().length ?? 0) > 0;
+}
+
+export function RecentsSection({
+  recents,
+  liveRelayIds,
+  onPress,
+}: RecentsSectionProps): React.JSX.Element | null {
+  const s = useStrings();
+  // Legacy entries cannot pin the relay they describe, so keep them hidden until a successful
+  // connection replaces them with an entry containing both relayId and relayName.
+  //
+  // A pin the broker no longer lists cannot connect either: native filters the relay list by id
+  // and fails the whole attempt rather than silently substituting a different relay. Hide those
+  // pills too, so the row only offers relays that can actually be reached. The directory this
+  // set comes from is fetched at the same page size the pinned-connect path uses
+  // (DIRECTORY_RELAY_LIMIT) and filtered by the same usability predicate, so it sees the same
+  // relays native will.
+  const pinnedRecents = recents
+    .filter(hasPinnedRelay)
+    .filter(node => liveRelayIds === null || liveRelayIds.has(node.relayId));
+
+  if (pinnedRecents.length === 0) {
     return null;
   }
 
@@ -32,16 +62,17 @@ export function RecentsSection({ recents, onPress }: RecentsSectionProps): React
       <Text style={styles.label}>{s.recentsLabel.toUpperCase()}</Text>
       <FlatList
         horizontal
-        data={recents}
-        keyExtractor={item => item.countryCode}
+        data={pinnedRecents}
+        keyExtractor={item => item.relayId}
         renderItem={({ item }) => (
           <Pressable
+            accessibilityRole="button"
             style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
-            onPress={() => onPress(item.countryCode)}
+            onPress={() => onPress(item.relayId, item.countryCode)}
           >
             <Text style={styles.flag}>{countryFlag(item.countryCode)}</Text>
             <Text style={styles.pillLabel} numberOfLines={1}>
-              {item.label}
+              {item.relayName.trim()}
             </Text>
           </Pressable>
         )}

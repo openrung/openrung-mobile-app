@@ -169,6 +169,62 @@ data class RelayDescriptor(
 
     /** Human-readable exit location such as "Tokyo, Japan", or "" while the broker has no geo. */
     fun locationLabel(): String = listOf(city, country).filter { it.isNotBlank() }.joinToString(", ")
+
+    /**
+     * Relay name as surfaced in the UI (connect card status row, recents pills, log lines).
+     * [label] is operator-supplied free text, so strip control/format characters (a bidi
+     * override could reorder or spoof surrounding UI text), collapse whitespace, and clamp the
+     * length. When nothing printable remains, fall back to the broker-assigned id with its
+     * `relay_` prefix dropped, clamped to 12 code points — the same compact handle the TS
+     * relay list shows, so a label-less relay reads identically before and after connection.
+     * Keep in sync with the Swift `RelayDescriptor.displayName()` and the TS
+     * `sanitizeRelayName()` in `src/model/exitNode.ts`.
+     */
+    fun displayName(): String = sanitizeDisplayName(label).ifEmpty {
+        sanitizeDisplayName(id.removePrefix("relay_"), ID_FALLBACK_CODE_POINTS)
+    }
+
+    private companion object {
+        const val MAX_DISPLAY_NAME_CODE_POINTS = 24
+        const val ID_FALLBACK_CODE_POINTS = 12
+
+        fun sanitizeDisplayName(raw: String, maxCodePoints: Int = MAX_DISPLAY_NAME_CODE_POINTS): String {
+            // Iterate code points, not chars, so astral-plane format characters
+            // (e.g. U+E00xx tags) are classified whole rather than as surrogates. After the
+            // control/format strip the only whitespace left is the space separators
+            // (Zs/Zl/Zp = Character.isSpaceChar) — collapse those; tab/newline are CONTROL
+            // and already gone. Same rules as the Swift and TS sanitizers.
+            val collapsed = buildString(raw.length) {
+                var pendingSpace = false
+                var i = 0
+                while (i < raw.length) {
+                    val codePoint = raw.codePointAt(i)
+                    i += Character.charCount(codePoint)
+                    when {
+                        Character.getType(codePoint) == Character.CONTROL.toInt() ||
+                            Character.getType(codePoint) == Character.FORMAT.toInt() -> Unit
+                        Character.isSpaceChar(codePoint) -> pendingSpace = isNotEmpty()
+                        else -> {
+                            if (pendingSpace) {
+                                append(' ')
+                                pendingSpace = false
+                            }
+                            appendCodePoint(codePoint)
+                        }
+                    }
+                }
+            }
+            // Clamp by code points (never mid-surrogate-pair by construction), matching
+            // Swift's unicode-scalar prefix and TS's Array.from slice.
+            var end = 0
+            var count = 0
+            while (end < collapsed.length && count < maxCodePoints) {
+                end += Character.charCount(collapsed.codePointAt(end))
+                count += 1
+            }
+            return collapsed.substring(0, end).trimEnd(' ')
+        }
+    }
 }
 
 @Serializable

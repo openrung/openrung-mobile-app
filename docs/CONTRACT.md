@@ -72,7 +72,9 @@ export type ConnectionStatus =
 
 export interface RecentNode {
   countryCode: string;   // ISO 3166-1 alpha-2, uppercase
+  relayId?: string;      // exact broker relay id; absent on legacy entries
   label: string;         // "City, Country" or country name
+  relayName?: string;    // sanitized relay display name (see NativeVpnState); absent on legacy entries
   latitude: number;
   longitude: number;
 }
@@ -80,9 +82,13 @@ export interface RecentNode {
 export interface NativeVpnState {
   status: ConnectionStatus;
   relayLabel: string | null;   // resolved geo label, never a raw IP
+  relayName: string | null;    // connected relay's display name: native sanitizes the
+                               // operator-supplied label (control/bidi-format characters
+                               // stripped, whitespace collapsed, clamped to 24 code points) and
+                               // falls back to the id, `relay_` prefix dropped, <=12 code points
   lastError: string | null;
   logLines: string[];          // "[HH:mm:ss] message", newest last, cap 80
-  recents: RecentNode[];       // newest first, deduped by countryCode, cap 8
+  recents: RecentNode[];       // newest first, deduped by relayId, cap 8
 }
 
 export interface NativeIdentity {
@@ -184,6 +190,13 @@ serializes with exactly this key order (snake_case):
   waiting for the network (which would turn a self-healing session into a hard
   failure). RN also flushes any pending push just before a connect, so a change
   made moments before tapping Connect is applied on that connect.
+
+Native keeps every recent entry; the Recents row decides which are offerable. A pill
+pins its exact `relayId`, and a pinned connect fails outright when the broker no
+longer lists that relay, so TS renders a pill only while its relay is present in the
+loaded exit-node directory (that directory and the pinned-connect path fetch the same
+`DIRECTORY_RELAY_LIMIT` page and apply the same usability predicate). While the
+directory is unloaded or failed nothing is hidden — absence is not evidence.
 
 Event: name **`openrungStateChanged`**, payload `NativeVpnState`. Emitted on every
 status/log/relay/recents change. TS subscribes via `NativeEventEmitter`.

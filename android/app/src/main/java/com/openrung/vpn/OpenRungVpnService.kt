@@ -249,7 +249,7 @@ class OpenRungVpnService : VpnService() {
                 }
                 val picked = matched.first()
                 OpenRungStatusStore.appendLog(
-                    getString(R.string.log_connecting_relay, picked.label.ifBlank { picked.id }),
+                    getString(R.string.log_connecting_relay, picked.displayName()),
                 )
                 matched
             } else if (targetCountry != null) {
@@ -297,6 +297,7 @@ class OpenRungVpnService : VpnService() {
             OpenRungStatusStore.setStatus(
                 ConnectionStatus.CONNECTED,
                 relayLabel = null,
+                relayName = relay.displayName(),
                 lastError = null,
             )
             updateNotification(getString(R.string.status_connected))
@@ -977,7 +978,7 @@ class OpenRungVpnService : VpnService() {
         recordRecentNode(relay)
     }
 
-    /** Adds the connected relay's broker-served country to the "Recents" row (best-effort). */
+    /** Adds the exact connected relay to the "Recents" row (best-effort). */
     private fun recordRecentNode(relay: RelayDescriptor) {
         val code = relay.countryCode.trim().uppercase()
         if (code.isBlank()) return
@@ -985,7 +986,9 @@ class OpenRungVpnService : VpnService() {
         OpenRungStatusStore.recordRecent(
             RecentNode(
                 countryCode = code,
+                relayId = relay.id,
                 label = relay.locationLabel().ifBlank { centroid?.name ?: code },
+                relayName = relay.displayName(),
                 latitude = centroid?.latitude ?: relay.latitude ?: 0.0,
                 longitude = centroid?.longitude ?: relay.longitude ?: 0.0,
             ),

@@ -1,7 +1,7 @@
 /**
  * Floating glass control card anchored above the tab bar on the home screen:
- * a live status row (pulsing dot + uppercase status + relay location), the
- * primary connect action, and the fail-closed footer line.
+ * a live status row (pulsing dot + uppercase status + connected relay name)
+ * and the primary connect action.
  *
  * The connect button narrates the whole connection lifecycle instead of
  * flipping between two labels:
@@ -37,7 +37,7 @@ import { PowerIcon } from './Icons';
 
 export interface ConnectCardProps {
   status: ConnectionStatus;
-  relayLabel: string | null;
+  relayName: string | null;
   isConnected: boolean;
   isWorking: boolean;
   onToggle: () => void;
@@ -115,7 +115,7 @@ interface FillGeometry {
 
 export function ConnectCard({
   status,
-  relayLabel,
+  relayName,
   isConnected,
   isWorking,
   onToggle,
@@ -213,7 +213,7 @@ export function ConnectCard({
           {statusLabel(s, status).toUpperCase()}
         </Text>
         <Text style={styles.relayText} numberOfLines={1}>
-          {relayLabel ?? s.relayAuto}
+          {relayName ?? s.relayAuto}
         </Text>
       </View>
 
@@ -258,9 +258,6 @@ export function ConnectCard({
         </Animated.View>
       </Pressable>
 
-      <Text style={styles.footer} numberOfLines={2}>
-        {isConnected ? s.trafficRouteConnected : s.trafficRouteDisconnected}
-      </Text>
     </View>
   );
 }
@@ -365,13 +362,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '900',
     letterSpacing: 2,
-  },
-  footer: {
-    alignSelf: 'center',
-    textAlign: 'center',
-    color: palette.dimText,
-    fontFamily: monoFont,
-    fontSize: 10,
-    letterSpacing: 0.4,
   },
 });

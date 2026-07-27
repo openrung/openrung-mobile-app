@@ -9,21 +9,20 @@
  * gestures pass straight through it):
  *  - NETWORK: live relay / location / country totals from the directory
  *    ('…' until the first load lands, '--' when the broker is unreachable);
- *  - LINK: the connection lifecycle — status dot + label, the relay line
- *    (resolved exit location while connected, the "auto relay" target
- *    otherwise, mirroring the connect card's status row), the connected
- *    relay's friendly name mined from the native log (see
- *    lastDialledRelay), a ticking session-uptime clock while connected, and
- *    the already-localized native `lastError` line when the tunnel failed
- *    (elsewhere that detail only surfaces in the debug console).
+ *  - LINK: the connection lifecycle — status dot + label, the connected
+ *    relay's name (native `relayName`, the same value the connect card
+ *    shows), the relay line (resolved exit location while connected, the
+ *    "auto relay" target otherwise), a ticking session-uptime clock while
+ *    connected, and the already-localized native `lastError` line when the
+ *    tunnel failed (elsewhere that detail only surfaces in the debug
+ *    console).
  */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Marker } from '@maplibre/maplibre-react-native';
 
 import { statusLabel, useStrings } from '../i18n';
-import { relayDisplayName } from '../model/exitNode';
-import type { DirectoryStatus, ExitNodeRegion, ExitNodeRelay } from '../model/exitNode';
+import type { DirectoryStatus, ExitNodeRegion } from '../model/exitNode';
 import type { ConnectionStatus } from '../native/types';
 import { monoFont, palette, statusDotColor, tokens } from '../theme';
 
@@ -47,45 +46,11 @@ export interface OceanTelemetryProps {
   directoryStatus: DirectoryStatus;
   status: ConnectionStatus;
   relayLabel: string | null;
+  /** Friendly name of the connected relay, mirrored from native state (null while down). */
+  relayName: string | null;
   lastError: string | null;
-  /** Native activity log — mined for the id of the relay the tunnel dialled. */
-  logLines: string[];
   /** Store stamp of the moment the tunnel entered 'connected'; null while down. */
   connectedAtMs: number | null;
-}
-
-/**
- * The relay the tunnel dialled most recently, recovered by matching known
- * broker relay ids against the native log lines: the contract (§3) never
- * mirrors the connected relay's identity — only its geo label — but both
- * native services log "trying relay <id> at <host>:<port>" with the id as an
- * interpolated argument, so the token survives the natively-localized text
- * on every locale. Returns null when no known id appears (directory not
- * loaded, or the relay has already expired out of it).
- */
-export function lastDialledRelay(
-  logLines: string[],
-  regions: ExitNodeRegion[],
-): ExitNodeRelay | null {
-  if (logLines.length === 0 || regions.length === 0) {
-    return null;
-  }
-  const byId = new Map<string, ExitNodeRelay>();
-  for (const region of regions) {
-    for (const relay of region.relays) {
-      byId.set(relay.id, relay);
-    }
-  }
-  for (let index = logLines.length - 1; index >= 0; index--) {
-    // Whole-token match so an id never matches inside a longer id.
-    for (const token of logLines[index].split(/[^0-9A-Za-z_-]+/)) {
-      const relay = byId.get(token);
-      if (relay) {
-        return relay;
-      }
-    }
-  }
-  return null;
 }
 
 function pad2(value: number): string {
@@ -121,24 +86,16 @@ export function OceanTelemetry({
   directoryStatus,
   status,
   relayLabel,
+  relayName,
   lastError,
-  logLines,
   connectedAtMs,
 }: OceanTelemetryProps): React.JSX.Element {
   const s = useStrings();
 
-  // Friendly name of the connected relay. Held in a ref for the lifetime of
-  // the connected session so it survives the "trying relay" line scrolling
-  // out of the 80-line native log; cleared the moment the tunnel leaves
-  // connected (a relay switch re-resolves from the fresh log lines).
-  const dialledRelay = useMemo(() => lastDialledRelay(logLines, regions), [logLines, regions]);
-  const heldRelayRef = useRef<ExitNodeRelay | null>(null);
-  if (status !== 'connected') {
-    heldRelayRef.current = null;
-  } else if (dialledRelay != null) {
-    heldRelayRef.current = dialledRelay;
-  }
-  const connectedRelay = status === 'connected' ? heldRelayRef.current : null;
+  // Friendly name of the connected relay, straight from native state (the same value the
+  // connect card's status row shows). Native clears it on every non-connected status; the
+  // status guard below only defends against a briefly-stale mirror.
+  const connectedRelayName = status === 'connected' ? relayName : null;
 
   const network = useMemo(
     () => ({
@@ -190,9 +147,9 @@ export function OceanTelemetry({
             {statusLabel(s, status)}
           </Text>
         </View>
-        {connectedRelay != null ? (
+        {connectedRelayName != null ? (
           <Text style={styles.relayNameText} numberOfLines={1}>
-            {relayDisplayName(connectedRelay)}
+            {connectedRelayName}
           </Text>
         ) : null}
         <Text style={styles.relayText} numberOfLines={1}>

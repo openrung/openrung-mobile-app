@@ -11,7 +11,9 @@ export type ConnectionStatus =
 
 export interface RecentNode {
   countryCode: string; // ISO 3166-1 alpha-2, uppercase
+  relayId?: string; // exact broker relay id; absent on legacy entries
   label: string; // "City, Country" or country name
+  relayName?: string; // sanitized relay display name (see NativeVpnState.relayName); absent on legacy entries
   latitude: number;
   longitude: number;
 }
@@ -19,9 +21,11 @@ export interface RecentNode {
 export interface NativeVpnState {
   status: ConnectionStatus;
   relayLabel: string | null; // resolved geo label, never a raw IP
+  relayName: string | null; // connected relay's display name — native sanitizes the operator-supplied
+  // label (control/bidi-format chars stripped, whitespace collapsed, ≤24 code points; fallback: sanitized id minus `relay_`, ≤12 code points)
   lastError: string | null;
   logLines: string[]; // "[HH:mm:ss] message", newest last, cap 80
-  recents: RecentNode[]; // newest first, deduped by countryCode, cap 8
+  recents: RecentNode[]; // newest first, deduped by relayId, cap 8
 }
 
 export interface NativeIdentity {

@@ -192,6 +192,7 @@ class OpenRungVpnModule(
         val map = Arguments.createMap()
         map.putString("status", status.name.lowercase())
         if (relayLabel != null) map.putString("relayLabel", relayLabel) else map.putNull("relayLabel")
+        if (relayName != null) map.putString("relayName", relayName) else map.putNull("relayName")
         if (lastError != null) map.putString("lastError", lastError) else map.putNull("lastError")
         val logs = Arguments.createArray()
         logLines.forEach(logs::pushString)
@@ -200,7 +201,9 @@ class OpenRungVpnModule(
         recentRegions.forEach { node ->
             val entry = Arguments.createMap()
             entry.putString("countryCode", node.countryCode)
+            entry.putString("relayId", node.relayId)
             entry.putString("label", node.label)
+            entry.putString("relayName", node.relayName)
             entry.putDouble("latitude", node.latitude)
             entry.putDouble("longitude", node.longitude)
             recents.pushMap(entry)

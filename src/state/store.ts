@@ -47,6 +47,7 @@ export const SPLIT_TUNNEL_STORAGE_KEY = 'openrung.splitTunnel';
 const INITIAL_NATIVE_STATE: NativeVpnState = {
   status: 'disconnected',
   relayLabel: null,
+  relayName: null,
   lastError: null,
   logLines: [],
   recents: [],

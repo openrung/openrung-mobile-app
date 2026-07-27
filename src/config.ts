@@ -43,6 +43,15 @@ export const AppConfig = {
   /** Public policy covering app and network data handling. */
   PRIVACY_URL: 'https://www.openrung.org/privacy',
 
+  /** Public website and official social profiles shown on the About screen. */
+  WEBSITE_URL: 'https://openrung.org/',
+  GITHUB_URL: 'https://github.com/openrung',
+  X_URL: 'https://x.com/OpenRung',
+  THREADS_URL: 'https://www.threads.com/@openrung',
+  BLUESKY_URL: 'https://bsky.app/profile/openrung.bsky.social',
+  INSTAGRAM_URL: 'https://www.instagram.com/openrung',
+  TELEGRAM_URL: 'https://t.me/openrung_bot',
+
   /**
    * TestFlight public invite link for the iOS beta, shared from Settings → "Share OpenRung"
    * (the iOS counterpart of Android's offline APK sharing). Regenerate it in App Store Connect →
