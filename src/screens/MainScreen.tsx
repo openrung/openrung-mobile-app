@@ -225,7 +225,7 @@ export function MainScreen(): React.JSX.Element {
         )}
 
         <View style={styles.bottomStack} pointerEvents="box-none">
-          <RecentsSection recents={native.recents} onPress={onConnectRegion} />
+          <RecentsSection recents={native.recents} onPress={onConnectRelay} />
           <ConnectCard
             status={native.status}
             relayLabel={native.relayLabel}

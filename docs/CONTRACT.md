@@ -72,6 +72,7 @@ export type ConnectionStatus =
 
 export interface RecentNode {
   countryCode: string;   // ISO 3166-1 alpha-2, uppercase
+  relayId?: string;      // exact broker relay id; absent on legacy entries
   label: string;         // "City, Country" or country name
   relayName?: string;    // friendly broker label or relay id; absent on legacy entries
   latitude: number;
@@ -83,7 +84,7 @@ export interface NativeVpnState {
   relayLabel: string | null;   // resolved geo label, never a raw IP
   lastError: string | null;
   logLines: string[];          // "[HH:mm:ss] message", newest last, cap 80
-  recents: RecentNode[];       // newest first, deduped by countryCode, cap 8
+  recents: RecentNode[];       // newest first, deduped by relayId, cap 8
 }
 
 export interface NativeIdentity {

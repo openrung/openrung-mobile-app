@@ -1259,7 +1259,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         recordRecentNode(relay)
     }
 
-    /** Adds the connected relay's broker-served country to the "Recents" row (best-effort). */
+    /** Adds the exact connected relay to the "Recents" row (best-effort). */
     private func recordRecentNode(_ relay: RelayDescriptor) {
         let code = (relay.countryCode ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         if code.isEmpty { return }
@@ -1270,6 +1270,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         SharedConnectionState.recordRecent(
             RecentNode(
                 countryCode: code,
+                relayId: relay.id,
                 label: label.isEmpty ? (centroid?.name ?? code) : label,
                 relayName: relayName,
                 latitude: centroid?.latitude ?? relay.latitude ?? 0,

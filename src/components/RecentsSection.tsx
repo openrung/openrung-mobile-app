@@ -4,8 +4,7 @@
  * over the map. Hidden entirely while there is no history, so a fresh install
  * keeps the map uncluttered.
  *
- * Tapping a pill reconnects to that country, same flow as tapping a region
- * on the map (broker still picks the specific relay within it).
+ * Tapping a pill pins the exact relay that produced that recent entry.
  */
 import React from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -17,24 +16,25 @@ import { countryFlag } from './countryFlag';
 
 export interface RecentsSectionProps {
   recents: RecentNode[];
-  onPress: (countryCode: string) => void;
+  onPress: (relayId: string, countryCode: string) => void;
 }
 
-interface NamedRecentNode extends RecentNode {
+interface PinnedRecentNode extends RecentNode {
+  relayId: string;
   relayName: string;
 }
 
-function hasRelayName(node: RecentNode): node is NamedRecentNode {
-  return (node.relayName?.trim().length ?? 0) > 0;
+function hasPinnedRelay(node: RecentNode): node is PinnedRecentNode {
+  return (node.relayId?.trim().length ?? 0) > 0 && (node.relayName?.trim().length ?? 0) > 0;
 }
 
 export function RecentsSection({ recents, onPress }: RecentsSectionProps): React.JSX.Element | null {
   const s = useStrings();
-  // Entries persisted by older app versions only contain a city/country label. Do not show that
-  // stale location copy; each entry returns after its next successful connection with relayName.
-  const namedRecents = recents.filter(hasRelayName);
+  // Legacy entries cannot pin the relay they describe, so keep them hidden until a successful
+  // connection replaces them with an entry containing both relayId and relayName.
+  const pinnedRecents = recents.filter(hasPinnedRelay);
 
-  if (namedRecents.length === 0) {
+  if (pinnedRecents.length === 0) {
     return null;
   }
 
@@ -43,12 +43,13 @@ export function RecentsSection({ recents, onPress }: RecentsSectionProps): React
       <Text style={styles.label}>{s.recentsLabel.toUpperCase()}</Text>
       <FlatList
         horizontal
-        data={namedRecents}
-        keyExtractor={item => item.countryCode}
+        data={pinnedRecents}
+        keyExtractor={item => item.relayId}
         renderItem={({ item }) => (
           <Pressable
+            accessibilityRole="button"
             style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
-            onPress={() => onPress(item.countryCode)}
+            onPress={() => onPress(item.relayId, item.countryCode)}
           >
             <Text style={styles.flag}>{countryFlag(item.countryCode)}</Text>
             <Text style={styles.pillLabel} numberOfLines={1}>

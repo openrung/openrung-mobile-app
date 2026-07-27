@@ -134,6 +134,7 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
           this.state = { ...this.state, relayLabel };
           this.recordRecent({
             countryCode: code,
+            relayId,
             label: relayLabel,
             relayName: relayId,
             latitude: geo?.latitude ?? 0,
@@ -228,7 +229,11 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
   private recordRecent(node: RecentNode): void {
     const recents = [
       node,
-      ...this.state.recents.filter(recent => recent.countryCode !== node.countryCode),
+      ...this.state.recents.filter(
+        recent =>
+          recent.relayId !== node.relayId &&
+          !(!recent.relayId && recent.countryCode === node.countryCode),
+      ),
     ].slice(0, MAX_RECENTS);
     this.state = { ...this.state, recents };
   }

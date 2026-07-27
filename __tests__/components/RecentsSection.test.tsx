@@ -28,6 +28,7 @@ describe('RecentsSection', () => {
         recents={[
           {
             countryCode: 'JP',
+            relayId: 'relay_jp1',
             label: 'Tokyo, Japan',
             relayName: 'proud-falcon',
             latitude: 36.2,
@@ -46,7 +47,64 @@ describe('RecentsSection', () => {
     expect(text).not.toContain('Tokyo, Japan');
   });
 
-  it('hides legacy location-only entries', async () => {
+  it('pins the exact relay when pressed', async () => {
+    const onPress = jest.fn();
+    const tree = await render(
+      <RecentsSection
+        recents={[
+          {
+            countryCode: 'JP',
+            relayId: 'relay_jp1',
+            label: 'Tokyo, Japan',
+            relayName: 'proud-falcon',
+            latitude: 36.2,
+            longitude: 138.25,
+          },
+        ]}
+        onPress={onPress}
+      />,
+    );
+
+    await ReactTestRenderer.act(async () => {
+      tree.root.findByProps({ accessibilityRole: 'button' }).props.onPress();
+    });
+
+    expect(onPress).toHaveBeenCalledWith('relay_jp1', 'JP');
+  });
+
+  it('keeps different relays from the same country distinct', async () => {
+    const tree = await render(
+      <RecentsSection
+        recents={[
+          {
+            countryCode: 'JP',
+            relayId: 'relay_jp1',
+            label: 'Tokyo, Japan',
+            relayName: 'proud-falcon',
+            latitude: 36.2,
+            longitude: 138.25,
+          },
+          {
+            countryCode: 'JP',
+            relayId: 'relay_jp2',
+            label: 'Tokyo, Japan',
+            relayName: 'swift-harbor',
+            latitude: 36.2,
+            longitude: 138.25,
+          },
+        ]}
+        onPress={jest.fn()}
+      />,
+    );
+
+    const text = tree.root
+      .findAllByType(Text)
+      .flatMap(node => node.props.children)
+      .filter((value): value is string => typeof value === 'string');
+    expect(text).toEqual(expect.arrayContaining(['proud-falcon', 'swift-harbor']));
+  });
+
+  it('hides legacy entries without an exact relay id', async () => {
     const tree = await render(
       <RecentsSection
         recents={[

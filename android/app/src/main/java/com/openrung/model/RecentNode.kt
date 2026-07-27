@@ -6,6 +6,8 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class RecentNode(
     val countryCode: String,
+    /** Exact broker relay id; empty on entries saved by older builds. */
+    val relayId: String = "",
     val label: String,
     /** Friendly broker label, falling back to relay id; empty on entries saved by older builds. */
     val relayName: String = "",

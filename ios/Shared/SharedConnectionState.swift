@@ -44,7 +44,13 @@ enum SharedConnectionState {
 
     static func recordRecent(_ node: RecentNode) {
         mutate { snapshot in
-            snapshot.recentRegions = ([node] + snapshot.recentRegions.filter { $0.countryCode != node.countryCode })
+            snapshot.recentRegions = (
+                [node] +
+                    snapshot.recentRegions.filter { recent in
+                        recent.relayId != node.relayId &&
+                            !(recent.relayId == nil && recent.countryCode == node.countryCode)
+                    }
+            )
                 .prefix(AppConfig.maxRecents)
                 .map { $0 }
         }

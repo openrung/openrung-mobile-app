@@ -200,6 +200,7 @@ class OpenRungVpnModule(
         recentRegions.forEach { node ->
             val entry = Arguments.createMap()
             entry.putString("countryCode", node.countryCode)
+            entry.putString("relayId", node.relayId)
             entry.putString("label", node.label)
             entry.putString("relayName", node.relayName)
             entry.putDouble("latitude", node.latitude)

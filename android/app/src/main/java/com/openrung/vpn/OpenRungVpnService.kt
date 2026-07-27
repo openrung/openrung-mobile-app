@@ -977,7 +977,7 @@ class OpenRungVpnService : VpnService() {
         recordRecentNode(relay)
     }
 
-    /** Adds the connected relay's broker-served country to the "Recents" row (best-effort). */
+    /** Adds the exact connected relay to the "Recents" row (best-effort). */
     private fun recordRecentNode(relay: RelayDescriptor) {
         val code = relay.countryCode.trim().uppercase()
         if (code.isBlank()) return
@@ -985,6 +985,7 @@ class OpenRungVpnService : VpnService() {
         OpenRungStatusStore.recordRecent(
             RecentNode(
                 countryCode = code,
+                relayId = relay.id,
                 label = relay.locationLabel().ifBlank { centroid?.name ?: code },
                 relayName = relay.label.trim().ifBlank { relay.id },
                 latitude = centroid?.latitude ?: relay.latitude ?: 0.0,

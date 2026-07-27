@@ -104,12 +104,19 @@ object OpenRungStatusStore {
     }
 
     /**
-     * Records a location the user just connected through so it appears in the "Recents" row.
-     * Deduplicates by country (most recent first) and caps the list to [AppConfig.MAX_RECENTS].
+     * Records a relay the user just connected through so it appears in the "Recents" row.
+     * Deduplicates by relay id (most recent first) and caps the list to [AppConfig.MAX_RECENTS].
+     * A new pinned entry also replaces an unpinned legacy entry from the same country.
      */
     fun recordRecent(node: RecentNode) {
         state.update { current ->
-            val deduped = (listOf(node) + current.recentRegions.filterNot { it.countryCode == node.countryCode })
+            val deduped = (
+                listOf(node) +
+                    current.recentRegions.filterNot { recent ->
+                        recent.relayId == node.relayId ||
+                            (recent.relayId.isBlank() && recent.countryCode == node.countryCode)
+                    }
+                )
                 .take(AppConfig.MAX_RECENTS)
             current.copy(recentRegions = deduped)
         }
