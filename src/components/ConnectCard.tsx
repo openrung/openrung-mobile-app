@@ -258,11 +258,13 @@ export function ConnectCard({
         </Animated.View>
       </Pressable>
 
-      {isConnected ? (
-        <Text style={styles.footer} numberOfLines={2}>
-          {s.trafficRouteConnected}
-        </Text>
-      ) : null}
+      <View style={styles.footerSlot}>
+        {isConnected ? (
+          <Text style={styles.footer} numberOfLines={2}>
+            {s.trafficRouteConnected}
+          </Text>
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -368,12 +370,17 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 2,
   },
+  footerSlot: {
+    minHeight: 28,
+    justifyContent: 'center',
+  },
   footer: {
     alignSelf: 'center',
     textAlign: 'center',
     color: palette.dimText,
     fontFamily: monoFont,
     fontSize: 10,
+    lineHeight: 14,
     letterSpacing: 0.4,
   },
 });

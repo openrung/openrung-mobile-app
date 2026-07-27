@@ -40,7 +40,9 @@ export function DebugScreen({ onBack }: DebugScreenProps): React.JSX.Element {
         style={styles.console}
       />
 
-      {isConnected ? <Text style={styles.footer}>{s.trafficRouteConnected}</Text> : null}
+      <View style={styles.footerSlot}>
+        {isConnected ? <Text style={styles.footer}>{s.trafficRouteConnected}</Text> : null}
+      </View>
     </View>
   );
 }
@@ -55,10 +57,15 @@ const styles = StyleSheet.create({
   console: {
     flex: 1,
   },
+  footerSlot: {
+    minHeight: 16,
+    justifyContent: 'center',
+  },
   footer: {
     alignSelf: 'center',
     color: palette.dimText,
     fontFamily: monoFont,
     fontSize: 12,
+    lineHeight: 16,
   },
 });

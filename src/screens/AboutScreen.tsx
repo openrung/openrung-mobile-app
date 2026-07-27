@@ -130,7 +130,7 @@ export function AboutScreen({ onOpenLicenses }: AboutScreenProps): React.JSX.Ele
             onPress={() => onOpenSocial(url)}
             style={({ pressed }) => [styles.socialButton, pressed && styles.socialButtonPressed]}
           >
-            <Icon color={color} size={22} />
+            <Icon color={color} size={20} />
           </Pressable>
         ))}
       </View>
@@ -223,8 +223,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   socialButton: {
-    width: 38,
-    height: 38,
+    width: 34,
+    height: 34,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: tokens.radiusSm,
