@@ -5,7 +5,7 @@ module.exports = {
   transformIgnorePatterns: [
     'node_modules/(?!((jest-)?react-native|@react-native(-community)?|@noble)/)',
   ],
-  // Shared non-test helpers for suites (e.g. relay-list signing fixtures); everything else under
+  // Shared non-test helpers for suites (e.g. update-manifest signing fixtures); everything else under
   // __tests__/ is a test file.
   testPathIgnorePatterns: ['/node_modules/', '/__tests__/helpers/'],
 };

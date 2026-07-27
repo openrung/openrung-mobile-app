@@ -1,11 +1,14 @@
 /**
  * Update-check orchestration (src/state/updateCheck.ts): hydrate-then-fetch, success/failure
  * throttles, the cache-replacement trust ladder, and the dismissal actions — all against an
- * in-memory AsyncStorage and a stubbed fetch (Jest's react-native preset resolves Platform.OS to
- * 'ios', so fixtures drive the ios manifest section).
+ * in-memory AsyncStorage and a stubbed verified-manifest client (Jest's react-native preset
+ * resolves Platform.OS to 'ios', so fixtures drive the ios manifest section). Candidate routing
+ * itself is covered in updateManifest.test.ts.
  */
 
 const mockMemoryStore = new Map<string, string>();
+const mockFetchUpdateManifest = jest.fn();
+
 jest.mock('@react-native-async-storage/async-storage', () => ({
   __esModule: true,
   default: {
@@ -19,7 +22,15 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   },
 }));
 
-import { setManifestSigningKeysForTests } from '../../src/net/updateManifestClient';
+jest.mock('../../src/net/updateManifestClient', () => ({
+  ...jest.requireActual('../../src/net/updateManifestClient'),
+  fetchUpdateManifest: (...args: unknown[]) => mockFetchUpdateManifest(...args),
+}));
+
+import {
+  decodeUpdateEnvelope,
+  setManifestSigningKeysForTests,
+} from '../../src/net/updateManifestClient';
 import { getSnapshot, resetStoreForTests } from '../../src/state/store';
 import {
   UPDATE_CHECKED_AT_STORAGE_KEY,
@@ -37,10 +48,7 @@ import {
   TEST_MANIFEST_KEY,
   envelopeFor,
   manifestPayload,
-  manifestResponse,
 } from '../helpers/updateManifest';
-
-const originalFetch = globalThis.fetch;
 
 /** Lets the service's fire-and-forget async chains settle. */
 async function flush(): Promise<void> {
@@ -50,16 +58,18 @@ async function flush(): Promise<void> {
 }
 
 function mockFetchReturning(...bodies: (string | Error)[]): jest.Mock {
-  const mock = jest.fn();
-  for (const body of bodies) {
-    if (body instanceof Error) {
-      mock.mockRejectedValueOnce(body);
-    } else {
-      mock.mockResolvedValueOnce(manifestResponse(body));
-    }
-  }
-  globalThis.fetch = mock as unknown as typeof fetch;
-  return mock;
+  mockFetchUpdateManifest.mockReset();
+  const raw = bodies.find((body): body is string => typeof body === 'string');
+  mockFetchUpdateManifest.mockResolvedValue(
+    raw === undefined
+      ? null
+      : {
+          url: 'https://broker.openrung.org/api/v1/app-manifest',
+          raw,
+          decoded: decodeUpdateEnvelope(raw),
+        },
+  );
+  return mockFetchUpdateManifest;
 }
 
 beforeEach(() => {
@@ -67,12 +77,12 @@ beforeEach(() => {
   resetStoreForTests();
   resetUpdateCheckForTests();
   setManifestSigningKeysForTests([TEST_MANIFEST_KEY]);
+  mockFetchUpdateManifest.mockReset();
 });
 
 afterEach(() => {
   resetUpdateCheckForTests();
   setManifestSigningKeysForTests(null);
-  globalThis.fetch = originalFetch;
 });
 
 // APP_VERSION is 0.x.y, so ios latest 9.9.9 is always "behind".
@@ -86,8 +96,7 @@ describe('refreshUpdateManifest', () => {
 
     await refreshUpdateManifest(true);
 
-    // No verified cache yet -> survey mode: every configured candidate is consulted once.
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(getSnapshot().update.tier).toBe('available');
     expect(getSnapshot().update.latestVersion).toBe('9.9.9');
     expect(mockMemoryStore.get(UPDATE_MANIFEST_STORAGE_KEY)).toBe(envelope);
@@ -97,9 +106,9 @@ describe('refreshUpdateManifest', () => {
   it('throttles after a success and backs off after a failure', async () => {
     const envelope = envelopeFor(iosPayload({ latest: '9.9.9' }));
     const fetchMock = mockFetchReturning(envelope);
-    await refreshUpdateManifest(true); // survey mode: 3 candidate calls
+    await refreshUpdateManifest(true);
     await refreshUpdateManifest(); // within the 6h window — must not fetch again
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
 
     resetUpdateCheckForTests();
     resetStoreForTests();
@@ -109,11 +118,11 @@ describe('refreshUpdateManifest', () => {
       new Error('down'),
       new Error('down'),
     );
-    await refreshUpdateManifest(true); // burns all 3 candidates
+    await refreshUpdateManifest(true);
     expect(getSnapshot().update.tier).toBe('none'); // fail open
     expect(mockMemoryStore.get(UPDATE_CHECKED_AT_STORAGE_KEY)).toBeUndefined();
     await refreshUpdateManifest(); // inside the 15-min failure backoff — must not fetch
-    expect(failing).toHaveBeenCalledTimes(3);
+    expect(failing).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the cache on an equal-stamp verified fetch (no flapping between fronts)', async () => {
@@ -172,8 +181,8 @@ describe('refreshUpdateManifest', () => {
     await refreshUpdateManifest(true);
     const checkedAtAfterSuccess = mockMemoryStore.get(UPDATE_CHECKED_AT_STORAGE_KEY);
 
-    // Every front replays an older signed manifest: the walk returns the newest stale copy,
-    // which must be treated as a FAILED check — no checkedAt bump, cache untouched.
+    // The selector returns an older signed manifest. Orchestration must treat that as a FAILED
+    // check — no checkedAt bump, cache untouched.
     const replayed = envelopeFor(
       iosPayload({ latest: '8.8.8' }, { generated_at: '2026-07-01T00:00:00Z' }),
     );
@@ -189,8 +198,8 @@ describe('refreshUpdateManifest', () => {
     await refreshUpdateManifest(true);
     const checkedAtAfterSuccess = mockMemoryStore.get(UPDATE_CHECKED_AT_STORAGE_KEY);
 
-    // All three candidates serve only an unsigned copy — the walk returns the unsigned fallback,
-    // which must be treated as a FAILED check: no checkedAt bump, cache untouched.
+    // The selector returns only its unsigned fallback. Orchestration must treat that as a FAILED
+    // check: no checkedAt bump, cache untouched.
     const stripped = envelopeFor(iosPayload({ latest: '8.8.8' }), { omitSig: true });
     mockFetchReturning(stripped, stripped, stripped);
     await refreshUpdateManifest(true);
@@ -271,7 +280,7 @@ describe('startUpdateCheck', () => {
 
     expect(getSnapshot().update.tier).toBe('none');
     expect(mockMemoryStore.has(UPDATE_MANIFEST_STORAGE_KEY)).toBe(false);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('does not let a checkedAt partial write throttle when the manifest body is missing', async () => {
@@ -283,7 +292,7 @@ describe('startUpdateCheck', () => {
     await flush();
     stop();
 
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(getSnapshot().update.latestVersion).toBe('9.9.9');
   });
 

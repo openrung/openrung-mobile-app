@@ -4,16 +4,24 @@
  * the sequential fail-open fetch. Envelopes are signed with the PUBLIC test seed — the
  * production seed stays offline.
  */
+const mockNativeFetchManifestCandidate = jest.fn();
+
+jest.mock('../../src/native/OpenRungBroker', () => ({
+  fetchManifestCandidate: (...args: unknown[]) =>
+    mockNativeFetchManifestCandidate(...args),
+}));
+
 import * as ed from '@noble/ed25519';
 
 import { APP_VERSION, AppConfig } from '../../src/config';
 import {
+  MANIFEST_CANDIDATE_URLS,
   compareVersions,
   decodeUpdateEnvelope,
   fetchUpdateManifest,
   setManifestSigningKeysForTests,
 } from '../../src/net/updateManifestClient';
-import { base64ToBytes, bytesToBase64, deriveKeyId, utf8Bytes } from '../helpers/signing';
+import { base64ToBytes, bytesToBase64, deriveKeyId, utf8Bytes } from '../helpers/bytes';
 import {
   TEST_MANIFEST_KEY,
   UNPINNED_SEED_B64,
@@ -24,9 +32,15 @@ import {
 } from '../helpers/updateManifest';
 
 const VECTOR = manifestVectors.vector;
+const DIRECT_MANIFEST_URL = 'https://broker.openrung.org/api/v1/app-manifest';
+const CLOUDFRONT_MANIFEST_URL =
+  'https://d2r7mdpyevvs1m.cloudfront.net/api/v1/app-manifest';
+const GITHUB_MANIFEST_URL =
+  'https://github.com/openrung/openrung-mobile-app/releases/latest/download/update-manifest.json';
 
 beforeEach(() => {
   setManifestSigningKeysForTests([TEST_MANIFEST_KEY]);
+  mockNativeFetchManifestCandidate.mockReset();
 });
 
 afterEach(() => {
@@ -262,130 +276,230 @@ describe('fetchUpdateManifest — sequential fail-open', () => {
     globalThis.fetch = originalFetch;
   });
 
-  it('falls through failing candidates to the first good one', async () => {
-    const good = envelopeFor(manifestPayload());
-    const fetchMock = jest
-      .fn()
-      .mockResolvedValueOnce(manifestResponse('irrelevant', 404))
-      .mockRejectedValueOnce(new Error('network down'))
-      .mockResolvedValueOnce(manifestResponse(good));
+  function installNativeBodies(...bodies: (string | Error)[]): void {
+    let index = 0;
+    mockNativeFetchManifestCandidate.mockImplementation(
+      async ({ candidateUrl }: { candidateUrl: string }) => {
+        const body = bodies[index++];
+        if (body instanceof Error) {
+          throw body;
+        }
+        if (body === undefined) {
+          throw new Error(`unexpected native manifest candidate: ${candidateUrl}`);
+        }
+        return { bodyJson: body, sourceUrl: candidateUrl };
+      },
+    );
+  }
+
+  // AppConfig.UPDATE_MANIFEST_URLS and the routing allowlist in updateManifestClient.ts are
+  // separate pins of the same FOREVER CONTRACT. Drift is silent at runtime — an unrecognized
+  // candidate throws inside the fail-open walk — so assert the two lists here as well as in the
+  // transport:check guard, and prove the DEFAULT argument (production's actual input) routes.
+  it('keeps AppConfig.UPDATE_MANIFEST_URLS identical to the routed candidate list', () => {
+    expect(AppConfig.UPDATE_MANIFEST_URLS).toEqual([...MANIFEST_CANDIDATE_URLS]);
+    expect(MANIFEST_CANDIDATE_URLS).toEqual([
+      DIRECT_MANIFEST_URL,
+      CLOUDFRONT_MANIFEST_URL,
+      GITHUB_MANIFEST_URL,
+    ]);
+  });
+
+  it('routes every default AppConfig candidate — none is silently unsupported', async () => {
+    const direct = envelopeFor(manifestPayload({ generated_at: '2026-07-20T00:00:00Z' }));
+    const cloudFront = envelopeFor(manifestPayload({ generated_at: '2026-07-10T00:00:00Z' }));
+    const gitHub = envelopeFor(manifestPayload({ generated_at: '2026-07-05T00:00:00Z' }));
+    installNativeBodies(direct, cloudFront);
+    const fetchMock = jest.fn().mockResolvedValue(manifestResponse(gitHub));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    const fetched = await fetchUpdateManifest(['https://a/', 'https://b/', 'https://c/']);
-    expect(fetched?.url).toBe('https://c/');
+    // No explicit URL list: exercises fetchUpdateManifest's default parameter exactly as the
+    // update-check service calls it in production. With no cached floor the walk surveys every
+    // candidate, so a config entry the router does not recognize would show up as a missing call.
+    const fetched = await fetchUpdateManifest();
+
+    expect(mockNativeFetchManifestCandidate.mock.calls).toEqual([
+      [{ candidateUrl: DIRECT_MANIFEST_URL }],
+      [{ candidateUrl: CLOUDFRONT_MANIFEST_URL }],
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe(GITHUB_MANIFEST_URL);
+    expect(fetched).toMatchObject({ url: DIRECT_MANIFEST_URL, decoded: { verified: true } });
+  });
+
+  it('routes broker and CloudFront through native, then only the exact GitHub URL through fetch', async () => {
+    const unsignedDirect = envelopeFor(
+      manifestPayload({ generated_at: '2026-07-01T00:00:00Z' }),
+      { omitSig: true },
+    );
+    const unsignedCloudFront = envelopeFor(
+      manifestPayload({ generated_at: '2026-07-02T00:00:00Z' }),
+      { omitSig: true },
+    );
+    const signedGitHub = envelopeFor(
+      manifestPayload({ generated_at: '2026-07-03T00:00:00Z' }),
+    );
+    installNativeBodies(unsignedDirect, unsignedCloudFront);
+    const fetchMock = jest.fn().mockResolvedValue(manifestResponse(signedGitHub));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const fetched = await fetchUpdateManifest([
+      DIRECT_MANIFEST_URL,
+      CLOUDFRONT_MANIFEST_URL,
+      GITHUB_MANIFEST_URL,
+    ]);
+
+    expect(mockNativeFetchManifestCandidate.mock.calls).toEqual([
+      [{ candidateUrl: DIRECT_MANIFEST_URL }],
+      [{ candidateUrl: CLOUDFRONT_MANIFEST_URL }],
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe(GITHUB_MANIFEST_URL);
+    expect(fetched).toMatchObject({
+      url: GITHUB_MANIFEST_URL,
+      raw: signedGitHub,
+      decoded: { verified: true },
+    });
+  });
+
+  it('falls through a native broker failure to a clean native CloudFront candidate', async () => {
+    const good = envelopeFor(manifestPayload());
+    installNativeBodies(new Error('network down'), good);
+    const fetchMock = jest.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const fetched = await fetchUpdateManifest(
+      [DIRECT_MANIFEST_URL, CLOUDFRONT_MANIFEST_URL, GITHUB_MANIFEST_URL],
+      { atLeastGeneratedAtMs: Date.parse('2026-07-22T00:00:00Z') },
+    );
+
+    expect(fetched?.url).toBe(CLOUDFRONT_MANIFEST_URL);
     expect(fetched?.raw).toBe(good);
-    expect(fetched?.decoded.verified).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(mockNativeFetchManifestCandidate).toHaveBeenCalledTimes(2);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('a tampered candidate loses to a clean later candidate', async () => {
-    const clean = envelopeFor(manifestPayload());
+  it('a tampered direct candidate loses to a clean CloudFront candidate', async () => {
     const tampered = envelopeFor(manifestPayload(), { seedB64: UNPINNED_SEED_B64 });
-    globalThis.fetch = jest
-      .fn()
-      .mockResolvedValueOnce(manifestResponse(tampered))
-      .mockResolvedValueOnce(manifestResponse(clean)) as unknown as typeof fetch;
+    const clean = envelopeFor(manifestPayload());
+    installNativeBodies(tampered, clean);
 
-    const fetched = await fetchUpdateManifest(['https://bad/', 'https://good/']);
-    expect(fetched?.url).toBe('https://good/');
+    const fetched = await fetchUpdateManifest([
+      DIRECT_MANIFEST_URL,
+      CLOUDFRONT_MANIFEST_URL,
+    ]);
+    expect(fetched?.url).toBe(CLOUDFRONT_MANIFEST_URL);
+    expect(fetched?.decoded.verified).toBe(true);
   });
 
-  it('keeps walking past an unsigned copy to a verified one on a later front', async () => {
+  it('keeps walking past an unsigned direct copy to a verified CloudFront copy', async () => {
     const unsigned = envelopeFor(manifestPayload(), { omitSig: true });
     const signed = envelopeFor(manifestPayload());
-    const fetchMock = jest
-      .fn()
-      .mockResolvedValueOnce(manifestResponse(unsigned))
-      .mockResolvedValueOnce(manifestResponse(signed));
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    installNativeBodies(unsigned, signed);
 
-    const fetched = await fetchUpdateManifest(['https://stripped/', 'https://signed/']);
-    expect(fetched?.url).toBe('https://signed/');
+    const fetched = await fetchUpdateManifest([
+      DIRECT_MANIFEST_URL,
+      CLOUDFRONT_MANIFEST_URL,
+    ]);
+    expect(fetched?.url).toBe(CLOUDFRONT_MANIFEST_URL);
     expect(fetched?.decoded.verified).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(mockNativeFetchManifestCandidate).toHaveBeenCalledTimes(2);
   });
 
   it('returns the first unsigned copy only when no candidate verifies', async () => {
-    const unsignedA = envelopeFor(manifestPayload({ promote: 'notify' }), { omitSig: true });
-    const unsignedB = envelopeFor(manifestPayload(), { omitSig: true });
-    globalThis.fetch = jest
-      .fn()
-      .mockResolvedValueOnce(manifestResponse(unsignedA))
-      .mockResolvedValueOnce(manifestResponse(unsignedB)) as unknown as typeof fetch;
+    const unsignedDirect = envelopeFor(manifestPayload({ promote: 'notify' }), {
+      omitSig: true,
+    });
+    const unsignedCloudFront = envelopeFor(manifestPayload(), { omitSig: true });
+    installNativeBodies(unsignedDirect, unsignedCloudFront);
 
-    const fetched = await fetchUpdateManifest(['https://a/', 'https://b/']);
-    expect(fetched?.url).toBe('https://a/');
+    const fetched = await fetchUpdateManifest([
+      DIRECT_MANIFEST_URL,
+      CLOUDFRONT_MANIFEST_URL,
+    ]);
+    expect(fetched?.url).toBe(DIRECT_MANIFEST_URL);
     expect(fetched?.decoded.verified).toBe(false);
   });
 
-  it('walks past a stale signed front to a fresher one when a freshness floor is set', async () => {
+  it('walks past a stale signed direct front to fresh CloudFront when a floor is set', async () => {
     const stale = envelopeFor(manifestPayload({ generated_at: '2026-07-01T00:00:00Z' }));
     const fresh = envelopeFor(manifestPayload({ generated_at: '2026-07-22T00:00:00Z' }));
-    const fetchMock = jest
-      .fn()
-      .mockResolvedValueOnce(manifestResponse(stale))
-      .mockResolvedValueOnce(manifestResponse(fresh));
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    installNativeBodies(stale, fresh);
 
-    const fetched = await fetchUpdateManifest(['https://stale/', 'https://fresh/'], {
-      atLeastGeneratedAtMs: Date.parse('2026-07-22T00:00:00Z'),
-    });
-    expect(fetched?.url).toBe('https://fresh/');
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const fetched = await fetchUpdateManifest(
+      [DIRECT_MANIFEST_URL, CLOUDFRONT_MANIFEST_URL],
+      { atLeastGeneratedAtMs: Date.parse('2026-07-22T00:00:00Z') },
+    );
+    expect(fetched?.url).toBe(CLOUDFRONT_MANIFEST_URL);
+    expect(mockNativeFetchManifestCandidate).toHaveBeenCalledTimes(2);
   });
 
-  it('stops at the first front when it is at least as fresh as the floor (steady state)', async () => {
+  it('stops at the direct front when it is at least as fresh as the floor', async () => {
     const current = envelopeFor(manifestPayload({ generated_at: '2026-07-22T00:00:00Z' }));
-    const fetchMock = jest.fn().mockResolvedValue(manifestResponse(current));
+    installNativeBodies(current);
+    const fetchMock = jest.fn();
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    const fetched = await fetchUpdateManifest(['https://a/', 'https://b/', 'https://c/'], {
-      atLeastGeneratedAtMs: Date.parse('2026-07-22T00:00:00Z'),
-    });
-    expect(fetched?.url).toBe('https://a/');
+    const fetched = await fetchUpdateManifest(
+      [DIRECT_MANIFEST_URL, CLOUDFRONT_MANIFEST_URL, GITHUB_MANIFEST_URL],
+      { atLeastGeneratedAtMs: Date.parse('2026-07-22T00:00:00Z') },
+    );
+    expect(fetched?.url).toBe(DIRECT_MANIFEST_URL);
+    expect(mockNativeFetchManifestCandidate).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('with no floor surveys native fronts and takes the newest verified envelope', async () => {
+    const older = envelopeFor(manifestPayload({ generated_at: '2026-07-01T00:00:00Z' }));
+    const newer = envelopeFor(manifestPayload({ generated_at: '2026-07-10T00:00:00Z' }));
+    installNativeBodies(older, newer);
+
+    const fetched = await fetchUpdateManifest([
+      DIRECT_MANIFEST_URL,
+      CLOUDFRONT_MANIFEST_URL,
+    ]);
+    expect(fetched?.url).toBe(CLOUDFRONT_MANIFEST_URL);
+    expect(fetched?.decoded.manifest.generatedAtMs).toBe(
+      Date.parse('2026-07-10T00:00:00Z'),
+    );
+  });
+
+  it('returns null and never throws when every allowed candidate fails', async () => {
+    installNativeBodies(new Error('offline'), new Error('offline'));
+    const fetchMock = jest.fn().mockRejectedValue(new Error('offline'));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await expect(
+      fetchUpdateManifest([
+        DIRECT_MANIFEST_URL,
+        CLOUDFRONT_MANIFEST_URL,
+        GITHUB_MANIFEST_URL,
+      ]),
+    ).resolves.toBeNull();
+    expect(mockNativeFetchManifestCandidate).toHaveBeenCalledTimes(2);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('returns the newest stale copy when no front meets the floor', async () => {
-    const older = envelopeFor(manifestPayload({ generated_at: '2026-07-01T00:00:00Z' }));
-    const newer = envelopeFor(manifestPayload({ generated_at: '2026-07-10T00:00:00Z' }));
-    globalThis.fetch = jest
-      .fn()
-      .mockResolvedValueOnce(manifestResponse(older))
-      .mockResolvedValueOnce(manifestResponse(newer)) as unknown as typeof fetch;
-
-    const fetched = await fetchUpdateManifest(['https://a/', 'https://b/'], {
-      atLeastGeneratedAtMs: Date.parse('2026-07-22T00:00:00Z'),
-    });
-    expect(fetched?.decoded.manifest.generatedAtMs).toBe(Date.parse('2026-07-10T00:00:00Z'));
-  });
-
-  it('with no floor (fresh install) surveys every front and takes the newest verified', async () => {
-    const older = envelopeFor(manifestPayload({ generated_at: '2026-07-01T00:00:00Z' }));
-    const newer = envelopeFor(manifestPayload({ generated_at: '2026-07-10T00:00:00Z' }));
-    const fetchMock = jest
-      .fn()
-      .mockResolvedValueOnce(manifestResponse(older))
-      .mockResolvedValueOnce(manifestResponse(newer));
+  it('rejects arbitrary candidates internally without native or JavaScript HTTP', async () => {
+    const fetchMock = jest.fn();
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    const fetched = await fetchUpdateManifest(['https://a/', 'https://b/']);
-    expect(fetched?.url).toBe('https://b/');
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await expect(fetchUpdateManifest(['https://not-allowed.example/manifest'])).resolves.toBeNull();
+    expect(mockNativeFetchManifestCandidate).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('returns null (never throws) when every candidate fails', async () => {
-    globalThis.fetch = jest
-      .fn()
-      .mockRejectedValue(new Error('offline')) as unknown as typeof fetch;
-    await expect(fetchUpdateManifest(['https://a/', 'https://b/'])).resolves.toBeNull();
-  });
-
-  it('sends the version headers and cache busters', async () => {
-    const fetchMock = jest.fn().mockResolvedValue(manifestResponse(envelopeFor(manifestPayload())));
+  it('uses JS fetch only for GitHub with version and cache-busting headers', async () => {
+    const body = envelopeFor(manifestPayload());
+    const fetchMock = jest.fn().mockResolvedValue(manifestResponse(body));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
-    await fetchUpdateManifest(['https://a/']);
-    const init = fetchMock.mock.calls[0][1] as RequestInit;
+
+    const fetched = await fetchUpdateManifest([GITHUB_MANIFEST_URL]);
+    expect(fetched?.raw).toBe(body);
+    expect(mockNativeFetchManifestCandidate).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(GITHUB_MANIFEST_URL);
     expect(init.headers).toMatchObject({
       'X-OpenRung-App-Version': APP_VERSION,
       'Cache-Control': 'no-cache, no-store',

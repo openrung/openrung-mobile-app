@@ -1,8 +1,9 @@
 import Foundation
 
-/// Persists the current telemetry `Session` to the App Group so the app process can attach
-/// speed-test events to the live session created by the extension. Port of the session half of
-/// Android `TelemetryManager`.
+/// Persists the current telemetry `Session` to the App Group. PacketTunnel owns the session and
+/// native VPN telemetry; the app reads its ID through `OpenRungVpn.getIdentity` so TypeScript can
+/// associate speed-test telemetry without moving general VPN telemetry into JavaScript.
+/// Port of the session half of Android `TelemetryManager`.
 enum TelemetrySessionStore {
     private static let key = "telemetry_session"
 

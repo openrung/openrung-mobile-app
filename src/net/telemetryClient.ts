@@ -1,4 +1,5 @@
 import type { NativeIdentity } from '../native/types';
+import { sendTelemetryBatchJSON } from '../native/OpenRungBroker';
 import type { SpeedTestResult } from './speedTestClient';
 
 /**
@@ -28,9 +29,6 @@ export interface TelemetryBatch {
   events: TelemetryEvent[];
 }
 
-/** Production connect 10s / read 15s -> a single 15s overall deadline under RN fetch. */
-const REQUEST_TIMEOUT_MS = 15_000;
-
 /** Tiny local RFC-4122 v4 UUID helper (no crypto dependency needed for a pseudonymous id). */
 export function uuid4(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, char => {
@@ -40,49 +38,26 @@ export function uuid4(): string {
   });
 }
 
-/** `TelemetryClient.telemetryUrl`: preserves any base path, joins `api/v1/telemetry/events`. */
-export function telemetryUrl(baseUrl: string): string {
-  const trimmed = baseUrl.trim();
-  const match = /^([A-Za-z][A-Za-z0-9+.-]*):\/\/([^/?#]+)([^?#]*)/.exec(trimmed);
-  if (!match || !match[2]) {
-    throw new Error('broker URL must include scheme and host');
-  }
-  const basePath = match[3].replace(/^\/+/, '').replace(/\/+$/, '');
-  const segments = [basePath, 'api/v1/telemetry/events'].filter(segment => segment.length > 0);
-  return `${match[1]}://${match[2]}/${segments.join('/')}`;
-}
-
 /**
- * POST {base}/api/v1/telemetry/events with a `TelemetryBatch` body. Headers carry the identity
- * from the first event, exactly like production. An empty list is a no-op.
+ * Serializes the existing speed-test telemetry envelope and hands it to brokerapi. An empty list
+ * remains a no-op, and general VPN telemetry remains native-owned.
  */
-export async function sendTelemetry(baseUrl: string, events: TelemetryEvent[]): Promise<void> {
+export async function sendTelemetry(
+  baseUrl: string,
+  events: TelemetryEvent[],
+  signal?: AbortSignal,
+): Promise<void> {
   if (events.length === 0) {
     return;
   }
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  try {
-    const batch: TelemetryBatch = { events };
-    const response = await fetch(telemetryUrl(baseUrl), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-OpenRung-Client-ID': events[0].client_id,
-        'X-OpenRung-Session-ID': events[0].session_id,
-      },
-      body: JSON.stringify(batch),
-      signal: controller.signal,
-    });
-    if (response.status < 200 || response.status > 299) {
-      const body = await response.text().catch(() => '');
-      throw new Error(
-        `broker telemetry: ${body.trim().length > 0 ? body : `HTTP ${response.status}`}`,
-      );
-    }
-  } finally {
-    clearTimeout(timer);
-  }
+  const batch: TelemetryBatch = { events };
+  await sendTelemetryBatchJSON(
+    {
+      brokerUrl: baseUrl,
+      batchJson: JSON.stringify(batch),
+    },
+    signal,
+  );
 }
 
 interface ActiveIdentity {
@@ -99,8 +74,8 @@ function requireSession(identity: NativeIdentity): ActiveIdentity {
 }
 
 /**
- * `TelemetryManager.recordSpeedTest`: the `speed_test_completed` event with production attributes
- * and measurements (Mbps stored as milli-Mbps in a whole number).
+ * Existing `speed_test_completed` schema with the production attributes and measurements
+ * (Mbps stored as milli-Mbps in a whole number).
  */
 export function buildSpeedTestCompletedEvent(
   identity: NativeIdentity,

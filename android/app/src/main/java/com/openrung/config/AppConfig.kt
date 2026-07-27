@@ -21,10 +21,9 @@ object AppConfig {
     const val TELEMETRY_BROKER_URL = "https://broker.openrung.org/"
 
     /**
-     * Stable broker-front order retained for WSS-ticket failover and the temporarily deferred,
-     * physical-Network-bound Android health probe. Native relay discovery now passes only the
-     * configured primary to brokerapi; Go owns its default candidates, override detection, racing,
-     * URL policy, ECH transport selection, and relay verification.
+     * Stable broker-front order retained for native WSS-ticket failover. Native relay discovery
+     * passes only the configured primary to brokerapi; Go owns its default candidates, override
+     * detection, racing, URL policy, ECH transport selection, and relay verification.
      */
     val DEFAULT_BROKER_URLS: List<String> = listOf(
         DEFAULT_BROKER_URL,

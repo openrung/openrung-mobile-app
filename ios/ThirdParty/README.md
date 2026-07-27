@@ -36,11 +36,13 @@ naiveproxy — see [`../../RELEASE.md`](../../RELEASE.md) §2), resolves the tag
 `brokerapi` and `wsscore` modules, and emits one unified
 `Libbox.xcframework`. This is required because a second gomobile framework
 would load a second, incompatible Go runtime. Shared transport implementations
-are never copied into this repository. The broker symbols are foundation for a
-later call-site migration; current Swift and React Native broker clients remain
-unchanged. Before installation, the build script links a small broker-constructor
-executable against both Apple slices and verifies that the OpenRung host target
-declares its own `libresolv.tbd` dependency.
+are never copied into this repository. Swift confines generated broker objects
+to `LibboxBrokerTransport`, copies value snapshots before close, and supplies
+separate iOS and React Native factories from this one framework/runtime.
+Before installation, the build script links a small broker-constructor
+executable against both Apple slices, checks the React Native constructor plus
+speed/manifest symbols, and verifies that the OpenRung host target declares its
+own `libresolv.tbd` dependency.
 
 For development against unpublished local checkouts, use either or both of:
 

@@ -1,6 +1,5 @@
 package com.openrung.vpn
 
-import com.openrung.net.BrokerHttpException
 import com.openrung.net.BrokerNativeFailure
 import com.openrung.net.BrokerNativeFailureKind
 import com.openrung.net.WssTicketStatusException
@@ -57,16 +56,9 @@ class FailureClassifierTest {
         assertEquals("permission_denied", FailureClassifier.classify(SecurityException("VPN permission revoked")))
     }
 
-    @Test
-    fun `broker http 429 classifies as rate_limited`() {
-        assertEquals("rate_limited", FailureClassifier.classify(BrokerHttpException(429, "broker list relays: too many requests")))
-    }
-
-    @Test
-    fun `broker http non-429 classifies as http prefix with code`() {
-        assertEquals("http_503", FailureClassifier.classify(BrokerHttpException(503, "broker list relays: unavailable")))
-        assertEquals("http_500", FailureClassifier.classify(BrokerHttpException(500, "broker list relays: server error")))
-    }
+    // Broker HTTP status now reaches the classifier only as WssTicketStatusException (next test)
+    // or BrokerNativeFailure(HTTP_STATUS) (the native-failure cases further down), so there is no
+    // longer a discovery-side HTTP exception type to assert here.
 
     @Test
     fun `WSS ticket status keeps HTTP classification transport scoped`() {

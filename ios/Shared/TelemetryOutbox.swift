@@ -1,8 +1,8 @@
 import Foundation
 
-/// Cross-process telemetry outbox backed by a single JSON file in the App Group container.
-/// Both the extension (heartbeat/flush) and the app (speed-test enqueue) mutate it, so every
-/// read-modify-write is serialized with `NSFileCoordinator` and persisted atomically.
+/// Native VPN telemetry outbox backed by a single JSON file in the App Group container.
+/// PacketTunnel heartbeat/session events use this queue; React Native speed-test telemetry goes
+/// directly through `OpenRungBroker`. Read-modify-write remains coordinated and atomic.
 /// Port of the outbox half of Android `TelemetryManager`.
 enum TelemetryOutbox {
     private static var fileURL: URL? {

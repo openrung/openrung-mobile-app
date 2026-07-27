@@ -57,11 +57,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
-import java.net.HttpURLConnection
 import java.io.File
 import java.io.IOException
 import java.net.InetAddress
-import java.net.URL
 import java.time.Instant
 import kotlin.coroutines.coroutineContext
 import kotlin.random.Random
@@ -1176,7 +1174,7 @@ class OpenRungVpnService : VpnService() {
                 if (physicalNetworkWasUnavailable) {
                     // A QUIC idle timeout commonly means Wi-Fi/cellular disappeared. Do not turn
                     // that local outage into a terminal broker failure: keep the foreground VPN in
-                    // CONNECTING and wait until an independent broker front is reachable again.
+                    // CONNECTING and wait until an independent connectivity endpoint is reachable.
                     awaitPhysicalNetworkAlive()
                 }
                 // delay() remains owned by punchMonitorJob, so disconnect or a manual connection
@@ -1265,8 +1263,9 @@ class OpenRungVpnService : VpnService() {
                 coroutineContext.ensureActive()
 
                 // A network transition can publish callbacks before the replacement network is
-                // usable. Keep the foreground VPN in CONNECTING until a broker front is reachable
-                // outside the TUN, then fetch fresh signed metadata and try direct Reality first.
+                // usable. Keep the foreground VPN in CONNECTING until an independent connectivity
+                // endpoint is reachable outside the TUN, then fetch fresh signed metadata and try
+                // direct Reality first.
                 if (!physicalNetworkAlive()) awaitPhysicalNetworkAlive()
                 coroutineContext.ensureActive()
                 connect(brokerUrl, country, relayID)
@@ -1328,8 +1327,8 @@ class OpenRungVpnService : VpnService() {
                     PunchPathFailure(reason = it, waitForPhysicalNetwork = true)
                 }
                 healthFailure.onAwait {
-                    // The health loop already proved a broker front is reachable on a physical
-                    // Network, so it can re-ladder immediately.
+                    // The health loop already proved an independent connectivity endpoint is
+                    // reachable on a physical Network, so it can re-ladder immediately.
                     PunchPathFailure(reason = it, waitForPhysicalNetwork = false)
                 }
             }
@@ -1341,8 +1340,9 @@ class OpenRungVpnService : VpnService() {
 
     /**
      * Mirrors the desktop client's thresholded through-tunnel health monitor. Only after repeated
-     * VPN failures do we probe the broker fronts on a physical Android [Network]; a local outage is
-     * left alone, while a reachable front proves that the direct tunnel itself needs recovery.
+     * VPN failures do we probe independent connectivity endpoints on a physical Android [Network];
+     * a local outage is left alone, while a reachable endpoint proves that the direct tunnel itself
+     * needs recovery.
      */
     private suspend fun awaitTunnelHealthFailure(): String {
         var failures = 0
@@ -1376,29 +1376,12 @@ class OpenRungVpnService : VpnService() {
         }
         if (physicalNetworks.isEmpty()) return false
 
-        // Deferred to PR 3: this liveness probe must stay bound to the selected non-VPN Network.
-        // The broker binding cannot preserve Network.openConnection routing and exposes no health
-        // selector, so using an ordinary Go request here could accidentally traverse the bad VPN.
-        val fronts = physicalProbeBrokerFronts(brokerUrl)
         for (network in physicalNetworks) {
-            for (front in fronts) {
-                if (probePhysicalNetwork(network, front)) return true
+            for (endpoint in PhysicalNetworkProbe.ENDPOINTS) {
+                if (PhysicalNetworkProbe.isReachable(network, endpoint)) return true
             }
         }
         return false
-    }
-
-    /**
-     * Preserves the old winner-first/default ordering solely for the explicitly deferred physical
-     * Network-bound HEAD probe. Production relay discovery no longer consumes this list.
-     */
-    private fun physicalProbeBrokerFronts(primary: String?): List<String> {
-        val defaults = AppConfig.DEFAULT_BROKER_URLS.map(String::trim).filter(String::isNotEmpty)
-        val selected = primary?.trim().orEmpty()
-        return buildList {
-            if (selected.isNotEmpty() && selected !in defaults) add(selected)
-            addAll(defaults)
-        }.distinct()
     }
 
     private suspend fun awaitPhysicalNetworkAlive() {
@@ -1406,29 +1389,6 @@ class OpenRungVpnService : VpnService() {
             delay(PHYSICAL_NETWORK_RETRY_DELAY_MS)
         }
     }
-
-    private suspend fun probePhysicalNetwork(network: Network, front: String): Boolean =
-        withContext(Dispatchers.IO) {
-            val connection = runCatching {
-                network.openConnection(URL(front)) as HttpURLConnection
-            }.getOrNull() ?: return@withContext false
-            try {
-                connection.requestMethod = "HEAD"
-                connection.connectTimeout = PHYSICAL_NETWORK_PROBE_TIMEOUT_MS
-                connection.readTimeout = PHYSICAL_NETWORK_PROBE_TIMEOUT_MS
-                connection.instanceFollowRedirects = false
-                connection.useCaches = false
-                // Any HTTP response proves the physical path is alive; authentication and body
-                // semantics are irrelevant here because this request never supplies identity data.
-                connection.responseCode > 0
-            } catch (error: CancellationException) {
-                throw error
-            } catch (_: Throwable) {
-                false
-            } finally {
-                connection.disconnect()
-            }
-        }
 
     /**
      * Detaches resources in routing order and starts WSS close without blocking Main. Lifecycle
@@ -1567,7 +1527,6 @@ class OpenRungVpnService : VpnService() {
         internal const val PUNCH_HEALTH_MIN_DELAY_MS = 25_000L
         internal const val PUNCH_HEALTH_MAX_DELAY_MS = 35_000L
         internal const val PUNCH_HEALTH_FAILURE_THRESHOLD = 3
-        private const val PHYSICAL_NETWORK_PROBE_TIMEOUT_MS = 3_000
         private const val PHYSICAL_NETWORK_RETRY_DELAY_MS = 5_000L
         private const val ACCESS_TRANSPORT_DIRECT = "direct"
         private const val ACCESS_TRANSPORT_PUNCH = "punch"

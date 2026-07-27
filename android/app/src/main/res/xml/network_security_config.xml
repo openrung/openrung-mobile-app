@@ -1,11 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Cleartext HTTP is denied for every host. All app traffic — relay discovery, telemetry / heartbeat /
-  speed-test, geo lookup, connectivity probes — goes over HTTPS. Discovery in particular must never
-  fall back to cleartext, because the relay list is unsigned and a forged one would redirect the whole
-  tunnel. If telemetry is ever moved to a direct-to-origin endpoint ("Option A" in docs/ARCHITECTURE.md
-  § "Network transport"), it should still be HTTPS; only add a scoped domain-config here if that origin
-  genuinely cannot present a publicly-trusted certificate.
+  Cleartext HTTP is denied for every host. Platform HTTP uses HTTPS for geo and connectivity
+  probes, while eligible broker requests use the shared Go brokerapi transport. Relay lists are
+  verified by brokerapi, but transport must still never downgrade to remote cleartext. Android's
+  physical-Network health exception is also HTTPS and targets only the independent gstatic and
+  Cloudflare connectivity endpoints; it sends no OpenRung identity or broker headers.
 -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="false" />

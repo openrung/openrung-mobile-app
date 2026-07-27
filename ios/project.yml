@@ -133,9 +133,9 @@ targets:
   # Hostless logic-test bundle. It compiles the units under test and their source closure directly
   # into the test module (rather than @testable-importing the app/extension), so the suites build and
   # run without the app, CocoaPods, or Libbox. The source closure also includes the pure WSS policy,
-  # ticket policy, native broker runner, bridge config, network-epoch tracker, and the exact
-  # production EngineStopSignal so cancellation/re-wait behavior is exercised under Thread
-  # Sanitizer.
+  # ticket policy, native broker runner, React-free broker request coordinator, bridge config,
+  # network-epoch tracker, and the exact production EngineStopSignal so cancellation/re-wait
+  # behavior is exercised under Thread Sanitizer.
   #   - FailureClassifierTests: FailureClassifier + the small error types it maps.
   #   - BrokerClientTests: native discovery argument forwarding and verified-result decoding.
   #   - RelayRankerTests: the latency-bucket ladder reorder (RelayRanker + RelayReachability,
@@ -146,6 +146,7 @@ targets:
     platform: iOS
     sources:
       - path: OpenRungTests
+      - path: OpenRung/OpenRungBrokerCoordinator.swift
       - path: PacketTunnel/EngineStopSignal.swift
       - path: PacketTunnel/FailureClassifier.swift
       - path: PacketTunnel/PhysicalNetworkEpochMonitor.swift
@@ -156,7 +157,6 @@ targets:
       - path: Shared/AppConfig.swift
       - path: Shared/BrokerClient.swift
       - path: Shared/BrokerClientError.swift
-      - path: Shared/BrokerEndpoint.swift
       - path: Shared/DeviceAttributes.swift
       - path: Shared/InternetProbe.swift
       - path: Shared/NetworkPathMonitor.swift

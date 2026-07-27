@@ -20,10 +20,20 @@ jest.mock('@react-native-async-storage/async-storage', () => {
   };
 });
 
-// The store pushes split-tunnel configs through the OpenRungVpn bridge; the mock keeps the
-// suite off the scripted simulator and lets the push payloads be asserted verbatim.
+const mockFirstReachable = jest.fn();
+
+jest.mock('../../src/net/brokerClient', () => ({
+  firstReachable: (...args: unknown[]) => mockFirstReachable(...args),
+}));
+
+// The store reads its paired native identity before directory selection and pushes split-tunnel
+// configs through the OpenRungVpn bridge. Keep both operations deterministic and hostless.
 jest.mock('../../src/native/OpenRungVpn', () => ({
   OpenRungVpn: {
+    getIdentity: jest.fn(async () => ({
+      clientId: 'client-directory',
+      sessionId: 'session-directory',
+    })),
     setSplitTunnelConfig: jest.fn(async () => {}),
   },
 }));
@@ -32,7 +42,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { AppConfig } from '../../src/config';
 import { OpenRungVpn } from '../../src/native/OpenRungVpn';
-import { setRelaySigningKeysForTests } from '../../src/net/brokerClient';
 import {
   HOME_VIEW_MODE_STORAGE_KEY,
   SPLIT_TUNNEL_STORAGE_KEY,
@@ -47,22 +56,6 @@ import {
   setSplitTunnel,
 } from '../../src/state/store';
 import type { NativeVpnState } from '../../src/native/types';
-import { TEST_SIGNING_KEY, signedApiBody, signedResponse } from '../helpers/signing';
-
-/**
- * A relay-list response as the production broker serves it: Ed25519-signed (with the public
- * §2.3 test key, pinned in beforeEach) and echoing the directory request's
- * DIRECTORY_RELAY_LIMIT — the default broker candidates are non-loopback, so refreshDirectory
- * only ever accepts verified lists.
- */
-function jsonResponse(payload: unknown): unknown {
-  return signedResponse(
-    signedApiBody({
-      ...(payload as Record<string, unknown>),
-      limit: AppConfig.DIRECTORY_RELAY_LIMIT,
-    }),
-  );
-}
 
 const RELAY_LIST = {
   count: 1,
@@ -95,28 +88,18 @@ const RELAY_LIST = {
   ],
 };
 
-let relayFetches: number;
-
-function installFetch(relayPayload: unknown = RELAY_LIST): void {
-  relayFetches = 0;
-  (globalThis as Record<string, unknown>).fetch = jest.fn(async (url: string) => {
-    if (url.includes('/api/v1/relays')) {
-      relayFetches++;
-      return jsonResponse(relayPayload);
-    }
-    // Anything else — notably ipwho.is — must never be contacted for relays.
-    throw new Error(`unexpected fetch: ${url}`);
+function installNativeDirectory(relayPayload: unknown = RELAY_LIST): void {
+  mockFirstReachable.mockReset();
+  mockFirstReachable.mockResolvedValue({
+    brokerUrl: AppConfig.DEFAULT_BROKER_URL,
+    response: relayPayload,
   });
 }
 
 beforeEach(() => {
   resetStoreForTests();
-  setRelaySigningKeysForTests([TEST_SIGNING_KEY]);
-  installFetch();
-});
-
-afterEach(() => {
-  setRelaySigningKeysForTests(null);
+  (OpenRungVpn.getIdentity as jest.Mock).mockClear();
+  installNativeDirectory();
 });
 
 describe('refreshDirectory', () => {
@@ -135,22 +118,27 @@ describe('refreshDirectory', () => {
         relays: [{ id: 'tokyo-relay-1', label: null }],
       },
     ]);
-    expect(relayFetches).toBe(1);
+    expect(OpenRungVpn.getIdentity).toHaveBeenCalledTimes(1);
+    expect(mockFirstReachable).toHaveBeenCalledWith(AppConfig.DEFAULT_BROKER_URL, {
+      limit: AppConfig.DIRECTORY_RELAY_LIMIT,
+      clientId: 'client-directory',
+      sessionId: 'session-directory',
+    });
   });
 
   it('is a no-op after a successful non-empty load', async () => {
     await refreshDirectory();
-    expect(relayFetches).toBe(1);
+    expect(mockFirstReachable).toHaveBeenCalledTimes(1);
     await refreshDirectory();
-    expect(relayFetches).toBe(1); // unchanged
+    expect(mockFirstReachable).toHaveBeenCalledTimes(1); // unchanged
     expect(getSnapshot().directoryStatus).toBe('loaded');
   });
 
   it('reloads when forced', async () => {
     await refreshDirectory();
-    expect(relayFetches).toBe(1);
+    expect(mockFirstReachable).toHaveBeenCalledTimes(1);
     await refreshDirectory(true);
-    expect(relayFetches).toBe(2);
+    expect(mockFirstReachable).toHaveBeenCalledTimes(2);
     expect(getSnapshot().directoryStatus).toBe('loaded');
   });
 
@@ -159,26 +147,24 @@ describe('refreshDirectory', () => {
     expect(getSnapshot().directoryStatus).toBe('loading');
     const second = refreshDirectory(); // resolves immediately without fetching
     await Promise.all([first, second]);
-    expect(relayFetches).toBe(1);
+    expect(mockFirstReachable).toHaveBeenCalledTimes(1);
   });
 
   it('re-fetches after a load that returned no regions (loaded-but-empty is not "already loaded")', async () => {
-    installFetch({ count: 0, server_time: '2026-01-01T00:00:00Z', relays: [] });
+    installNativeDirectory({ count: 0, server_time: '2026-01-01T00:00:00Z', relays: [] });
     await refreshDirectory();
     expect(getSnapshot().directoryStatus).toBe('loaded');
     expect(getSnapshot().availableRegions).toEqual([]);
     await refreshDirectory(); // no force needed: empty load must not latch
-    expect(relayFetches).toBe(2);
+    expect(mockFirstReachable).toHaveBeenCalledTimes(2);
   });
 
   it('marks the directory failed when every broker candidate fails, then allows a retry', async () => {
-    (globalThis as Record<string, unknown>).fetch = jest.fn(async () => {
-      throw new Error('network down');
-    });
+    mockFirstReachable.mockRejectedValue(new Error('network down'));
     await refreshDirectory();
     expect(getSnapshot().directoryStatus).toBe('failed');
 
-    installFetch();
+    installNativeDirectory();
     await refreshDirectory(); // FAILED does not latch either
     expect(getSnapshot().directoryStatus).toBe('loaded');
     expect(getSnapshot().availableRegions).toHaveLength(1);

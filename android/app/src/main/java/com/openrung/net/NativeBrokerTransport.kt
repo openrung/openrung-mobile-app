@@ -3,9 +3,11 @@ package com.openrung.net
 import android.os.Build
 import com.openrung.BuildConfig
 import io.nekohasekai.libbox.Libbox
+import io.nekohasekai.libbox.OpenRungBrokerManifestResult
 import io.nekohasekai.libbox.OpenRungBrokerOperation
 import io.nekohasekai.libbox.OpenRungBrokerRelayResult
 import io.nekohasekai.libbox.OpenRungBrokerResult
+import io.nekohasekai.libbox.OpenRungBrokerSpeedTestResult
 import io.nekohasekai.libbox.OpenRungBrokerWSSTicketResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -111,6 +113,35 @@ data class NativeBrokerRelayResult(
             "signatureVerified=$signatureVerified)"
 }
 
+data class NativeBrokerSpeedTestResult(
+    override val succeeded: Boolean,
+    override val errorKind: String = "",
+    override val errorText: String = "",
+    override val httpStatus: Int = 0,
+    override val retryAfterMillis: Long = 0,
+    val bytes: Long = 0,
+    val ttfbMillis: Long = 0,
+    val downloadDurationMillis: Long = 0,
+    val totalDurationMillis: Long = 0,
+    val mbps: Double = 0.0,
+) : NativeBrokerResult
+
+data class NativeBrokerManifestResult(
+    override val succeeded: Boolean,
+    override val errorKind: String = "",
+    override val errorText: String = "",
+    override val httpStatus: Int = 0,
+    override val retryAfterMillis: Long = 0,
+    val bodyJson: String = "",
+    val sourceUrl: String = "",
+) : NativeBrokerResult {
+    override fun toString(): String =
+        "NativeBrokerManifestResult(" +
+            "succeeded=$succeeded, errorKind=${BrokerNativeFailureKind.fromBinding(errorKind).value}, " +
+            "httpStatus=$httpStatus, retryAfterMillis=$retryAfterMillis, " +
+            "bodyJson=<redacted>, sourceUrl=$sourceUrl)"
+}
+
 /**
  * Ticket snapshot with an explicitly redacted representation. The bearer and bound URL are still
  * available as fields for the immediate WSS handoff, but neither can leak through ordinary logs.
@@ -145,6 +176,10 @@ interface NativeBrokerOperation {
         brokerUrl: String,
         batchJson: String,
     ): NativeBrokerCommonResult?
+
+    fun runSpeedTest(brokerUrl: String): NativeBrokerSpeedTestResult?
+
+    fun fetchManifestCandidate(candidateUrl: String): NativeBrokerManifestResult?
 
     fun requestWSSTicket(
         brokerUrl: String,
@@ -184,14 +219,54 @@ internal class AndroidNativeBrokerOperationFactory(
     }
 }
 
-/** Production composition point shared by the three migrated native clients. */
+/**
+ * Separate constructor seam for React Native operations. The OS token is deliberately fixed by
+ * the platform factory rather than accepted from JavaScript.
+ */
+internal fun interface ReactNativeBrokerOperationConstructor {
+    fun create(appVersion: String, osToken: String): NativeBrokerOperation?
+}
+
+internal class AndroidReactNativeBrokerOperationFactory(
+    private val constructor: ReactNativeBrokerOperationConstructor =
+        LibboxReactNativeBrokerOperationConstructor,
+    internal val appVersion: String = BuildConfig.VERSION_NAME,
+) : NativeBrokerOperationFactory {
+    override fun create(): NativeBrokerOperation {
+        val operation = try {
+            constructor.create(appVersion, ANDROID_REACT_NATIVE_TOKEN)
+        } catch (error: LinkageError) {
+            throw unavailableNativeBrokerFailure(error)
+        }
+        return operation ?: throw unavailableNativeBrokerFailure()
+    }
+
+    private companion object {
+        const val ANDROID_REACT_NATIVE_TOKEN = "android"
+    }
+}
+
+/** Production composition point shared only by Android VPN-service clients. */
 internal object NativeBrokerTransport {
     val operationFactory: NativeBrokerOperationFactory = AndroidNativeBrokerOperationFactory()
+}
+
+/** Production composition point for the dedicated React Native bridge. */
+internal object ReactNativeBrokerTransport {
+    val operationFactory: NativeBrokerOperationFactory = AndroidReactNativeBrokerOperationFactory()
 }
 
 private object LibboxAndroidBrokerOperationConstructor : AndroidBrokerOperationConstructor {
     override fun create(appVersion: String, apiLevel: String): NativeBrokerOperation? {
         val operation = Libbox.newOpenRungBrokerOperationForAndroid(appVersion, apiLevel)
+            ?: return null
+        return LibboxNativeBrokerOperation(operation)
+    }
+}
+
+private object LibboxReactNativeBrokerOperationConstructor : ReactNativeBrokerOperationConstructor {
+    override fun create(appVersion: String, osToken: String): NativeBrokerOperation? {
+        val operation = Libbox.newOpenRungBrokerOperationForReactNative(appVersion, osToken)
             ?: return null
         return LibboxNativeBrokerOperation(operation)
     }
@@ -219,6 +294,15 @@ private class LibboxNativeBrokerOperation(
     ): NativeBrokerCommonResult? = generatedCall {
         operation.sendTelemetryBatchJSON(brokerUrl, batchJson)?.snapshot()
     }
+
+    override fun runSpeedTest(brokerUrl: String): NativeBrokerSpeedTestResult? = generatedCall {
+        operation.runSpeedTest(brokerUrl)?.snapshot()
+    }
+
+    override fun fetchManifestCandidate(candidateUrl: String): NativeBrokerManifestResult? =
+        generatedCall {
+            operation.fetchManifestCandidate(candidateUrl)?.snapshot()
+        }
 
     override fun requestWSSTicket(
         brokerUrl: String,
@@ -255,6 +339,31 @@ private fun OpenRungBrokerRelayResult.snapshot(): NativeBrokerRelayResult =
         relayJson = relayJSON(),
         keyId = keyID(),
         signatureVerified = signatureVerified(),
+    )
+
+private fun OpenRungBrokerSpeedTestResult.snapshot(): NativeBrokerSpeedTestResult =
+    NativeBrokerSpeedTestResult(
+        succeeded = succeeded(),
+        errorKind = errorKind(),
+        errorText = sanitizeNativeErrorText(errorText()),
+        httpStatus = httpStatus(),
+        retryAfterMillis = retryAfterMillis(),
+        bytes = bytes(),
+        ttfbMillis = ttfbMillis(),
+        downloadDurationMillis = downloadDurationMillis(),
+        totalDurationMillis = totalDurationMillis(),
+        mbps = mbps(),
+    )
+
+private fun OpenRungBrokerManifestResult.snapshot(): NativeBrokerManifestResult =
+    NativeBrokerManifestResult(
+        succeeded = succeeded(),
+        errorKind = errorKind(),
+        errorText = sanitizeNativeErrorText(errorText()),
+        httpStatus = httpStatus(),
+        retryAfterMillis = retryAfterMillis(),
+        bodyJson = bodyJSON(),
+        sourceUrl = sourceURL(),
     )
 
 private fun OpenRungBrokerWSSTicketResult.snapshot(): NativeBrokerWssTicketResult =

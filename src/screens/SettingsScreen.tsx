@@ -30,6 +30,7 @@ import {
   isApkShareAvailable,
   shareInstalledApk,
 } from '../native/OpenRungApkShare';
+import { OpenRungBrokerError } from '../native/OpenRungBroker';
 import { OpenRungVpn } from '../native/OpenRungVpn';
 import { runSpeedTest, type SpeedTestResult } from '../net/speedTestClient';
 import { useAppState } from '../state/store';
@@ -72,9 +73,8 @@ export function SettingsScreen({
 
   useEffect(() => {
     return () => {
-      // Android unmounts inactive tabs. Abort an in-flight speed test on unmount so it stops
-      // downloading instead of finishing in the background — and so a fresh RUN after returning
-      // to the tab can't kick off a second concurrent download.
+      // Android unmounts inactive tabs. Abort an in-flight native speed test on unmount so its
+      // single-use broker operation is closed instead of finishing in the background.
       mountedRef.current = false;
       runControllerRef.current?.abort();
     };
@@ -128,12 +128,7 @@ export function SettingsScreen({
     setSpeedTestError(null);
     (async () => {
       try {
-        const result = await runSpeedTest(
-          AppConfig.TELEMETRY_BROKER_URL,
-          undefined,
-          undefined,
-          controller.signal,
-        );
+        const result = await runSpeedTest(AppConfig.TELEMETRY_BROKER_URL, controller.signal);
         if (!mountedRef.current) {
           return;
         }
@@ -151,14 +146,19 @@ export function SettingsScreen({
         }
       } catch (error) {
         // A run cancelled by unmount/navigation is not a real failure: don't surface it or report
-        // a bogus speed_test_failed event. (A timeout aborts the internal controller, not this
-        // one, so it still falls through to the failure path below.)
+        // a bogus speed_test_failed event. Native timeout failures leave this caller signal intact
+        // and therefore still fall through to the structured failure path below.
         if (controller.signal.aborted || !mountedRef.current) {
           return;
         }
         // Mirrors production: message ?: exception simple name for the subtitle,
         // the error type name for the telemetry attribute.
-        const errorType = error instanceof Error ? error.constructor.name || error.name : 'Error';
+        const errorType =
+          error instanceof OpenRungBrokerError
+            ? error.kind
+            : error instanceof Error
+              ? error.constructor.name || error.name
+              : 'Error';
         const message = error instanceof Error ? error.message || errorType : String(error);
         setSpeedTestError(message);
         try {

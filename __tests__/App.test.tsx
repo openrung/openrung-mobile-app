@@ -135,11 +135,25 @@ jest.mock('react-native-bottom-tabs', () => {
   return { __esModule: true, default: TabView };
 });
 
-import App from '../App';
-import { AppConfig } from '../src/config';
+// Broker operations are a mandatory native seam in production. App rendering does not need a
+// broker result, so reject deterministically instead of depending on a native binary or network.
+jest.mock('../src/native/OpenRungBroker', () => {
+  const actual = jest.requireActual('../src/native/OpenRungBroker');
+  const unavailable = () =>
+    Promise.reject(new actual.OpenRungBrokerError('unavailable', 'native test host'));
+  return {
+    ...actual,
+    firstReachable: jest.fn(unavailable),
+    fetchManifestCandidate: jest.fn(unavailable),
+    runSpeedTest: jest.fn(unavailable),
+    sendTelemetryBatchJSON: jest.fn(unavailable),
+  };
+});
 
-// Keep the directory refresh (broker fetch) off the real network: reject fast so
-// the store settles to 'failed' within the test instead of after teardown.
+import App from '../App';
+
+// GitHub's redirecting release asset is the sole manifest path intentionally left on JS fetch.
+// Reject it fast so all mount-time background work settles without touching the network.
 beforeAll(() => {
   (globalThis as { fetch?: unknown }).fetch = jest.fn(async () => {
     throw new Error('network disabled in tests');
@@ -147,26 +161,22 @@ beforeAll(() => {
 });
 
 test('renders correctly', async () => {
-  jest.useFakeTimers();
   let tree: ReactTestRenderer.ReactTestRenderer | undefined;
   try {
     await ReactTestRenderer.act(async () => {
       tree = ReactTestRenderer.create(<App />);
     });
-    // Let mount-time async work settle inside act: native getState() seed,
-    // language hydration, and every staggered broker candidate. The fetch mock
-    // rejects each candidate immediately, but later candidates still wait for
-    // the production stagger timer before joining the race.
+    // Let the native state seed, directory rejection, language hydration, and sequential
+    // manifest candidates settle inside act. There is no discovery stagger anymore.
     await ReactTestRenderer.act(async () => {
-      await jest.advanceTimersByTimeAsync(
-        AppConfig.DISCOVERY_STAGGER_MS * AppConfig.DEFAULT_BROKER_URLS.length,
-      );
+      for (let i = 0; i < 8; i++) {
+        await Promise.resolve();
+      }
     });
   } finally {
     // Unmount so component timers cannot schedule updates after the test ends.
     await ReactTestRenderer.act(async () => {
       tree?.unmount();
     });
-    jest.useRealTimers();
   }
 });

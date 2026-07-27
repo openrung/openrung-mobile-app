@@ -141,10 +141,17 @@ export function refreshDirectory(force: boolean = false): Promise<void> {
   const generation = ++directoryGeneration;
   setState({ ...state, directoryStatus: 'loading' });
 
-  const brokerEndpoints = AppConfig.brokerCandidates(state.brokerUrl);
   return loadExitNodeDirectory({
-    fetchRelays: async () =>
-      (await firstReachable(brokerEndpoints, { limit: AppConfig.DIRECTORY_RELAY_LIMIT })).response,
+    fetchRelays: async () => {
+      const identity = await OpenRungVpn.getIdentity();
+      return (
+        await firstReachable(current.brokerUrl, {
+          limit: AppConfig.DIRECTORY_RELAY_LIMIT,
+          clientId: identity.clientId,
+          sessionId: identity.sessionId,
+        })
+      ).response;
+    },
   })
     .then(regions => {
       if (generation !== directoryGeneration) {

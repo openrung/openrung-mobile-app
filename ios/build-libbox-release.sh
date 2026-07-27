@@ -233,14 +233,29 @@ for slice in ios-arm64 ios-arm64_x86_64-simulator; do
     echo "error: Apple build is missing the OpenRung iOS broker constructor in $slice" >&2
     exit 1
   fi
+  if ! grep -Fq 'LibboxNewOpenRungBrokerOperationForReactNative' "$header"; then
+    echo "error: Apple build is missing the OpenRung React Native broker constructor in $slice" >&2
+    exit 1
+  fi
   if ! grep -Fq 'LibboxOpenRungBrokerRelayResult' "$header"; then
     echo "error: Apple build is missing the OpenRung broker relay result in $slice" >&2
     exit 1
   fi
   for broker_symbol in \
     'sendTelemetryBatchJSON:' \
+    'runSpeedTest:' \
+    'fetchManifestCandidate:' \
     'requestWSSTicket:' \
+    'LibboxOpenRungBrokerSpeedTestResult' \
+    'LibboxOpenRungBrokerManifestResult' \
     'LibboxOpenRungBrokerWSSTicketResult' \
+    ')bytes;' \
+    ')ttfbMillis;' \
+    ')downloadDurationMillis;' \
+    ')totalDurationMillis;' \
+    ')mbps;' \
+    ')bodyJSON;' \
+    ')sourceURL;' \
     ')ticket;' \
     ')url;' \
     ')expiresAtMillis;' \

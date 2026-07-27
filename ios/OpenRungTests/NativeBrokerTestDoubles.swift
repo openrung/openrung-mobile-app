@@ -58,6 +58,8 @@ final class TestNativeBrokerFactory: NativeBrokerOperationFactory, @unchecked Se
 final class TestNativeBrokerOperation: NativeBrokerOperation, @unchecked Sendable {
     typealias RelayHandler = @Sendable (String, Int32, String, String) -> NativeBrokerRelayResultSnapshot?
     typealias TelemetryHandler = @Sendable (String, String) -> NativeBrokerResultSnapshot?
+    typealias SpeedTestHandler = @Sendable (String) -> NativeBrokerSpeedTestResultSnapshot?
+    typealias ManifestHandler = @Sendable (String) -> NativeBrokerManifestResultSnapshot?
     typealias TicketHandler = @Sendable (
         String,
         String,
@@ -68,6 +70,8 @@ final class TestNativeBrokerOperation: NativeBrokerOperation, @unchecked Sendabl
 
     var relayHandler: RelayHandler?
     var telemetryHandler: TelemetryHandler?
+    var speedTestHandler: SpeedTestHandler?
+    var manifestHandler: ManifestHandler?
     var ticketHandler: TicketHandler?
     var closeHandler: (@Sendable () -> Void)?
 
@@ -88,6 +92,18 @@ final class TestNativeBrokerOperation: NativeBrokerOperation, @unchecked Sendabl
         batchJSON: String
     ) -> NativeBrokerResultSnapshot? {
         telemetryHandler?(brokerURL, batchJSON)
+    }
+
+    func runSpeedTest(
+        brokerURL: String
+    ) -> NativeBrokerSpeedTestResultSnapshot? {
+        speedTestHandler?(brokerURL)
+    }
+
+    func fetchManifestCandidate(
+        candidateURL: String
+    ) -> NativeBrokerManifestResultSnapshot? {
+        manifestHandler?(candidateURL)
     }
 
     func requestWSSTicket(
@@ -154,6 +170,18 @@ final class BlockingNativeBrokerOperation: NativeBrokerOperation, @unchecked Sen
         block(NativeBrokerResultSnapshot(succeeded: false, errorKind: "cancelled"))
     }
 
+    func runSpeedTest(
+        brokerURL _: String
+    ) -> NativeBrokerSpeedTestResultSnapshot? {
+        block(NativeBrokerSpeedTestResultSnapshot(succeeded: false, errorKind: "cancelled"))
+    }
+
+    func fetchManifestCandidate(
+        candidateURL _: String
+    ) -> NativeBrokerManifestResultSnapshot? {
+        block(NativeBrokerManifestResultSnapshot(succeeded: false, errorKind: "cancelled"))
+    }
+
     func requestWSSTicket(
         brokerURL _: String,
         relayID _: String,
@@ -191,5 +219,15 @@ final class BlockingNativeBrokerOperation: NativeBrokerOperation, @unchecked Sen
         condition.lock()
         defer { condition.unlock() }
         return storedCloseCount
+    }
+
+    func waitUntilClosed(timeout: TimeInterval = 2) -> Bool {
+        condition.lock()
+        defer { condition.unlock() }
+        let deadline = Date().addingTimeInterval(timeout)
+        while closed == false, condition.wait(until: deadline) {
+            // Re-check under the condition lock.
+        }
+        return closed
     }
 }

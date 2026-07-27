@@ -2,7 +2,6 @@ package com.openrung.vpn
 
 import android.system.ErrnoException
 import android.system.OsConstants
-import com.openrung.net.BrokerHttpException
 import com.openrung.net.BrokerNativeFailure
 import com.openrung.net.BrokerNativeFailureKind
 import com.openrung.net.WssTicketStatusException
@@ -56,10 +55,9 @@ object FailureClassifier {
             return classifyNativeFailure(it)
         }
 
-        // (4) legacy/status projections (429 → rate_limited, else http_<code>)
-        chain.firstNotNullOfOrNull { it as? BrokerHttpException }?.let {
-            return if (it.status == 429) "rate_limited" else "http_${it.status}"
-        }
+        // (4) WSS ticket status projection (429 → rate_limited, else http_<code>). Discovery no
+        // longer has a typed HTTP exception of its own: brokerapi reports status through
+        // BrokerNativeFailure, handled at (3) above.
         chain.firstNotNullOfOrNull { it as? WssTicketStatusException }?.let {
             return if (it.status == 429) "rate_limited" else "http_${it.status}"
         }

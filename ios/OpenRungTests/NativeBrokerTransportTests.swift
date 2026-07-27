@@ -200,6 +200,89 @@ final class NativeBrokerTransportTests: XCTestCase {
             }
         }
     }
+
+    func testConfiguredFactoriesSelectNativeAndReactNativeConstructors() {
+        let iosOperation = TestNativeBrokerOperation()
+        let reactNativeOperation = TestNativeBrokerOperation()
+        let constructor = TestNativeBrokerConstructor(
+            iosOperation: iosOperation,
+            reactNativeOperation: reactNativeOperation
+        )
+
+        let iosFactory = ConfiguredNativeBrokerOperationFactory(
+            appVersion: "1.2.3",
+            client: .ios(osVersion: "18.5"),
+            constructor: constructor
+        )
+        let reactNativeFactory = ConfiguredNativeBrokerOperationFactory.forReactNativeIOS(
+            appVersion: "1.2.3",
+            constructor: constructor
+        )
+
+        XCTAssertTrue(iosFactory.makeOperation() === iosOperation)
+        XCTAssertTrue(reactNativeFactory.makeOperation() === reactNativeOperation)
+        XCTAssertEqual(
+            constructor.calls,
+            [
+                .ios(appVersion: "1.2.3", osVersion: "18.5"),
+                .reactNative(appVersion: "1.2.3", osToken: "ios"),
+            ]
+        )
+    }
+
+    func testSpeedAndManifestSnapshotsPreserveEveryGeneratedField() {
+        let speed = NativeBrokerSpeedTestResultSnapshot(
+            succeeded: true,
+            errorKind: "",
+            errorText: "",
+            httpStatus: 201,
+            retryAfterMilliseconds: 2_000,
+            bytes: 10_000_000,
+            timeToFirstByteMilliseconds: 125,
+            downloadDurationMilliseconds: 2_000,
+            totalDurationMilliseconds: 2_125,
+            megabitsPerSecond: 37.647
+        )
+        XCTAssertEqual(speed.bytes, 10_000_000)
+        XCTAssertEqual(speed.timeToFirstByteMilliseconds, 125)
+        XCTAssertEqual(speed.downloadDurationMilliseconds, 2_000)
+        XCTAssertEqual(speed.totalDurationMilliseconds, 2_125)
+        XCTAssertEqual(speed.megabitsPerSecond, 37.647)
+        XCTAssertEqual(speed.httpStatus, 201)
+        XCTAssertEqual(speed.retryAfterMilliseconds, 2_000)
+
+        let manifest = NativeBrokerManifestResultSnapshot(
+            succeeded: true,
+            bodyJSON: "{\"signed\":\"exact bytes\"}",
+            sourceURL: "https://broker.openrung.org/api/v1/app-manifest"
+        )
+        XCTAssertEqual(manifest.bodyJSON, "{\"signed\":\"exact bytes\"}")
+        XCTAssertEqual(
+            manifest.sourceURL,
+            "https://broker.openrung.org/api/v1/app-manifest"
+        )
+        XCTAssertFalse(manifest.description.contains("exact bytes"))
+        XCTAssertTrue(manifest.description.contains("bodyJSON: <redacted>"))
+    }
+
+    func testRelaySnapshotDescriptionsRedactRawDirectoryAndURLs() {
+        let secretURL = "wss://secret-front.example/credential-path"
+        let relay = NativeBrokerRelayResultSnapshot(
+            succeeded: true,
+            brokerURL: "https://broker.openrung.org",
+            relayJSON: """
+            {"relays":[{"id":"relay-1","wss_fronts":["\(secretURL)"]}]}
+            """,
+            keyID: "directory-key",
+            signatureVerified: true
+        )
+
+        XCTAssertFalse(String(describing: relay).contains(secretURL))
+        XCTAssertFalse(String(reflecting: relay).contains(secretURL))
+        XCTAssertFalse(String(describing: relay).contains("broker.openrung.org"))
+        XCTAssertTrue(relay.description.contains("relayJSON: <redacted>"))
+        XCTAssertTrue(relay.debugDescription.contains("brokerURL: <redacted>"))
+    }
 }
 
 private actor TestAsyncGate {
@@ -241,6 +324,26 @@ final class CloseGatedSuccessOperation: NativeBrokerOperation, @unchecked Sendab
         batchJSON _: String
     ) -> NativeBrokerResultSnapshot? {
         NativeBrokerResultSnapshot(succeeded: true)
+    }
+
+    func runSpeedTest(
+        brokerURL _: String
+    ) -> NativeBrokerSpeedTestResultSnapshot? {
+        NativeBrokerSpeedTestResultSnapshot(
+            succeeded: true,
+            bytes: 1,
+            megabitsPerSecond: 1
+        )
+    }
+
+    func fetchManifestCandidate(
+        candidateURL _: String
+    ) -> NativeBrokerManifestResultSnapshot? {
+        NativeBrokerManifestResultSnapshot(
+            succeeded: true,
+            bodyJSON: "{}",
+            sourceURL: "https://broker.openrung.org/api/v1/app-manifest"
+        )
     }
 
     func requestWSSTicket(
@@ -295,5 +398,54 @@ final class CloseGatedSuccessOperation: NativeBrokerOperation, @unchecked Sendab
         condition.lock()
         defer { condition.unlock() }
         return storedCloseCount
+    }
+}
+
+private final class TestNativeBrokerConstructor:
+    NativeBrokerOperationConstructing,
+    @unchecked Sendable
+{
+    enum Call: Equatable {
+        case ios(appVersion: String, osVersion: String)
+        case reactNative(appVersion: String, osToken: String)
+    }
+
+    private let lock = NSLock()
+    private let iosOperation: any NativeBrokerOperation
+    private let reactNativeOperation: any NativeBrokerOperation
+    private var storedCalls: [Call] = []
+
+    init(
+        iosOperation: any NativeBrokerOperation,
+        reactNativeOperation: any NativeBrokerOperation
+    ) {
+        self.iosOperation = iosOperation
+        self.reactNativeOperation = reactNativeOperation
+    }
+
+    func makeIOSOperation(
+        appVersion: String,
+        osVersion: String
+    ) -> (any NativeBrokerOperation)? {
+        lock.lock()
+        storedCalls.append(.ios(appVersion: appVersion, osVersion: osVersion))
+        lock.unlock()
+        return iosOperation
+    }
+
+    func makeReactNativeOperation(
+        appVersion: String,
+        osToken: String
+    ) -> (any NativeBrokerOperation)? {
+        lock.lock()
+        storedCalls.append(.reactNative(appVersion: appVersion, osToken: osToken))
+        lock.unlock()
+        return reactNativeOperation
+    }
+
+    var calls: [Call] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storedCalls
     }
 }

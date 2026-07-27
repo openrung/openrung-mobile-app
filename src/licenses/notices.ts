@@ -3,7 +3,8 @@
 // THIRD_PARTY_NOTICES.md — keep the two in sync when either changes. Covers the
 // GPL sing-box/libbox core plus the React Native layer (react-native,
 // @maplibre/maplibre-react-native, @react-native-async-storage/async-storage,
-// react-native-safe-area-context, react-native-svg — all MIT).
+// @noble/ed25519, @noble/hashes, react-native-safe-area-context,
+// react-native-svg — all MIT).
 
 /** One bundled/linked third-party component shown on the licenses screen. */
 export interface LicenseComponent {
@@ -39,7 +40,10 @@ export const components: LicenseComponent[] = [
   { name: "React Native", license: "MIT", url: "https://github.com/facebook/react-native" },
   { name: "@maplibre/maplibre-react-native", license: "MIT", url: "https://github.com/maplibre/maplibre-react-native" },
   { name: "@react-native-async-storage/async-storage", license: "MIT", url: "https://github.com/react-native-async-storage/async-storage" },
+  { name: "@noble/ed25519", license: "MIT", url: "https://github.com/paulmillr/noble-ed25519" },
+  { name: "@noble/hashes", license: "MIT", url: "https://github.com/paulmillr/noble-hashes" },
   { name: "react-native-safe-area-context", license: "MIT", url: "https://github.com/AppAndFlow/react-native-safe-area-context" },
+  { name: "react-native-svg", license: "MIT", url: "https://github.com/software-mansion/react-native-svg" },
 ];
 
 /** Verbatim github.com/hashicorp/yamux v0.1.2 LICENSE text. */
@@ -1142,7 +1146,9 @@ sing-box name is used only descriptively.
 
 This is first-party shared broker transport code rather than a third-party
 project, but its tagged source is a separate native release input. The complete
-GPL-3.0 text is bundled as \`LICENSE\`.
+GPL-3.0 text is bundled as \`LICENSE\`. The same linked copy supplies the native
+VPN clients and the dedicated React Native broker module; no additional Go
+runtime or HTTP dependency is distributed by this migration.
 
 ### OpenRung wsscore — GPL-3.0-or-later
 
@@ -1219,6 +1225,18 @@ Appendix A.
   the language selection).
 - **License:** MIT.
 - **Upstream:** https://github.com/react-native-async-storage/async-storage
+
+### @noble/ed25519 and @noble/hashes
+
+- **Components:** \`@noble/ed25519\` 2.3.0 and \`@noble/hashes\` 2.2.0.
+- **Purpose:** Ed25519 verification over the exact update-manifest payload
+  bytes, with the pure-JavaScript SHA-512 implementation required by Hermes.
+  These remain in the JavaScript bundle because manifest verification is still
+  TypeScript-owned after broker transport moved to native \`brokerapi\`.
+- **License:** MIT — Copyright (c) 2019 Paul Miller (\`@noble/ed25519\`);
+  Copyright (c) 2022 Paul Miller (\`@noble/hashes\`).
+- **Upstream:** https://github.com/paulmillr/noble-ed25519 and
+  https://github.com/paulmillr/noble-hashes
 
 ### react-native-safe-area-context
 

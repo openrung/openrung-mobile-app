@@ -20,6 +20,8 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
+      - name: Guard native broker transports
+        run: npm run transport:check
       - name: Run ESLint
         run: npm run lint
 
