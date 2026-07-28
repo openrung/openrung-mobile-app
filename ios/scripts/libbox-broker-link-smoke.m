@@ -2,8 +2,9 @@
 #import <Libbox/Libbox.h>
 
 // Build-only executable used by build-libbox-release.sh. It is linked but never
-// run; calling the constructor ensures Libbox's static Go archive and native
-// resolver references are actually pulled into both Apple slice link checks.
+// run; calling native constructors ensures Libbox's static Go archive, punch
+// bridge, and resolver references are actually pulled into both Apple slice
+// link checks.
 int main(void) {
   @autoreleasepool {
     id<LibboxOpenRungBrokerOperation> operation =
@@ -12,6 +13,10 @@ int main(void) {
     id<LibboxOpenRungBrokerOperation> reactNativeOperation =
         LibboxNewOpenRungBrokerOperationForReactNative(@"link-smoke", @"ios");
     [reactNativeOperation close];
+    LibboxOpenRungPunchClient *punchClient =
+        LibboxNewOpenRungPunchClientForIOS(@"https://coordinator.invalid",
+                                          @"relay-link-smoke", NO, @"", nil);
+    [punchClient close];
   }
   return 0;
 }

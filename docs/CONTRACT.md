@@ -13,7 +13,7 @@ functionality 1:1 unless noted.
 **Native (Kotlin service / Swift NEPacketTunnelProvider extension)** owns the whole
 connect path, exactly as in the production apps:
 broker relay fetch (connect path), relay selection, TCP reachability, sing-box
-(libbox) engine lifecycle, Android NAT punching, TUN + DNS config, internet probe, connection-failure
+(libbox) engine lifecycle, native NAT punching, TUN + DNS config, internet probe, connection-failure
 handling, heartbeat telemetry, VPN permission + background lifecycle, recents
 recording, status/log persistence.
 
@@ -542,6 +542,16 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   fresh ticket only if another eligible remote failure occurs. An identical
   `NWPath` callback is ignored, and wake only resumes the engine; neither event
   alone retires a healthy WSS session.
+- `ios/PacketTunnel/PunchNativeClient.swift` and
+  `PunchRecoveryCircuitBreaker.swift`, plus
+  `ios/Shared/PunchFallbackPolicy.swift`, implement the punch-first same-relay
+  ladder. Only broker-signed `punch_capable` descriptors with a strict HTTPS
+  endpoint are eligible. Bare-IP coordinators require an exact leaf pin;
+  hostname endpoints retain normal CA/hostname verification. The native result
+  must expose a literal loopback bridge. Adapter, changed-`NWPath`, and
+  end-to-end health loss stop Reality before QUIC, wait for a usable physical
+  path, then perform fresh signed discovery. Three rapid direct losses open the
+  per-relay circuit for the current user connection and select RelayHub.
 - `ios/OpenRung/OpenRungVpnModule.swift` + `OpenRungVpnModule.m`
   (RCT_EXTERN_MODULE) — implements §3 over NETunnelProviderManager +
   SharedConnectionState (Darwin observer + NEVPNStatusDidChange), including the
@@ -581,13 +591,19 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   PacketTunnel sets `APPLICATION_EXTENSION_API_ONLY=YES` and compiles without
   the xcframework via the existing `#if canImport(Libbox)` stub.
 - `ios/build-libbox-release.sh` generates that one device+simulator
-  `Libbox.xcframework` by grafting `broker_binding.go` and `wss_binding.go` into
-  the pinned sing-box libbox package and resolving brokerapi v0.1.0 and wsscore
-  v0.2.0 from `android/punchbridge/go.mod`. PacketTunnel calls the generated
+  `Libbox.xcframework` by grafting the shared punch binding/session/bridge,
+  `broker_binding.go`, and `wss_binding.go` into the pinned sing-box libbox
+  package and resolving brokerapi v0.1.0, punchcore v0.1.0, and wsscore v0.2.0
+  from `android/punchbridge/go.mod`. PacketTunnel calls the generated
+  `LibboxNewOpenRungPunchClientForIOS(baseURL,relayID,insecureTLS,certSHA256,listener)`
+  export. Its nil protector is Apple-specific: provider-created sockets are
+  outside PacketTunnel's own TUN, while the Android constructor remains
+  fail-closed on a missing/rejected protector. PacketTunnel also calls the
+  generated
   `LibboxNewOpenRungWSSClientForIOS(frontURL,ticket,listener)` export, whose
   nil `SocketProtector` deliberately selects wsscore's Apple nil-protector
   path. A second gomobile framework/runtime or an artifact built with
-  `BROKERAPI_SRC` or `WSSCORE_SRC` is not releasable.
+  `BROKERAPI_SRC`, `PUNCHCORE_SRC`, or `WSSCORE_SRC` is not releasable.
 
 The exact direct-broker and CloudFront manifest candidates use
 `fetchManifestCandidate`; the GitHub release asset remains the narrowly allowed
@@ -601,8 +617,6 @@ hidden legacy transport switch.
 - In-app language switch does not relayout RTL (fa/ar) without app restart.
 - iOS simulator: UI + map + directory work; connect fails by design
   (NetworkExtension requires a signed device build).
-- iOS does not yet consume the optional punch metadata and uses RelayHub for
-  volunteer-run tunnel-transport relays.
 - Telemetry from TS covers only speed-test events; the native connect path keeps
   production telemetry except that `application_connection` is reduced client-side:
   DNS flows are skipped; destination ip/port/protocol and client

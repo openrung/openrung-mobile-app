@@ -11,6 +11,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     /// NetworkExtension callbacks and Swift-concurrency tasks.
     private struct ActiveTransportState {
         var engine: (any PacketTunnelProxyEngine)? = nil
+        var punchSession: (any PunchNativeSession)? = nil
         var wssSession: (any WssNativeSession)? = nil
         var relayID: String? = nil
         var accessTransport = AccessTransport.direct
@@ -27,6 +28,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
 
     private struct DetachedActiveTransport {
         let engine: (any PacketTunnelProxyEngine)?
+        let punchSession: (any PunchNativeSession)?
         let wssSession: (any WssNativeSession)?
         let relayID: String?
         let networkMonitor: PhysicalNetworkEpochMonitor?
@@ -34,13 +36,15 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
 
     private let logger = Logger(subsystem: AppConfig.loggingSubsystem, category: "PacketTunnel")
     private let selector = RelaySelector()
+    private let punchFallbackPolicy = PunchFallbackPolicy()
+    private let punchRecoveryCircuitBreaker = PunchRecoveryCircuitBreaker()
     private let wssFallbackPolicy = WssFallbackPolicy(validator: NativeWssFrontValidator())
     private var heartbeatTask: Task<Void, Never>?
     private var connectTask: Task<Void, Never>?
     private var engineMonitorTask: Task<Void, Never>?
-    private var wssMonitorTask: Task<Void, Never>?
-    private var wssRecoveryTask: Task<Void, Never>?
-    private var wssMonitorGeneration: UUID?
+    private var transportMonitorTask: Task<Void, Never>?
+    private var transportRecoveryTask: Task<Void, Never>?
+    private var transportMonitorGeneration: UUID?
     private var physicalNetworkMonitor: PhysicalNetworkEpochMonitor?
     private var activeTransport = ActiveTransportState()
     private var brokerURL = AppConfig.defaultBrokerURL
@@ -48,6 +52,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     /// provider's recovery state. WssRecoveryGate then lets only one callback claim an epoch.
     private let lifecycleQueue = DispatchQueue(label: "com.openrung.app.tunnel-lifecycle")
     private let wssRecoveryGate = WssRecoveryGate()
+    private let punchRecoveryGate = PunchRecoveryGate()
     /// Read and written only on lifecycleQueue. stopTunnel flips this before it captures tasks, so
     /// a callback already queued behind stop cannot create an untracked reconnect/termination task.
     private var lifecycleIsStopping = false
@@ -62,6 +67,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             lifecycleIsStopping = false
             // A new provider start is not a continuation of a prior recovery epoch.
             reasserting = false
+            punchRecoveryCircuitBreaker.reset()
             connectTask = task
         }
     }
@@ -75,21 +81,23 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             // User stop is terminal, not a tunnel re-establishment attempt.
             reasserting = false
             wssRecoveryGate.clear()
+            punchRecoveryGate.clear()
+            punchRecoveryCircuitBreaker.reset()
             let pending = PendingTunnelTasks(
                 connect: connectTask,
-                recovery: wssRecoveryTask,
+                recovery: transportRecoveryTask,
                 terminal: terminalLifecycleTask,
                 heartbeat: heartbeatTask,
                 engineObserver: engineMonitorTask,
-                wssObserver: wssMonitorTask
+                transportObserver: transportMonitorTask
             )
             connectTask = nil
-            wssRecoveryTask = nil
+            transportRecoveryTask = nil
             terminalLifecycleTask = nil
             heartbeatTask = nil
             engineMonitorTask = nil
-            wssMonitorTask = nil
-            wssMonitorGeneration = nil
+            transportMonitorTask = nil
+            transportMonitorGeneration = nil
             pending.cancelAll()
             return pending
         }
@@ -256,6 +264,8 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                     lifecycleIsStopping == false,
                     activeTransport.epoch == connected.transportEpoch,
                     activeTransport.engine === connected.engine,
+                    connected.punchSession == nil
+                        || activeTransport.punchSession === connected.punchSession,
                     connected.wssSession == nil || activeTransport.wssSession === connected.wssSession
                 else { return false }
                 activeTransport.relayID = relay.id
@@ -325,7 +335,9 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             // report a later path loss, but can never race an outstanding start completion.
             startHeartbeatLoop()
             startEngineMonitor(relay: relay, transportEpoch: connected.transportEpoch)
-            if connected.accessTransport == AccessTransport.wss {
+            if connected.accessTransport == AccessTransport.punch {
+                startPunchMonitor(relay: relay)
+            } else if connected.accessTransport == AccessTransport.wss {
                 startWssMonitor(relay: relay)
             }
 
@@ -485,14 +497,181 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             )
         }
 
-        return try await startTunnel(
-            relay: relay,
-            configuration: configuration,
-            tcpLatencyMs: tcpLatencyMs,
-            attempt: attempt,
-            accessTransport: AccessTransport.direct,
-            frontID: nil
+        return try await punchFallbackPolicy.connect(
+            attemptPunch: { [self] () async throws -> ConnectedRelay? in
+                guard let punched = try await attemptDirectPunch(relay) else { return nil }
+                return try await startTunnel(
+                    relay: relay,
+                    configuration: SingBoxConfiguration(
+                        relay: relay,
+                        bridgeHost: punched.result.bridgeHost,
+                        bridgePort: punched.result.bridgePort,
+                        splitTunnel: splitTunnel
+                    ),
+                    tcpLatencyMs: tcpLatencyMs,
+                    attempt: attempt,
+                    accessTransport: AccessTransport.punch,
+                    frontID: nil,
+                    expectedPunchSession: punched.session,
+                    expectedTransportEpoch: punched.transportEpoch
+                )
+            },
+            attemptRelayHub: { [self] in
+                try await startTunnel(
+                    relay: relay,
+                    configuration: configuration,
+                    tcpLatencyMs: tcpLatencyMs,
+                    attempt: attempt,
+                    accessTransport: AccessTransport.direct,
+                    frontID: nil
+                )
+            },
+            onPunchFallback: { [self] failure in
+                cleanupActiveTransport()
+                var attributes: [String: String] = [:]
+                let reason = FailureClassifier.classify(failure)
+                if reason.isEmpty == false { attributes["failure_reason"] = reason }
+                let detail = FailureClassifier.detail(failure)
+                if detail.isEmpty == false { attributes["failure_detail"] = detail }
+                TelemetryManager.record(
+                    "punch_fallback",
+                    relayId: relay.id,
+                    attributes: attributes
+                )
+                SharedConnectionState.appendLog(
+                    "direct punched path could not carry tunnel traffic; using RelayHub"
+                )
+            }
         )
+    }
+
+    /// Attempts signaling, UDP hole punching, QUIC authentication, and the loopback bridge. A
+    /// returned value owns a live native session installed in `activeTransport`; nil means the
+    /// ordinary same-relay hub rung should be attempted.
+    private func attemptDirectPunch(_ relay: RelayDescriptor) async throws -> PreparedPunch? {
+        guard relay.punchCapable else { return nil }
+        let punchAllowed = lifecycleQueue.sync {
+            punchRecoveryCircuitBreaker.allowsDirectPunch(relayID: relay.id)
+        }
+        guard punchAllowed else {
+            TelemetryManager.record(
+                "punch_skipped",
+                relayId: relay.id,
+                attributes: ["reason": "recovery_circuit_open"]
+            )
+            return nil
+        }
+
+        TelemetryManager.record("punch_attempted", relayId: relay.id)
+        SharedConnectionState.appendLog("attempting direct NAT punch")
+        let session: any PunchNativeSession
+        do {
+            guard let created = try NativePunchSessionFactory.make(relay: relay) else {
+                recordPunchFailure(
+                    relay,
+                    reason: "endpoint",
+                    natClass: "",
+                    detail: ""
+                )
+                SharedConnectionState.appendLog("NAT punch unavailable (endpoint)")
+                return nil
+            }
+            session = created
+        } catch {
+            recordPunchFailure(
+                relay,
+                reason: "client",
+                natClass: "",
+                detail: FailureClassifier.describe(error)
+            )
+            SharedConnectionState.appendLog("NAT punch unavailable (client)")
+            return nil
+        }
+
+        let transportEpoch = UUID()
+        let installed = lifecycleQueue.sync {
+            guard
+                lifecycleIsStopping == false,
+                activeTransport.engine == nil,
+                activeTransport.punchSession == nil,
+                activeTransport.wssSession == nil
+            else { return false }
+            activeTransport.punchSession = session
+            activeTransport.relayID = nil
+            activeTransport.accessTransport = AccessTransport.direct
+            activeTransport.wssFrontID = nil
+            activeTransport.epoch = transportEpoch
+            return true
+        }
+        guard installed else {
+            session.close()
+            throw CancellationError()
+        }
+
+        let result: PunchNativeConnectResult
+        do {
+            result = try await session.establish()
+            try Task.checkCancellation()
+        } catch is CancellationError {
+            closePunchSession(session)
+            throw CancellationError()
+        } catch {
+            closePunchSession(session)
+            if case let PunchNativeClientError.establishmentFailed(
+                failureReason,
+                detail,
+                natClass
+            ) = error {
+                recordPunchFailure(
+                    relay,
+                    reason: failureReason.rawValue,
+                    natClass: natClass,
+                    detail: detail
+                )
+                SharedConnectionState.appendLog(
+                    "NAT punch failed (\(failureReason.rawValue))"
+                )
+            } else {
+                recordPunchFailure(
+                    relay,
+                    reason: "client",
+                    natClass: "",
+                    detail: FailureClassifier.describe(error)
+                )
+                SharedConnectionState.appendLog("NAT punch failed (client)")
+            }
+            return nil
+        }
+
+        var attributes: [String: String] = [:]
+        if result.natClass.isEmpty == false { attributes["nat_class"] = result.natClass }
+        TelemetryManager.record(
+            "punch_succeeded",
+            relayId: relay.id,
+            attributes: attributes,
+            measurements: ["punch_rtt_ms": result.rttMillis]
+        )
+        let natClass = result.natClass.isEmpty ? "unknown NAT" : result.natClass
+        SharedConnectionState.appendLog("direct NAT punch succeeded (\(natClass))")
+        return PreparedPunch(
+            session: session,
+            result: result,
+            transportEpoch: transportEpoch
+        )
+    }
+
+    private func recordPunchFailure(
+        _ relay: RelayDescriptor,
+        reason: String,
+        natClass: String,
+        detail: String
+    ) {
+        var attributes = ["reason": reason]
+        if natClass.isEmpty == false { attributes["nat_class"] = String(natClass.prefix(64)) }
+        if detail.isEmpty == false {
+            attributes["failure_detail"] = FailureClassifier.truncate(detail)
+        }
+        TelemetryManager.record("punch_failed", relayId: relay.id, attributes: attributes)
     }
 
     private func attemptWssCandidate(
@@ -544,6 +723,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             guard
                 lifecycleIsStopping == false,
                 activeTransport.engine == nil,
+                activeTransport.punchSession == nil,
                 activeTransport.wssSession == nil
             else { return false }
             activeTransport.wssSession = session
@@ -597,6 +777,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         attempt: Int,
         accessTransport: String,
         frontID: String?,
+        expectedPunchSession: (any PunchNativeSession)? = nil,
         expectedWssSession: (any WssNativeSession)? = nil,
         expectedTransportEpoch: UUID? = nil
     ) async throws -> ConnectedRelay {
@@ -606,12 +787,23 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             if let expectedTransportEpoch {
                 guard
                     activeTransport.epoch == expectedTransportEpoch,
-                    activeTransport.wssSession === expectedWssSession
+                    (
+                        expectedPunchSession != nil
+                            && activeTransport.punchSession === expectedPunchSession
+                            && activeTransport.wssSession == nil
+                    ) || (
+                        expectedWssSession != nil
+                            && activeTransport.wssSession === expectedWssSession
+                            && activeTransport.punchSession == nil
+                    )
                 else { return nil }
                 activeTransport.engine = proxyEngine
                 return expectedTransportEpoch
             }
-            guard activeTransport.wssSession == nil else { return nil }
+            guard
+                activeTransport.punchSession == nil,
+                activeTransport.wssSession == nil
+            else { return nil }
             let epoch = UUID()
             activeTransport.engine = proxyEngine
             activeTransport.relayID = nil
@@ -690,6 +882,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             accessTransport: accessTransport,
             frontID: frontID,
             engine: proxyEngine,
+            punchSession: expectedPunchSession,
             wssSession: expectedWssSession,
             transportEpoch: transportEpoch
         )
@@ -705,7 +898,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 activeTransport.engine === expected
             else { return }
             activeTransport.engine = nil
-            if activeTransport.wssSession == nil {
+            if activeTransport.punchSession == nil, activeTransport.wssSession == nil {
                 activeTransport.epoch = nil
             }
         }
@@ -779,10 +972,10 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         return result
     }
 
-    // MARK: - Active engine / WSS lifecycle and network epochs
+    // MARK: - Active engine / native transport lifecycle and network epochs
 
     /// Unexpected libbox exit is a local terminal failure under every access transport. In
-    /// particular, it must beat a near-simultaneous WSS-close callback and never mint a ticket.
+    /// particular, it must beat a near-simultaneous adapter-close callback.
     private func startEngineMonitor(relay: RelayDescriptor, transportEpoch: UUID) {
         lifecycleQueue.sync {
             guard
@@ -819,16 +1012,17 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 self.activeTransport.relayID == relay.id
             else { return }
             self.wssRecoveryGate.clear()
+            self.punchRecoveryGate.clear()
             self.reasserting = false
-            self.wssMonitorTask?.cancel()
-            self.wssMonitorTask = nil
-            self.wssMonitorGeneration = nil
+            self.transportMonitorTask?.cancel()
+            self.transportMonitorTask = nil
+            self.transportMonitorGeneration = nil
             let pendingInitialConnect = self.connectTask
             pendingInitialConnect?.cancel()
             self.connectTask = nil
-            let pendingRecovery = self.wssRecoveryTask
+            let pendingRecovery = self.transportRecoveryTask
             pendingRecovery?.cancel()
-            self.wssRecoveryTask = nil
+            self.transportRecoveryTask = nil
             let pendingTerminal = self.terminalLifecycleTask
             pendingTerminal?.cancel()
             self.terminalLifecycleTask = Task { [weak self] in
@@ -852,6 +1046,296 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         }
     }
 
+    /// A punched QUIC mapping belongs to one physical-network epoch. Native adapter loss, a path
+    /// fingerprint change, or sustained end-to-end probe failure retires the entire engine/bridge
+    /// tuple and reruns signed discovery.
+    private func startPunchMonitor(relay: RelayDescriptor) {
+        let replacedMonitor: PhysicalNetworkEpochMonitor? = lifecycleQueue.sync {
+            guard
+                lifecycleIsStopping == false,
+                let session = activeTransport.punchSession,
+                activeTransport.accessTransport == AccessTransport.punch
+            else { return nil }
+            transportMonitorTask?.cancel()
+            punchRecoveryGate.arm(session)
+            punchRecoveryCircuitBreaker.markDirectConnected(
+                relayID: relay.id,
+                nowElapsedMilliseconds: monotonicMilliseconds()
+            )
+
+            let monitor = PhysicalNetworkEpochMonitor { [weak self] _ in
+                self?.requestPunchRecovery(
+                    trigger: "network_change",
+                    expectedSession: session,
+                    reason: "physical network epoch changed",
+                    countTowardBreaker: false
+                )
+            }
+            let replacedMonitor = physicalNetworkMonitor
+            physicalNetworkMonitor = monitor
+            transportMonitorTask = Task { [weak self] in
+                guard
+                    let self,
+                    let event = await self.awaitPunchMonitorEvent(
+                        session: session,
+                        monitor: monitor
+                    )
+                else { return }
+                guard Task.isCancelled == false else { return }
+                switch event {
+                case .pathFailure(let reason, let trigger, let countTowardBreaker):
+                    self.requestPunchRecovery(
+                        trigger: trigger,
+                        expectedSession: session,
+                        reason: reason,
+                        countTowardBreaker: countTowardBreaker
+                    )
+                case .localFailure(let error):
+                    self.requestActivePunchLocalFailure(
+                        error,
+                        relay: relay,
+                        expectedSession: session
+                    )
+                }
+            }
+            return replacedMonitor
+        }
+        replacedMonitor?.close()
+    }
+
+    private func awaitPunchMonitorEvent(
+        session: any PunchNativeSession,
+        monitor: PhysicalNetworkEpochMonitor
+    ) async -> PunchMonitorEvent? {
+        await withTaskGroup(of: PunchMonitorEvent?.self) { group in
+            group.addTask {
+                let reason = await session.waitForUnexpectedClose()
+                guard Task.isCancelled == false else { return nil }
+                return .pathFailure(
+                    reason: reason,
+                    trigger: "native_adapter",
+                    countTowardBreaker: monitor.shouldCountNativeAdapterLoss
+                )
+            }
+            group.addTask {
+                do {
+                    let reason = try await self.awaitTunnelHealthFailure(monitor: monitor)
+                    return .pathFailure(
+                        reason: reason,
+                        trigger: "tunnel_health",
+                        countTowardBreaker: true
+                    )
+                } catch is CancellationError {
+                    return nil
+                } catch let error as LocalTunnelError {
+                    return .localFailure(error)
+                } catch {
+                    return .localFailure(
+                        LocalTunnelError(stage: "active_tunnel_health", underlying: error)
+                    )
+                }
+            }
+            while let event = await group.next() {
+                if let event {
+                    group.cancelAll()
+                    return event
+                }
+            }
+            return nil
+        }
+    }
+
+    private func requestPunchRecovery(
+        trigger: String,
+        expectedSession: any PunchNativeSession,
+        reason: String,
+        countTowardBreaker: Bool
+    ) {
+        let pathLostAtMilliseconds = monotonicMilliseconds()
+        lifecycleQueue.async { [weak self] in
+            self?.schedulePunchRecoveryOnLifecycleQueue(
+                trigger: trigger,
+                expectedSession: expectedSession,
+                reason: reason,
+                countTowardBreaker: countTowardBreaker,
+                pathLostAtMilliseconds: pathLostAtMilliseconds
+            )
+        }
+    }
+
+    private func schedulePunchRecoveryOnLifecycleQueue(
+        trigger: String,
+        expectedSession: any PunchNativeSession,
+        reason: String,
+        countTowardBreaker: Bool,
+        pathLostAtMilliseconds: UInt64
+    ) {
+        dispatchPrecondition(condition: .onQueue(lifecycleQueue))
+        guard lifecycleIsStopping == false else { return }
+        guard
+            let current = activeTransport.punchSession,
+            current === expectedSession,
+            activeTransport.accessTransport == AccessTransport.punch
+        else { return }
+        guard activeTransport.engine?.hasUnexpectedStop != true else { return }
+        guard punchRecoveryGate.claim(expectedSession) else { return }
+
+        reasserting = true
+        transportMonitorTask?.cancel()
+        transportMonitorTask = nil
+        let generation = UUID()
+        transportMonitorGeneration = generation
+        let pendingInitialConnect = connectTask
+        pendingInitialConnect?.cancel()
+        connectTask = nil
+        transportRecoveryTask?.cancel()
+        transportRecoveryTask = Task { [weak self] in
+            await pendingInitialConnect?.value
+            await self?.recoverPunchPath(
+                trigger: trigger,
+                reason: reason,
+                countTowardBreaker: countTowardBreaker,
+                pathLostAtMilliseconds: pathLostAtMilliseconds,
+                expectedSession: expectedSession,
+                generation: generation
+            )
+        }
+    }
+
+    private func requestActivePunchLocalFailure(
+        _ error: LocalTunnelError,
+        relay: RelayDescriptor,
+        expectedSession: any PunchNativeSession
+    ) {
+        lifecycleQueue.async { [weak self] in
+            guard
+                let self,
+                self.lifecycleIsStopping == false,
+                let current = self.activeTransport.punchSession,
+                current === expectedSession,
+                self.activeTransport.relayID == relay.id
+            else { return }
+            guard self.punchRecoveryGate.claim(expectedSession) else { return }
+            self.reasserting = false
+            self.transportMonitorTask?.cancel()
+            self.transportMonitorTask = nil
+            self.transportMonitorGeneration = nil
+            let pendingInitialConnect = self.connectTask
+            pendingInitialConnect?.cancel()
+            self.connectTask = nil
+            let expectedEngine = self.activeTransport.engine
+            let expectedTransportEpoch = self.activeTransport.epoch
+            let pendingTerminal = self.terminalLifecycleTask
+            pendingTerminal?.cancel()
+            self.terminalLifecycleTask = Task { [weak self] in
+                await pendingInitialConnect?.value
+                await pendingTerminal?.value
+                await self?.terminateForActiveLocalFailure(
+                    error,
+                    relayID: relay.id,
+                    expectedEngine: expectedEngine,
+                    expectedTransportEpoch: expectedTransportEpoch
+                )
+            }
+        }
+    }
+
+    private func recoverPunchPath(
+        trigger: String,
+        reason: String,
+        countTowardBreaker: Bool,
+        pathLostAtMilliseconds: UInt64,
+        expectedSession: any PunchNativeSession,
+        generation: UUID
+    ) async {
+        let snapshot: ActiveTransportSnapshot? = lifecycleQueue.sync {
+            guard
+                lifecycleIsStopping == false,
+                transportMonitorGeneration == generation,
+                let current = activeTransport.punchSession,
+                current === expectedSession,
+                activeTransport.accessTransport == AccessTransport.punch,
+                let epoch = activeTransport.epoch
+            else { return nil }
+            return ActiveTransportSnapshot(
+                engine: activeTransport.engine,
+                relayID: activeTransport.relayID,
+                wssFrontID: nil,
+                epoch: epoch
+            )
+        }
+        guard Task.isCancelled == false, let snapshot else { return }
+        defer { finishTransportRecovery(generation: generation) }
+        guard Task.isCancelled == false, snapshot.engine?.hasUnexpectedStop != true else { return }
+
+        guard let relayID = snapshot.relayID else { return }
+        let boundedReason = String(reason.prefix(256))
+        TelemetryManager.record(
+            "punch_path_lost",
+            relayId: relayID,
+            attributes: [
+                "trigger": trigger,
+                "reason": boundedReason,
+            ]
+        )
+        SharedConnectionState.appendLog("direct punched path ended; reconnecting")
+        SharedConnectionState.setStatus(.connecting, clearRelayLabel: true, clearError: true)
+        stopHeartbeatLoop()
+
+        // Reality must release the loopback TCP stream before the QUIC adapter is closed.
+        guard cleanupActiveTransport(
+            cancelMonitor: false,
+            expectedTransportEpoch: snapshot.epoch,
+            abortIfUnexpectedEngineStopWon: true
+        ) != nil else { return }
+        let recoveryDecision = lifecycleQueue.sync {
+            punchRecoveryCircuitBreaker.onDirectPathLost(
+                relayID: relayID,
+                nowElapsedMilliseconds: pathLostAtMilliseconds,
+                countTowardBreaker: countTowardBreaker
+            )
+        }
+        if case .useRelayHub = recoveryDecision {
+            SharedConnectionState.appendLog(
+                "direct path is unstable; using RelayHub for this connection"
+            )
+            TelemetryManager.record(
+                "punch_fallback",
+                relayId: relayID,
+                attributes: [
+                    "failure_reason": "unstable_direct_path",
+                    "failure_detail": boundedReason,
+                ],
+                measurements: [
+                    "rapid_failure_count": Int64(recoveryDecision.rapidFailureCount),
+                    "direct_uptime_ms": telemetryInt64(
+                        recoveryDecision.directUptimeMilliseconds
+                    ),
+                    "recovery_delay_ms": telemetryInt64(
+                        recoveryDecision.delayMilliseconds
+                    ),
+                ]
+            )
+        } else if recoveryDecision.delayMilliseconds > 0 {
+            SharedConnectionState.appendLog(
+                "retrying direct path after recovery backoff"
+            )
+        }
+        TelemetryManager.endSession(reason: "punch_path_lost")
+
+        do {
+            try await PhysicalNetworkAvailability.waitUntilSatisfied()
+            try await recoveryDecision.awaitBackoff()
+            try Task.checkCancellation()
+            await connect(completionHandler: nil, isRecovery: true)
+        } catch is CancellationError {
+            return
+        } catch {
+            lifecycleQueue.sync { reasserting = false }
+            cancelTunnelWithError(error)
+        }
+    }
+
     private func startWssMonitor(relay: RelayDescriptor) {
         let replacedMonitor: PhysicalNetworkEpochMonitor? = lifecycleQueue.sync {
             guard
@@ -859,7 +1343,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 let session = activeTransport.wssSession,
                 activeTransport.accessTransport == AccessTransport.wss
             else { return nil }
-            wssMonitorTask?.cancel()
+            transportMonitorTask?.cancel()
             wssRecoveryGate.arm(session)
 
             let monitor = PhysicalNetworkEpochMonitor { [weak self] _ in
@@ -871,7 +1355,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             }
             let replacedMonitor = physicalNetworkMonitor
             physicalNetworkMonitor = monitor
-            wssMonitorTask = Task { [weak self] in
+            transportMonitorTask = Task { [weak self] in
                 guard let event = await self?.awaitWssMonitorEvent(session: session, monitor: monitor) else {
                     return
                 }
@@ -895,8 +1379,8 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     private func awaitWssMonitorEvent(
         session: any WssNativeSession,
         monitor: PhysicalNetworkEpochMonitor
-    ) async -> WssMonitorEvent? {
-        await withTaskGroup(of: WssMonitorEvent?.self) { group in
+    ) async -> TransportMonitorEvent? {
+        await withTaskGroup(of: TransportMonitorEvent?.self) { group in
             group.addTask {
                 let reason = await session.waitForUnexpectedClose()
                 guard Task.isCancelled == false else { return nil }
@@ -992,15 +1476,15 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         // replacement tuple, rather than showing a misleading Connected state while traffic is
         // temporarily unavailable.
         reasserting = true
-        wssMonitorTask?.cancel()
-        wssMonitorTask = nil
+        transportMonitorTask?.cancel()
+        transportMonitorTask = nil
         let generation = UUID()
-        wssMonitorGeneration = generation
+        transportMonitorGeneration = generation
         let pendingInitialConnect = connectTask
         pendingInitialConnect?.cancel()
         connectTask = nil
-        wssRecoveryTask?.cancel()
-        wssRecoveryTask = Task { [weak self] in
+        transportRecoveryTask?.cancel()
+        transportRecoveryTask = Task { [weak self] in
             await pendingInitialConnect?.value
             await self?.recoverWssPath(
                 trigger: trigger,
@@ -1028,9 +1512,9 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             else { return }
             guard self.wssRecoveryGate.claim(expectedSession) else { return }
             self.reasserting = false
-            self.wssMonitorTask?.cancel()
-            self.wssMonitorTask = nil
-            self.wssMonitorGeneration = nil
+            self.transportMonitorTask?.cancel()
+            self.transportMonitorTask = nil
+            self.transportMonitorGeneration = nil
             let pendingInitialConnect = self.connectTask
             pendingInitialConnect?.cancel()
             self.connectTask = nil
@@ -1060,7 +1544,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         let snapshot: ActiveTransportSnapshot? = lifecycleQueue.sync {
             guard
                 lifecycleIsStopping == false,
-                wssMonitorGeneration == generation,
+                transportMonitorGeneration == generation,
                 let current = activeTransport.wssSession,
                 current === expectedSession,
                 activeTransport.accessTransport == AccessTransport.wss,
@@ -1074,7 +1558,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             )
         }
         guard Task.isCancelled == false, let snapshot else { return }
-        defer { finishWssRecovery(generation: generation) }
+        defer { finishTransportRecovery(generation: generation) }
 
         let relayID = snapshot.relayID
         let frontID = snapshot.wssFrontID
@@ -1118,11 +1602,11 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         }
     }
 
-    private func finishWssRecovery(generation: UUID) {
+    private func finishTransportRecovery(generation: UUID) {
         lifecycleQueue.sync {
-            guard wssMonitorGeneration == generation else { return }
-            wssRecoveryTask = nil
-            wssMonitorGeneration = nil
+            guard transportMonitorGeneration == generation else { return }
+            transportRecoveryTask = nil
+            transportMonitorGeneration = nil
             // Covers cancellation/early-return paths (engine terminal handoff or user stop). A
             // successful recovery already cleared this at promotion.
             reasserting = false
@@ -1195,6 +1679,20 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         expected.close()
     }
 
+    private func closePunchSession(_ expected: any PunchNativeSession) {
+        lifecycleQueue.sync {
+            guard let current = activeTransport.punchSession, current === expected else { return }
+            activeTransport.punchSession = nil
+            if activeTransport.engine == nil {
+                activeTransport.relayID = nil
+                activeTransport.accessTransport = AccessTransport.direct
+                activeTransport.wssFrontID = nil
+                activeTransport.epoch = nil
+            }
+        }
+        expected.close()
+    }
+
     @discardableResult
     private func cleanupActiveTransport(
         cancelMonitor: Bool = true,
@@ -1213,17 +1711,19 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 return nil
             }
             if cancelMonitor {
-                wssMonitorTask?.cancel()
-                wssMonitorTask = nil
-                wssMonitorGeneration = nil
+                transportMonitorTask?.cancel()
+                transportMonitorTask = nil
+                transportMonitorGeneration = nil
             }
             wssRecoveryGate.clear()
+            punchRecoveryGate.clear()
             engineMonitorTask?.cancel()
             engineMonitorTask = nil
             let activeNetworkMonitor = physicalNetworkMonitor
             physicalNetworkMonitor = nil
             let detached = DetachedActiveTransport(
                 engine: activeTransport.engine,
+                punchSession: activeTransport.punchSession,
                 wssSession: activeTransport.wssSession,
                 relayID: activeTransport.relayID,
                 networkMonitor: activeNetworkMonitor
@@ -1235,6 +1735,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         TunnelTransportCleanup.run(
             stopEngine: { detached.engine?.stop() },
             closeNetworkMonitor: { detached.networkMonitor?.close() },
+            closePunch: { detached.punchSession?.close() },
             closeWss: { detached.wssSession?.close() }
         )
         return detached
@@ -1302,6 +1803,14 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             heartbeatTask?.cancel()
             heartbeatTask = nil
         }
+    }
+
+    private func monotonicMilliseconds() -> UInt64 {
+        DispatchTime.now().uptimeNanoseconds / 1_000_000
+    }
+
+    private func telemetryInt64(_ value: UInt64) -> Int64 {
+        Int64(min(value, UInt64(Int64.max)))
     }
 
     private func resolveBrokerURL() -> URL {
@@ -1385,17 +1894,30 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         let accessTransport: String
         let frontID: String?
         let engine: any PacketTunnelProxyEngine
+        let punchSession: (any PunchNativeSession)?
         let wssSession: (any WssNativeSession)?
+        let transportEpoch: UUID
+    }
+
+    private struct PreparedPunch {
+        let session: any PunchNativeSession
+        let result: PunchNativeConnectResult
         let transportEpoch: UUID
     }
 
     private enum AccessTransport {
         static let direct = "direct"
+        static let punch = "punch"
         static let wss = "wss"
     }
 
-    private enum WssMonitorEvent {
+    private enum TransportMonitorEvent {
         case pathFailure(reason: String, trigger: String)
+        case localFailure(LocalTunnelError)
+    }
+
+    private enum PunchMonitorEvent {
+        case pathFailure(reason: String, trigger: String, countTowardBreaker: Bool)
         case localFailure(LocalTunnelError)
     }
 
@@ -1410,14 +1932,14 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         let terminal: Task<Void, Never>?
         let heartbeat: Task<Void, Never>?
         let engineObserver: Task<Void, Never>?
-        let wssObserver: Task<Void, Never>?
+        let transportObserver: Task<Void, Never>?
 
         var connectionOwners: [Task<Void, Never>] {
             [connect, recovery, terminal, heartbeat].compactMap { $0 }
         }
 
         var observers: [Task<Void, Never>] {
-            [engineObserver, wssObserver].compactMap { $0 }
+            [engineObserver, transportObserver].compactMap { $0 }
         }
 
         func cancelAll() {
@@ -1426,7 +1948,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             terminal?.cancel()
             heartbeat?.cancel()
             engineObserver?.cancel()
-            wssObserver?.cancel()
+            transportObserver?.cancel()
         }
     }
 }
@@ -1444,6 +1966,34 @@ private final class WssRecoveryGate: @unchecked Sendable {
     }
 
     func claim(_ session: any WssNativeSession) -> Bool {
+        let identifier = ObjectIdentifier(session)
+        lock.lock()
+        defer { lock.unlock() }
+        guard armedSession == identifier else { return false }
+        armedSession = nil
+        return true
+    }
+
+    func clear() {
+        lock.lock()
+        armedSession = nil
+        lock.unlock()
+    }
+}
+
+/// Thread-safe one-shot ownership for a promoted punch epoch. The native close callback, NWPath,
+/// and end-to-end health monitor may all observe the same loss.
+private final class PunchRecoveryGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var armedSession: ObjectIdentifier?
+
+    func arm(_ session: any PunchNativeSession) {
+        lock.lock()
+        armedSession = ObjectIdentifier(session)
+        lock.unlock()
+    }
+
+    func claim(_ session: any PunchNativeSession) -> Bool {
         let identifier = ObjectIdentifier(session)
         lock.lock()
         defer { lock.unlock() }

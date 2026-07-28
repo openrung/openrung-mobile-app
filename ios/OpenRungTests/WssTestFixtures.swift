@@ -11,7 +11,9 @@ func makeWssTestRelay(
     transport: String = RelayConstants.transportDirect,
     exitMode: String = RelayConstants.exitModeDirect,
     publicPort: Int = 443,
-    fronts: [WssFrontDescriptor] = wssTestFronts
+    fronts: [WssFrontDescriptor] = wssTestFronts,
+    punchCapable: Bool = false,
+    punchEndpoint: String = ""
 ) -> RelayDescriptor {
     RelayDescriptor(
         id: id,
@@ -30,6 +32,8 @@ func makeWssTestRelay(
         nodeClass: nodeClass,
         transport: transport,
         wssFronts: fronts,
+        punchCapable: punchCapable,
+        punchEndpoint: punchEndpoint,
         registeredAt: Date(timeIntervalSince1970: 1_767_225_600),
         lastHeartbeatAt: Date(timeIntervalSince1970: 1_767_225_600),
         expiresAt: Date(timeIntervalSince1970: 1_798_761_600)

@@ -236,9 +236,10 @@ final class WssFallbackPolicyTests: XCTestCase {
         TunnelTransportCleanup.run(
             stopEngine: { order.append("engine") },
             closeNetworkMonitor: { order.append("network-monitor") },
+            closePunch: { order.append("punch") },
             closeWss: { order.append("wss") }
         )
-        XCTAssertEqual(order, ["engine", "network-monitor", "wss"])
+        XCTAssertEqual(order, ["engine", "network-monitor", "punch", "wss"])
     }
 
     func testStopDrainWaitsForCancelledRecoveryOwnerBeforeCleanup() async {
@@ -255,10 +256,14 @@ final class WssFallbackPolicyTests: XCTestCase {
         TunnelTransportCleanup.run(
             stopEngine: { log.append("engine") },
             closeNetworkMonitor: { log.append("network-monitor") },
+            closePunch: { log.append("punch") },
             closeWss: { log.append("wss") }
         )
 
-        XCTAssertEqual(log.values, ["recovery-unwound", "engine", "network-monitor", "wss"])
+        XCTAssertEqual(
+            log.values,
+            ["recovery-unwound", "engine", "network-monitor", "punch", "wss"]
+        )
     }
 }
 

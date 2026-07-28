@@ -1,15 +1,22 @@
 package libbox
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/openrung/openrung/punchcore"
+	"github.com/sagernet/sing-box/experimental/libbox/internal/openrungpunch"
 )
 
 type testProtector struct {
@@ -50,6 +57,123 @@ func TestProtectFailureStopsBeforeDiscovery(t *testing.T) {
 	}
 }
 
+func TestAndroidConstructorRequiresSocketProtector(t *testing.T) {
+	client := NewOpenRungPunchClient("https://coordinator.example", "relay-test", false, "", nil, nil)
+	var dialed atomic.Bool
+	client.dial = func(
+		context.Context,
+		*openrungpunch.Dialer,
+	) (*openrungpunch.Establishment, punchcore.PunchResult, error) {
+		dialed.Store(true)
+		return nil, punchcore.PunchResult{}, errors.New("must not dial")
+	}
+
+	result := client.Establish()
+	client.Close()
+	if result.Succeeded() || result.Reason() != "protect" || dialed.Load() {
+		t.Fatalf(
+			"nil Android protector result = success:%v reason:%q dialed:%v",
+			result.Succeeded(),
+			result.Reason(),
+			dialed.Load(),
+		)
+	}
+}
+
+func TestExplicitIOSPathSelectsNilProtector(t *testing.T) {
+	const (
+		coordinatorURL = "https://coordinator.example"
+		relayID        = "relay-ios"
+	)
+	client := newOpenRungPunchClient(
+		coordinatorURL,
+		relayID,
+		false,
+		"",
+		nil,
+		nil,
+		false,
+	)
+	var dialed atomic.Bool
+	client.dial = func(
+		_ context.Context,
+		dialer *openrungpunch.Dialer,
+	) (*openrungpunch.Establishment, punchcore.PunchResult, error) {
+		dialed.Store(true)
+		if dialer.Hub.BaseURL != coordinatorURL || dialer.RelayID != relayID {
+			t.Fatalf("iOS dialer changed coordinator/relay: %+v", dialer)
+		}
+		if dialer.ProtectSocket != nil {
+			t.Fatal("iOS constructor installed an Android socket protector")
+		}
+		if !dialer.AllowUnprotectedSocket {
+			t.Fatal("iOS constructor did not select the explicit nil-protector path")
+		}
+		return nil, punchcore.PunchResult{Reason: "discovery"}, errors.New("test stop")
+	}
+
+	result := client.Establish()
+	client.Close()
+	if result.Succeeded() || result.Reason() != "discovery" || !dialed.Load() {
+		t.Fatalf(
+			"iOS result = success:%v reason:%q dialed:%v",
+			result.Succeeded(),
+			result.Reason(),
+			dialed.Load(),
+		)
+	}
+}
+
+func TestIOSNamedConstructorsAllowUnprotectedSocketsOnlyOnIOS(t *testing.T) {
+	for _, test := range []struct {
+		goos             string
+		requireProtector bool
+	}{
+		{goos: "ios", requireProtector: false},
+		{goos: "android", requireProtector: true},
+		{goos: "darwin", requireProtector: true},
+		{goos: "linux", requireProtector: true},
+	} {
+		if got := iosConstructorRequiresSocketProtectorForGOOS(test.goos); got != test.requireProtector {
+			t.Errorf(
+				"GOOS %q requires protector = %v, want %v",
+				test.goos,
+				got,
+				test.requireProtector,
+			)
+		}
+	}
+
+	want := runtime.GOOS != "ios"
+	punchClient := NewOpenRungPunchClientForIOS(
+		"https://coordinator.example",
+		"relay-ios",
+		false,
+		"",
+		nil,
+	)
+	defer punchClient.Close()
+	if punchClient.requireProtector != want {
+		t.Fatalf(
+			"punch iOS constructor requires protector on %s = %v, want %v",
+			runtime.GOOS,
+			punchClient.requireProtector,
+			want,
+		)
+	}
+
+	wssClient := NewOpenRungWSSClientForIOS(testWSSFrontURL, testWSSTicket, nil)
+	defer wssClient.Close()
+	if wssClient.requireProtector != want {
+		t.Fatalf(
+			"WSS iOS constructor requires protector on %s = %v, want %v",
+			runtime.GOOS,
+			wssClient.requireProtector,
+			want,
+		)
+	}
+}
+
 func TestCloseCancelsBlockedEstablish(t *testing.T) {
 	requestStarted := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -62,7 +186,17 @@ func TestCloseCancelsBlockedEstablish(t *testing.T) {
 	resultChannel := make(chan *OpenRungPunchResult, 1)
 	go func() { resultChannel <- client.Establish() }()
 	<-requestStarted
-	client.Close()
+	var closes sync.WaitGroup
+	closes.Add(2)
+	go func() {
+		defer closes.Done()
+		client.Close()
+	}()
+	go func() {
+		defer closes.Done()
+		client.Close()
+	}()
+	closes.Wait()
 
 	select {
 	case result := <-resultChannel:
