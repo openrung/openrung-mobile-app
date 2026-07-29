@@ -30,6 +30,7 @@ import com.openrung.net.NatPunchResult
 import com.openrung.net.NatPunchSession
 import com.openrung.net.NativeWssFrontSetValidator
 import com.openrung.net.PhysicalNetworkEpochMonitor
+import com.openrung.net.PunchNativeFailureReason
 import com.openrung.net.RelayRanker
 import com.openrung.net.RelayReachability
 import com.openrung.net.SingBoxConfiguration
@@ -734,7 +735,9 @@ class OpenRungVpnService : VpnService() {
 
         if (!result.succeeded) {
             closePunchSession(session)
-            val reason = result.reason.ifBlank { "unknown" }
+            // Bounded taxonomy only: punchcore can emit unbounded `declined:<message>` reasons.
+            // The raw text survives solely in the truncated failure_detail attribute.
+            val reason = PunchNativeFailureReason.fromNative(result.reason).wireValue
             recordPunchFailure(relay, reason, result.natClass, result.errorText)
             OpenRungStatusStore.appendLog(getString(R.string.log_punch_failed, reason))
             return null
@@ -769,7 +772,7 @@ class OpenRungVpnService : VpnService() {
             relayId = relay.id,
             attributes = buildMap {
                 put("reason", reason)
-                if (natClass.isNotBlank()) put("nat_class", natClass)
+                if (natClass.isNotBlank()) put("nat_class", natClass.take(64))
                 if (detail.isNotBlank()) put("failure_detail", detail.take(256))
             },
         )
