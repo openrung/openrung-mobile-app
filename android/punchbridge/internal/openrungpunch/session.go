@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/openrung/openrung/punchcore"
@@ -29,9 +30,15 @@ type Dialer struct {
 	RelayID       string
 	ProtectSocket func(fd int64) bool
 
+	// AllowUnprotectedSocket is selected only by the iOS binding. Network
+	// Extension provider-originated sockets are excluded from their own packet
+	// tunnel by the OS and Apple has no VpnService.protect equivalent. The zero
+	// value remains fail-closed for every Android caller.
+	AllowUnprotectedSocket bool
+
 	// Nil selects the hardened production candidate policy. These unexported
 	// seams let hermetic package tests substitute loopback tuples without
-	// weakening the public-address checks used by Android builds.
+	// weakening the public-address checks used by mobile builds.
 	gatherCandidates     func(context.Context, *net.UDPConn, []string, []byte) ([]punchcore.Endpoint, string, error)
 	selectPeerCandidates func(punchcore.PunchResponse) []punchcore.Endpoint
 }
@@ -44,20 +51,26 @@ type Establishment struct {
 	SessionID  string
 	NATClass   string
 
-	socket *net.UDPConn
+	socket    *net.UDPConn
+	closeOnce sync.Once
+	closeErr  error
 }
 
 func (e *Establishment) Close() error {
 	if e == nil {
 		return nil
 	}
-	if e.Bridge != nil {
-		_ = e.Bridge.Close()
-	}
-	if e.socket != nil {
-		_ = e.socket.Close()
-	}
-	return nil
+	e.closeOnce.Do(func() {
+		if e.Bridge != nil {
+			e.closeErr = e.Bridge.Close()
+		}
+		if e.socket != nil {
+			if err := e.socket.Close(); e.closeErr == nil && err != nil && !errors.Is(err, net.ErrClosed) {
+				e.closeErr = err
+			}
+		}
+	})
+	return e.closeErr
 }
 
 func socketFD(socket *net.UDPConn) (int64, error) {
@@ -75,6 +88,30 @@ func socketFD(socket *net.UDPConn) (int64, error) {
 		return -1, errors.New("punch socket descriptor is invalid")
 	}
 	return descriptor, nil
+}
+
+func (d *Dialer) protectSocket(socket *net.UDPConn) (err error) {
+	if d.ProtectSocket == nil {
+		if d.AllowUnprotectedSocket {
+			return nil
+		}
+		return errors.New("punch socket protection is required")
+	}
+	fd, err := socketFD(socket)
+	if err != nil {
+		return err
+	}
+	// A broken gomobile proxy must fail closed instead of taking down the Go
+	// runtime or accidentally allowing Android traffic back into the VPN.
+	defer func() {
+		if recover() != nil {
+			err = errors.New("VpnService punch socket protection panicked")
+		}
+	}()
+	if !d.ProtectSocket(fd) {
+		return errors.New("VpnService rejected punch socket protection")
+	}
+	return nil
 }
 
 // Establish runs the shared punchcore client flow. The one UDP socket is
@@ -105,14 +142,9 @@ func (d *Dialer) Establish(ctx context.Context) (*Establishment, punchcore.Punch
 		}
 	}()
 
-	fd, err := socketFD(socket)
-	if err != nil {
+	if err := d.protectSocket(socket); err != nil {
 		result.Reason = "protect"
 		return nil, result, err
-	}
-	if d.ProtectSocket == nil || !d.ProtectSocket(fd) {
-		result.Reason = "protect"
-		return nil, result, errors.New("VpnService rejected punch socket protection")
 	}
 
 	nonceHex, nonceRaw, err := punchcore.GenerateNonce()

@@ -93,6 +93,10 @@ public struct RelayDescriptor: Codable, Equatable, Identifiable, Sendable {
     public let transport: String
     /// Exact canonical WSS fronts covered by the relay-list signature.
     public let wssFronts: [WssFrontDescriptor]
+    /// Whether the tunnel relay and its hub negotiated direct NAT punching.
+    public let punchCapable: Bool
+    /// HTTPS base URL of the hub's punch coordinator; supplied by the signed directory.
+    public let punchEndpoint: String
     public let registeredAt: Date
     public let lastHeartbeatAt: Date
     public let expiresAt: Date
@@ -123,6 +127,8 @@ public struct RelayDescriptor: Codable, Equatable, Identifiable, Sendable {
         nodeClass: String = RelayConstants.nodeClassVolunteer,
         transport: String = "",
         wssFronts: [WssFrontDescriptor] = [],
+        punchCapable: Bool = false,
+        punchEndpoint: String = "",
         registeredAt: Date,
         lastHeartbeatAt: Date,
         expiresAt: Date,
@@ -149,6 +155,8 @@ public struct RelayDescriptor: Codable, Equatable, Identifiable, Sendable {
         self.nodeClass = nodeClass
         self.transport = transport
         self.wssFronts = wssFronts
+        self.punchCapable = punchCapable
+        self.punchEndpoint = punchEndpoint
         self.registeredAt = registeredAt
         self.lastHeartbeatAt = lastHeartbeatAt
         self.expiresAt = expiresAt
@@ -177,6 +185,8 @@ public struct RelayDescriptor: Codable, Equatable, Identifiable, Sendable {
         case nodeClass = "node_class"
         case transport
         case wssFronts = "wss_fronts"
+        case punchCapable = "punch_capable"
+        case punchEndpoint = "punch_endpoint"
         case registeredAt = "registered_at"
         case lastHeartbeatAt = "last_heartbeat_at"
         case expiresAt = "expires_at"
@@ -209,6 +219,8 @@ public struct RelayDescriptor: Codable, Equatable, Identifiable, Sendable {
             ?? RelayConstants.nodeClassVolunteer
         transport = try values.decodeIfPresent(String.self, forKey: .transport) ?? ""
         wssFronts = try values.decodeIfPresent([WssFrontDescriptor].self, forKey: .wssFronts) ?? []
+        punchCapable = try values.decodeIfPresent(Bool.self, forKey: .punchCapable) ?? false
+        punchEndpoint = try values.decodeIfPresent(String.self, forKey: .punchEndpoint) ?? ""
         registeredAt = try values.decode(Date.self, forKey: .registeredAt)
         lastHeartbeatAt = try values.decode(Date.self, forKey: .lastHeartbeatAt)
         expiresAt = try values.decode(Date.self, forKey: .expiresAt)

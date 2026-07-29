@@ -86,7 +86,7 @@ clients**. The prototype IDs are `com.openrung.mobile` on Android and
 - 📦 **Offline Android sharing** — send the installed, signed APK through the
   system sharesheet to Quick Share or any compatible nearby-transfer app; no
   network or storage permission is required.
-- 🕳️ **Direct volunteer-run CGNAT relays on Android** — NAT punching establishes
+- 🕳️ **Direct volunteer-run CGNAT relays** — Android and iOS NAT punching establish
   a client↔relay QUIC path and keeps RelayHub out of the data plane whenever
   both NATs permit it, with certificate-pinned coordination, end-to-end health
   monitoring, and automatic hub fallback otherwise.
@@ -122,8 +122,8 @@ clients**. The prototype IDs are `com.openrung.mobile` on Android and
   `OpenRungBroker` module, and a separate
   read-only installed-APK provider for offline sharing.
 - **iOS native (`ios/`)** — the production `NEPacketTunnelProvider` extension,
-  shared Swift sources compiled into both targets, direct-first WSS/CDN
-  fallback, an `OpenRungVpnModule` bridging
+  shared Swift sources compiled into both targets, NAT-punch-first RelayHub
+  access and direct-first WSS/CDN fallback, an `OpenRungVpnModule` bridging
   `NETunnelProviderManager` + app-group shared state to React Native.
   `OpenRungBroker` is a separate classic module over the shared brokerapi
   adapter and never exposes WSS tickets.
@@ -221,7 +221,8 @@ ios/ThirdParty/Libbox.xcframework
 ```
 
 Also Git-ignored. Build one unified device+simulator framework from the pinned
-sing-box revision plus the brokerapi and wsscore tags shared with Android:
+sing-box revision plus the brokerapi, punchcore, and wsscore tags shared with
+Android:
 
 ```sh
 ./ios/build-libbox-release.sh
@@ -279,8 +280,6 @@ missing or stale module reports that a native rebuild is required.
 - In-app language switch does not relayout RTL (fa/ar) without an app restart.
 - iOS simulator: UI + map + directory work; connect fails by design
   (NetworkExtension requires a signed device build).
-- iOS does not yet consume `punch_capable`; volunteer-run CGNAT relays use
-  RelayHub there.
 - Android offline sharing supports the monolithic APK produced by
   `assembleRelease`. Installs made from split APKs are rejected because sharing
   only their `base.apk` would produce an incomplete, un-installable copy.

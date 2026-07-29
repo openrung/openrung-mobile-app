@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -25,14 +26,18 @@ import (
 // OpenRungPunchProtector is implemented by Android's VpnService. Protect is
 // called with the long-lived UDP socket before the result is returned to the
 // app and before libbox installs the VPN. Returning false makes punching fail
-// closed and lets Kotlin fall back to the ordinary relay-hub path.
+// closed and lets Kotlin fall back to the ordinary relay-hub path. Protect
+// runs synchronously inside Establish and must not call the owning client's
+// Close method.
 type OpenRungPunchProtector interface {
 	Protect(fd int64) bool
 }
 
 // OpenRungPunchListener reports loss of an already-established direct path.
-// Android handles the callback asynchronously and switches the same relay
-// to its RelayHub endpoint; it must not call Close re-entrantly from here.
+// A caller may call Close from the callback; the serving goroutine is already
+// released. A callback selected immediately before a concurrent Close may run
+// after that Close returns, so consumers must treat Closed as idempotent and
+// stale-safe.
 type OpenRungPunchListener interface {
 	Closed(reason string)
 }
@@ -102,9 +107,21 @@ func (r *OpenRungPunchResult) RTTMillis() int64 {
 	return r.rttMillis
 }
 
+type openRungPunchDialer func(
+	context.Context,
+	*openrungpunch.Dialer,
+) (*openrungpunch.Establishment, punchcore.PunchResult, error)
+
+func dialOpenRungPunch(
+	ctx context.Context,
+	dialer *openrungpunch.Dialer,
+) (*openrungpunch.Establishment, punchcore.PunchResult, error) {
+	return dialer.Establish(ctx)
+}
+
 // OpenRungPunchClient owns both an in-flight establishment and, on success,
 // the live bridge/QUIC/UDP resources. Close is safe during Establish and is the
-// cancellation path used by Android disconnect and relay failover.
+// cancellation path used by mobile disconnect and relay failover.
 type OpenRungPunchClient struct {
 	mu          sync.Mutex
 	ctx         context.Context
@@ -115,13 +132,22 @@ type OpenRungPunchClient struct {
 	certSHA256  string
 	protector   OpenRungPunchProtector
 	listener    OpenRungPunchListener
+	// Android requires a VpnService protector; Apple deliberately selects the
+	// session package's explicitly allowed nil-protector path.
+	requireProtector bool
+
+	dial        openRungPunchDialer
 	est         *openrungpunch.Establishment
+	attemptDone chan struct{}
+	serveDone   chan struct{}
+	closeDone   chan struct{}
 	closed      bool
 	attempted   bool
 }
 
-// NewOpenRungPunchClient prepares a cancelable client. Establish performs the
-// blocking network work and should be called from a Kotlin IO dispatcher.
+// NewOpenRungPunchClient prepares a cancelable Android client. Establish
+// performs blocking network work and should be called from a Kotlin IO
+// dispatcher. A nil or rejecting protector always fails closed.
 func NewOpenRungPunchClient(
 	baseURL string,
 	relayID string,
@@ -130,16 +156,70 @@ func NewOpenRungPunchClient(
 	protector OpenRungPunchProtector,
 	listener OpenRungPunchListener,
 ) *OpenRungPunchClient {
+	return newOpenRungPunchClient(
+		baseURL,
+		relayID,
+		insecureTLS,
+		certSHA256,
+		protector,
+		listener,
+		true,
+	)
+}
+
+// NewOpenRungPunchClientForIOS prepares the same single-use client for an
+// Apple Network Extension process. iOS has no Android VpnService socket
+// protection API, so an actual iOS build selects the session package's
+// nil-protector path. The exported symbol is also present in Android's AAR;
+// calls from any non-iOS runtime therefore fail closed before dialing.
+func NewOpenRungPunchClientForIOS(
+	baseURL string,
+	relayID string,
+	insecureTLS bool,
+	certSHA256 string,
+	listener OpenRungPunchListener,
+) *OpenRungPunchClient {
+	return newOpenRungPunchClient(
+		baseURL,
+		relayID,
+		insecureTLS,
+		certSHA256,
+		nil,
+		listener,
+		iosConstructorRequiresSocketProtector(),
+	)
+}
+
+func iosConstructorRequiresSocketProtector() bool {
+	return iosConstructorRequiresSocketProtectorForGOOS(runtime.GOOS)
+}
+
+func iosConstructorRequiresSocketProtectorForGOOS(goos string) bool {
+	return goos != "ios"
+}
+
+func newOpenRungPunchClient(
+	baseURL string,
+	relayID string,
+	insecureTLS bool,
+	certSHA256 string,
+	protector OpenRungPunchProtector,
+	listener OpenRungPunchListener,
+	requireProtector bool,
+) *OpenRungPunchClient {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &OpenRungPunchClient{
-		ctx:         ctx,
-		cancel:      cancel,
-		baseURL:     baseURL,
-		relayID:     relayID,
-		insecureTLS: insecureTLS,
-		certSHA256:  certSHA256,
-		protector:   protector,
-		listener:    listener,
+		ctx:              ctx,
+		cancel:           cancel,
+		baseURL:          baseURL,
+		relayID:          relayID,
+		insecureTLS:      insecureTLS,
+		certSHA256:       certSHA256,
+		protector:        protector,
+		listener:         listener,
+		requireProtector: requireProtector,
+		dial:             dialOpenRungPunch,
+		closeDone:        make(chan struct{}),
 	}
 }
 
@@ -161,32 +241,53 @@ func (c *OpenRungPunchClient) Establish() *OpenRungPunchResult {
 		return failedPunchResult("client", errors.New("punch client Establish called more than once"), "")
 	}
 	c.attempted = true
+	c.attemptDone = make(chan struct{})
+	attemptDone := c.attemptDone
 	ctx := c.ctx
 	baseURL := c.baseURL
 	relayID := c.relayID
 	insecureTLS := c.insecureTLS
 	certSHA256 := c.certSHA256
 	protector := c.protector
+	requireProtector := c.requireProtector
+	dial := c.dial
 	c.mu.Unlock()
+	defer close(attemptDone)
+
+	if requireProtector && protector == nil {
+		return failedPunchResult("protect", errors.New("VPN socket protection is required"), "")
+	}
+	if dial == nil {
+		return failedPunchResult("client", errors.New("punch dialer is unavailable"), "")
+	}
 
 	httpClient, err := openRungPunchHTTPClient(insecureTLS, certSHA256)
 	if err != nil {
 		return failedPunchResult("config", err, "")
 	}
 
+	var protectSocket func(int64) bool
+	if protector != nil {
+		protectSocket = protector.Protect
+	}
 	dialer := &openrungpunch.Dialer{
 		Hub: punchcore.HubClient{
 			BaseURL:    baseURL,
 			HTTPClient: httpClient,
 		},
-		RelayID: relayID,
-		ProtectSocket: func(fd int64) bool {
-			return protector != nil && protector.Protect(fd)
-		},
+		RelayID:                relayID,
+		ProtectSocket:          protectSocket,
+		AllowUnprotectedSocket: !requireProtector,
 	}
-	est, attempt, err := dialer.Establish(ctx)
+	est, attempt, err := dial(ctx, dialer)
 	if err != nil {
 		return failedPunchResult(attempt.Reason, err, attempt.NATClass)
+	}
+	if est == nil || est.Bridge == nil {
+		if est != nil {
+			_ = est.Close()
+		}
+		return failedPunchResult("bridge", errors.New("punch dialer returned no bridge"), attempt.NATClass)
 	}
 
 	c.mu.Lock()
@@ -196,9 +297,12 @@ func (c *OpenRungPunchClient) Establish() *OpenRungPunchResult {
 		return failedPunchResult("cancelled", context.Canceled, attempt.NATClass)
 	}
 	c.est = est
+	c.serveDone = make(chan struct{})
+	serveDone := c.serveDone
+	// Launch before unlocking so a concurrent Close can safely wait on
+	// serveDone without racing a not-yet-started serving goroutine.
+	go c.serveBridge(ctx, est, serveDone)
 	c.mu.Unlock()
-
-	go c.serveBridge(ctx, est)
 
 	return &OpenRungPunchResult{
 		succeeded:  true,
@@ -211,15 +315,28 @@ func (c *OpenRungPunchClient) Establish() *OpenRungPunchResult {
 	}
 }
 
-func (c *OpenRungPunchClient) serveBridge(ctx context.Context, est *openrungpunch.Establishment) {
+func (c *OpenRungPunchClient) serveBridge(
+	ctx context.Context,
+	est *openrungpunch.Establishment,
+	done chan struct{},
+) {
 	err := est.Bridge.Serve(ctx)
-	if ctx.Err() != nil {
-		return
+	unexpected := ctx.Err() == nil
+	if unexpected {
+		_ = est.Close()
 	}
+
 	c.mu.Lock()
 	listener := c.listener
-	shouldNotify := !c.closed && c.est == est && listener != nil
+	shouldNotify := unexpected && !c.closed && c.est == est && listener != nil
+	if c.est == est {
+		c.est = nil
+	}
 	c.mu.Unlock()
+
+	// Release Close before invoking user code so Closed may call Close without
+	// waiting on its own serving goroutine.
+	close(done)
 	if !shouldNotify {
 		return
 	}
@@ -241,20 +358,25 @@ func failedPunchResult(reason string, err error, natClass string) *OpenRungPunch
 	return &OpenRungPunchResult{reason: reason, errorText: message, natClass: natClass}
 }
 
-// Close cancels any blocked HTTP/UDP/QUIC work and then closes a live bridge.
-// It is idempotent and may be called concurrently with Establish.
+// Close is idempotent, cancels any blocked HTTP/UDP/QUIC work, and waits until
+// any in-flight establishment or serving goroutine has released its resources.
 func (c *OpenRungPunchClient) Close() {
 	if c == nil {
 		return
 	}
 	c.mu.Lock()
 	if c.closed {
+		closeDone := c.closeDone
 		c.mu.Unlock()
+		<-closeDone
 		return
 	}
 	c.closed = true
 	c.cancel()
 	est := c.est
+	serveDone := c.serveDone
+	attemptDone := c.attemptDone
+	closeDone := c.closeDone
 	c.est = nil
 	c.protector = nil
 	c.listener = nil
@@ -262,6 +384,13 @@ func (c *OpenRungPunchClient) Close() {
 	if est != nil {
 		_ = est.Close()
 	}
+	if serveDone != nil {
+		<-serveDone
+	}
+	if attemptDone != nil {
+		<-attemptDone
+	}
+	close(closeDone)
 }
 
 func openRungPunchHTTPClient(insecure bool, fingerprint string) (*http.Client, error) {

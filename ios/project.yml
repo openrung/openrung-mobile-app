@@ -150,9 +150,11 @@ targets:
       - path: PacketTunnel/EngineStopSignal.swift
       - path: PacketTunnel/FailureClassifier.swift
       - path: PacketTunnel/PhysicalNetworkEpochMonitor.swift
+      - path: PacketTunnel/PunchRecoveryCircuitBreaker.swift
       - path: PacketTunnel/PacketTunnelError.swift
       - path: PacketTunnel/PacketTunnelInternetProbe.swift
       - path: PacketTunnel/PacketTunnelProxyEngineError.swift
+      - path: PacketTunnel/PunchNativeClient.swift
       - path: PacketTunnel/WssNativeClient.swift
       - path: Shared/AppConfig.swift
       - path: Shared/BrokerClient.swift
@@ -161,6 +163,7 @@ targets:
       - path: Shared/InternetProbe.swift
       - path: Shared/NetworkPathMonitor.swift
       - path: Shared/NativeBrokerTransport.swift
+      - path: Shared/PunchFallbackPolicy.swift
       - path: Shared/RelayDescriptor.swift
       - path: Shared/RelayRanker.swift
       - path: Shared/RelayReachability.swift

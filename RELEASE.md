@@ -21,15 +21,15 @@ the upstream commit SHA). Both build paths consume it:
 When you move to a newer sing-box, update `SINGBOX_VERSION` **only**, rebuild
 both artifacts from it, and commit the new pin in the same change.
 
-Android additionally compiles the first-party punch client into the same
-gomobile AAR. It has two pins: the gomobile binding and its QUIC session layer
-are committed under [`android/punchbridge`](android/punchbridge) and pinned by
-the repository commit/tag being released, while the shared punch protocol core
-is consumed as the Go module `github.com/openrung/openrung/punchcore` at the
+Both platforms compile the first-party punch client into their existing
+gomobile Libbox artifact. The gomobile binding and its QUIC session layer are
+committed under [`android/punchbridge`](android/punchbridge) and pinned by the
+repository commit/tag being released, while the shared punch protocol core is
+consumed as the Go module `github.com/openrung/openrung/punchcore` at the
 version pinned in [`android/punchbridge/go.mod`](android/punchbridge/go.mod),
 with `go.sum` recording its hash once the tagged version has been fetched.
 Bumping the core is a `go.mod`/`go.sum` edit committed like a
-`SINGBOX_VERSION` bump: rebuild the AAR in the same change.
+`SINGBOX_VERSION` bump: rebuild both Libbox artifacts in the same change.
 
 Both native Libbox artifacts consume the WSS/CDN transport implementation only
 as the tagged Go module `github.com/openrung/openrung/wsscore`, currently pinned
@@ -70,12 +70,13 @@ A punch wire/protocol change flows like this:
    caches (both cache keys hash `go.mod`/`go.sum`), and the bump PR itself
    rebuilds the AAR and runs the Android unit tests via
    `.github/workflows/android-unit-test.yml`.
-4. Rebuild the AAR via `android/build-libbox-release.sh` and ship.
+4. Rebuild both artifacts via `android/build-libbox-release.sh` and
+   `ios/build-libbox-release.sh`, then ship.
 
 For local cross-repo development against an untagged punchcore checkout, use an
 uncommitted `go.work` (see `.gitignore`) and/or
-`PUNCHCORE_SRC=/path/to/openrung/punchcore android/build-libbox-release.sh`.
-Both are **dev-only**: never commit a `replace`, and never release an AAR built
+`PUNCHCORE_SRC=/path/to/openrung/punchcore` with either artifact build script.
+Both modes are **dev-only**: never commit a `replace`, and never release an artifact built
 with `PUNCHCORE_SRC`, `WSSCORE_SRC`, or `BROKERAPI_SRC` set.
 
 ### Bumping the wsscore pin
@@ -123,15 +124,14 @@ go install github.com/sagernet/gomobile/cmd/gobind@v0.1.12
 ./android/build-libbox-release.sh
 
 # iOS → ios/ThirdParty/Libbox.xcframework
-#   (device+simulator framework: sing-box + broker/WSS bindings and modules)
+#   (device+simulator framework: bindings + pinned brokerapi/punchcore/wsscore)
 ./ios/build-libbox-release.sh
 ```
 
-The Android artifact inputs are the sing-box pin, the tagged
-`android/punchbridge` source, and the brokerapi, punchcore, and wsscore module
-versions in `android/punchbridge/go.mod`. The Apple artifact inputs are the
-same sing-box pin, `broker_binding.go`, `wss_binding.go`, and the brokerapi and
-wsscore pins. A stale cached AAR or XCFramework is a release blocker; release
+Both artifact inputs are the sing-box pin, the tagged
+`android/punchbridge` binding/session source, and the brokerapi, punchcore, and
+wsscore module versions in `android/punchbridge/go.mod`. A stale cached AAR or
+XCFramework is a release blocker; release
 CI must hash all inputs and the corresponding build script. For the shared
 modules, CI hashes the *pins*
 (`go.mod`/`go.sum`), not their
@@ -190,23 +190,23 @@ XCFramework**. CI runs the Go binding tests and syntax-checks
 `ios/build-libbox-release.sh`, but the device/simulator framework build still
 requires macOS tooling and is a manual release gate. Until CI builds the
 XCFramework, the release owner must run the script and verify both required
-slices and exported WSS and broker symbols as described below.
+slices and exported punch, WSS, and broker symbols as described below.
 
-For Android releases, also verify every live bare-IP punch coordinator's leaf
-SHA-256 against `AppConfig.PUNCH_COORDINATOR_CERT_SHA256_BY_HOST`. Coordinate
+For Android and iOS releases, also verify every live bare-IP punch coordinator's leaf
+SHA-256 against each platform's `AppConfig` punch-coordinator pin map. Coordinate
 certificate rotation by shipping the replacement pin before the broker starts
 advertising the replacement endpoint/certificate.
 
-## 3. WSS/CDN platform and rollout gate
+## 3. NAT-punch and WSS/CDN platform rollout gate
 
-The WSS/CDN client ships on Android and iOS, but every advertised relay must
+The NAT-punch and WSS/CDN clients ship on Android and iOS, but every advertised relay must
 retain its normal Reality endpoint for older client versions. Do not advertise
-a WSS-only relay: direct Reality is always the first choice and remains the
+a punch- or WSS-only relay: RelayHub Reality remains the
 compatibility and rollback path.
 
 Roll out in this order:
 
-1. Deploy and verify every CDN front and the broker ticket endpoint on all
+1. Deploy and verify every punch coordinator, CDN front, and broker ticket endpoint on all
    broker fronts. Tickets must be short-lived, single-use, and bound to the
    exact relay/front pair; redirects remain disabled.
 2. Build `android/app/libs/libbox.aar` and
@@ -215,6 +215,7 @@ Roll out in this order:
    listener, result, and front-validation symbols plus the broker operation
    constructors/results. Confirm both Apple device arm64 and simulator
    arm64/x86_64 slices export matching
+   `LibboxNewOpenRungPunchClientForIOS`,
    `LibboxNewOpenRungWSSClientForIOS`,
    `LibboxNewOpenRungBrokerOperationForIOS`,
    `LibboxNewOpenRungBrokerOperationForReactNative`, speed/manifest operation
@@ -223,7 +224,9 @@ Roll out in this order:
    blocker.
 3. Run `go test -race ./...` and `go vet ./...` in `android/punchbridge`, the
    complete Android JVM and iOS unit suites, and Android/iOS platform builds.
-   Smoke-test real devices on both platforms: direct success (no ticket),
+   Smoke-test real devices on both platforms: successful punch, punch decline
+   or incompatible NAT falling back to RelayHub, rapid-loss circuit opening,
+   direct success (no WSS ticket),
    eligible remote failure (ticket then WSS), disconnect during dial, and
    Wi-Fi/cellular changes. For a signed native one-label `*.cloudfront.net`
    front, capture the ClientHello at a controlled edge and verify that SNI is
@@ -231,9 +234,9 @@ Roll out in this order:
    invalid certificates still fail. Also verify that custom CloudFront CNAMEs
    and other CDNs retain ordinary URL-derived SNI. Never retry the same
    single-use ticket with SNI after an ambiguous no-SNI handshake failure.
-   Android additionally verifies
-   protection refusal never connects; iOS verifies the PacketTunnel-only Apple constructor uses
-   the nil-protector wsscore path, and that startup/health classification
+   Android additionally verifies punch and WSS socket-protection refusal never
+   connects; iOS verifies the PacketTunnel-only Apple constructors use the
+   nil-protector punchcore/wsscore paths, and that startup/health classification
    uses the bounded `createTCPConnectionThroughTunnel` probe rather than a
    provider-originated `URLSession`. A simulator build is necessary but is not
    a substitute for either real-device VPN test.
@@ -241,7 +244,9 @@ Roll out in this order:
    direct, port-443 relay descriptors and sign the complete list. Never repair
    malformed signed input client-side. Expand only after ticket issuance,
    handshake, end-to-end probe, and network-recovery rates are healthy.
-5. Watch `transport_fallback`, `transport_failed` (`transport=wss`, front ID,
+5. Watch `punch_attempted`, `punch_failed`, `punch_succeeded`,
+   `punch_path_lost`, `punch_fallback`, `transport_fallback`,
+   `transport_failed` (`transport=wss`, front ID,
    stage), `transport_path_lost`, and `connection_succeeded.transport`. Only the
    direct failure may affect relay health; ticket/CDN/front failures are
    transport-only signals. A rise in WSS failures must not quarantine the relay.
@@ -251,11 +256,11 @@ Roll out in this order:
    fresh-ticket policy. Repeated identical `NWPath` callbacks and extension wake
    alone must leave a healthy iOS WSS session in place and must not mint a ticket;
    wake resumes the engine. A native WSS close or the configured end-to-end
-   health-failure threshold must still start recovery. On Android, verify
+   health-failure threshold must still start recovery. On both platforms, verify
    unexpected libbox exit is terminal on direct, punched, and WSS sessions: it
-   must not reladder or request a ticket. WSS recovery must cancel the engine
-   monitor, stop libbox, close the epoch monitor, and then close the WSS adapter
-   before waiting for a usable physical network.
+   must not reladder or request a ticket. Native-adapter recovery must cancel
+   the engine monitor, stop libbox, close the epoch monitor, and then close the
+   punch or WSS adapter before waiting for a usable physical network.
 
 Rollback is descriptor-first: remove `wss_fronts` from newly signed relay lists
 to return new sessions to direct-only behavior, while keeping the ticket API and

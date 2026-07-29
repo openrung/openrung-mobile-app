@@ -84,7 +84,7 @@ struct WssFallbackPolicy {
         } catch is CancellationError {
             throw CancellationError()
         } catch let error as DirectPathError {
-            if containsCancellation(error) { throw CancellationError() }
+            if containsTunnelCancellation(error) { throw CancellationError() }
             directFailure = error
         } catch {
             throw error
@@ -101,10 +101,10 @@ struct WssFallbackPolicy {
             } catch is CancellationError {
                 throw CancellationError()
             } catch let error as LocalTunnelError {
-                if containsCancellation(error) { throw CancellationError() }
+                if containsTunnelCancellation(error) { throw CancellationError() }
                 throw error
             } catch let error as WssTransportError {
-                if containsCancellation(error) { throw CancellationError() }
+                if containsTunnelCancellation(error) { throw CancellationError() }
                 failures.append(error)
                 await onWssFailure(front, error)
             }
@@ -113,20 +113,20 @@ struct WssFallbackPolicy {
     }
 }
 
-private func containsCancellation(_ error: Error, depth: Int = 0) -> Bool {
+func containsTunnelCancellation(_ error: Error, depth: Int = 0) -> Bool {
     guard depth < 8 else { return false }
     if error is CancellationError { return true }
     if let direct = error as? DirectPathError {
-        return containsCancellation(direct.underlying, depth: depth + 1)
+        return containsTunnelCancellation(direct.underlying, depth: depth + 1)
     }
     if let local = error as? LocalTunnelError {
-        return containsCancellation(local.underlying, depth: depth + 1)
+        return containsTunnelCancellation(local.underlying, depth: depth + 1)
     }
     if let wss = error as? WssTransportError {
-        return containsCancellation(wss.underlying, depth: depth + 1)
+        return containsTunnelCancellation(wss.underlying, depth: depth + 1)
     }
     if let underlying = (error as NSError).userInfo[NSUnderlyingErrorKey] as? Error {
-        return containsCancellation(underlying, depth: depth + 1)
+        return containsTunnelCancellation(underlying, depth: depth + 1)
     }
     return false
 }
@@ -154,10 +154,12 @@ enum TunnelTransportCleanup {
     static func run(
         stopEngine: () -> Void,
         closeNetworkMonitor: () -> Void,
+        closePunch: () -> Void,
         closeWss: () -> Void
     ) {
         stopEngine()
         closeNetworkMonitor()
+        closePunch()
         closeWss()
     }
 }

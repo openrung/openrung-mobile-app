@@ -5,8 +5,8 @@
 > extension, so the whole iOS app is GPL-3.0-or-later (see the repo `LICENSE`
 > and `THIRD_PARTY_NOTICES.md`). The build below pins the **exact sing-box
 > revision** recorded in [`../../SINGBOX_VERSION`](../../SINGBOX_VERSION). The
-> OpenRung's broker and WSS wrappers also resolve the exact `brokerapi` and
-> `wsscore` tags pinned in
+> OpenRung's broker, punch, and WSS wrappers also resolve the exact `brokerapi`,
+> `punchcore`, and `wsscore` tags pinned in
 > [`../../android/punchbridge/go.mod`](../../android/punchbridge/go.mod), so the
 > GPL §6 corresponding source is reproducible — keep those pins in lockstep
 > with the shipped binary (see [`../../RELEASE.md`](../../RELEASE.md)).
@@ -30,29 +30,31 @@ PATH="$(go env GOPATH)/bin:$PATH" gomobile init
 ```
 
 The script downloads the exact sing-box pseudo-version, grafts only the thin
-OpenRung broker and WSS bindings into `experimental/libbox`, trims sing-box's
+OpenRung broker, punch, and WSS bindings into `experimental/libbox`, trims
+sing-box's
 libbox build tags to OpenRung's feature set (dropping Tailscale, WireGuard, and
 naiveproxy — see [`../../RELEASE.md`](../../RELEASE.md) §2), resolves the tagged
-`brokerapi` and `wsscore` modules, and emits one unified
+`brokerapi`, `punchcore`, and `wsscore` modules, and emits one unified
 `Libbox.xcframework`. This is required because a second gomobile framework
 would load a second, incompatible Go runtime. Shared transport implementations
 are never copied into this repository. Swift confines generated broker objects
 to `LibboxBrokerTransport`, copies value snapshots before close, and supplies
 separate iOS and React Native factories from this one framework/runtime.
-Before installation, the build script links a small broker-constructor
-executable against both Apple slices, checks the React Native constructor plus
-speed/manifest symbols, and verifies that the OpenRung host target declares its
-own `libresolv.tbd` dependency.
+Before installation, the build script links a small constructor smoke
+executable against both Apple slices, checks punch, WSS, React Native broker,
+speed, and manifest symbols, and verifies that the OpenRung host target declares
+its own `libresolv.tbd` dependency.
 
-For development against unpublished local checkouts, use either or both of:
+For development against unpublished local checkouts, use any of:
 
 ```sh
 BROKERAPI_SRC=/absolute/path/to/brokerapi \
+PUNCHCORE_SRC=/absolute/path/to/punchcore \
 WSSCORE_SRC=/absolute/path/to/wsscore \
 ./ios/build-libbox-release.sh
 ```
 
-Artifacts built this way are explicitly non-release builds; omit both
+Artifacts built this way are explicitly non-release builds; omit all
 variables to verify the pinned tags used for distribution.
 
 The Android AAR is built from the same pinned revision by

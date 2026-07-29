@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Builds ios/ThirdParty/Libbox.xcframework from the exact sing-box revision in
-# ../SINGBOX_VERSION and grafts OpenRung's broker and WSS bindings into
+# ../SINGBOX_VERSION and grafts OpenRung's broker, punch, and WSS bindings into
 # libbox's existing gomobile package. This deliberately produces one
-# XCFramework and one Go runtime: do not ship either binding as a second
+# XCFramework and one Go runtime: do not ship any binding as a second
 # gomobile framework.
 #
-# The transports resolve from the exact brokerapi and wsscore module versions
-# in android/punchbridge/go.mod. BROKERAPI_SRC and WSSCORE_SRC are absolute
-# local-development overrides only; release artifacts must use the pinned tags.
+# The transports resolve from the exact brokerapi, punchcore, and wsscore module
+# versions in android/punchbridge/go.mod. BROKERAPI_SRC, PUNCHCORE_SRC, and
+# WSSCORE_SRC are absolute local-development overrides only; release artifacts
+# must use the pinned tags.
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"
@@ -40,6 +41,19 @@ for mobile_tool in gomobile gobind; do
   fi
 done
 
+punchcore_version="$(go mod edit -json "$binding_source/go.mod" | python3 -c '
+import json, sys
+data = json.load(sys.stdin)
+for require in data.get("Require") or []:
+    if require["Path"] == "github.com/openrung/openrung/punchcore":
+        print(require["Version"])
+        break
+')"
+if [ -z "$punchcore_version" ]; then
+  echo "error: $binding_source/go.mod has no punchcore module pin" >&2
+  exit 1
+fi
+
 wsscore_version="$(go mod edit -json "$binding_source/go.mod" | python3 -c '
 import json, sys
 data = json.load(sys.stdin)
@@ -67,7 +81,10 @@ if [ -z "$brokerapi_version" ]; then
 fi
 
 dev_workspace=""
-if [ -n "${WSSCORE_SRC:-}" ] || [ -n "${BROKERAPI_SRC:-}" ]; then
+if [ -n "${PUNCHCORE_SRC:-}" ] || [ -n "${WSSCORE_SRC:-}" ] || [ -n "${BROKERAPI_SRC:-}" ]; then
+  if [ -n "${PUNCHCORE_SRC:-}" ]; then
+    PUNCHCORE_SRC="$(cd "$PUNCHCORE_SRC" && pwd)"
+  fi
   if [ -n "${WSSCORE_SRC:-}" ]; then
     WSSCORE_SRC="$(cd "$WSSCORE_SRC" && pwd)"
   fi
@@ -79,6 +96,10 @@ if [ -n "${WSSCORE_SRC:-}" ] || [ -n "${BROKERAPI_SRC:-}" ]; then
     echo "go 1.25.0"
     echo
     echo "use $binding_source"
+    if [ -n "${PUNCHCORE_SRC:-}" ]; then
+      echo
+      echo "replace github.com/openrung/openrung/punchcore => $PUNCHCORE_SRC"
+    fi
     if [ -n "${WSSCORE_SRC:-}" ]; then
       echo
       echo "replace github.com/openrung/openrung/wsscore => $WSSCORE_SRC"
@@ -100,7 +121,7 @@ echo "Testing the OpenRung native bindings"
   fi
 )
 
-echo "Building Libbox.xcframework from sing-box $sing_box_version with brokerapi $brokerapi_version and wsscore $wsscore_version"
+echo "Building Libbox.xcframework from sing-box $sing_box_version with brokerapi $brokerapi_version, punchcore $punchcore_version, and wsscore $wsscore_version"
 
 module_cache="${GOMODCACHE:-$(go env GOMODCACHE)}"
 module_source="$module_cache/github.com/sagernet/sing-box@$sing_box_version"
@@ -167,24 +188,40 @@ print(
 PATCH_TAGS
 # ---------------------------------------------------------------------------
 
-# The gomobile-generated Objective-C APIs, brokerapi and wsscore clients, and
-# sing-box engine must share libbox's Go runtime. Only the thin bindings are
-# copied; broker policy, ECH/TLS, WebSocket, yamux, stream copying, and transport
-# bounds remain in the tagged modules.
+# The gomobile-generated Objective-C APIs, native transports, and sing-box
+# engine must share libbox's Go runtime. A standalone punch framework would
+# duplicate go.Seq/go.Universe and the native Go runtime. Only the thin bindings
+# and sagernet-QUIC session layer are copied; broker policy, punch protocol,
+# ECH/TLS, WebSocket, yamux, and transport bounds remain in the tagged modules.
+cp "$binding_source/binding.go" \
+  "$work_dir/source/experimental/libbox/openrung_punch.go"
 cp "$binding_source/wss_binding.go" \
   "$work_dir/source/experimental/libbox/openrung_wss.go"
 cp "$binding_source/broker_binding.go" \
   "$work_dir/source/experimental/libbox/openrung_broker.go"
+mkdir -p "$work_dir/source/experimental/libbox/internal/openrungpunch"
+for source_file in "$binding_source/internal/openrungpunch/"*.go; do
+  case "$source_file" in
+    *_test.go) continue ;;
+  esac
+  cp "$source_file" "$work_dir/source/experimental/libbox/internal/openrungpunch/"
+done
 
 (
   cd "$work_dir/source"
   go_mod_edits=(
     -require "github.com/openrung/openrung/brokerapi@$brokerapi_version"
+    -require "github.com/openrung/openrung/punchcore@$punchcore_version"
     -require "github.com/openrung/openrung/wsscore@$wsscore_version"
   )
   if [ -n "${BROKERAPI_SRC:-}" ]; then
     go_mod_edits+=(
       -replace "github.com/openrung/openrung/brokerapi=$BROKERAPI_SRC"
+    )
+  fi
+  if [ -n "${PUNCHCORE_SRC:-}" ]; then
+    go_mod_edits+=(
+      -replace "github.com/openrung/openrung/punchcore=$PUNCHCORE_SRC"
     )
   fi
   if [ -n "${WSSCORE_SRC:-}" ]; then
@@ -198,11 +235,14 @@ cp "$binding_source/broker_binding.go" \
     if [ -n "${BROKERAPI_SRC:-}" ]; then
       echo "BROKERAPI_SRC: $BROKERAPI_SRC" >&2
     fi
+    if [ -n "${PUNCHCORE_SRC:-}" ]; then
+      echo "PUNCHCORE_SRC: $PUNCHCORE_SRC" >&2
+    fi
     if [ -n "${WSSCORE_SRC:-}" ]; then
       echo "WSSCORE_SRC: $WSSCORE_SRC" >&2
     fi
     echo "This is for development only. Release XCFrameworks must" >&2
-    echo "resolve the versions pinned in android/punchbridge/go.mod." >&2
+    echo "resolve all versions pinned in android/punchbridge/go.mod." >&2
     echo "==============================================================" >&2
   fi
 
@@ -210,6 +250,7 @@ cp "$binding_source/broker_binding.go" \
   GOFLAGS=-mod=mod GOMODCACHE="$module_cache" GOWORK=off \
     go get \
       "github.com/openrung/openrung/brokerapi@$brokerapi_version" \
+      "github.com/openrung/openrung/punchcore@$punchcore_version" \
       "github.com/openrung/openrung/wsscore@$wsscore_version"
   GOMODCACHE="$module_cache" GOWORK=off \
     go run ./cmd/internal/build_libbox \
@@ -229,6 +270,30 @@ for slice in ios-arm64 ios-arm64_x86_64-simulator; do
     echo "error: Apple build is missing the OpenRung iOS WSS API in $slice" >&2
     exit 1
   fi
+  if ! grep -Fq 'LibboxNewOpenRungPunchClientForIOS(NSString* _Nullable baseURL, NSString* _Nullable relayID, BOOL insecureTLS, NSString* _Nullable certSHA256, id<LibboxOpenRungPunchListener> _Nullable listener);' "$header"; then
+    echo "error: Apple build is missing the nil-protector OpenRung iOS punch constructor in $slice" >&2
+    exit 1
+  fi
+  for punch_symbol in \
+    '@protocol LibboxOpenRungPunchListener <NSObject>' \
+    '@interface LibboxOpenRungPunchClient : NSObject' \
+    '@interface LibboxOpenRungPunchResult : NSObject' \
+    ')close;' \
+    ')establish;' \
+    ')bridgeHost;' \
+    ')bridgePort;' \
+    ')errorText;' \
+    ')natClass;' \
+    ')peerIP;' \
+    ')rttMillis;' \
+    ')reason;' \
+    ')sessionID;' \
+    ')succeeded;'; do
+    if ! grep -Fq "$punch_symbol" "$header"; then
+      echo "error: Apple build is missing generated punch symbol in $slice: $punch_symbol" >&2
+      exit 1
+    fi
+  done
   if ! grep -Fq 'LibboxNewOpenRungBrokerOperationForIOS' "$header"; then
     echo "error: Apple build is missing the OpenRung iOS broker constructor in $slice" >&2
     exit 1
@@ -294,7 +359,7 @@ for dependency in (
         sys.exit("error: the OpenRung target must link " + dependency[2:])
 CHECK_HOST_LINKAGE
 
-# Exercise a broker constructor in both generated slices. This deliberately
+# Exercise native constructors in both generated slices. This deliberately
 # links the static archive (rather than only checking its headers), surfacing
 # unresolved resolver symbols before a later native call-site migration.
 link_smoke_source="$script_dir/scripts/libbox-broker-link-smoke.m"

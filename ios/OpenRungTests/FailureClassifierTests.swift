@@ -249,6 +249,31 @@ final class FailureClassifierTests: XCTestCase {
         )
     }
 
+    func testNativePunchErrorsUseBoundedSpecificReasonsAndDetail() {
+        XCTAssertEqual(
+            FailureClassifier.classify(PunchNativeClientError.unavailable),
+            "punch_client_unavailable"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(PunchNativeClientError.creationFailed),
+            "punch_client_creation_failed"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(PunchNativeClientError.invalidLoopbackEndpoint),
+            "punch_invalid_loopback_endpoint"
+        )
+        let declined = PunchNativeClientError.establishmentFailed(
+            reason: .declined,
+            detail: "relay temporarily declined the session",
+            natClass: "eim"
+        )
+        XCTAssertEqual(FailureClassifier.classify(declined), "punch_declined")
+        XCTAssertEqual(
+            FailureClassifier.detail(declined),
+            "relay temporarily declined the session"
+        )
+    }
+
     // MARK: - failure_detail truncation
 
     func testDetailTruncatesOnUTF8Boundary() {

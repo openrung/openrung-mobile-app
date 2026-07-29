@@ -146,15 +146,22 @@ func NewOpenRungWSSClient(
 
 // NewOpenRungWSSClientForIOS prepares the same single-use WSS client for
 // Apple's Network Extension process. iOS has no Android VpnService socket
-// protection API, so this constructor intentionally selects wsscore's
-// nil-protector path. The front URL and ticket are still
-// passed to wsscore byte-for-byte unchanged.
+// protection API, so an actual iOS build selects wsscore's nil-protector path.
+// The exported symbol is also present in Android's AAR; calls from any non-iOS
+// runtime fail closed before dialing. The front URL and ticket are still passed
+// to wsscore byte-for-byte unchanged.
 func NewOpenRungWSSClientForIOS(
 	frontURL string,
 	ticket string,
 	listener OpenRungWSSListener,
 ) *OpenRungWSSClient {
-	return newOpenRungWSSClient(frontURL, ticket, nil, listener, false)
+	return newOpenRungWSSClient(
+		frontURL,
+		ticket,
+		nil,
+		listener,
+		iosConstructorRequiresSocketProtector(),
+	)
 }
 
 func newOpenRungWSSClient(

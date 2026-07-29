@@ -148,6 +148,22 @@ final class WssLifecycleAndConfigurationTests: XCTestCase {
         XCTAssertTrue(tracker.absorb(wifi))
     }
 
+    func testNativeAdapterLossCountsUntilPhysicalPathIsExplicitlyUnsatisfied() {
+        XCTAssertTrue(
+            PhysicalNetworkEpochMonitor.shouldCountNativeAdapterLoss(physicalPath: nil)
+        )
+        XCTAssertTrue(
+            PhysicalNetworkEpochMonitor.shouldCountNativeAdapterLoss(
+                physicalPath: fingerprint(interface: "en0:wifi:4", satisfied: true)
+            )
+        )
+        XCTAssertFalse(
+            PhysicalNetworkEpochMonitor.shouldCountNativeAdapterLoss(
+                physicalPath: fingerprint(interface: "", satisfied: false)
+            )
+        )
+    }
+
     func testHealthThresholdRequiresThreeConsecutiveRemoteFailuresAndResetsOnSuccess() {
         var threshold = TunnelHealthFailureThreshold(requiredFailures: 3)
         XCTAssertFalse(threshold.recordRemoteFailure())

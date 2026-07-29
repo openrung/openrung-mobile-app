@@ -148,11 +148,17 @@ func TestOpenRungWSSConnectPassesExactCredentialsAndCleansUp(t *testing.T) {
 	}
 }
 
-func TestOpenRungWSSIOSConnectUsesNilProtectorAndExactCredentials(t *testing.T) {
+func TestOpenRungWSSExplicitIOSPathUsesNilProtectorAndExactCredentials(t *testing.T) {
 	bridge := newTestWSSBridge()
 	// A nil listener is valid on iOS; lifecycle cleanup must not depend on a
 	// callback implementation being present.
-	client := NewOpenRungWSSClientForIOS(testWSSFrontURL, testWSSTicket, nil)
+	client := newOpenRungWSSClient(
+		testWSSFrontURL,
+		testWSSTicket,
+		nil,
+		nil,
+		false,
+	)
 	client.dial = func(
 		_ context.Context,
 		options wsscore.ClientOptions,
@@ -289,7 +295,13 @@ func TestOpenRungWSSCloseCancelsBlockedConnectWithoutLeakingSecrets(t *testing.T
 }
 
 func TestOpenRungWSSIOSCloseCancelsBlockedConnect(t *testing.T) {
-	client := NewOpenRungWSSClientForIOS(testWSSFrontURL, testWSSTicket, nil)
+	client := newOpenRungWSSClient(
+		testWSSFrontURL,
+		testWSSTicket,
+		nil,
+		nil,
+		false,
+	)
 	dialStarted := make(chan struct{})
 	client.dial = func(ctx context.Context, options wsscore.ClientOptions) (openRungWSSBridge, error) {
 		if options.SocketProtector != nil {

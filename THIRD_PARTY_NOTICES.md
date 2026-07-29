@@ -261,8 +261,9 @@ and the shared OpenRung broker, punch, and WSS modules, consumed as
 `github.com/openrung/openrung/brokerapi`,
 `github.com/openrung/openrung/punchcore`, and
 `github.com/openrung/openrung/wsscore` at the versions pinned in
-`android/punchbridge/go.mod`. The Apple framework includes the broker and WSS
-bindings with the same brokerapi and wsscore pins. All three modules are
+`android/punchbridge/go.mod`. The Apple framework includes the broker, punch,
+and WSS bindings with the same brokerapi, punchcore, and wsscore pins. All
+three modules are
 first-party GPL-3.0-or-later code; their complete tagged source is available
 from **https://github.com/openrung/openrung**, which this offer also covers. The
 build paths

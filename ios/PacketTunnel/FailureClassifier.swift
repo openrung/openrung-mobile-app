@@ -42,6 +42,9 @@ enum FailureClassifier {
         if let nativeWssError = error as? WssNativeClientError {
             return nativeWssError.failureReason
         }
+        if let nativePunchError = error as? PunchNativeClientError {
+            return nativePunchError.failureReason
+        }
 
         // (2) app relay-selection sentinels; unwrap the wrappers that carry the real cause.
         if let tunnelError = error as? PacketTunnelError {
@@ -192,6 +195,14 @@ enum FailureClassifier {
                 return lastWssFailure.underlying
             }
             return recorded.directFailure.underlying
+        }
+        if case let PunchNativeClientError.establishmentFailed(_, detail, _) = error,
+           detail.isEmpty == false {
+            return NSError(
+                domain: "OpenRungPunch",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: detail]
+            )
         }
         if let tunnelError = error as? PacketTunnelError {
             switch tunnelError {
