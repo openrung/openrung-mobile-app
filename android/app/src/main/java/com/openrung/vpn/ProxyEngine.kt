@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.os.Process
 import android.util.Log
+import com.openrung.BuildConfig
 import com.openrung.model.RelayDescriptor
 import com.openrung.state.OpenRungStatusStore
 import com.openrung.telemetry.TelemetryManager
@@ -128,8 +129,10 @@ class LibboxProxyEngine : ProxyEngine {
             basePath = File(vpnService.filesDir, "libbox").apply { mkdirs() }.path
             workingPath = File(vpnService.getExternalFilesDir(null) ?: vpnService.filesDir, "libbox").apply { mkdirs() }.path
             tempPath = File(vpnService.cacheDir, "libbox").apply { mkdirs() }.path
-            logMaxLines = 3000
-            debug = true
+            // The in-memory log ring is only read by debug tooling; keep it small in release,
+            // where debug mode would also forward every libbox line into the status store.
+            logMaxLines = if (BuildConfig.DEBUG) 3000 else 300
+            debug = BuildConfig.DEBUG
             crashReportSource = "OpenRungAndroid"
             oomKillerEnabled = false
             oomKillerDisabled = true
@@ -203,8 +206,12 @@ class LibboxProxyEngine : ProxyEngine {
     }
 
     companion object {
-        /** Status push interval, a Go time.Duration in nanoseconds. */
-        private const val STATUS_INTERVAL_NS = 3_000_000_000L
+        /**
+         * Status push interval, a Go time.Duration in nanoseconds. The counters it carries are
+         * cumulative and only sampled by the telemetry heartbeat (every 50–70 s), so a coarse
+         * interval loses no data while avoiding a loopback-gRPC wakeup every few seconds.
+         */
+        private const val STATUS_INTERVAL_NS = 60_000_000_000L
     }
 }
 
@@ -363,7 +370,11 @@ private class OpenRungCommandServerHandler(
             ?.filter { it.isNotBlank() }
             ?.forEach {
                 Log.d(LOG_TAG, it)
-                OpenRungStatusStore.appendLog("libbox: $it")
+                // Each appended line persists the status snapshot and fans out to the JS bridge;
+                // only debug builds surface libbox internals in the on-screen console.
+                if (BuildConfig.DEBUG) {
+                    OpenRungStatusStore.appendLog("libbox: $it")
+                }
             }
     }
 }

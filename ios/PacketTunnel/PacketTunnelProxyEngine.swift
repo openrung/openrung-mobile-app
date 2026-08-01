@@ -34,8 +34,10 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
     private var activeRelay: RelayDescriptor?
     private let stopSignal = EngineStopSignal()
 
-    /// Status push interval, a Go time.Duration in nanoseconds.
-    private static let statusIntervalNs: Int64 = 3_000_000_000
+    /// Status push interval, a Go time.Duration in nanoseconds. The counters it carries are
+    /// cumulative and only sampled by the telemetry heartbeat (every 50–70 s), so a coarse
+    /// interval loses no data while avoiding a loopback-gRPC wakeup every few seconds.
+    private static let statusIntervalNs: Int64 = 60_000_000_000
 
     /// Performs every deterministic local check available before opening a relay socket. This is
     /// intentionally ahead of direct reachability so a missing/stale native engine, unwritable
@@ -68,8 +70,15 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
         setupOptions.basePath = directories.base.path
         setupOptions.workingPath = directories.working.path
         setupOptions.tempPath = directories.temporary.path
+        // The in-memory log ring lives inside the extension's ~50 MB jetsam budget; nothing in
+        // the release app reads it back, so keep it small outside debug builds.
+        #if DEBUG
         setupOptions.logMaxLines = 3000
         setupOptions.debug = true
+        #else
+        setupOptions.logMaxLines = 300
+        setupOptions.debug = false
+        #endif
         setupOptions.crashReportSource = AppConfig.engineDirectoryName
         setupOptions.oomKillerEnabled = false
         setupOptions.oomKillerDisabled = true
