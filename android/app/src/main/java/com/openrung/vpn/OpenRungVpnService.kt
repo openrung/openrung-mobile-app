@@ -66,7 +66,11 @@ import kotlin.coroutines.coroutineContext
 import kotlin.random.Random
 
 class OpenRungVpnService : VpnService() {
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    // One background thread, not a pool: every identity check and monitor-job handoff in this
+    // class relies on all tunnel state being touched from a single thread. Keeping that thread
+    // off Main matters because libbox setup/start/stop, config validation, and telemetry I/O
+    // can each block for hundreds of milliseconds (ANR risk on the UI thread).
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default.limitedParallelism(1))
     private val relaySelector = RelaySelector()
     private val punchRecoveryCircuitBreaker = PunchRecoveryCircuitBreaker()
     private val wssFallbackPolicy = WssFallbackPolicy(NativeWssFrontSetValidator)
@@ -94,11 +98,27 @@ class OpenRungVpnService : VpnService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
+        // Lifecycle callbacks arrive on Main but never touch tunnel state directly: they post to
+        // the service thread, which owns every field in this class.
+        val action = intent?.action
+        val brokerUrl = intent?.getStringExtra(EXTRA_BROKER_URL).orEmpty()
+        val targetCountry = intent?.getStringExtra(EXTRA_TARGET_COUNTRY)?.takeIf { it.isNotBlank() }
+        val targetRelayId = intent?.getStringExtra(EXTRA_TARGET_RELAY_ID)?.takeIf { it.isNotBlank() }
+        serviceScope.launch {
+            handleStartAction(action, brokerUrl, targetCountry, targetRelayId, startId)
+        }
+        return START_STICKY
+    }
+
+    private fun handleStartAction(
+        action: String?,
+        requestedBrokerUrl: String,
+        targetCountry: String?,
+        targetRelayId: String?,
+        startId: Int,
+    ) {
+        when (action) {
             ACTION_CONNECT -> {
-                val brokerUrl = intent.getStringExtra(EXTRA_BROKER_URL).orEmpty()
-                val targetCountry = intent.getStringExtra(EXTRA_TARGET_COUNTRY)?.takeIf { it.isNotBlank() }
-                val targetRelayId = intent.getStringExtra(EXTRA_TARGET_RELAY_ID)?.takeIf { it.isNotBlank() }
                 heartbeatJob?.cancel()
                 engineMonitorJob?.cancel()
                 engineMonitorJob = null
@@ -111,7 +131,7 @@ class OpenRungVpnService : VpnService() {
                 // connect() directly and deliberately keep the breaker state that led to them.
                 punchRecoveryCircuitBreaker.reset()
                 connectJob = serviceScope.launch {
-                    connect(brokerUrl.ifBlank { AppConfig.DEFAULT_BROKER_URL }, targetCountry, targetRelayId)
+                    connect(requestedBrokerUrl.ifBlank { AppConfig.DEFAULT_BROKER_URL }, targetCountry, targetRelayId)
                 }
             }
             ACTION_REAPPLY -> {
@@ -144,7 +164,7 @@ class OpenRungVpnService : VpnService() {
                     wssMonitorJob = null
                     connectJob?.cancel()
                     punchRecoveryCircuitBreaker.reset()
-                    val storedBrokerUrl = brokerUrl
+                    val storedBrokerUrl = this.brokerUrl
                     val storedTargetCountry = requestedTargetCountry
                     val storedTargetRelayId = requestedTargetRelayId
                     connectJob = serviceScope.launch {
@@ -158,22 +178,20 @@ class OpenRungVpnService : VpnService() {
             }
             ACTION_DISCONNECT -> disconnect()
         }
-        return START_STICKY
     }
 
     override fun onRevoke() {
-        disconnect()
+        serviceScope.launch { disconnect() }
         super.onRevoke()
     }
 
     override fun onDestroy() {
-        disconnect()
-        // Cancel the scope so its Job, its Main.immediate dispatcher, and any in-flight
-        // coroutines (connect, heartbeat, the disconnect() telemetry flush) don't outlive this
-        // service instance. Mirrors OpenRungVpnModule.invalidate(). This supersedes the explicit
-        // connectJob cancel (scope cancellation cancels all children). The on-destroy telemetry
-        // flush is best-effort — the outbox retries anything dropped here on the next session.
-        serviceScope.cancel()
+        // Teardown runs on the service thread like every other state mutation; only after it
+        // completes is the scope cancelled so its Job and any in-flight coroutines (connect,
+        // heartbeat, the disconnect() telemetry flush) don't outlive this service instance.
+        // Mirrors OpenRungVpnModule.invalidate(). The on-destroy telemetry flush is best-effort —
+        // the outbox retries anything dropped here on the next session.
+        serviceScope.launch { disconnect() }.invokeOnCompletion { serviceScope.cancel() }
         super.onDestroy()
     }
 
