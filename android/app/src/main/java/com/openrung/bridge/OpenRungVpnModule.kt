@@ -25,8 +25,10 @@ import com.openrung.vpn.OpenRungVpnService
 import com.openrung.vpn.SplitTunnelStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -46,7 +48,32 @@ class OpenRungVpnModule(
         OpenRungStatusStore.initialize(reactContext.applicationContext)
         TelemetryManager.initialize(reactContext.applicationContext)
         moduleScope.launch {
-            OpenRungStatusStore.uiState.collect { state -> emitStateChanged(state) }
+            // Log-append storms (relay ladder, recovery) coalesce into one trailing emit per
+            // window; every payload is the full latest snapshot, so nothing is lost. Any change
+            // beyond logLines (status, relay, error, recents) still emits immediately.
+            var lastEmitted: OpenRungUiState? = null
+            var pendingLogEmit: Job? = null
+            OpenRungStatusStore.uiState.collect { state ->
+                val previous = lastEmitted
+                if (state == previous) return@collect
+                val logLinesOnlyChange =
+                    previous != null && state.copy(logLines = previous.logLines) == previous
+                if (logLinesOnlyChange) {
+                    if (pendingLogEmit?.isActive != true) {
+                        pendingLogEmit = launch {
+                            delay(LOG_EMIT_COALESCE_MS)
+                            val latest = OpenRungStatusStore.uiState.value
+                            lastEmitted = latest
+                            emitStateChanged(latest)
+                        }
+                    }
+                } else {
+                    pendingLogEmit?.cancel()
+                    pendingLogEmit = null
+                    lastEmitted = state
+                    emitStateChanged(state)
+                }
+            }
         }
     }
 
@@ -217,5 +244,6 @@ class OpenRungVpnModule(
         private const val EVENT_STATE_CHANGED = "openrungStateChanged"
         private const val VPN_REQUEST_CODE = 7001
         private const val NOTIFICATION_REQUEST_CODE = 7002
+        private const val LOG_EMIT_COALESCE_MS = 250L
     }
 }

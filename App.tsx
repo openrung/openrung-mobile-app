@@ -31,7 +31,7 @@ import { MainScreen } from './src/screens/MainScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SplitTunnelingScreen } from './src/screens/SplitTunnelingScreen';
 import { UpdateRequiredScreen } from './src/screens/UpdateRequiredScreen';
-import { hydrateSplitTunnel, useAppState } from './src/state/store';
+import { hydrateSplitTunnel, useAppSelector } from './src/state/store';
 import { startUpdateCheck } from './src/state/updateCheck';
 import { palette } from './src/theme';
 
@@ -65,7 +65,9 @@ function App(): React.JSX.Element {
 function AppRoutes(): React.JSX.Element {
   const [tab, setTab] = useState<AppTab>('home');
   const [subRoute, setSubRoute] = useState<SubRoute>(null);
-  const { update } = useAppState();
+  // Selector, not the whole store: AppRoutes sits above every screen, so re-rendering it on
+  // each native event (log lines during connect) would cascade through the entire tree.
+  const update = useAppSelector(current => current.update);
 
   const goBack = useCallback((): boolean => {
     if (subRoute === 'LICENSE_TEXT') {

@@ -21,7 +21,7 @@ export interface MapStatusChipProps {
   style?: StyleProp<ViewStyle>;
 }
 
-export function MapStatusChip({
+export const MapStatusChip = React.memo(function MapStatusChipComponent({
   directoryStatus,
   regionCount,
   onRetry,
@@ -53,7 +53,7 @@ export function MapStatusChip({
     );
   }
   return <View style={[styles.chip, style]}>{label}</View>;
-}
+});
 
 const styles = StyleSheet.create({
   chip: {

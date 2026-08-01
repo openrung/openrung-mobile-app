@@ -5,11 +5,17 @@ import Foundation
 public enum ActivityLog {
     public static let maxLines = 80
 
-    public static func line(_ message: String, at date: Date = Date()) -> String {
+    // Constructing a DateFormatter costs orders of magnitude more than formatting with one
+    // (ICU locale/pattern setup); formatting is thread-safe on modern Foundation.
+    private static let timestampFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "HH:mm:ss"
-        return "[\(formatter.string(from: date))] \(message)"
+        return formatter
+    }()
+
+    public static func line(_ message: String, at date: Date = Date()) -> String {
+        "[\(timestampFormatter.string(from: date))] \(message)"
     }
 
     public static func appended(_ lines: [String], _ line: String, max: Int = maxLines) -> [String] {

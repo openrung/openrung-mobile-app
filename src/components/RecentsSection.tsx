@@ -34,7 +34,7 @@ function hasPinnedRelay(node: RecentNode): node is PinnedRecentNode {
   return (node.relayId?.trim().length ?? 0) > 0 && (node.relayName?.trim().length ?? 0) > 0;
 }
 
-export function RecentsSection({
+export const RecentsSection = React.memo(function RecentsSectionComponent({
   recents,
   liveRelayIds,
   onPress,
@@ -81,7 +81,7 @@ export function RecentsSection({
       />
     </View>
   );
-}
+});
 
 function PillGap(): React.JSX.Element {
   return <View style={styles.gap} />;
