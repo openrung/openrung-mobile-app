@@ -47,6 +47,13 @@ enum TelemetryManager {
         return sessionTraffic
     }
 
+    /// Cumulative session counters as last pushed by the engine (nil before the first push).
+    /// The tunnel health monitor compares successive values to skip probing while traffic is
+    /// demonstrably flowing.
+    static func currentTrafficCounters() -> TrafficCounters? {
+        trafficCounters()
+    }
+
     private static func resetTrafficCounters() {
         trafficLock.lock()
         defer { trafficLock.unlock() }

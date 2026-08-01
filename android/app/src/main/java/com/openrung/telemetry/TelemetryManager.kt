@@ -182,6 +182,13 @@ object TelemetryManager {
 
     private fun trafficCounters(): TrafficCounters? = synchronized(lock) { sessionTraffic }
 
+    /**
+     * Cumulative session counters as last pushed by the engine (null before the first push).
+     * The tunnel health monitor compares successive values to skip probing while traffic is
+     * demonstrably flowing.
+     */
+    fun currentTrafficCounters(): TrafficCounters? = trafficCounters()
+
     fun markConnected(relayId: String) {
         synchronized(lock) {
             activeSession = activeSession?.copy(

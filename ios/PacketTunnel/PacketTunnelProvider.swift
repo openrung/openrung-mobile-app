@@ -1421,23 +1421,47 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             throw LocalTunnelError(stage: "active_tunnel_health_setup", underlying: error)
         }
         var threshold = TunnelHealthFailureThreshold(requiredFailures: 3)
+        // Each probe is a fresh TCP+TLS handshake through the tunnel — on cellular it drags the
+        // radio out of idle, so an unbacked-off 30 s cadence dominates the battery cost of an
+        // idle connected session. Sustained health therefore doubles the interval (30 s → 5 min
+        // cap); any suspicion resets to the fast cadence so the 3-failure threshold resolves as
+        // quickly as it did before backoff existed. Availability is unaffected: detection is
+        // slower only after long proven-healthy stretches, never after a failure.
+        var intervalMs: UInt64 = Self.tunnelHealthBaseIntervalMs
+        var lastTraffic = TelemetryManager.currentTrafficCounters()
         while true {
-            let delayMs = UInt64.random(in: 25_000...35_000)
+            let delayMs = UInt64.random(in: (intervalMs * 5 / 6)...(intervalMs * 7 / 6))
             try await Task.sleep(nanoseconds: delayMs * 1_000_000)
+            // Bytes moved since the last pass prove the tunnel end-to-end without opening a
+            // probe connection. Counters arrive on the engine's status-push cadence, so this can
+            // lag one window — the safe direction (an extra probe, never a missed failure).
+            let traffic = TelemetryManager.currentTrafficCounters()
+            if let traffic, traffic != lastTraffic {
+                lastTraffic = traffic
+                threshold.recordSuccess()
+                intervalMs = min(intervalMs * 2, Self.tunnelHealthMaxIntervalMs)
+                continue
+            }
+            lastTraffic = traffic
             do {
                 _ = try await probe.verifyOnce()
                 threshold.recordSuccess()
+                intervalMs = min(intervalMs * 2, Self.tunnelHealthMaxIntervalMs)
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
                 guard isGenuineRemoteDataPathFailure(error) else {
                     throw LocalTunnelError(stage: "active_tunnel_health", underlying: error)
                 }
+                intervalMs = Self.tunnelHealthBaseIntervalMs
                 guard threshold.recordRemoteFailure(), monitor.isSatisfied else { continue }
                 return "end-to-end tunnel health probe failed \(threshold.consecutiveFailures) times"
             }
         }
     }
+
+    private static let tunnelHealthBaseIntervalMs: UInt64 = 30_000
+    private static let tunnelHealthMaxIntervalMs: UInt64 = 300_000
 
     private func requestWssRecovery(
         trigger: String,

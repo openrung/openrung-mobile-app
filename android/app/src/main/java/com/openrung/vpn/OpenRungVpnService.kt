@@ -1370,17 +1370,38 @@ class OpenRungVpnService : VpnService() {
      */
     private suspend fun awaitTunnelHealthFailure(): String {
         var failures = 0
+        // Each probe is a fresh TCP+TLS handshake through the tunnel — on cellular it drags the
+        // radio out of idle, so an unbacked-off ~30 s cadence dominates the battery cost of an
+        // idle connected session. Sustained health therefore doubles the interval (~30 s → 5 min
+        // cap); any suspicion resets to the fast cadence so the failure threshold resolves as
+        // quickly as it did before backoff existed. Availability is unaffected: detection is
+        // slower only after long proven-healthy stretches, never after a failure.
+        var intervalMs = PUNCH_HEALTH_MIN_DELAY_MS
+        var lastTraffic = TelemetryManager.currentTrafficCounters()
         while (true) {
-            delay(Random.nextLong(PUNCH_HEALTH_MIN_DELAY_MS, PUNCH_HEALTH_MAX_DELAY_MS + 1))
+            delay(Random.nextLong((intervalMs * 5) / 6, (intervalMs * 7) / 6 + 1))
+            // Bytes moved since the last pass prove the tunnel end-to-end without opening a
+            // probe connection. Counters arrive on the engine's status-push cadence, so this can
+            // lag one window — the safe direction (an extra probe, never a missed failure).
+            val traffic = TelemetryManager.currentTrafficCounters()
+            if (traffic != null && traffic != lastTraffic) {
+                lastTraffic = traffic
+                failures = 0
+                intervalMs = (intervalMs * 2).coerceAtMost(PUNCH_HEALTH_MAX_BACKOFF_MS)
+                continue
+            }
+            lastTraffic = traffic
             try {
                 InternetProbe(applicationContext).verifyOnce()
                 failures = 0
+                intervalMs = (intervalMs * 2).coerceAtMost(PUNCH_HEALTH_MAX_BACKOFF_MS)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
                 if (!isGenuineRemoteDataPathFailure(error)) {
                     throw LocalTunnelException("active_tunnel_health", error)
                 }
+                intervalMs = PUNCH_HEALTH_MIN_DELAY_MS
                 failures++
                 if (failures < PUNCH_HEALTH_FAILURE_THRESHOLD) continue
                 if (!physicalNetworkAlive()) continue
@@ -1409,8 +1430,13 @@ class OpenRungVpnService : VpnService() {
     }
 
     private suspend fun awaitPhysicalNetworkAlive() {
+        // A real outage (tunnel, subway, airplane mode) can last hours; probing TLS endpoints
+        // every 5 s the whole time keeps the radio awake for nothing. Back off toward a 60 s
+        // ceiling — reconnect latency after a long outage grows by at most that much.
+        var delayMs = PHYSICAL_NETWORK_RETRY_DELAY_MS
         while (!physicalNetworkAlive()) {
-            delay(PHYSICAL_NETWORK_RETRY_DELAY_MS)
+            delay(delayMs)
+            delayMs = (delayMs * 2).coerceAtMost(PHYSICAL_NETWORK_RETRY_MAX_DELAY_MS)
         }
     }
 
@@ -1548,10 +1574,11 @@ class OpenRungVpnService : VpnService() {
         private const val NOTIFICATION_ID = 2001
         internal const val HEARTBEAT_MIN_DELAY_MS = 50_000L
         internal const val HEARTBEAT_MAX_DELAY_MS = 70_000L
-        internal const val PUNCH_HEALTH_MIN_DELAY_MS = 25_000L
-        internal const val PUNCH_HEALTH_MAX_DELAY_MS = 35_000L
+        internal const val PUNCH_HEALTH_MIN_DELAY_MS = 30_000L
+        internal const val PUNCH_HEALTH_MAX_BACKOFF_MS = 300_000L
         internal const val PUNCH_HEALTH_FAILURE_THRESHOLD = 3
         private const val PHYSICAL_NETWORK_RETRY_DELAY_MS = 5_000L
+        private const val PHYSICAL_NETWORK_RETRY_MAX_DELAY_MS = 60_000L
         private const val ACCESS_TRANSPORT_DIRECT = "direct"
         private const val ACCESS_TRANSPORT_PUNCH = "punch"
         private const val ACCESS_TRANSPORT_WSS = "wss"
