@@ -3,6 +3,7 @@ package com.openrung.telemetry
 import android.app.Application
 import android.content.Context
 import com.openrung.net.ClientGeoInfo
+import java.io.File
 import java.time.Duration
 import java.util.AbstractList
 import java.util.concurrent.CountDownLatch
@@ -285,15 +286,23 @@ class TelemetryManagerApplicationConnectionTest {
         json.decodeFromString<List<TelemetryEvent>>(storedOutboxJson())
             .filter { it.event == "application_connection" }
 
-    private fun storedOutboxJson(): String =
-        context.getSharedPreferences("openrung_telemetry", Context.MODE_PRIVATE)
-            .getString("outbox", null) ?: "[]"
+    /**
+     * The outbox is an append-only NDJSON file (one event per line); the legacy SharedPreferences
+     * blob only exists as a migration source. Joining the lines into a JSON array keeps the
+     * existing decode/contains assertions unchanged.
+     */
+    private fun storedOutboxJson(): String {
+        val file = File(context.filesDir, "openrung_telemetry_outbox.jsonl")
+        if (!file.isFile) return "[]"
+        return file.readLines().filter { it.isNotBlank() }.joinToString(",", "[", "]")
+    }
 
     private fun clearOutbox() {
         context.getSharedPreferences("openrung_telemetry", Context.MODE_PRIVATE)
             .edit()
             .clear()
             .commit()
+        File(context.filesDir, "openrung_telemetry_outbox.jsonl").delete()
     }
 
     private class BlockingPackageList(

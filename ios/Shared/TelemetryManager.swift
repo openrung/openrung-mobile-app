@@ -169,9 +169,15 @@ enum TelemetryManager {
         )
     }
 
-    private static func iso8601Now() -> String {
+    // Constructing an ISO8601DateFormatter per event costs far more than formatting with one;
+    // the class is documented thread-safe.
+    private static let iso8601Formatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.string(from: Date())
+        return formatter
+    }()
+
+    private static func iso8601Now() -> String {
+        iso8601Formatter.string(from: Date())
     }
 }
