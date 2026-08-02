@@ -200,6 +200,13 @@ class OpenRungVpnService : VpnService() {
                     // Nothing to reapply and no active tunnel: don't leave an idle START_STICKY
                     // service running just because a reapply intent started it.
                     stopSelf(startId)
+                } else {
+                    // Skipped mid-connect/recovery — but this REAPPLY still advanced AMS's
+                    // latest start id. Absorb it into the live epoch (whose next connect() pass
+                    // re-reads the persisted config anyway) so a later terminal failure's
+                    // stopSelf(epochStartId) still matches; otherwise the failed service would
+                    // linger unstopped behind the ignored REAPPLY's newer id.
+                    epochStartId = startId
                 }
             }
             ACTION_DISCONNECT -> disconnect(stopId = startId)
