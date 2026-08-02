@@ -153,6 +153,7 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
 
     func stop() {
         _ = prepareForExpectedStop()
+        captureFinalTrafficSnapshot()
         try? statusClient?.disconnect()
         statusClient = nil
         try? commandServer?.closeService()
@@ -161,6 +162,24 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
         commandServer = nil
         platformInterface = nil
         activeRelay = nil
+    }
+
+    /// The status stream pushes counters only every `statusIntervalNs`, so at teardown the
+    /// cached totals can be up to a minute stale — a short session would report none of its
+    /// post-initial traffic. The command server sends a status message immediately on
+    /// subscribe, so a throwaway client grabs one final snapshot before the engine goes down.
+    /// Best-effort and bounded: a dead or wedged server just fails the connect or times the
+    /// semaphore out.
+    private func captureFinalTrafficSnapshot() {
+        guard commandServer != nil else { return }
+        let options = LibboxCommandClientOptions()
+        options.addCommand(LibboxCommandStatus)
+        options.statusInterval = Self.statusIntervalNs
+        let received = DispatchSemaphore(value: 0)
+        guard let client = LibboxNewCommandClient(TrafficStatusHandler { received.signal() }, options) else { return }
+        guard (try? client.connect()) != nil else { return }
+        _ = received.wait(timeout: .now() + .milliseconds(700))
+        try? client.disconnect()
     }
 
     func prepareForExpectedStop() -> Bool { stopSignal.finishExpected() }
@@ -198,6 +217,12 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
 
 /// Receives libbox status pushes and forwards the tunnel's traffic counters to telemetry.
 private final class TrafficStatusHandler: NSObject, LibboxCommandClientHandlerProtocol {
+    private let onStatus: (() -> Void)?
+
+    init(onStatus: (() -> Void)? = nil) {
+        self.onStatus = onStatus
+    }
+
     func connected() {}
 
     func disconnected(_ message: String?) {}
@@ -229,6 +254,7 @@ private final class TrafficStatusHandler: NSObject, LibboxCommandClientHandlerPr
             bytesSent: message.uplinkTotal,
             bytesReceived: message.downlinkTotal
         )
+        onStatus?()
     }
 }
 
