@@ -15,9 +15,9 @@ enum SharedConnectionState {
     /// write + a cross-process Darwin wakeup of the app, and a connect burst appends dozens of
     /// log lines in a couple of seconds. Log-only mutations therefore batch on this serial
     /// queue and flush at most every 250 ms; status/relay/error/recents changes flush
-    /// immediately and carry any pending log lines with them (the queue is FIFO, so ordering
-    /// between the two kinds is preserved). Worst case on an extension kill: the final ≤250 ms
-    /// of log lines are lost — terminal transitions are non-coalescable, so never the outcome.
+    /// SYNCHRONOUSLY (see mutate) so a terminal state is on disk before the caller hands
+    /// control back to NetworkExtension. Worst case on an extension kill: the final ≤250 ms of
+    /// log lines are lost — terminal transitions are synchronous, so never the outcome.
     private static let mutationQueue = DispatchQueue(label: "com.openrung.app.shared-connection-state")
     private static var pendingSnapshot: ConnectionStateSnapshot?
     private static var logFlushScheduled = false
@@ -112,16 +112,29 @@ enum SharedConnectionState {
         coalescable: Bool = false,
         _ transform: @escaping (inout ConnectionStateSnapshot) -> Void
     ) {
-        mutationQueue.async {
-            var pending = pendingSnapshot ?? snapshot()
-            transform(&pending)
-            pendingSnapshot = pending
-            if coalescable {
+        if coalescable {
+            mutationQueue.async {
+                applyOnQueue(transform)
                 scheduleLogFlush()
-            } else {
+            }
+        } else {
+            // Status/error/recents writes must be DURABLE before the caller proceeds: failure
+            // paths call cancelTunnelWithError or the stop completion right after, and
+            // NetworkExtension may suspend the process the moment they do — an async write
+            // would be lost with it. sync on the serial queue also drains any earlier queued
+            // log appends first, so ordering between the two kinds is preserved.
+            mutationQueue.sync {
+                applyOnQueue(transform)
                 flushPendingOnQueue()
             }
         }
+    }
+
+    /// Must run on `mutationQueue`.
+    private static func applyOnQueue(_ transform: (inout ConnectionStateSnapshot) -> Void) {
+        var pending = pendingSnapshot ?? snapshot()
+        transform(&pending)
+        pendingSnapshot = pending
     }
 
     /// Must run on `mutationQueue`.
