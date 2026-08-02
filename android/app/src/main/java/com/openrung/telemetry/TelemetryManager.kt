@@ -49,6 +49,15 @@ object TelemetryManager {
      */
     private var outboxCache: MutableList<TelemetryEvent>? = null
     private var outboxFileLines = 0
+
+    /**
+     * True while a legacy SharedPreferences outbox has been read into the cache but not yet
+     * durably written to the NDJSON file. Until the migration lands (an atomic-rename rewrite),
+     * the legacy key stays in place and appends retry the full rewrite — appending alone would
+     * create a file WITHOUT the backlog, and the file's existence is what marks the migration
+     * complete on the next launch.
+     */
+    private var legacyMigrationPending = false
     private val appConnections = ApplicationConnectionAggregator(
         windowMs = APP_CONNECTION_WINDOW_MS,
         elapsedMs = SystemClock::elapsedRealtime,
@@ -88,6 +97,7 @@ object TelemetryManager {
                 // cache — its file lives under the new instance's filesDir.
                 outboxCache = null
                 outboxFileLines = 0
+                legacyMigrationPending = false
                 cachedNetworkAttributes = null
             }
             this.context = next
@@ -352,6 +362,12 @@ object TelemetryManager {
         val sanitized = events.map(::sanitizeTelemetryEvent)
         cache.addAll(sanitized)
         while (cache.size > MAX_QUEUED_EVENTS) cache.removeAt(0)
+        if (legacyMigrationPending) {
+            // See [legacyMigrationPending]: the backlog must land as one durable rewrite before
+            // plain appends may touch the file.
+            rewriteOutboxLocked(context, cache)
+            return
+        }
         val appended = runCatching {
             outboxFile(context).appendText(
                 sanitized.joinToString(separator = "") { json.encodeToString(it) + "\n" },
@@ -393,21 +409,27 @@ object TelemetryManager {
     private fun loadOutboxLocked(context: Context): MutableList<TelemetryEvent> {
         outboxCache?.let { return it }
         val file = outboxFile(context)
-        val legacy = readLegacyOutboxLocked(context)
-        var needsRewrite = legacy != null
-        val parsed = legacy
-            ?: if (file.isFile) {
-                val lines = runCatching {
-                    file.useLines { sequence -> sequence.filter { it.isNotBlank() }.toList() }
-                }.getOrDefault(emptyList())
-                val decoded = lines.mapNotNull { line ->
-                    runCatching { json.decodeFromString<TelemetryEvent>(line) }.getOrNull()
-                }
-                needsRewrite = decoded.size != lines.size
-                decoded
-            } else {
-                emptyList()
+        var needsRewrite: Boolean
+        val parsed: List<TelemetryEvent>
+        if (file.isFile) {
+            // The file is authoritative once it exists (rewrites land via atomic rename). A
+            // legacy key still present next to it is a completed migration whose key removal
+            // didn't land — stale, so drop it without another read.
+            clearLegacyOutboxLocked(context)
+            val lines = runCatching {
+                file.useLines { sequence -> sequence.filter { it.isNotBlank() }.toList() }
+            }.getOrDefault(emptyList())
+            val decoded = lines.mapNotNull { line ->
+                runCatching { json.decodeFromString<TelemetryEvent>(line) }.getOrNull()
             }
+            needsRewrite = decoded.size != lines.size
+            parsed = decoded
+        } else {
+            val legacy = readLegacyOutboxLocked(context)
+            legacyMigrationPending = legacy != null
+            needsRewrite = legacy != null
+            parsed = legacy.orEmpty()
+        }
         val events = parsed.map(::sanitizeTelemetryEvent)
             .takeLast(MAX_QUEUED_EVENTS)
             .toMutableList()
@@ -420,26 +442,39 @@ object TelemetryManager {
         return events
     }
 
-    /** One-time migration from the pre-file SharedPreferences blob; the key is cleared after. */
+    /** Reads the pre-file SharedPreferences blob WITHOUT clearing it — the key is removed only
+     *  once the migrated file has durably landed (see [rewriteOutboxLocked]), so disk-full, an
+     *  I/O failure, or a crash mid-migration can never discard the pre-upgrade backlog. */
     private fun readLegacyOutboxLocked(context: Context): List<TelemetryEvent>? {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val encoded = prefs.getString(KEY_OUTBOX, null) ?: return null
-        prefs.edit().remove(KEY_OUTBOX).apply()
+        val encoded = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_OUTBOX, null) ?: return null
         return runCatching { json.decodeFromString<List<TelemetryEvent>>(encoded) }
             .getOrDefault(emptyList())
     }
 
-    private fun rewriteOutboxLocked(context: Context, events: List<TelemetryEvent>) {
+    private fun clearLegacyOutboxLocked(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (prefs.contains(KEY_OUTBOX)) prefs.edit().remove(KEY_OUTBOX).apply()
+    }
+
+    private fun rewriteOutboxLocked(context: Context, events: List<TelemetryEvent>): Boolean {
         val file = outboxFile(context)
-        runCatching {
+        val wrote = runCatching {
             val temp = File(file.parentFile, "$OUTBOX_FILE.tmp")
             temp.writeText(events.joinToString(separator = "") { json.encodeToString(it) + "\n" })
             if (!temp.renameTo(file)) {
                 file.writeText(events.joinToString(separator = "") { json.encodeToString(it) + "\n" })
                 temp.delete()
             }
+        }.isSuccess
+        if (wrote) {
+            outboxFileLines = events.size
+            if (legacyMigrationPending) {
+                legacyMigrationPending = false
+                clearLegacyOutboxLocked(context)
+            }
         }
-        outboxFileLines = events.size
+        return wrote
     }
 
     /** Truly process-constant attributes, built once. */
