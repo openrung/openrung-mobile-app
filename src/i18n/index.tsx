@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo } from 'react';
 import type { ConnectionStatus } from '../native/types';
-import { hydrateLanguage, setLanguageTag, useAppState } from '../state/store';
+import { hydrateLanguage, setLanguageTag, useAppSelector } from '../state/store';
 import { ar } from './strings/ar';
 import { en } from './strings/en';
 import type { Strings } from './strings/en';
@@ -128,7 +128,9 @@ const LanguageContext = createContext<LanguageContextValue>({
 });
 
 export function LanguageProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
-  const { languageTag } = useAppState();
+  // Selector, not the whole store: the provider wraps the entire app, so it must only
+  // re-render when the language actually changes.
+  const languageTag = useAppSelector(current => current.languageTag);
 
   useEffect(() => {
     // Load the persisted selection (AsyncStorage key 'openrung.language') once on mount.

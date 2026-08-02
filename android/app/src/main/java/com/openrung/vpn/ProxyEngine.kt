@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.os.Process
 import android.util.Log
+import com.openrung.BuildConfig
 import com.openrung.model.RelayDescriptor
 import com.openrung.state.OpenRungStatusStore
 import com.openrung.telemetry.TelemetryManager
@@ -49,6 +50,7 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.InterfaceAddress
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import java.net.NetworkInterface as JavaNetworkInterface
 import io.nekohasekai.libbox.NetworkInterface as BoxNetworkInterface
@@ -128,8 +130,10 @@ class LibboxProxyEngine : ProxyEngine {
             basePath = File(vpnService.filesDir, "libbox").apply { mkdirs() }.path
             workingPath = File(vpnService.getExternalFilesDir(null) ?: vpnService.filesDir, "libbox").apply { mkdirs() }.path
             tempPath = File(vpnService.cacheDir, "libbox").apply { mkdirs() }.path
-            logMaxLines = 3000
-            debug = true
+            // The in-memory log ring is only read by debug tooling; keep it small in release,
+            // where debug mode would also forward every libbox line into the status store.
+            logMaxLines = if (BuildConfig.DEBUG) 3000 else 300
+            debug = BuildConfig.DEBUG
             crashReportSource = "OpenRungAndroid"
             oomKillerEnabled = false
             oomKillerDisabled = true
@@ -185,10 +189,34 @@ class LibboxProxyEngine : ProxyEngine {
     }
 
     override fun stop() {
+        captureFinalTrafficSnapshot()
         // Deliberately drain on every call. If stop wins while start is still inside a native call,
         // any resource published afterward is rejected and closed instead of surviving a one-shot
         // compare-and-set that already returned.
         resources.stop()
+    }
+
+    /**
+     * The status stream pushes counters only every [STATUS_INTERVAL_NS], so at teardown the
+     * cached totals can be up to a minute stale — a short session would report none of its
+     * post-initial traffic. The command server sends a status message immediately on subscribe,
+     * so a throwaway client grabs one final snapshot before the engine goes down. Best-effort
+     * and bounded: a dead or wedged server just fails the connect or times the latch out.
+     */
+    private fun captureFinalTrafficSnapshot() {
+        if (resources.isStopped()) return
+        runCatching {
+            val received = CountDownLatch(1)
+            val options = CommandClientOptions().apply {
+                addCommand(Libbox.CommandStatus)
+                statusInterval = STATUS_INTERVAL_NS
+            }
+            val client = CommandClient(TrafficStatusHandler { received.countDown() }, options)
+            runCatching { client.connect() }.onSuccess {
+                received.await(FINAL_STATUS_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+                runCatching { client.disconnect() }
+            }
+        }
     }
 
     private suspend fun ensureRunning() {
@@ -203,8 +231,15 @@ class LibboxProxyEngine : ProxyEngine {
     }
 
     companion object {
-        /** Status push interval, a Go time.Duration in nanoseconds. */
-        private const val STATUS_INTERVAL_NS = 3_000_000_000L
+        /**
+         * Status push interval, a Go time.Duration in nanoseconds. The counters it carries are
+         * cumulative and only sampled by the telemetry heartbeat (every 50–70 s), so a coarse
+         * interval loses no data while avoiding a loopback-gRPC wakeup every few seconds.
+         */
+        private const val STATUS_INTERVAL_NS = 60_000_000_000L
+
+        /** Upper bound on waiting for the teardown snapshot's immediate status push. */
+        private const val FINAL_STATUS_TIMEOUT_MS = 700L
     }
 }
 
@@ -304,7 +339,9 @@ internal class StopSafeResourceRegistry<K>(
 }
 
 /** Receives libbox status pushes and forwards the tunnel's traffic counters to telemetry. */
-private class TrafficStatusHandler : CommandClientHandler {
+private class TrafficStatusHandler(
+    private val onStatus: (() -> Unit)? = null,
+) : CommandClientHandler {
     override fun connected() = Unit
 
     override fun disconnected(message: String?) = Unit
@@ -332,6 +369,7 @@ private class TrafficStatusHandler : CommandClientHandler {
             bytesSent = status.uplinkTotal,
             bytesReceived = status.downlinkTotal,
         )
+        onStatus?.invoke()
     }
 }
 
@@ -363,7 +401,11 @@ private class OpenRungCommandServerHandler(
             ?.filter { it.isNotBlank() }
             ?.forEach {
                 Log.d(LOG_TAG, it)
-                OpenRungStatusStore.appendLog("libbox: $it")
+                // Each appended line persists the status snapshot and fans out to the JS bridge;
+                // only debug builds surface libbox internals in the on-screen console.
+                if (BuildConfig.DEBUG) {
+                    OpenRungStatusStore.appendLog("libbox: $it")
+                }
             }
     }
 }

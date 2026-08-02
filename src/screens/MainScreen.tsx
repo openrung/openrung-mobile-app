@@ -37,9 +37,15 @@ import { ViewModeToggle } from '../components/ViewModeToggle';
 import { AppConfig } from '../config';
 import { resolveLanguage, useLanguage, useStrings } from '../i18n';
 import { pickLocalizedText } from '../model/updateStatus';
-import { hydrateHomeViewMode, refreshDirectory, setHomeViewMode } from '../state/store';
+import {
+  hydrateHomeViewMode,
+  refreshDirectory,
+  setHomeViewMode,
+  useAppSelector,
+  type AppState,
+} from '../state/store';
 import { dismissUpdateBanner, dismissUpdateNotice } from '../state/updateCheck';
-import { useVpnState } from '../state/useVpnState';
+import { useVpnActions } from '../state/useVpnState';
 import { monoFont, palette, tokens } from '../theme';
 
 /** Terminal-prompt wordmark: "OpenRung" + blinking block cursor + tagline. */
@@ -71,12 +77,46 @@ function Wordmark(): React.JSX.Element {
   );
 }
 
+/**
+ * Everything the home screen renders EXCEPT `native.logLines`: log lines change far more often
+ * than anything here (each one used to re-render the whole map tree), and only the Debug screen
+ * shows them. `useAppSelector`'s shallow comparison skips those events entirely.
+ */
+function selectMainScreenState(current: AppState) {
+  return {
+    status: current.native.status,
+    relayLabel: current.native.relayLabel,
+    relayName: current.native.relayName,
+    lastError: current.native.lastError,
+    recents: current.native.recents,
+    directoryStatus: current.directoryStatus,
+    availableRegions: current.availableRegions,
+    homeViewMode: current.homeViewMode,
+    connectedAtMs: current.connectedAtMs,
+    update: current.update,
+  };
+}
+
 export function MainScreen(): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const s = useStrings();
   const { languageTag } = useLanguage();
-  const { state, isConnected, isWorking, disconnect, prepareAndConnect } = useVpnState();
-  const { native, directoryStatus, availableRegions, homeViewMode, connectedAtMs, update } = state;
+  const { disconnect, prepareAndConnect } = useVpnActions();
+  const {
+    status,
+    relayLabel,
+    relayName,
+    lastError,
+    recents,
+    directoryStatus,
+    availableRegions,
+    homeViewMode,
+    connectedAtMs,
+    update,
+  } = useAppSelector(selectMainScreenState);
+  const isConnected = status === 'connected';
+  const isWorking =
+    status === 'preparing' || status === 'connecting' || status === 'disconnecting';
   const isListMode = homeViewMode === 'list';
   const locale = resolveLanguage(languageTag);
 
@@ -165,10 +205,10 @@ export function MainScreen(): React.JSX.Element {
           <OceanTelemetry
             regions={availableRegions}
             directoryStatus={directoryStatus}
-            status={native.status}
-            relayLabel={native.relayLabel}
-            relayName={native.relayName}
-            lastError={native.lastError}
+            status={status}
+            relayLabel={relayLabel}
+            relayName={relayName}
+            lastError={lastError}
             connectedAtMs={connectedAtMs}
           />
         </ExitNodeMap>
@@ -237,14 +277,10 @@ export function MainScreen(): React.JSX.Element {
         )}
 
         <View style={styles.bottomStack} pointerEvents="box-none">
-          <RecentsSection
-            recents={native.recents}
-            liveRelayIds={liveRelayIds}
-            onPress={onConnectRelay}
-          />
+          <RecentsSection recents={recents} liveRelayIds={liveRelayIds} onPress={onConnectRelay} />
           <ConnectCard
-            status={native.status}
-            relayName={native.relayName}
+            status={status}
+            relayName={relayName}
             isConnected={isConnected}
             isWorking={isWorking}
             onToggle={onToggle}

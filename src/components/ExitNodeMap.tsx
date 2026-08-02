@@ -55,6 +55,54 @@ const ASIA_PACIFIC_ZOOM = 2.2;
 const MIN_ZOOM = 1.2;
 const MAX_ZOOM = 4.8;
 
+// Module-level constants for every static Layer/Camera/hitbox prop: fresh object literals per
+// render would make RN re-diff (and potentially re-push) all map-layer props on each pass.
+const INITIAL_VIEW_STATE = { center: ASIA_PACIFIC_CENTER, zoom: ASIA_PACIFIC_ZOOM };
+const NODE_HITBOX = { top: 28, right: 28, bottom: 28, left: 28 };
+const HALO_OUTER_PAINT = {
+  'circle-radius': 27,
+  'circle-color': NODE_GREEN,
+  'circle-opacity': 0.07,
+};
+const HALO_PAINT = {
+  'circle-radius': 18,
+  'circle-color': NODE_GREEN,
+  'circle-opacity': 0.18,
+};
+const CORE_PAINT = {
+  'circle-radius': 6,
+  'circle-color': NODE_GREEN,
+  'circle-stroke-color': NODE_STROKE,
+  'circle-stroke-width': 2,
+};
+const COUNT_LAYOUT = {
+  'text-field': '{count}',
+  'text-font': ['Open Sans Semibold'],
+  'text-size': 11,
+  'text-offset': [0, -1.6] as [number, number],
+  'text-allow-overlap': true,
+  'text-ignore-placement': true,
+};
+const COUNT_PAINT = {
+  'text-color': NODE_GREEN,
+  'text-halo-color': NODE_STROKE,
+  'text-halo-width': 1.4,
+};
+const LABEL_LAYOUT = {
+  'text-field': '{label}',
+  'text-font': ['Open Sans Semibold'],
+  'text-size': 10,
+  'text-offset': [0, 1.4] as [number, number],
+  'text-anchor': 'top' as const,
+  // Unlike the count, labels yield on collision so dense clusters stay readable.
+};
+const LABEL_PAINT = {
+  'text-color': NODE_GREEN,
+  'text-halo-color': NODE_STROKE,
+  'text-halo-width': 1.2,
+  'text-opacity': 0.9,
+};
+
 export interface ExitNodeMapProps {
   regions: ExitNodeRegion[];
   onRegionPress: (countryCode: string) => void;
@@ -154,81 +202,19 @@ export function ExitNodeMap({
       androidView="texture"
       accessibilityLabel={s.mapContentDescription}
     >
-      <Camera
-        initialViewState={{ center: ASIA_PACIFIC_CENTER, zoom: ASIA_PACIFIC_ZOOM }}
-        minZoom={MIN_ZOOM}
-        maxZoom={MAX_ZOOM}
-      />
+      <Camera initialViewState={INITIAL_VIEW_STATE} minZoom={MIN_ZOOM} maxZoom={MAX_ZOOM} />
       <GeoJSONSource
         id={NODE_SOURCE}
         data={nodeCollection}
         onPress={handleNodePress}
         // Generous hit box around the dot (production queries a 28px-padded square).
-        hitbox={{ top: 28, right: 28, bottom: 28, left: 28 }}
+        hitbox={NODE_HITBOX}
       >
-        <Layer
-          id={`${NODE_HALO_LAYER}-outer`}
-          type="circle"
-          paint={{
-            'circle-radius': 27,
-            'circle-color': NODE_GREEN,
-            'circle-opacity': 0.07,
-          }}
-        />
-        <Layer
-          id={NODE_HALO_LAYER}
-          type="circle"
-          paint={{
-            'circle-radius': 18,
-            'circle-color': NODE_GREEN,
-            'circle-opacity': 0.18,
-          }}
-        />
-        <Layer
-          id={NODE_CORE_LAYER}
-          type="circle"
-          paint={{
-            'circle-radius': 6,
-            'circle-color': NODE_GREEN,
-            'circle-stroke-color': NODE_STROKE,
-            'circle-stroke-width': 2,
-          }}
-        />
-        <Layer
-          id={NODE_COUNT_LAYER}
-          type="symbol"
-          layout={{
-            'text-field': '{count}',
-            'text-font': ['Open Sans Semibold'],
-            'text-size': 11,
-            'text-offset': [0, -1.6],
-            'text-allow-overlap': true,
-            'text-ignore-placement': true,
-          }}
-          paint={{
-            'text-color': NODE_GREEN,
-            'text-halo-color': NODE_STROKE,
-            'text-halo-width': 1.4,
-          }}
-        />
-        <Layer
-          id={NODE_LABEL_LAYER}
-          type="symbol"
-          layout={{
-            'text-field': '{label}',
-            'text-font': ['Open Sans Semibold'],
-            'text-size': 10,
-            'text-offset': [0, 1.4],
-            'text-anchor': 'top',
-            // Unlike the count, labels yield on collision so dense clusters stay readable.
-          }}
-          paint={{
-            'text-color': NODE_GREEN,
-            'text-halo-color': NODE_STROKE,
-            'text-halo-width': 1.2,
-            'text-opacity': 0.9,
-          }}
-        />
+        <Layer id={`${NODE_HALO_LAYER}-outer`} type="circle" paint={HALO_OUTER_PAINT} />
+        <Layer id={NODE_HALO_LAYER} type="circle" paint={HALO_PAINT} />
+        <Layer id={NODE_CORE_LAYER} type="circle" paint={CORE_PAINT} />
+        <Layer id={NODE_COUNT_LAYER} type="symbol" layout={COUNT_LAYOUT} paint={COUNT_PAINT} />
+        <Layer id={NODE_LABEL_LAYER} type="symbol" layout={LABEL_LAYOUT} paint={LABEL_PAINT} />
       </GeoJSONSource>
       {children}
     </MapLibreMap>

@@ -11,6 +11,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.io.File
 import java.time.Instant
 import java.util.Locale
 import java.util.TimeZone
@@ -27,8 +28,36 @@ object TelemetryManager {
     private const val UPLOAD_BATCH_SIZE = 200
     private const val DNS_PORT = 53
     private const val APP_CONNECTION_WINDOW_MS = 15 * 60 * 1000L
+    private const val OUTBOX_FILE = "openrung_telemetry_outbox.jsonl"
+
+    /**
+     * The outbox file may carry more lines than the in-memory cap before it is compacted; past
+     * this it is rewritten from the cache, so append cost stays O(1) amortized per event.
+     */
+    private const val OUTBOX_COMPACT_THRESHOLD = 2 * MAX_QUEUED_EVENTS
 
     private val lock = Any()
+
+    /**
+     * In-memory outbox mirror (guarded by [lock]) over an append-only NDJSON file. Appending one
+     * event encodes and writes ONE line; the previous SharedPreferences blob decoded and
+     * re-encoded the entire queue (up to [MAX_QUEUED_EVENTS] events, hundreds of KB) on every
+     * append — O(n²) CPU/disk per session, worst exactly when a blocked network keeps the queue
+     * full. The file is rewritten only when uploads remove events, geo attributes are
+     * back-patched, or the tail outgrows [OUTBOX_COMPACT_THRESHOLD]; a torn final line from a
+     * process kill is skipped at load.
+     */
+    private var outboxCache: MutableList<TelemetryEvent>? = null
+    private var outboxFileLines = 0
+
+    /**
+     * True while a legacy SharedPreferences outbox has been read into the cache but not yet
+     * durably written to the NDJSON file. Until the migration lands (an atomic-rename rewrite),
+     * the legacy key stays in place and appends retry the full rewrite — appending alone would
+     * create a file WITHOUT the backlog, and the file's existence is what marks the migration
+     * complete on the next launch.
+     */
+    private var legacyMigrationPending = false
     private val appConnections = ApplicationConnectionAggregator(
         windowMs = APP_CONNECTION_WINDOW_MS,
         elapsedMs = SystemClock::elapsedRealtime,
@@ -62,7 +91,16 @@ object TelemetryManager {
             // Unconditional: the application context is process-constant in production, and
             // holding on to the first one seen keeps Robolectric tests (fresh Application per
             // test method) writing to a stale instance's SharedPreferences.
-            this.context = context.applicationContext
+            val next = context.applicationContext
+            if (this.context !== next) {
+                // A different Application instance (Robolectric per-test) invalidates the outbox
+                // cache — its file lives under the new instance's filesDir.
+                outboxCache = null
+                outboxFileLines = 0
+                legacyMigrationPending = false
+                cachedNetworkAttributes = null
+            }
+            this.context = next
         }
     }
 
@@ -154,6 +192,13 @@ object TelemetryManager {
 
     private fun trafficCounters(): TrafficCounters? = synchronized(lock) { sessionTraffic }
 
+    /**
+     * Cumulative session counters as last pushed by the engine (null before the first push).
+     * The tunnel health monitor compares successive values to skip probing while traffic is
+     * demonstrably flowing.
+     */
+    fun currentTrafficCounters(): TrafficCounters? = trafficCounters()
+
     fun markConnected(relayId: String) {
         synchronized(lock) {
             activeSession = activeSession?.copy(
@@ -169,18 +214,15 @@ object TelemetryManager {
         synchronized(lock) {
             val session = activeSession ?: return
             activeSession = session.copy(geoAttributes = geoAttributes)
-            writeOutbox(
-                appContext,
-                readOutbox(appContext).map { event ->
-                    when {
-                        event.event == APPLICATION_CONNECTION_EVENT ->
-                            event.copy(attributes = emptyMap())
-                        event.sessionId == session.id ->
-                            event.copy(attributes = event.attributes + geoAttributes)
-                        else -> event
-                    }
-                },
-            )
+            transformOutboxLocked(appContext) { event ->
+                when {
+                    event.event == APPLICATION_CONNECTION_EVENT ->
+                        event.copy(attributes = emptyMap())
+                    event.sessionId == session.id ->
+                        event.copy(attributes = event.attributes + geoAttributes)
+                    else -> event
+                }
+            }
         }
         record("client_geo_resolved")
     }
@@ -280,13 +322,11 @@ object TelemetryManager {
             heartbeat = event,
             batchSize = UPLOAD_BATCH_SIZE,
             readQueued = {
-                synchronized(lock) { readOutbox(appContext) }
+                synchronized(lock) { outboxSnapshotLocked(appContext) }
             },
             send = { TelemetryClient(session.brokerUrl).send(it) },
             commit = { sentIDs ->
-                synchronized(lock) {
-                    writeOutbox(appContext, readOutbox(appContext).filterNot { it.eventId in sentIDs })
-                }
+                synchronized(lock) { removeFromOutboxLocked(appContext, sentIDs) }
             },
             flushQueued = { flush(session.brokerUrl) },
         )
@@ -296,7 +336,7 @@ object TelemetryManager {
         val appContext = context ?: return
         while (true) {
             val batch = synchronized(lock) {
-                telemetryUploadBatch(readOutbox(appContext), UPLOAD_BATCH_SIZE)
+                telemetryUploadBatch(outboxSnapshotLocked(appContext), UPLOAD_BATCH_SIZE)
             }
             if (batch.isEmpty()) return
             sendTelemetryBatchAndCommit(
@@ -304,12 +344,7 @@ object TelemetryManager {
                 queuedEventIds = batch.mapTo(hashSetOf()) { it.eventId },
                 send = { TelemetryClient(brokerUrl).send(it) },
                 commit = { sentIDs ->
-                    synchronized(lock) {
-                        writeOutbox(
-                            appContext,
-                            readOutbox(appContext).filterNot { it.eventId in sentIDs },
-                        )
-                    }
+                    synchronized(lock) { removeFromOutboxLocked(appContext, sentIDs) }
                 },
             )
         }
@@ -323,42 +358,166 @@ object TelemetryManager {
 
     private fun enqueueAllLocked(context: Context, events: List<TelemetryEvent>) {
         if (events.isEmpty()) return
-        writeOutbox(
-            context,
-            (readOutbox(context) + events.map(::sanitizeTelemetryEvent)).takeLast(MAX_QUEUED_EVENTS),
-        )
+        val cache = loadOutboxLocked(context)
+        val sanitized = events.map(::sanitizeTelemetryEvent)
+        cache.addAll(sanitized)
+        while (cache.size > MAX_QUEUED_EVENTS) cache.removeAt(0)
+        if (legacyMigrationPending) {
+            // See [legacyMigrationPending]: the backlog must land as one durable rewrite before
+            // plain appends may touch the file.
+            rewriteOutboxLocked(context, cache)
+            return
+        }
+        val appended = runCatching {
+            outboxFile(context).appendText(
+                sanitized.joinToString(separator = "") { json.encodeToString(it) + "\n" },
+            )
+        }.isSuccess
+        outboxFileLines += sanitized.size
+        if (!appended || outboxFileLines > OUTBOX_COMPACT_THRESHOLD) {
+            rewriteOutboxLocked(context, cache)
+        }
     }
 
-    private fun readOutbox(context: Context): List<TelemetryEvent> {
-        val encoded = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_OUTBOX, null)
-            ?: return emptyList()
+    /** Immutable snapshot for consumers that iterate outside [lock]. */
+    private fun outboxSnapshotLocked(context: Context): List<TelemetryEvent> =
+        loadOutboxLocked(context).toList()
+
+    private fun removeFromOutboxLocked(context: Context, ids: Set<String>) {
+        if (ids.isEmpty()) return
+        val cache = loadOutboxLocked(context)
+        if (cache.removeAll { it.eventId in ids }) {
+            rewriteOutboxLocked(context, cache)
+        }
+    }
+
+    private fun transformOutboxLocked(context: Context, transform: (TelemetryEvent) -> TelemetryEvent) {
+        val cache = loadOutboxLocked(context)
+        var changed = false
+        for (index in cache.indices) {
+            val next = transform(cache[index])
+            if (next != cache[index]) {
+                cache[index] = next
+                changed = true
+            }
+        }
+        if (changed) rewriteOutboxLocked(context, cache)
+    }
+
+    private fun outboxFile(context: Context): File = File(context.filesDir, OUTBOX_FILE)
+
+    private fun loadOutboxLocked(context: Context): MutableList<TelemetryEvent> {
+        outboxCache?.let { return it }
+        val file = outboxFile(context)
+        var needsRewrite: Boolean
+        val parsed: List<TelemetryEvent>
+        if (file.isFile) {
+            // The file is authoritative once it exists (rewrites land via atomic rename). A
+            // legacy key still present next to it is a completed migration whose key removal
+            // didn't land — stale, so drop it without another read.
+            clearLegacyOutboxLocked(context)
+            val lines = runCatching {
+                file.useLines { sequence -> sequence.filter { it.isNotBlank() }.toList() }
+            }.getOrDefault(emptyList())
+            val decoded = lines.mapNotNull { line ->
+                runCatching { json.decodeFromString<TelemetryEvent>(line) }.getOrNull()
+            }
+            needsRewrite = decoded.size != lines.size
+            parsed = decoded
+        } else {
+            val legacy = readLegacyOutboxLocked(context)
+            legacyMigrationPending = legacy != null
+            needsRewrite = legacy != null
+            parsed = legacy.orEmpty()
+        }
+        val events = parsed.map(::sanitizeTelemetryEvent)
+            .takeLast(MAX_QUEUED_EVENTS)
+            .toMutableList()
+        if (needsRewrite || events.size != parsed.size) {
+            rewriteOutboxLocked(context, events)
+        } else {
+            outboxFileLines = events.size
+        }
+        outboxCache = events
+        return events
+    }
+
+    /** Reads the pre-file SharedPreferences blob WITHOUT clearing it — the key is removed only
+     *  once the migrated file has durably landed (see [rewriteOutboxLocked]), so disk-full, an
+     *  I/O failure, or a crash mid-migration can never discard the pre-upgrade backlog. */
+    private fun readLegacyOutboxLocked(context: Context): List<TelemetryEvent>? {
+        val encoded = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_OUTBOX, null) ?: return null
         return runCatching { json.decodeFromString<List<TelemetryEvent>>(encoded) }
             .getOrDefault(emptyList())
-            .map(::sanitizeTelemetryEvent)
     }
 
-    private fun writeOutbox(context: Context, events: List<TelemetryEvent>) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_OUTBOX, json.encodeToString(events))
-            .apply()
+    private fun clearLegacyOutboxLocked(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (prefs.contains(KEY_OUTBOX)) prefs.edit().remove(KEY_OUTBOX).apply()
     }
 
-    private fun deviceAttributes(context: Context): Map<String, String> {
-        val connectivity = context.getSystemService(ConnectivityManager::class.java)
-        val capabilities = connectivity.getNetworkCapabilities(connectivity.activeNetwork)
-        return mapOf(
+    private fun rewriteOutboxLocked(context: Context, events: List<TelemetryEvent>): Boolean {
+        val file = outboxFile(context)
+        val wrote = runCatching {
+            val temp = File(file.parentFile, "$OUTBOX_FILE.tmp")
+            temp.writeText(events.joinToString(separator = "") { json.encodeToString(it) + "\n" })
+            if (!temp.renameTo(file)) {
+                file.writeText(events.joinToString(separator = "") { json.encodeToString(it) + "\n" })
+                temp.delete()
+            }
+        }.isSuccess
+        if (wrote) {
+            outboxFileLines = events.size
+            if (legacyMigrationPending) {
+                legacyMigrationPending = false
+                clearLegacyOutboxLocked(context)
+            }
+        }
+        return wrote
+    }
+
+    /** Truly process-constant attributes, built once. */
+    private val staticDeviceAttributes: Map<String, String> by lazy {
+        mapOf(
             "app_version" to BuildConfig.VERSION_NAME,
             "os_name" to "android",
             "android_api" to Build.VERSION.SDK_INT.toString(),
             "device_manufacturer" to Build.MANUFACTURER,
             "device_model" to Build.MODEL,
-            "locale" to Locale.getDefault().toLanguageTag(),
-            "timezone" to TimeZone.getDefault().id,
-            "network_transport" to transportName(capabilities),
-            "network_metered" to (capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) != true).toString(),
-            "network_roaming" to (capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_ROAMING) != true).toString(),
         )
+    }
+
+    /**
+     * Short-lived cache for the network attributes: resolving them costs two binder calls, and
+     * events cluster in bursts (connect ladder, recovery), so a small TTL removes almost all of
+     * that IPC without reporting stale transports.
+     */
+    private const val NETWORK_ATTRIBUTES_TTL_MS = 5_000L
+    private var cachedNetworkAttributes: Pair<Long, Map<String, String>>? = null
+
+    private fun deviceAttributes(context: Context): Map<String, String> {
+        val now = SystemClock.elapsedRealtime()
+        val cached = synchronized(lock) { cachedNetworkAttributes }
+        val network = if (cached != null && now - cached.first < NETWORK_ATTRIBUTES_TTL_MS) {
+            cached.second
+        } else {
+            val connectivity = context.getSystemService(ConnectivityManager::class.java)
+            val capabilities = connectivity.getNetworkCapabilities(connectivity.activeNetwork)
+            val fresh = mapOf(
+                "network_transport" to transportName(capabilities),
+                "network_metered" to (capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) != true).toString(),
+                "network_roaming" to (capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_ROAMING) != true).toString(),
+            )
+            synchronized(lock) { cachedNetworkAttributes = now to fresh }
+            fresh
+        }
+        // Locale/timezone can change mid-process and are cheap to read — keep them live.
+        return staticDeviceAttributes +
+            mapOf(
+                "locale" to Locale.getDefault().toLanguageTag(),
+                "timezone" to TimeZone.getDefault().id,
+            ) + network
     }
 
     private fun transportName(capabilities: NetworkCapabilities?): String = when {

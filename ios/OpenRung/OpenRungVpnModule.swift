@@ -21,6 +21,10 @@ final class OpenRungVpnModule: RCTEventEmitter {
     private var recentRegions: [RecentNode] = []
     private var hasListeners = false
     private var vpnStatusObserver: NSObjectProtocol?
+    /// True while a trailing shared-state reload is scheduled (MainActor-confined). Each reload
+    /// decodes the full snapshot and serializes an 80-line payload across the bridge, so
+    /// notification bursts collapse into one reload ~100 ms later instead of one per line.
+    private var sharedStateReloadScheduled = false
     /// Bumped by every explicit connect/disconnect and by a split-tunnel reapply. The reapply
     /// dance stops the tunnel and restarts it after a 350 ms delay; it captures this value before
     /// sleeping and aborts the restart if a newer command (e.g. the user tapping Disconnect)
@@ -304,12 +308,23 @@ final class OpenRungVpnModule: RCTEventEmitter {
             { _, observer, _, _, _ in
                 guard let observer else { return }
                 let module = Unmanaged<OpenRungVpnModule>.fromOpaque(observer).takeUnretainedValue()
-                Task { @MainActor in module.reloadSharedState() }
+                Task { @MainActor in module.scheduleSharedStateReload() }
             },
             AppConfig.darwinNotificationName as CFString,
             nil,
             .deliverImmediately
         )
+    }
+
+    @MainActor
+    private func scheduleSharedStateReload() {
+        guard !sharedStateReloadScheduled else { return }
+        sharedStateReloadScheduled = true
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 100_000_000)
+            self.sharedStateReloadScheduled = false
+            self.reloadSharedState()
+        }
     }
 
     @MainActor

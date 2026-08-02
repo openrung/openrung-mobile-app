@@ -33,13 +33,12 @@ import {
 import { OpenRungBrokerError } from '../native/OpenRungBroker';
 import { OpenRungVpn } from '../native/OpenRungVpn';
 import { runSpeedTest, type SpeedTestResult } from '../net/speedTestClient';
-import { useAppState } from '../state/store';
+import { useAppSelector } from '../state/store';
 import {
   buildSpeedTestCompletedEvent,
   buildSpeedTestFailedEvent,
   sendTelemetry,
 } from '../net/telemetryClient';
-import { useVpnState } from '../state/useVpnState';
 import { monoFont, palette, tokens } from '../theme';
 
 export interface SettingsScreenProps {
@@ -60,9 +59,11 @@ export function SettingsScreen({
 }: SettingsScreenProps): React.JSX.Element {
   const s = useStrings();
   const insets = useSafeAreaInsets();
-  const { state, isConnected } = useVpnState();
-  const { update } = state;
-  const { splitTunnel } = useAppState();
+  // Selectors, not the whole store: on iOS this scene stays mounted behind the other tabs, so
+  // it must not re-render on every mirrored native event (log lines, recents).
+  const isConnected = useAppSelector(current => current.native.status === 'connected');
+  const update = useAppSelector(current => current.update);
+  const splitTunnel = useAppSelector(current => current.splitTunnel);
 
   const [speedTestRunning, setSpeedTestRunning] = useState(false);
   const [speedTestResult, setSpeedTestResult] = useState<SpeedTestResult | null>(null);

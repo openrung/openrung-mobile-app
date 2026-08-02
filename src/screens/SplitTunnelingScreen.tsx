@@ -28,7 +28,7 @@ import {
   isAppListAvailable,
   type InstalledApp,
 } from '../native/OpenRungAppList';
-import { hydrateSplitTunnel, setSplitTunnel, useAppState } from '../state/store';
+import { hydrateSplitTunnel, setSplitTunnel, useAppSelector } from '../state/store';
 import { monoFont, palette, tokens } from '../theme';
 
 export interface SplitTunnelingScreenProps {
@@ -42,7 +42,7 @@ type CountryCode = (typeof COUNTRY_ORDER)[number];
 export function SplitTunnelingScreen({ onBack }: SplitTunnelingScreenProps): React.JSX.Element {
   const s = useStrings();
   const insets = useSafeAreaInsets();
-  const { splitTunnel } = useAppState();
+  const splitTunnel = useAppSelector(current => current.splitTunnel);
 
   useEffect(() => {
     // Ensure hydration has run when this screen is rendered outside the normal App launch flow.

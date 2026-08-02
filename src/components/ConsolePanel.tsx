@@ -19,6 +19,20 @@ export interface ConsolePanelProps {
   style?: StyleProp<ViewStyle>;
 }
 
+/**
+ * Content-stable keys for an append-only ring buffer. Index-based keys shift on every append
+ * once the 80-line cap is hit, remounting all Text nodes per line; keying by the line plus its
+ * occurrence ordinal keeps existing rows mounted (only rows after a dropped duplicate remap).
+ */
+function keyedLines(lines: string[]): { key: string; line: string }[] {
+  const seen = new Map<string, number>();
+  return lines.map(line => {
+    const ordinal = seen.get(line) ?? 0;
+    seen.set(line, ordinal + 1);
+    return { key: `${line}#${ordinal}`, line };
+  });
+}
+
 export function ConsolePanel({
   logLines,
   lastError,
@@ -32,8 +46,8 @@ export function ConsolePanel({
     <View style={[styles.panel, style]}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         {showMockNotice ? <Text style={styles.mockNotice}>[mock native module]</Text> : null}
-        {lines.map((line, index) => (
-          <Text key={`${index}-${line}`} style={styles.logLine}>
+        {keyedLines(lines).map(({ key, line }) => (
+          <Text key={key} style={styles.logLine}>
             {s.logLineFormat(line)}
           </Text>
         ))}

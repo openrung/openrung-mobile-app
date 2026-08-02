@@ -1,5 +1,6 @@
 package com.openrung.net
 
+import com.openrung.BuildConfig
 import com.openrung.model.RelayConstants
 import com.openrung.model.RelayDescriptor
 import kotlinx.serialization.encodeToString
@@ -96,7 +97,9 @@ data class SingBoxConfiguration(
 
         return buildJsonObject {
             put("log", buildJsonObject {
-                put("level", "info")
+                // "info" logs every flow and DNS query inside the Go engine; release builds
+                // keep only warnings to stay off the per-connection hot path.
+                put("level", if (BuildConfig.DEBUG) "info" else "warn")
                 put("timestamp", true)
             })
             put("dns", buildJsonObject {

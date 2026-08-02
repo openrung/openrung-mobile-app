@@ -47,6 +47,13 @@ enum TelemetryManager {
         return sessionTraffic
     }
 
+    /// Cumulative session counters as last pushed by the engine (nil before the first push).
+    /// The tunnel health monitor compares successive values to skip probing while traffic is
+    /// demonstrably flowing.
+    static func currentTrafficCounters() -> TrafficCounters? {
+        trafficCounters()
+    }
+
     private static func resetTrafficCounters() {
         trafficLock.lock()
         defer { trafficLock.unlock() }
@@ -169,9 +176,15 @@ enum TelemetryManager {
         )
     }
 
-    private static func iso8601Now() -> String {
+    // Constructing an ISO8601DateFormatter per event costs far more than formatting with one;
+    // the class is documented thread-safe.
+    private static let iso8601Formatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.string(from: Date())
+        return formatter
+    }()
+
+    private static func iso8601Now() -> String {
+        iso8601Formatter.string(from: Date())
     }
 }

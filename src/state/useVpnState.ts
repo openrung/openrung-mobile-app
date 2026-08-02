@@ -4,12 +4,7 @@ import { OpenRungVpn, subscribeVpnState } from '../native/OpenRungVpn';
 import { applyNativeState, flushSplitTunnelPush, useAppState } from './store';
 import type { AppState } from './store';
 
-export interface VpnStateHook {
-  state: AppState;
-  /** preparing | connecting | disconnecting */
-  isWorking: boolean;
-  /** connected */
-  isConnected: boolean;
+export interface VpnActions {
   /**
    * Start (or switch) the tunnel; country: ISO alpha-2 or omitted/null = broker picks.
    * relayId: connect to that exact broker relay (takes precedence over country).
@@ -25,36 +20,58 @@ export interface VpnStateHook {
   prepareAndConnect: (country?: string | null, relayId?: string | null) => Promise<void>;
 }
 
-/**
- * Wires native VPN events into the store: on mount, seeds the native slice via `getState()` and
- * subscribes to `openrungStateChanged`; exposes derived flags and the connect/disconnect actions.
- */
-export function useVpnState(): VpnStateHook {
-  const state = useAppState();
+export interface VpnStateHook extends VpnActions {
+  state: AppState;
+  /** preparing | connecting | disconnecting */
+  isWorking: boolean;
+  /** connected */
+  isConnected: boolean;
+}
 
-  useEffect(() => {
-    let mounted = true;
-    let receivedEvent = false;
-    // Subscribe FIRST so no event is missed, and track whether one has arrived: a slow getState()
-    // seed must not clobber a fresher event that landed while it was in flight (e.g. mounting during
-    // a connecting -> connected transition).
-    const unsubscribe = subscribeVpnState(nativeState => {
-      receivedEvent = true;
-      applyNativeState(nativeState);
+/**
+ * One app-lifetime subscription mirrors native VPN events into the store, no matter how many
+ * components read from it: on first use it subscribes to `openrungStateChanged`, then seeds the
+ * native slice via `getState()`. Subscribing FIRST means no event is missed, and the seed is
+ * skipped once an event has arrived: a slow getState() must not clobber a fresher event that
+ * landed while it was in flight (e.g. wiring up during a connecting -> connected transition).
+ * The subscription is deliberately never torn down — components come and go, the mirror stays.
+ */
+let nativeStateWired = false;
+
+function ensureNativeStateWired(): void {
+  if (nativeStateWired) {
+    return;
+  }
+  nativeStateWired = true;
+  let receivedEvent = false;
+  subscribeVpnState(nativeState => {
+    receivedEvent = true;
+    applyNativeState(nativeState);
+  });
+  OpenRungVpn.getState()
+    .then(nativeState => {
+      if (!receivedEvent) {
+        applyNativeState(nativeState);
+      }
+    })
+    .catch(() => {
+      // Native state stays at the store default until the first event arrives.
     });
-    OpenRungVpn.getState()
-      .then(nativeState => {
-        if (mounted && !receivedEvent) {
-          applyNativeState(nativeState);
-        }
-      })
-      .catch(() => {
-        // Native state stays at the store default until the first event arrives.
-      });
-    return () => {
-      mounted = false;
-      unsubscribe();
-    };
+}
+
+/** Test-only: lets a fresh test file re-run the wiring against a reset store/mock. */
+export function resetNativeStateWiringForTests(): void {
+  nativeStateWired = false;
+}
+
+/**
+ * Connect/disconnect actions plus the native-event wiring, without subscribing to any state:
+ * components that only trigger transitions (or select their own slices via `useAppSelector`)
+ * use this and skip the re-render-on-every-event cost of `useVpnState`.
+ */
+export function useVpnActions(): VpnActions {
+  useEffect(() => {
+    ensureNativeStateWired();
   }, []);
 
   const connect = useCallback(
@@ -82,10 +99,22 @@ export function useVpnState(): VpnStateHook {
     [connect],
   );
 
+  return { connect, disconnect, prepareAndConnect };
+}
+
+/**
+ * Full-state variant: subscribes to the ENTIRE store, so the component re-renders on every
+ * mirrored native event — including log lines. Only for consumers that render the log itself
+ * (Debug screen); everything else should pair `useVpnActions` with `useAppSelector`.
+ */
+export function useVpnState(): VpnStateHook {
+  const state = useAppState();
+  const actions = useVpnActions();
+
   const status = state.native.status;
   const isWorking =
     status === 'preparing' || status === 'connecting' || status === 'disconnecting';
   const isConnected = status === 'connected';
 
-  return { state, isWorking, isConnected, connect, disconnect, prepareAndConnect };
+  return { state, isWorking, isConnected, ...actions };
 }

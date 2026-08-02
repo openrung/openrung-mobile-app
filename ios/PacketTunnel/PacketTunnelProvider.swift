@@ -1420,24 +1420,77 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         } catch {
             throw LocalTunnelError(stage: "active_tunnel_health_setup", underlying: error)
         }
+        // The loop ticks at the base cadence forever — a tick reads in-memory counters and costs
+        // no radio. Only PROBES open a through-tunnel TLS connection, so only probes are
+        // rationed:
+        //
+        //  - Downlink growth since the last tick is treated as end-to-end health and skips the
+        //    probe — but ONLY while nothing is suspected. A counter push can lag by up to the
+        //    engine's status interval, so a sample may still carry pre-failure bytes, and a
+        //    failed probe's own transmission grows the uplink counter; neither may ever clear
+        //    suspicion, so once a probe has failed only a successful probe resets the count.
+        //  - Uplink growth WITHOUT downlink growth means something is sending and nothing is
+        //    coming back — the signature of a blackholed path with a user on it. That forces a
+        //    probe immediately, regardless of accumulated backoff.
+        //  - Otherwise the tunnel is idle: probe only when the backed-off allowance (base,
+        //    doubling per healthy observation up to the cap) runs out.
+        //
+        // Detection-latency bound (from actual failure, active user): counter pushes lag by up
+        // to the engine status interval, so up to TWO ticks can still read pre-failure downlink
+        // and be masked; the next tick's send-without-reply forces the first failed probe, and
+        // the remaining threshold probes run at base cadence — ≈ 6×base plus probe timeouts,
+        // ~3.5 min worst case (typically far less), versus ~105 s before backoff existed. A
+        // fully idle dead tunnel may sit until the cap (~5 min), but with no traffic no one is
+        // affected, and the first use flips it onto the fast path above.
         var threshold = TunnelHealthFailureThreshold(requiredFailures: 3)
+        var probeAllowanceMs: UInt64 = Self.tunnelHealthBaseIntervalMs
+        var msUntilProbe: Int64 = 0
+        var lastCounters = TelemetryManager.currentTrafficCounters()
         while true {
-            let delayMs = UInt64.random(in: 25_000...35_000)
-            try await Task.sleep(nanoseconds: delayMs * 1_000_000)
+            let passMs = UInt64.random(
+                in: (Self.tunnelHealthBaseIntervalMs * 5 / 6)...(Self.tunnelHealthBaseIntervalMs * 7 / 6)
+            )
+            try await Task.sleep(nanoseconds: passMs * 1_000_000)
+            let counters = TelemetryManager.currentTrafficCounters()
+            let downlinkGrew: Bool
+            let uplinkGrew: Bool
+            if let counters, let last = lastCounters {
+                downlinkGrew = counters.bytesReceived > last.bytesReceived
+                uplinkGrew = counters.bytesSent > last.bytesSent
+            } else {
+                downlinkGrew = false
+                uplinkGrew = false
+            }
+            if let counters { lastCounters = counters }
+            if threshold.consecutiveFailures == 0, downlinkGrew {
+                probeAllowanceMs = min(probeAllowanceMs * 2, Self.tunnelHealthMaxIntervalMs)
+                msUntilProbe = Int64(probeAllowanceMs)
+                continue
+            }
+            msUntilProbe -= Int64(passMs)
+            let sendWithoutReply = uplinkGrew && !downlinkGrew
+            if threshold.consecutiveFailures == 0, !sendWithoutReply, msUntilProbe > 0 { continue }
             do {
                 _ = try await probe.verifyOnce()
                 threshold.recordSuccess()
+                probeAllowanceMs = min(probeAllowanceMs * 2, Self.tunnelHealthMaxIntervalMs)
+                msUntilProbe = Int64(probeAllowanceMs)
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
                 guard isGenuineRemoteDataPathFailure(error) else {
                     throw LocalTunnelError(stage: "active_tunnel_health", underlying: error)
                 }
+                probeAllowanceMs = Self.tunnelHealthBaseIntervalMs
+                msUntilProbe = 0
                 guard threshold.recordRemoteFailure(), monitor.isSatisfied else { continue }
                 return "end-to-end tunnel health probe failed \(threshold.consecutiveFailures) times"
             }
         }
     }
+
+    private static let tunnelHealthBaseIntervalMs: UInt64 = 30_000
+    private static let tunnelHealthMaxIntervalMs: UInt64 = 300_000
 
     private func requestWssRecovery(
         trigger: String,

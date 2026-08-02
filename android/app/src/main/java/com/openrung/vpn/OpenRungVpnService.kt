@@ -66,7 +66,27 @@ import kotlin.coroutines.coroutineContext
 import kotlin.random.Random
 
 class OpenRungVpnService : VpnService() {
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    // Each instance gets its own Job (so onDestroy cancels only its own work) on the shared
+    // process-wide service thread (see [serviceThread] for why the thread must be global).
+    private val serviceScope = CoroutineScope(SupervisorJob() + serviceThread)
+
+    /**
+     * The startId of the most recent delivered start command, stamped on Main. `stopSelf(id)`
+     * stops the service iff `id` still matches AMS's most recent start, so every self-stop must
+     * carry the id of the epoch it is allowed to end — never this field read at stop time,
+     * which by then is the id of whatever superseded that epoch. Revoke/destroy teardowns
+     * therefore capture this AT POST TIME on Main; connect epochs use [epochStartId].
+     */
+    @Volatile
+    private var lastStartId = -1
+
+    /**
+     * The startId of the command that opened the current connect epoch (service-thread
+     * confined; recovery reconnects keep it — they run inside the same epoch). Failure tails
+     * stop the service with THIS id: when a newer CONNECT has been delivered, this id no longer
+     * matches AMS's latest and the stop is refused, sparing the successor.
+     */
+    private var epochStartId = -1
     private val relaySelector = RelaySelector()
     private val punchRecoveryCircuitBreaker = PunchRecoveryCircuitBreaker()
     private val wssFallbackPolicy = WssFallbackPolicy(NativeWssFrontSetValidator)
@@ -94,11 +114,35 @@ class OpenRungVpnService : VpnService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
+        // Lifecycle callbacks arrive on Main but never touch tunnel state directly: they post to
+        // the service thread, which owns every field in this class.
+        lastStartId = startId
+        val action = intent?.action
+        val brokerUrl = intent?.getStringExtra(EXTRA_BROKER_URL).orEmpty()
+        val targetCountry = intent?.getStringExtra(EXTRA_TARGET_COUNTRY)?.takeIf { it.isNotBlank() }
+        val targetRelayId = intent?.getStringExtra(EXTRA_TARGET_RELAY_ID)?.takeIf { it.isNotBlank() }
+        if (action == ACTION_CONNECT) {
+            // startForegroundService demands startForeground within seconds. Claim it here on
+            // Main — before this start waits its turn behind whatever the service thread is
+            // draining (a slow native teardown can hold it well past that window). connect()
+            // refreshes the same notification once it actually runs.
+            startForeground(NOTIFICATION_ID, notification(getString(R.string.vpn_notification_preparing)))
+        }
+        serviceScope.launch {
+            handleStartAction(action, brokerUrl, targetCountry, targetRelayId, startId)
+        }
+        return START_STICKY
+    }
+
+    private fun handleStartAction(
+        action: String?,
+        requestedBrokerUrl: String,
+        targetCountry: String?,
+        targetRelayId: String?,
+        startId: Int,
+    ) {
+        when (action) {
             ACTION_CONNECT -> {
-                val brokerUrl = intent.getStringExtra(EXTRA_BROKER_URL).orEmpty()
-                val targetCountry = intent.getStringExtra(EXTRA_TARGET_COUNTRY)?.takeIf { it.isNotBlank() }
-                val targetRelayId = intent.getStringExtra(EXTRA_TARGET_RELAY_ID)?.takeIf { it.isNotBlank() }
                 heartbeatJob?.cancel()
                 engineMonitorJob?.cancel()
                 engineMonitorJob = null
@@ -110,8 +154,9 @@ class OpenRungVpnService : VpnService() {
                 // A user-initiated connect starts a new recovery epoch. Recursive recovery calls
                 // connect() directly and deliberately keep the breaker state that led to them.
                 punchRecoveryCircuitBreaker.reset()
+                epochStartId = startId
                 connectJob = serviceScope.launch {
-                    connect(brokerUrl.ifBlank { AppConfig.DEFAULT_BROKER_URL }, targetCountry, targetRelayId)
+                    connect(requestedBrokerUrl.ifBlank { AppConfig.DEFAULT_BROKER_URL }, targetCountry, targetRelayId)
                 }
             }
             ACTION_REAPPLY -> {
@@ -144,7 +189,8 @@ class OpenRungVpnService : VpnService() {
                     wssMonitorJob = null
                     connectJob?.cancel()
                     punchRecoveryCircuitBreaker.reset()
-                    val storedBrokerUrl = brokerUrl
+                    epochStartId = startId
+                    val storedBrokerUrl = this.brokerUrl
                     val storedTargetCountry = requestedTargetCountry
                     val storedTargetRelayId = requestedTargetRelayId
                     connectJob = serviceScope.launch {
@@ -154,26 +200,38 @@ class OpenRungVpnService : VpnService() {
                     // Nothing to reapply and no active tunnel: don't leave an idle START_STICKY
                     // service running just because a reapply intent started it.
                     stopSelf(startId)
+                } else {
+                    // Skipped mid-connect/recovery — but this REAPPLY still advanced AMS's
+                    // latest start id. Absorb it into the live epoch (whose next connect() pass
+                    // re-reads the persisted config anyway) so a later terminal failure's
+                    // stopSelf(epochStartId) still matches; otherwise the failed service would
+                    // linger unstopped behind the ignored REAPPLY's newer id.
+                    epochStartId = startId
                 }
             }
-            ACTION_DISCONNECT -> disconnect()
+            ACTION_DISCONNECT -> disconnect(stopId = startId)
         }
-        return START_STICKY
     }
 
     override fun onRevoke() {
-        disconnect()
+        // Captured NOW, on Main: a connect delivered after this revoke gets a newer id, so the
+        // queued teardown's stopSelf(captured) is refused and the fresh connect survives.
+        val stopId = lastStartId
+        serviceScope.launch { disconnect(stopId) }
         super.onRevoke()
     }
 
     override fun onDestroy() {
-        disconnect()
-        // Cancel the scope so its Job, its Main.immediate dispatcher, and any in-flight
-        // coroutines (connect, heartbeat, the disconnect() telemetry flush) don't outlive this
-        // service instance. Mirrors OpenRungVpnModule.invalidate(). This supersedes the explicit
-        // connectJob cancel (scope cancellation cancels all children). The on-destroy telemetry
-        // flush is best-effort — the outbox retries anything dropped here on the next session.
-        serviceScope.cancel()
+        // Teardown runs on the service thread like every other state mutation; only after it
+        // completes is the scope cancelled so its Job and any in-flight coroutines (connect,
+        // heartbeat, the disconnect() telemetry flush) don't outlive this service instance.
+        // Mirrors OpenRungVpnModule.invalidate(). The on-destroy telemetry flush is best-effort —
+        // the outbox retries anything dropped here on the next session. Because [serviceThread]
+        // is process-global, a replacement instance's first command is guaranteed to run AFTER
+        // this teardown, so the dead instance can never end the replacement's telemetry session
+        // or overwrite its published status.
+        val stopId = lastStartId // captured on Main at post time, same as onRevoke
+        serviceScope.launch { disconnect(stopId) }.invokeOnCompletion { serviceScope.cancel() }
         super.onDestroy()
     }
 
@@ -347,10 +405,20 @@ class OpenRungVpnService : VpnService() {
             if (engineMonitorJob !== currentJob) engineMonitorJob?.cancel()
             if (engineMonitorJob !== currentJob) engineMonitorJob = null
             if (punchMonitorJob !== currentJob) punchMonitorJob?.cancel()
-            punchMonitorJob = null
+            // Guarded like its siblings: a recovery reconnect runs INSIDE punchMonitorJob, and
+            // self-nulling the field here would make this coroutine uncancellable by a
+            // superseding CONNECT (whose cancel targets the field), bypassing the ensureActive
+            // guard below. The job's own finally nulls the field on completion.
+            if (punchMonitorJob !== currentJob) punchMonitorJob = null
             if (wssMonitorJob !== currentJob) wssMonitorJob?.cancel()
             if (wssMonitorJob !== currentJob) wssMonitorJob = null
             cleanupActiveTunnel()
+            // A newer command may have superseded this epoch while cleanup suspended (the WSS
+            // close is NonCancellable, so cancellation is only observed here). Everything below
+            // touches process-global or successor-owned state — activeRelayId, the telemetry
+            // session, the visible status, the service's lifetime — so a superseded failure
+            // path must fall silent instead.
+            coroutineContext.ensureActive()
             activeRelayId = null
             val failureReason = FailureClassifier.classify(error)
             val failureDetail = FailureClassifier.detail(error)
@@ -365,10 +433,13 @@ class OpenRungVpnService : VpnService() {
                 },
             )
             TelemetryManager.endSession("connection_failed")
-            runCatching { TelemetryManager.flush(AppConfig.TELEMETRY_BROKER_URL) }
             OpenRungStatusStore.fail(error.message ?: getString(R.string.error_vpn_connection_failed))
             stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
+            // This epoch's own id, not the latest: a CONNECT delivered meanwhile carries a newer
+            // id, so AMS refuses this stop and the successor keeps the service.
+            stopSelf(epochStartId)
+            // Deliberately last: runCatching swallows cancellation, so nothing may publish after.
+            runCatching { TelemetryManager.flush(AppConfig.TELEMETRY_BROKER_URL) }
         }
     }
 
@@ -944,7 +1015,13 @@ class OpenRungVpnService : VpnService() {
         return candidates.filter { it.countryCode.trim().uppercase() == target }
     }
 
-    private fun disconnect() {
+    /**
+     * Tears down the tunnel and stops the service — but only if [stopId] is still the most
+     * recent start command. A DISCONNECT and a CONNECT can both be queued on the service thread
+     * before either runs; the stale disconnect must clean up its own epoch without stopping the
+     * service out from under the newer connect.
+     */
+    private fun disconnect(stopId: Int) {
         heartbeatJob?.cancel()
         heartbeatJob = null
         engineMonitorJob?.cancel()
@@ -967,7 +1044,7 @@ class OpenRungVpnService : VpnService() {
         }
         stopForeground(STOP_FOREGROUND_REMOVE)
         OpenRungStatusStore.setStatus(ConnectionStatus.DISCONNECTED, relayLabel = null, lastError = null)
-        stopSelf()
+        stopSelf(stopId)
     }
 
     /**
@@ -1070,12 +1147,18 @@ class OpenRungVpnService : VpnService() {
         if (wssMonitorJob !== currentJob) wssMonitorJob?.cancel()
         if (wssMonitorJob !== currentJob) wssMonitorJob = null
         cleanupActiveTunnel()
+        // See connect()'s failure tail: a superseded epoch must not end the successor's session,
+        // overwrite its status, or stop the service it now owns.
+        coroutineContext.ensureActive()
         activeRelayId = null
         TelemetryManager.endSession("connection_failed")
-        runCatching { TelemetryManager.flush(AppConfig.TELEMETRY_BROKER_URL) }
         OpenRungStatusStore.fail(userMessage)
         stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
+        // This epoch's own id, not the latest: a CONNECT delivered meanwhile carries a newer
+        // id, so AMS refuses this stop and the successor keeps the service.
+        stopSelf(epochStartId)
+        // Deliberately last: runCatching swallows cancellation, so nothing may publish after.
+        runCatching { TelemetryManager.flush(AppConfig.TELEMETRY_BROKER_URL) }
     }
 
     /**
@@ -1345,24 +1428,72 @@ class OpenRungVpnService : VpnService() {
     }
 
     /**
-     * Mirrors the desktop client's thresholded through-tunnel health monitor. Only after repeated
-     * VPN failures do we probe independent connectivity endpoints on a physical Android [Network];
-     * a local outage is left alone, while a reachable endpoint proves that the direct tunnel itself
-     * needs recovery.
+     * Mirrors the desktop client's thresholded through-tunnel health monitor: only after the
+     * failure threshold do we probe independent endpoints on a physical Android [Network] — a
+     * local outage is left alone, while a reachable endpoint proves the tunnel itself needs
+     * recovery.
+     *
+     * The loop ticks at the base cadence forever — a tick reads in-memory counters and costs no
+     * radio (and `delay()` schedules no wakeup alarms, so it cannot wake a sleeping CPU). Only
+     * PROBES open a through-tunnel TLS connection, so only probes are rationed:
+     *
+     *  - Downlink growth since the last tick is treated as end-to-end health and skips the probe
+     *    — but ONLY while nothing is suspected. A counter push can lag by up to the engine's
+     *    status interval, so a sample may still carry pre-failure bytes, and a failed probe's
+     *    own transmission grows the uplink counter; neither may ever clear suspicion, so once a
+     *    probe has failed only a successful probe resets the count.
+     *  - Uplink growth WITHOUT downlink growth means something is sending and nothing is coming
+     *    back — the signature of a blackholed path with a user on it. That forces a probe
+     *    immediately, regardless of accumulated backoff.
+     *  - Otherwise the tunnel is idle: probe only when the backed-off allowance (base, doubling
+     *    per healthy observation up to [PUNCH_HEALTH_MAX_BACKOFF_MS]) runs out.
+     *
+     * Detection-latency bound (from actual failure, active user): counter pushes lag by up to
+     * the engine status interval, so up to TWO ticks can still read pre-failure downlink and be
+     * masked; the next tick's send-without-reply forces the first failed probe, and the
+     * remaining threshold probes run at base cadence — ≈ 6×base plus probe timeouts, ~3.5 min
+     * worst case (typically far less), versus ~105 s before backoff existed. A fully idle dead
+     * tunnel may sit until the cap (~5 min), but with no traffic no one is affected, and the
+     * first use flips it onto the fast path above.
      */
     private suspend fun awaitTunnelHealthFailure(): String {
         var failures = 0
+        var probeAllowanceMs = PUNCH_HEALTH_MIN_DELAY_MS
+        var msUntilProbe = 0L
+        var lastCounters = TelemetryManager.currentTrafficCounters()
         while (true) {
-            delay(Random.nextLong(PUNCH_HEALTH_MIN_DELAY_MS, PUNCH_HEALTH_MAX_DELAY_MS + 1))
+            val passMs = Random.nextLong(
+                (PUNCH_HEALTH_MIN_DELAY_MS * 5) / 6,
+                (PUNCH_HEALTH_MIN_DELAY_MS * 7) / 6 + 1,
+            )
+            delay(passMs)
+            val counters = TelemetryManager.currentTrafficCounters()
+            val downlinkGrew = counters != null && lastCounters != null &&
+                counters.bytesReceived > lastCounters.bytesReceived
+            val uplinkGrew = counters != null && lastCounters != null &&
+                counters.bytesSent > lastCounters.bytesSent
+            if (counters != null) lastCounters = counters
+            if (failures == 0 && downlinkGrew) {
+                probeAllowanceMs = (probeAllowanceMs * 2).coerceAtMost(PUNCH_HEALTH_MAX_BACKOFF_MS)
+                msUntilProbe = probeAllowanceMs
+                continue
+            }
+            msUntilProbe -= passMs
+            val sendWithoutReply = uplinkGrew && !downlinkGrew
+            if (failures == 0 && !sendWithoutReply && msUntilProbe > 0) continue
             try {
                 InternetProbe(applicationContext).verifyOnce()
                 failures = 0
+                probeAllowanceMs = (probeAllowanceMs * 2).coerceAtMost(PUNCH_HEALTH_MAX_BACKOFF_MS)
+                msUntilProbe = probeAllowanceMs
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
                 if (!isGenuineRemoteDataPathFailure(error)) {
                     throw LocalTunnelException("active_tunnel_health", error)
                 }
+                probeAllowanceMs = PUNCH_HEALTH_MIN_DELAY_MS
+                msUntilProbe = 0
                 failures++
                 if (failures < PUNCH_HEALTH_FAILURE_THRESHOLD) continue
                 if (!physicalNetworkAlive()) continue
@@ -1391,8 +1522,13 @@ class OpenRungVpnService : VpnService() {
     }
 
     private suspend fun awaitPhysicalNetworkAlive() {
+        // A real outage (tunnel, subway, airplane mode) can last hours; probing TLS endpoints
+        // every 5 s the whole time keeps the radio awake for nothing. Back off toward a 60 s
+        // ceiling — reconnect latency after a long outage grows by at most that much.
+        var delayMs = PHYSICAL_NETWORK_RETRY_DELAY_MS
         while (!physicalNetworkAlive()) {
-            delay(PHYSICAL_NETWORK_RETRY_DELAY_MS)
+            delay(delayMs)
+            delayMs = (delayMs * 2).coerceAtMost(PHYSICAL_NETWORK_RETRY_MAX_DELAY_MS)
         }
     }
 
@@ -1520,6 +1656,20 @@ class OpenRungVpnService : VpnService() {
     }
 
     companion object {
+        /**
+         * One PROCESS-WIDE background thread shared by every service instance, not a pool and
+         * deliberately not per-instance. Single-threading (a) preserves the confinement every
+         * identity check and monitor-job handoff in this class relies on, off the UI thread
+         * (libbox setup/start/stop and telemetry I/O can block for hundreds of milliseconds);
+         * and (b) restores the total ordering across instance replacement that Main used to
+         * provide: OpenRungStatusStore and TelemetryManager are process singletons, and a
+         * destroyed instance's still-queued teardown must run BEFORE its replacement's connect,
+         * or the dead instance would end the new telemetry session and overwrite the new
+         * published status. Posts from lifecycle callbacks happen in Main order, so one shared
+         * queue yields exactly that ordering.
+         */
+        private val serviceThread = Dispatchers.Default.limitedParallelism(1)
+
         private const val ACTION_CONNECT = "com.openrung.action.CONNECT"
         private const val ACTION_DISCONNECT = "com.openrung.action.DISCONNECT"
         private const val ACTION_REAPPLY = "com.openrung.action.REAPPLY"
@@ -1530,10 +1680,11 @@ class OpenRungVpnService : VpnService() {
         private const val NOTIFICATION_ID = 2001
         internal const val HEARTBEAT_MIN_DELAY_MS = 50_000L
         internal const val HEARTBEAT_MAX_DELAY_MS = 70_000L
-        internal const val PUNCH_HEALTH_MIN_DELAY_MS = 25_000L
-        internal const val PUNCH_HEALTH_MAX_DELAY_MS = 35_000L
+        internal const val PUNCH_HEALTH_MIN_DELAY_MS = 30_000L
+        internal const val PUNCH_HEALTH_MAX_BACKOFF_MS = 300_000L
         internal const val PUNCH_HEALTH_FAILURE_THRESHOLD = 3
         private const val PHYSICAL_NETWORK_RETRY_DELAY_MS = 5_000L
+        private const val PHYSICAL_NETWORK_RETRY_MAX_DELAY_MS = 60_000L
         private const val ACCESS_TRANSPORT_DIRECT = "direct"
         private const val ACCESS_TRANSPORT_PUNCH = "punch"
         private const val ACCESS_TRANSPORT_WSS = "wss"

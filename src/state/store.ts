@@ -1,12 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useSyncExternalStore } from 'react';
+import { useCallback, useRef, useSyncExternalStore } from 'react';
 import { AppConfig } from '../config';
 import type { DirectoryStatus, ExitNodeRegion, HomeViewMode } from '../model/exitNode';
 import { INITIAL_UPDATE_UI, type UpdateUiState } from '../model/updateStatus';
 import { firstReachable } from '../net/brokerClient';
 import { loadExitNodeDirectory } from '../net/exitNodeDirectory';
 import { OpenRungVpn } from '../native/OpenRungVpn';
-import type { NativeVpnState } from '../native/types';
+import type { NativeVpnState, RecentNode } from '../native/types';
 
 /**
  * Minimal external store holding the contract §4 AppState (mirrors the production
@@ -99,9 +99,72 @@ export function subscribe(listener: () => void): () => void {
   };
 }
 
-/** React hook over the external store. */
+/** React hook over the external store. Subscribes to EVERY store change — prefer
+ * `useAppSelector` in components, so a native event (e.g. a debug log line) only re-renders
+ * consumers whose selected slice actually changed. */
 export function useAppState(): AppState {
   return useSyncExternalStore(subscribe, getSnapshot);
+}
+
+/** Shallow equality over primitives, arrays (element-wise) and plain objects (own keys). */
+function shallowEqual(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) {
+    return true;
+  }
+  if (typeof a !== 'object' || a == null || typeof b !== 'object' || b == null) {
+    return false;
+  }
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return (
+      Array.isArray(a) &&
+      Array.isArray(b) &&
+      a.length === b.length &&
+      a.every((value, index) => Object.is(value, b[index]))
+    );
+  }
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  return (
+    keysA.length === keysB.length &&
+    keysA.every(
+      key =>
+        Object.prototype.hasOwnProperty.call(b, key) &&
+        Object.is((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]),
+    )
+  );
+}
+
+/**
+ * Subscribes to the slice a component actually renders. The selected value is cached per hook:
+ * while the freshly selected value stays shallow-equal, the previous reference is returned and
+ * React bails out of the re-render. This is what keeps high-frequency native events (log lines
+ * during a connect) from re-rendering the map/tab tree.
+ */
+export function useAppSelector<T>(
+  selector: (current: AppState) => T,
+  isEqual: (a: T, b: T) => boolean = shallowEqual,
+): T {
+  const cacheRef = useRef<{ snapshot: AppState; selected: T } | null>(null);
+  // Latest selector/equality without re-subscribing (the standard external-store shim pattern).
+  const selectorRef = useRef(selector);
+  const isEqualRef = useRef(isEqual);
+  selectorRef.current = selector;
+  isEqualRef.current = isEqual;
+
+  const getSelected = useCallback((): T => {
+    const snapshot = getSnapshot();
+    const cache = cacheRef.current;
+    if (cache !== null && cache.snapshot === snapshot) {
+      return cache.selected;
+    }
+    const next = selectorRef.current(snapshot);
+    const selected =
+      cache !== null && isEqualRef.current(cache.selected, next) ? cache.selected : next;
+    cacheRef.current = { snapshot, selected };
+    return selected;
+  }, []);
+
+  return useSyncExternalStore(subscribe, getSelected);
 }
 
 /**
@@ -118,9 +181,54 @@ function nextConnectedAtMs(previous: AppState, native: NativeVpnState): number |
     : Date.now();
 }
 
+function sameRecent(a: RecentNode, b: RecentNode): boolean {
+  return (
+    a.countryCode === b.countryCode &&
+    a.relayId === b.relayId &&
+    a.label === b.label &&
+    a.relayName === b.relayName &&
+    a.latitude === b.latitude &&
+    a.longitude === b.longitude
+  );
+}
+
+/**
+ * Every bridge event materializes fresh arrays even when their content did not change. Reuse the
+ * previous references for content-equal `logLines`/`recents` (and the whole native slice when the
+ * event is a no-op) so `useAppSelector`'s shallow comparison can skip re-renders.
+ */
+function stabilizedNative(previous: NativeVpnState, next: NativeVpnState): NativeVpnState {
+  const logLines =
+    previous.logLines.length === next.logLines.length &&
+    next.logLines.every((line, index) => line === previous.logLines[index])
+      ? previous.logLines
+      : next.logLines;
+  const recents =
+    previous.recents.length === next.recents.length &&
+    next.recents.every((node, index) => sameRecent(node, previous.recents[index]))
+      ? previous.recents
+      : next.recents;
+  if (
+    logLines === previous.logLines &&
+    recents === previous.recents &&
+    previous.status === next.status &&
+    previous.relayLabel === next.relayLabel &&
+    previous.relayName === next.relayName &&
+    previous.lastError === next.lastError
+  ) {
+    return previous;
+  }
+  return { ...next, logLines, recents };
+}
+
 /** Mirrors a `NativeVpnState` (from getState() or an openrungStateChanged event) into the store. */
 export function applyNativeState(native: NativeVpnState): void {
-  setState({ ...state, native, connectedAtMs: nextConnectedAtMs(state, native) });
+  const stabilized = stabilizedNative(state.native, native);
+  const connectedAtMs = nextConnectedAtMs(state, stabilized);
+  if (stabilized === state.native && connectedAtMs === state.connectedAtMs) {
+    return; // content-identical event — nothing to publish
+  }
+  setState({ ...state, native: stabilized, connectedAtMs });
 }
 
 /**

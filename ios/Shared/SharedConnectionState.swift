@@ -7,9 +7,20 @@ import Foundation
 enum SharedConnectionState {
     private static let key = "connection_state"
 
-    private static var defaults: UserDefaults? {
-        UserDefaults(suiteName: AppConfig.appGroupIdentifier)
-    }
+    // One suite instance for the process lifetime: the computed-property form re-registered a
+    // fresh UserDefaults with cfprefsd on every read/write.
+    private static let defaults: UserDefaults? = UserDefaults(suiteName: AppConfig.appGroupIdentifier)
+
+    /// Extension-side write coalescing. Every flush is a full snapshot encode + UserDefaults
+    /// write + a cross-process Darwin wakeup of the app, and a connect burst appends dozens of
+    /// log lines in a couple of seconds. Log-only mutations therefore batch on this serial
+    /// queue and flush at most every 250 ms; status/relay/error/recents changes flush
+    /// SYNCHRONOUSLY (see mutate) so a terminal state is on disk before the caller hands
+    /// control back to NetworkExtension. Worst case on an extension kill: the final ≤250 ms of
+    /// log lines are lost — terminal transitions are synchronous, so never the outcome.
+    private static let mutationQueue = DispatchQueue(label: "com.openrung.app.shared-connection-state")
+    private static var pendingSnapshot: ConnectionStateSnapshot?
+    private static var logFlushScheduled = false
 
     static func snapshot() -> ConnectionStateSnapshot {
         guard
@@ -80,7 +91,7 @@ enum SharedConnectionState {
     }
 
     static func appendLog(_ message: String) {
-        mutate { snapshot in
+        mutate(coalescable: true) { snapshot in
             snapshot.logLines = ActivityLog.appended(snapshot.logLines, ActivityLog.line(message))
         }
     }
@@ -97,9 +108,49 @@ enum SharedConnectionState {
 
     // MARK: - Persistence + notification
 
-    private static func mutate(_ transform: (inout ConnectionStateSnapshot) -> Void) {
-        var snapshot = snapshot()
-        transform(&snapshot)
+    private static func mutate(
+        coalescable: Bool = false,
+        _ transform: @escaping (inout ConnectionStateSnapshot) -> Void
+    ) {
+        if coalescable {
+            mutationQueue.async {
+                applyOnQueue(transform)
+                scheduleLogFlush()
+            }
+        } else {
+            // Status/error/recents writes must be DURABLE before the caller proceeds: failure
+            // paths call cancelTunnelWithError or the stop completion right after, and
+            // NetworkExtension may suspend the process the moment they do — an async write
+            // would be lost with it. sync on the serial queue also drains any earlier queued
+            // log appends first, so ordering between the two kinds is preserved.
+            mutationQueue.sync {
+                applyOnQueue(transform)
+                flushPendingOnQueue()
+            }
+        }
+    }
+
+    /// Must run on `mutationQueue`.
+    private static func applyOnQueue(_ transform: (inout ConnectionStateSnapshot) -> Void) {
+        var pending = pendingSnapshot ?? snapshot()
+        transform(&pending)
+        pendingSnapshot = pending
+    }
+
+    /// Must run on `mutationQueue`.
+    private static func scheduleLogFlush() {
+        guard !logFlushScheduled else { return }
+        logFlushScheduled = true
+        mutationQueue.asyncAfter(deadline: .now() + .milliseconds(250)) {
+            flushPendingOnQueue()
+        }
+    }
+
+    /// Must run on `mutationQueue`.
+    private static func flushPendingOnQueue() {
+        logFlushScheduled = false
+        guard let snapshot = pendingSnapshot else { return }
+        pendingSnapshot = nil
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
         defaults?.set(data, forKey: key)
         postDarwinNotification()

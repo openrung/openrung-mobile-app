@@ -113,7 +113,7 @@ interface FillGeometry {
   r: number;
 }
 
-export function ConnectCard({
+export const ConnectCard = React.memo(function ConnectCardComponent({
   status,
   relayName,
   isConnected,
@@ -260,7 +260,7 @@ export function ConnectCard({
 
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {

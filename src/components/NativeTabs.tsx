@@ -5,7 +5,7 @@
  * kept alive by the native tab controller, so the home map keeps its camera
  * and tiles across tab switches. Android keeps the custom JS TabBar.
  */
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import TabView, { type AppleIcon } from 'react-native-bottom-tabs';
 
 import { useStrings } from '../i18n';
@@ -20,13 +20,21 @@ const ICONS: Record<AppTab, AppleIcon> = {
   about: { sfSymbol: 'info.circle' },
 };
 
+const TAB_LABEL_STYLE = { fontFamily: monoFont };
+
 export interface NativeTabsProps {
   active: AppTab;
   onSelect: (tab: AppTab) => void;
   renderScene: (tab: AppTab) => React.ReactNode;
 }
 
-export function NativeTabs({ active, onSelect, renderScene }: NativeTabsProps): React.JSX.Element {
+/** Memoized (with stable prop objects) so re-renders above it don't push fresh props to the
+ * native tab controller on every pass. */
+export const NativeTabs = React.memo(function NativeTabsComponent({
+  active,
+  onSelect,
+  renderScene,
+}: NativeTabsProps): React.JSX.Element {
   const s = useStrings();
 
   const routes = useMemo(() => {
@@ -38,15 +46,27 @@ export function NativeTabs({ active, onSelect, renderScene }: NativeTabsProps): 
     return TAB_ORDER.map(tab => ({ key: tab, title: titles[tab], focusedIcon: ICONS[tab] }));
   }, [s]);
 
+  const navigationState = useMemo(
+    () => ({ index: TAB_ORDER.indexOf(active), routes }),
+    [active, routes],
+  );
+
+  const onIndexChange = useCallback((index: number) => onSelect(TAB_ORDER[index]), [onSelect]);
+
+  const renderRoute = useCallback(
+    ({ route }: { route: { key: string } }) => renderScene(route.key as AppTab),
+    [renderScene],
+  );
+
   return (
     <TabView
-      navigationState={{ index: TAB_ORDER.indexOf(active), routes }}
-      onIndexChange={index => onSelect(TAB_ORDER[index])}
-      renderScene={({ route }) => renderScene(route.key as AppTab)}
+      navigationState={navigationState}
+      onIndexChange={onIndexChange}
+      renderScene={renderRoute}
       tabBarActiveTintColor={palette.terminalGreen}
       tabBarInactiveTintColor={palette.dimText}
-      tabLabelStyle={{ fontFamily: monoFont }}
+      tabLabelStyle={TAB_LABEL_STYLE}
       hapticFeedbackEnabled
     />
   );
-}
+});

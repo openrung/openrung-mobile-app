@@ -34,8 +34,10 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
     private var activeRelay: RelayDescriptor?
     private let stopSignal = EngineStopSignal()
 
-    /// Status push interval, a Go time.Duration in nanoseconds.
-    private static let statusIntervalNs: Int64 = 3_000_000_000
+    /// Status push interval, a Go time.Duration in nanoseconds. The counters it carries are
+    /// cumulative and only sampled by the telemetry heartbeat (every 50–70 s), so a coarse
+    /// interval loses no data while avoiding a loopback-gRPC wakeup every few seconds.
+    private static let statusIntervalNs: Int64 = 60_000_000_000
 
     /// Performs every deterministic local check available before opening a relay socket. This is
     /// intentionally ahead of direct reachability so a missing/stale native engine, unwritable
@@ -68,8 +70,15 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
         setupOptions.basePath = directories.base.path
         setupOptions.workingPath = directories.working.path
         setupOptions.tempPath = directories.temporary.path
+        // The in-memory log ring lives inside the extension's ~50 MB jetsam budget; nothing in
+        // the release app reads it back, so keep it small outside debug builds.
+        #if DEBUG
         setupOptions.logMaxLines = 3000
         setupOptions.debug = true
+        #else
+        setupOptions.logMaxLines = 300
+        setupOptions.debug = false
+        #endif
         setupOptions.crashReportSource = AppConfig.engineDirectoryName
         setupOptions.oomKillerEnabled = false
         setupOptions.oomKillerDisabled = true
@@ -144,6 +153,7 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
 
     func stop() {
         _ = prepareForExpectedStop()
+        captureFinalTrafficSnapshot()
         try? statusClient?.disconnect()
         statusClient = nil
         try? commandServer?.closeService()
@@ -152,6 +162,24 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
         commandServer = nil
         platformInterface = nil
         activeRelay = nil
+    }
+
+    /// The status stream pushes counters only every `statusIntervalNs`, so at teardown the
+    /// cached totals can be up to a minute stale — a short session would report none of its
+    /// post-initial traffic. The command server sends a status message immediately on
+    /// subscribe, so a throwaway client grabs one final snapshot before the engine goes down.
+    /// Best-effort and bounded: a dead or wedged server just fails the connect or times the
+    /// semaphore out.
+    private func captureFinalTrafficSnapshot() {
+        guard commandServer != nil else { return }
+        let options = LibboxCommandClientOptions()
+        options.addCommand(LibboxCommandStatus)
+        options.statusInterval = Self.statusIntervalNs
+        let received = DispatchSemaphore(value: 0)
+        guard let client = LibboxNewCommandClient(TrafficStatusHandler { received.signal() }, options) else { return }
+        guard (try? client.connect()) != nil else { return }
+        _ = received.wait(timeout: .now() + .milliseconds(700))
+        try? client.disconnect()
     }
 
     func prepareForExpectedStop() -> Bool { stopSignal.finishExpected() }
@@ -189,6 +217,12 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
 
 /// Receives libbox status pushes and forwards the tunnel's traffic counters to telemetry.
 private final class TrafficStatusHandler: NSObject, LibboxCommandClientHandlerProtocol {
+    private let onStatus: (() -> Void)?
+
+    init(onStatus: (() -> Void)? = nil) {
+        self.onStatus = onStatus
+    }
+
     func connected() {}
 
     func disconnected(_ message: String?) {}
@@ -220,6 +254,7 @@ private final class TrafficStatusHandler: NSObject, LibboxCommandClientHandlerPr
             bytesSent: message.uplinkTotal,
             bytesReceived: message.downlinkTotal
         )
+        onStatus?()
     }
 }
 

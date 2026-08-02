@@ -7,9 +7,9 @@ import Foundation
 enum TelemetrySessionStore {
     private static let key = "telemetry_session"
 
-    private static var defaults: UserDefaults? {
-        UserDefaults(suiteName: AppConfig.appGroupIdentifier)
-    }
+    // One suite instance for the process lifetime: the computed-property form re-registered a
+    // fresh UserDefaults with cfprefsd on every telemetry record.
+    private static let defaults: UserDefaults? = UserDefaults(suiteName: AppConfig.appGroupIdentifier)
 
     static func current() -> TelemetrySession? {
         guard let data = defaults?.data(forKey: key) else { return nil }

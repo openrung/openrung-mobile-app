@@ -32,20 +32,27 @@ public enum DeviceAttributes {
         return model.isEmpty ? "unknown" : model
     }
 
+    /// Process-constant attributes, resolved once: appVersion/osVersion/deviceModel each cost a
+    /// bundle lookup, a UIDevice call, or a uname() syscall, and were previously re-resolved on
+    /// every telemetry event.
+    private static let staticAttributes: [String: String] = [
+        "app_version": appVersion,
+        "os_name": "ios",
+        "ios_version": osVersion,
+        "device_manufacturer": "Apple",
+        "device_model": deviceModel,
+    ]
+
     /// Best-effort attribute map attached to every telemetry event.
     public static func current() -> [String: String] {
         NetworkPathMonitor.shared.startIfNeeded()
         let path = NetworkPathMonitor.shared.currentSnapshot
-        return [
-            "app_version": appVersion,
-            "os_name": "ios",
-            "ios_version": osVersion,
-            "device_manufacturer": "Apple",
-            "device_model": deviceModel,
-            "locale": Locale.current.identifier,
-            "timezone": TimeZone.current.identifier,
-            "network_transport": path.transport,
-            "network_metered": String(path.isExpensive),
-        ]
+        var attributes = staticAttributes
+        // Locale/timezone can change mid-process and are cheap; network state is live by design.
+        attributes["locale"] = Locale.current.identifier
+        attributes["timezone"] = TimeZone.current.identifier
+        attributes["network_transport"] = path.transport
+        attributes["network_metered"] = String(path.isExpensive)
+        return attributes
     }
 }

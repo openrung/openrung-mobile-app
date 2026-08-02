@@ -151,9 +151,17 @@ public struct SingBoxConfiguration: Equatable, Sendable {
             }
         }
 
+        // "info" logs every flow and DNS query — each line crosses the gomobile boundary and
+        // costs CPU inside the 50 MB extension, so release builds keep only warnings.
+        #if DEBUG
+        let logLevel = "info"
+        #else
+        let logLevel = "warn"
+        #endif
+
         return [
             "log": [
-                "level": "info",
+                "level": logLevel,
                 "timestamp": true
             ],
             "dns": dns,
