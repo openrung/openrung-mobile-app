@@ -1,7 +1,16 @@
+/**
+ * Relay class shown as a badge wherever a relay appears: 'foundation' renders as the
+ * green "official" badge, 'volunteer' as the orange one. The broker wire field is
+ * `node_class`; absence or an unknown value collapses to 'volunteer', exactly like the
+ * native Kotlin/Swift decoders.
+ */
+export type RelayNodeClass = 'foundation' | 'volunteer';
+
 /** One relay inside an [ExitNodeRegion]: just what the picker UI needs. */
 export interface ExitNodeRelay {
   id: string; // broker relay id — what connect-to-this-relay targets
   label: string | null; // friendly name (operator-supplied or generated); null on older brokers
+  nodeClass: RelayNodeClass;
 }
 
 /**

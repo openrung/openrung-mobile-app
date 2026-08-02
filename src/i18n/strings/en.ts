@@ -91,6 +91,9 @@ export const en = {
   tabAbout: 'About us',
   homeTagline: 'relay network',
   relayAuto: 'auto relay',
+  // Relay-class badge (stored natural case; upcased at render like other chrome labels).
+  relayClassOfficial: 'official',
+  relayClassVolunteer: 'volunteer',
   settingsGeneralHeader: 'General',
   settingsDiagnosticsHeader: 'Diagnostics',
   aboutTitle: 'About us',

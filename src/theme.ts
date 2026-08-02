@@ -78,6 +78,8 @@ export const tokens = {
   glowSoft: 'rgba(101, 245, 138, 0.25)',
   /** Status-dot color while connecting/preparing/disconnecting. */
   working: '#EAF565',
+  /** Volunteer relay-class badge (orange sibling of the neon green/amber family). */
+  volunteer: '#F5A565',
   /** Corner radii. */
   radiusSm: 10,
   radiusMd: 16,

@@ -48,6 +48,7 @@ const INITIAL_NATIVE_STATE: NativeVpnState = {
   status: 'disconnected',
   relayLabel: null,
   relayName: null,
+  relayClass: null,
   lastError: null,
   logLines: [],
   recents: [],
@@ -214,6 +215,7 @@ function stabilizedNative(previous: NativeVpnState, next: NativeVpnState): Nativ
     previous.status === next.status &&
     previous.relayLabel === next.relayLabel &&
     previous.relayName === next.relayName &&
+    previous.relayClass === next.relayClass &&
     previous.lastError === next.lastError
   ) {
     return previous;
@@ -223,7 +225,14 @@ function stabilizedNative(previous: NativeVpnState, next: NativeVpnState): Nativ
 
 /** Mirrors a `NativeVpnState` (from getState() or an openrungStateChanged event) into the store. */
 export function applyNativeState(native: NativeVpnState): void {
-  const stabilized = stabilizedNative(state.native, native);
+  // A stale native binary (built before relayClass existed) omits the field, and the bridge
+  // payload is untyped at runtime — collapse anything but the two contract values to null so
+  // the store always holds a valid NativeVpnState.
+  const relayClass =
+    native.relayClass === 'foundation' || native.relayClass === 'volunteer'
+      ? native.relayClass
+      : null;
+  const stabilized = stabilizedNative(state.native, { ...native, relayClass });
   const connectedAtMs = nextConnectedAtMs(state, stabilized);
   if (stabilized === state.native && connectedAtMs === state.connectedAtMs) {
     return; // content-identical event — nothing to publish

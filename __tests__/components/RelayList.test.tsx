@@ -62,8 +62,8 @@ const REGIONS: ExitNodeRegion[] = [
     longitude: 139.6917,
     nodeCount: 2,
     relays: [
-      { id: 'relay_jp1', label: 'proud-falcon' },
-      { id: 'relay_jp2', label: null },
+      { id: 'relay_jp1', label: 'proud-falcon', nodeClass: 'foundation' },
+      { id: 'relay_jp2', label: null, nodeClass: 'volunteer' },
     ],
   },
   {
@@ -73,7 +73,7 @@ const REGIONS: ExitNodeRegion[] = [
     latitude: 52.52,
     longitude: 13.405,
     nodeCount: 1,
-    relays: [{ id: 'relay_de1', label: 'zesty-tapir' }],
+    relays: [{ id: 'relay_de1', label: 'zesty-tapir', nodeClass: 'volunteer' }],
   },
   {
     countryCode: 'DE',
@@ -83,9 +83,9 @@ const REGIONS: ExitNodeRegion[] = [
     longitude: 10.45,
     nodeCount: 3,
     relays: [
-      { id: 'relay_de2', label: 'a-relay' },
-      { id: 'relay_de3', label: 'b-relay' },
-      { id: 'relay_de4', label: 'c-relay' },
+      { id: 'relay_de2', label: 'a-relay', nodeClass: 'volunteer' },
+      { id: 'relay_de3', label: 'b-relay', nodeClass: 'foundation' },
+      { id: 'relay_de4', label: 'c-relay', nodeClass: 'volunteer' },
     ],
   },
 ];
@@ -186,6 +186,14 @@ describe('RelayList', () => {
     expect(labels).toContain('proud-falcon');
     expect(labels).toContain('jp2');
     expect(labels).toContain('▾');
+    // Every expanded child row carries its relay-class badge (upcased at render):
+    // proud-falcon is foundation -> OFFICIAL, jp2 is volunteer -> VOLUNTEER.
+    expect(labels).toContain('OFFICIAL');
+    expect(labels).toContain('VOLUNTEER');
+    // The row accessibility labels pin the per-row class association (a swapped badge
+    // wiring would keep both class words present but break these pairings).
+    tree.root.findByProps({ accessibilityLabel: 'proud-falcon, official' });
+    tree.root.findByProps({ accessibilityLabel: 'jp2, volunteer' });
 
     const rows = findPressables(tree);
     expect(rows).toHaveLength(5); // 3 regions + 2 expanded children

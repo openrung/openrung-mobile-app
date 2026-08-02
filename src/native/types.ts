@@ -23,6 +23,9 @@ export interface NativeVpnState {
   relayLabel: string | null; // resolved geo label, never a raw IP
   relayName: string | null; // connected relay's display name — native sanitizes the operator-supplied
   // label (control/bidi-format chars stripped, whitespace collapsed, ≤24 code points; fallback: sanitized id minus `relay_`, ≤12 code points)
+  relayClass: 'foundation' | 'volunteer' | null; // connected relay's node class — native
+  // normalizes the descriptor's node_class (unknown/absent => 'volunteer'); null whenever
+  // not connected, mirroring relayName's lifecycle
   lastError: string | null;
   logLines: string[]; // "[HH:mm:ss] message", newest last, cap 80
   recents: RecentNode[]; // newest first, deduped by relayId, cap 8

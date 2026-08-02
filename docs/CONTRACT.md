@@ -86,6 +86,12 @@ export interface NativeVpnState {
                                // operator-supplied label (control/bidi-format characters
                                // stripped, whitespace collapsed, clamped to 24 code points) and
                                // falls back to the id, `relay_` prefix dropped, <=12 code points
+  relayClass: 'foundation' | 'volunteer' | null;
+                               // connected relay's node class: native normalizes the signed
+                               // descriptor's node_class (anything but "foundation" collapses
+                               // to "volunteer") and clears it to null whenever the tunnel is
+                               // not CONNECTED — the exact relayName lifecycle. Never persisted
+                               // or restored across a cold start.
   lastError: string | null;
   logLines: string[];          // "[HH:mm:ss] message", newest last, cap 80
   recents: RecentNode[];       // newest first, deduped by relayId, cap 8

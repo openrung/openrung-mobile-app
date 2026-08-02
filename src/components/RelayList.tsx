@@ -42,6 +42,7 @@ import { relayDisplayName } from '../model/exitNode';
 import type { DirectoryStatus, ExitNodeRegion, ExitNodeRelay } from '../model/exitNode';
 import { monoFont, palette, tokens } from '../theme';
 import { countryFlag } from './countryFlag';
+import { RelayClassBadge } from './RelayClassBadge';
 
 /**
  * Overscroll distance (px) a pull must reach before it engages a refresh, set
@@ -191,17 +192,20 @@ export function RelayList({
         accessibilityLabel={s.listContentDescription}
         renderItem={({ item }) => {
           if (item.kind === 'relay') {
+            const classLabel =
+              item.relay.nodeClass === 'foundation' ? s.relayClassOfficial : s.relayClassVolunteer;
             return (
               <Pressable
                 style={({ pressed }) => [styles.relayRow, pressed && styles.rowPressed]}
                 onPress={() => onRelayPress(item.relay.id, item.countryCode)}
                 accessibilityRole="button"
-                accessibilityLabel={relayDisplayName(item.relay)}
+                accessibilityLabel={`${relayDisplayName(item.relay)}, ${classLabel}`}
               >
                 <Text style={styles.relayBullet}>└</Text>
                 <Text style={styles.relayLabel} numberOfLines={1}>
                   {relayDisplayName(item.relay)}
                 </Text>
+                <RelayClassBadge nodeClass={item.relay.nodeClass} />
               </Pressable>
             );
           }

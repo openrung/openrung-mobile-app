@@ -281,6 +281,8 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             SharedConnectionState.setStatus(
                 .connected,
                 relayName: relay.displayName(),
+                // Bridge contract: anything but "foundation" collapses to "volunteer".
+                relayClass: relay.normalizedNodeClass(),
                 clearRelayLabel: true,
                 clearError: true
             )

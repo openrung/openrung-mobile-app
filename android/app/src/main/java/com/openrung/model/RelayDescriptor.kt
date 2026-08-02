@@ -184,6 +184,19 @@ data class RelayDescriptor(
         sanitizeDisplayName(id.removePrefix("relay_"), ID_FALLBACK_CODE_POINTS)
     }
 
+    /**
+     * Relay class collapsed to the two-value bridge taxonomy: anything but foundation (unknown
+     * future classes included) is a volunteer relay. Keep in sync with the Swift
+     * `RelayDescriptor.normalizedNodeClass()` and the TS directory builder in
+     * `src/net/exitNodeDirectory.ts`.
+     */
+    fun normalizedNodeClass(): String =
+        if (nodeClass == RelayConstants.NODE_CLASS_FOUNDATION) {
+            RelayConstants.NODE_CLASS_FOUNDATION
+        } else {
+            RelayConstants.NODE_CLASS_VOLUNTEER
+        }
+
     private companion object {
         const val MAX_DISPLAY_NAME_CODE_POINTS = 24
         const val ID_FALLBACK_CODE_POINTS = 12

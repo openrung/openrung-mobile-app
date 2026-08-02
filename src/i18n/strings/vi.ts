@@ -41,6 +41,8 @@ export const vi: Partial<Strings> = {
   tabAbout: 'Về chúng tôi',
   aboutTitle: 'Về chúng tôi',
   relayAuto: 'relay tự động',
+  relayClassOfficial: 'chính thức',
+  relayClassVolunteer: 'tình nguyện',
   settingsGeneralHeader: 'Chung',
   settingsDiagnosticsHeader: 'Chẩn đoán',
 

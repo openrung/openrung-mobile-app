@@ -18,6 +18,7 @@ import com.openrung.R
 import com.openrung.config.AppConfig
 import com.openrung.model.CountryGeo
 import com.openrung.model.RecentNode
+import com.openrung.model.RelayConstants
 import com.openrung.model.RelayDescriptor
 import com.openrung.model.RelaySelector
 import com.openrung.model.WssFrontDescriptor
@@ -357,6 +358,8 @@ class OpenRungVpnService : VpnService() {
                 ConnectionStatus.CONNECTED,
                 relayLabel = null,
                 relayName = relay.displayName(),
+                // Bridge contract: anything but "foundation" collapses to "volunteer".
+                relayClass = relay.normalizedNodeClass(),
                 lastError = null,
             )
             updateNotification(getString(R.string.status_connected))

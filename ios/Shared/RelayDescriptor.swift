@@ -278,6 +278,16 @@ public extension RelayDescriptor {
         return Self.sanitizeDisplayName(bareID, maxCodePoints: Self.idFallbackCodePoints)
     }
 
+    /// Relay class collapsed to the two-value bridge taxonomy: anything but "foundation"
+    /// (unknown future classes included) is a volunteer relay. Keep in sync with the Kotlin
+    /// `RelayDescriptor.normalizedNodeClass()` and the TS directory builder in
+    /// `src/net/exitNodeDirectory.ts`.
+    func normalizedNodeClass() -> String {
+        nodeClass == RelayConstants.nodeClassFoundation
+            ? RelayConstants.nodeClassFoundation
+            : RelayConstants.nodeClassVolunteer
+    }
+
     private static let maxDisplayNameCodePoints = 24
     private static let idFallbackCodePoints = 12
 
