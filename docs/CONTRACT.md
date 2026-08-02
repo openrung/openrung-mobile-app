@@ -90,8 +90,13 @@ export interface NativeVpnState {
                                // connected relay's node class: native normalizes the signed
                                // descriptor's node_class (anything but "foundation" collapses
                                // to "volunteer") and clears it to null whenever the tunnel is
-                               // not CONNECTED — the exact relayName lifecycle. Never persisted
-                               // or restored across a cold start.
+                               // not CONNECTED — the exact relayName lifecycle, including
+                               // persistence: Android never writes it to the status store's
+                               // SharedPreferences and hard-resets it on initialize(); iOS
+                               // carries it inside the app-group ConnectionStateSnapshot (the
+                               // cross-process transport), but the app's cold-start sanitizing
+                               // drops it — like relayName — until a live tunnel's next state
+                               // write re-asserts it, so a dead tunnel's class is never shown.
   lastError: string | null;
   logLines: string[];          // "[HH:mm:ss] message", newest last, cap 80
   recents: RecentNode[];       // newest first, deduped by relayId, cap 8

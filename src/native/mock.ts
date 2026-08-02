@@ -193,8 +193,11 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
     const changed = configJson !== this.splitTunnelConfigJson;
     this.splitTunnelConfigJson = configJson;
     if (changed && this.state.status === 'connected') {
-      // Production reapplies by tearing down + reconnecting to the same target; the mock walks
-      // a quick connecting -> connected sequence so the UI shows the brief reconnect.
+      // Production reapplies by tearing down + reconnecting to the SAME target, which re-stamps
+      // the same relay identity on the new CONNECTED; the mock walks a quick
+      // connecting -> connected sequence (so the UI shows the brief reconnect) and carries the
+      // identity across it — CONNECTING auto-clears relayName/relayClass, exactly like native.
+      const { relayName, relayClass } = this.state;
       this.cancelScript();
       this.setStatus('connecting');
       this.appendLog('applying split tunnel config');
@@ -202,7 +205,7 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
         {
           delayMs: 400,
           run: () => {
-            this.setStatus('connected');
+            this.setStatus('connected', { relayName, relayClass });
           },
         },
       ]);

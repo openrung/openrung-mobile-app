@@ -24,6 +24,8 @@ export { OceanTelemetry, formatUptime, lastDialledRelay } from '../src/component
 export type { OceanTelemetryProps } from '../src/components/OceanTelemetry';
 export { RecentsSection } from '../src/components/RecentsSection';
 export type { RecentsSectionProps } from '../src/components/RecentsSection';
+export { RelayClassBadge } from '../src/components/RelayClassBadge';
+export type { RelayClassBadgeProps } from '../src/components/RelayClassBadge';
 export { RelayList } from '../src/components/RelayList';
 export type { RelayListProps } from '../src/components/RelayList';
 export { ScreenHeader } from '../src/components/ScreenHeader';
@@ -51,5 +53,5 @@ export type { Strings } from '../src/i18n';
 
 // Model helpers used when composing RelayList / OceanTelemetry data.
 export { relayDisplayName } from '../src/model/exitNode';
-export type { DirectoryStatus, ExitNodeRegion, ExitNodeRelay, HomeViewMode } from '../src/model/exitNode';
+export type { DirectoryStatus, ExitNodeRegion, ExitNodeRelay, HomeViewMode, RelayNodeClass } from '../src/model/exitNode';
 export type { ConnectionStatus, RecentNode } from '../src/native/types';
