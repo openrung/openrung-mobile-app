@@ -1,5 +1,7 @@
 package com.openrung.net
 
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
@@ -68,7 +70,10 @@ class WssClientTest {
         ).close()
 
         assertTrue(closed.await(5, TimeUnit.SECONDS))
-        assertTrue(completion.isCompleted)
+        // Await the Deferred itself rather than sampling isCompleted: the latch counts down
+        // INSIDE closeNative, but completion.complete(Unit) runs strictly after closeNative
+        // returns on the IO thread — sampling at the latch instant races it (CI flake).
+        runBlocking { withTimeout(5_000) { completion.await() } }
         assertTrue(closeThread.get() !== caller)
     }
 }
