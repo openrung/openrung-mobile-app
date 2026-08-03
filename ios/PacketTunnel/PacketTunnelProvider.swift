@@ -1624,7 +1624,6 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         var attributes = [
             "transport": AccessTransport.wss,
             "trigger": trigger,
-            "reason": String(reason.prefix(160)),
         ]
         if let frontID { attributes["front_id"] = frontID }
         // A queued local engine-termination path has precedence. Returning here preserves the
@@ -1637,12 +1636,10 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         // while it is down there is no tunnel. Claiming otherwise would tell someone their traffic
         // is protected when it is not.
         if graceful {
-            TelemetryManager.record("transport_session_ended", relayId: relayID, attributes: [
-                "transport": AccessTransport.wss,
-                "trigger": trigger,
-            ])
+            TelemetryManager.record("transport_session_ended", relayId: relayID, attributes: attributes)
             SharedConnectionState.appendLog("WSS session ended normally; renewing it")
         } else {
+            attributes["reason"] = String(reason.prefix(160))
             TelemetryManager.record("transport_path_lost", relayId: relayID, attributes: attributes)
             SharedConnectionState.appendLog("WSS path ended; reconnecting direct-first")
         }
