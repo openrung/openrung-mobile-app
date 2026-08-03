@@ -1323,18 +1323,38 @@ class OpenRungVpnService : VpnService() {
 
             try {
                 val reason = failure.reason.take(256)
-                OpenRungStatusStore.appendLog(getString(R.string.log_wss_path_lost, reason.take(160)))
-                TelemetryManager.record(
-                    event = "transport_path_lost",
-                    relayId = relay.id,
-                    attributes = mapOf(
-                        "transport" to ACCESS_TRANSPORT_WSS,
-                        "trigger" to failure.trigger,
-                        "reason" to reason,
-                    ),
-                )
+                // An orderly end is not path loss. Reporting it as such made every relay-side
+                // idle close look like censorship, buried real losses in the same counter, and
+                // flapped the UI for a tunnel the user never lost.
+                if (failure.graceful) {
+                    OpenRungStatusStore.appendLog(getString(R.string.log_wss_session_ended))
+                    TelemetryManager.record(
+                        event = "transport_session_ended",
+                        relayId = relay.id,
+                        attributes = mapOf(
+                            "transport" to ACCESS_TRANSPORT_WSS,
+                            "trigger" to failure.trigger,
+                        ),
+                    )
+                } else {
+                    OpenRungStatusStore.appendLog(getString(R.string.log_wss_path_lost, reason.take(160)))
+                    TelemetryManager.record(
+                        event = "transport_path_lost",
+                        relayId = relay.id,
+                        attributes = mapOf(
+                            "transport" to ACCESS_TRANSPORT_WSS,
+                            "trigger" to failure.trigger,
+                            "reason" to reason,
+                        ),
+                    )
+                }
                 val country = requestedTargetCountry
                 val relayID = requestedTargetRelayId
+                // The published status is deliberately the same for both kinds of end. The
+                // replacement session needs a fresh ticket and its own loopback port, so the engine
+                // is torn down and rebuilt either way, and while it is down the tun is gone and
+                // traffic leaves the device unprotected. Claiming CONNECTED through that window
+                // would tell someone their traffic is protected when it is not.
                 OpenRungStatusStore.setStatus(
                     ConnectionStatus.CONNECTING,
                     relayLabel = null,
@@ -1348,7 +1368,9 @@ class OpenRungVpnService : VpnService() {
                 // Engine first, then epoch callback and native adapter; see cleanupActiveTunnel.
                 cleanupActiveTunnel()
                 activeRelayId = null
-                TelemetryManager.endSession("wss_path_lost")
+                TelemetryManager.endSession(
+                    if (failure.graceful) "wss_session_ended" else "wss_path_lost",
+                )
                 coroutineContext.ensureActive()
 
                 // A network transition can publish callbacks before the replacement network is
@@ -1395,7 +1417,7 @@ class OpenRungVpnService : VpnService() {
                     WssPathFailure(reason = it, trigger = "network_change")
                 }
                 nativeFailure.onAwait {
-                    WssPathFailure(reason = it, trigger = "native_adapter")
+                    WssPathFailure(reason = it.reason, trigger = "native_adapter", graceful = it.graceful)
                 }
                 healthFailure.onAwait {
                     WssPathFailure(reason = it, trigger = "tunnel_health")
@@ -1607,6 +1629,14 @@ class OpenRungVpnService : VpnService() {
     private data class WssPathFailure(
         val reason: String,
         val trigger: String,
+        /**
+         * True when the transport ended in an orderly way — the relay closed the session, or its
+         * bounded lifetime elapsed — rather than the path breaking. The tunnel still has to be
+         * rebuilt, but nothing failed, so the rebuild is quiet: no path-loss telemetry and no
+         * status flap. Only the native adapter can report this; a lost network or a failed health
+         * probe is never orderly.
+         */
+        val graceful: Boolean = false,
     )
 
     private fun Long.toDisplaySeconds(): Long = (this + 999) / 1_000
