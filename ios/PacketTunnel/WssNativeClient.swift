@@ -60,9 +60,18 @@ enum WssNativeClientError: LocalizedError {
     }
 }
 
+/// How a native WSS transport session ended. `graceful` means the transport ended in an orderly
+/// way — the relay closed the session, or its bounded lifetime elapsed — rather than the path
+/// breaking. The transport reports it; it is never inferred from a session simply stopping,
+/// because an orderly close and a censored path both stop the session.
+struct WssNativeSessionEnd: Equatable, Sendable {
+    let reason: String
+    let graceful: Bool
+}
+
 protocol WssNativeSession: AnyObject, Sendable {
     func connect() async throws -> WssNativeConnectResult
-    func waitForUnexpectedClose() async -> String
+    func waitForClose() async -> WssNativeSessionEnd
     func close()
 }
 
@@ -150,9 +159,14 @@ private final class LibboxWssNativeSession: WssNativeSession, @unchecked Sendabl
         }
     }
 
-    func waitForUnexpectedClose() async -> String {
-        for await reason in listener.events { return reason }
-        return "WSS session closed"
+    func waitForClose() async -> WssNativeSessionEnd {
+        for await reason in listener.events {
+            return WssNativeSessionEnd(
+                reason: reason,
+                graceful: reason == LibboxOpenRungWSSGracefulCloseReason()
+            )
+        }
+        return WssNativeSessionEnd(reason: "WSS session closed", graceful: false)
     }
 
     func close() {

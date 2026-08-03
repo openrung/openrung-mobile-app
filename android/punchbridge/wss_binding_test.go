@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/openrung/openrung/wsscore"
 )
@@ -55,6 +56,15 @@ type testWSSBridge struct {
 	stopOnce     sync.Once
 	closeCalls   atomic.Int32
 	serveErr     error
+	sessionEnd   atomic.Int32
+}
+
+func (b *testWSSBridge) SessionEnd() wsscore.SessionEnd {
+	return wsscore.SessionEnd(b.sessionEnd.Load())
+}
+
+func (b *testWSSBridge) setSessionEnd(end wsscore.SessionEnd) {
+	b.sessionEnd.Store(int32(end))
 }
 
 func newTestWSSBridge() *testWSSBridge {
@@ -145,6 +155,51 @@ func TestOpenRungWSSConnectPassesExactCredentialsAndCleansUp(t *testing.T) {
 	case reason := <-listener.closed:
 		t.Fatalf("explicit Close emitted listener callback %q", reason)
 	default:
+	}
+}
+
+// TestOpenRungWSSSessionEndSelectsTheReportedReason is the regression for the
+// bug that made every orderly close look like censorship: Serve returns nil
+// either way, and a live context is not evidence that the path broke.
+func TestOpenRungWSSSessionEndSelectsTheReportedReason(t *testing.T) {
+	for name, expected := range map[string]struct {
+		end    wsscore.SessionEnd
+		reason string
+	}{
+		"relay closed the session": {wsscore.SessionEndRemote, gracefulWSSCloseReason},
+		"session lifetime elapsed": {wsscore.SessionEndLifetime, gracefulWSSCloseReason},
+		"the client went idle":     {wsscore.SessionEndIdle, gracefulWSSCloseReason},
+		"the path was lost":        {wsscore.SessionEndTransport, unexpectedWSSCloseReason},
+		"no reason was recorded":   {wsscore.SessionEndNone, unexpectedWSSCloseReason},
+	} {
+		t.Run(name, func(t *testing.T) {
+			listener := &testWSSListener{closed: make(chan string, 1)}
+			bridge := newTestWSSBridge()
+			bridge.setSessionEnd(expected.end)
+			client := NewOpenRungWSSClient(
+				testWSSFrontURL, testWSSTicket, &testWSSProtector{allow: true}, listener)
+			client.dial = func(context.Context, wsscore.ClientOptions) (openRungWSSBridge, error) {
+				return bridge, nil
+			}
+			if result := client.Connect(); !result.Succeeded() {
+				t.Fatalf("Connect failed: %q", result.Reason())
+			}
+			<-bridge.serveStarted
+			bridge.stopOnce.Do(func() { close(bridge.stop) })
+
+			select {
+			case reason := <-listener.closed:
+				if reason != expected.reason {
+					t.Fatalf("Closed reason = %q, want %q", reason, expected.reason)
+				}
+				if graceful := reason == OpenRungWSSGracefulCloseReason(); graceful != expected.end.Graceful() {
+					t.Fatalf("graceful = %t, want %t", graceful, expected.end.Graceful())
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("the session end was never reported")
+			}
+			client.Close()
+		})
 	}
 }
 

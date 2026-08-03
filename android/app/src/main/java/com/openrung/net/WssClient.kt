@@ -28,10 +28,21 @@ data class WssConnectResult(
     val bridgePort: Int,
 )
 
+/**
+ * How a WSS transport session ended. [graceful] means the transport ended in an orderly way — the
+ * relay closed the session, or its bounded lifetime elapsed — rather than the path breaking. The
+ * transport reports it; it is never inferred from a session simply stopping, because an orderly
+ * close and a censored path both stop the session.
+ */
+data class WssSessionEnd(
+    val reason: String,
+    val graceful: Boolean,
+)
+
 /** A two-phase handle so disconnect can cancel a blocking native WSS handshake. */
 interface WssSession {
     suspend fun connect(): WssConnectResult
-    suspend fun awaitFailure(): String
+    suspend fun awaitFailure(): WssSessionEnd
 
     /** Starts an idempotent native close off Main and exposes completion for ordered recovery. */
     fun close(): Deferred<Unit>
@@ -124,7 +135,10 @@ private class LibboxWssSession(
         result
     }
 
-    override suspend fun awaitFailure(): String = failure.await()
+    override suspend fun awaitFailure(): WssSessionEnd {
+        val reason = failure.await()
+        return WssSessionEnd(reason, reason == Libbox.openRungWSSGracefulCloseReason())
+    }
 
     override fun close(): Deferred<Unit> {
         failure.cancel()

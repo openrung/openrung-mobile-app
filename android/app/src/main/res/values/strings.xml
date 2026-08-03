@@ -30,6 +30,7 @@
     <string name="log_wss_front_failed">WSS front %1$s failed at %2$s; trying the next signed front</string>
     <string name="log_wss_connected">WSS transport established through signed front %1$s</string>
     <string name="log_wss_path_lost">WSS path lost (%1$s); reconnecting with fresh relay data</string>
+    <string name="log_wss_session_ended">WSS session ended normally; renewing it</string>
     <string name="log_tunnel_engine_stopped">the local tunnel engine stopped unexpectedly; WSS recovery was not attempted</string>
     <string name="log_verifying_internet">verifying internet access through the VPN</string>
     <string name="log_internet_verified">internet access verified in %1$d ms</string>

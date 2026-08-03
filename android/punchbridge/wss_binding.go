@@ -13,7 +13,21 @@ import (
 	"github.com/openrung/openrung/wsscore"
 )
 
-const unexpectedWSSCloseReason = "WSS session stopped unexpectedly"
+const (
+	// unexpectedWSSCloseReason reports a session that ended without the peer
+	// closing it: the path was lost.
+	unexpectedWSSCloseReason = "WSS session stopped unexpectedly"
+	// gracefulWSSCloseReason reports an orderly end — the relay closed the
+	// session, or its bounded lifetime elapsed. The tunnel still has to be
+	// rebuilt, but nothing failed, so the platform reconnects quietly instead of
+	// reporting a lost path.
+	gracefulWSSCloseReason = "WSS session ended"
+)
+
+// OpenRungWSSGracefulCloseReason returns the exact reason string that reports
+// an orderly session end. Platforms compare Closed's reason against it rather
+// than hardcoding the literal, keeping the taxonomy owned by one place.
+func OpenRungWSSGracefulCloseReason() string { return gracefulWSSCloseReason }
 
 // OpenRungWSSProtector is implemented by Android's VpnService. Protect must
 // delegate to VpnService.protect(fd). Returning false prevents the outer CDN
@@ -73,6 +87,7 @@ func (r *OpenRungWSSResult) BridgePort() int32 {
 type openRungWSSBridge interface {
 	Endpoint() (host string, port int)
 	Serve(context.Context) error
+	SessionEnd() wsscore.SessionEnd
 	Close() error
 }
 
@@ -263,14 +278,25 @@ func (c *OpenRungWSSClient) Connect() *OpenRungWSSResult {
 }
 
 func (c *OpenRungWSSClient) serve(ctx context.Context, bridge openRungWSSBridge, done chan struct{}) {
+	// Serve returns a nil error for every session end, so the reason has to come
+	// from the transport. A cancelled context means this process asked for the
+	// close and needs no callback; anything else is reported, with an orderly
+	// end distinguished from a lost path.
 	_ = bridge.Serve(ctx)
-	unexpected := ctx.Err() == nil
-	if unexpected {
+	ended := ctx.Err() == nil
+	// Read the cause before closing: a close performed here would be recorded as
+	// this process's own, which would turn an unattributed loss into an orderly
+	// end. Keep these two statements in this order.
+	reason := unexpectedWSSCloseReason
+	if bridge.SessionEnd().Graceful() {
+		reason = gracefulWSSCloseReason
+	}
+	if ended {
 		_ = bridge.Close()
 	}
 
 	c.mu.Lock()
-	shouldNotify := unexpected && !c.closed && c.bridge == bridge && c.listener != nil
+	shouldNotify := ended && !c.closed && c.bridge == bridge && c.listener != nil
 	listener := c.listener
 	if c.bridge == bridge {
 		c.bridge = nil
@@ -280,7 +306,7 @@ func (c *OpenRungWSSClient) serve(ctx context.Context, bridge openRungWSSBridge,
 	// Close first so Listener.Closed may call Close without waiting on itself.
 	close(done)
 	if shouldNotify {
-		listener.Closed(unexpectedWSSCloseReason)
+		listener.Closed(reason)
 	}
 }
 

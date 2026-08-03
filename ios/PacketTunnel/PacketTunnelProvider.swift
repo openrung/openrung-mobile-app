@@ -1363,11 +1363,12 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 }
                 guard Task.isCancelled == false else { return }
                 switch event {
-                case .pathFailure(let reason, let trigger):
+                case .pathFailure(let reason, let trigger, let graceful):
                     self?.requestWssRecovery(
                         trigger: trigger,
                         expectedSession: session,
-                        reason: reason
+                        reason: reason,
+                        graceful: graceful
                     )
                 case .localFailure(let error):
                     self?.requestActiveWssLocalFailure(error, relay: relay, expectedSession: session)
@@ -1384,14 +1385,14 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     ) async -> TransportMonitorEvent? {
         await withTaskGroup(of: TransportMonitorEvent?.self) { group in
             group.addTask {
-                let reason = await session.waitForUnexpectedClose()
+                let end = await session.waitForClose()
                 guard Task.isCancelled == false else { return nil }
-                return .pathFailure(reason: reason, trigger: "native_adapter")
+                return .pathFailure(reason: end.reason, trigger: "native_adapter", graceful: end.graceful)
             }
             group.addTask {
                 do {
                     let reason = try await self.awaitTunnelHealthFailure(monitor: monitor)
-                    return .pathFailure(reason: reason, trigger: "tunnel_health")
+                    return .pathFailure(reason: reason, trigger: "tunnel_health", graceful: false)
                 } catch is CancellationError {
                     return nil
                 } catch let error as LocalTunnelError {
@@ -1497,13 +1498,15 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     private func requestWssRecovery(
         trigger: String,
         expectedSession: any WssNativeSession,
-        reason: String = "WSS transport epoch ended"
+        reason: String = "WSS transport epoch ended",
+        graceful: Bool = false
     ) {
         lifecycleQueue.async { [weak self] in
             self?.scheduleWssRecoveryOnLifecycleQueue(
                 trigger: trigger,
                 expectedSession: expectedSession,
-                reason: reason
+                reason: reason,
+                graceful: graceful
             )
         }
     }
@@ -1511,7 +1514,8 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     private func scheduleWssRecoveryOnLifecycleQueue(
         trigger: String,
         expectedSession: any WssNativeSession,
-        reason: String
+        reason: String,
+        graceful: Bool
     ) {
         dispatchPrecondition(condition: .onQueue(lifecycleQueue))
         guard lifecycleIsStopping == false else { return }
@@ -1544,6 +1548,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             await self?.recoverWssPath(
                 trigger: trigger,
                 reason: reason,
+                graceful: graceful,
                 expectedSession: expectedSession,
                 generation: generation
             )
@@ -1593,6 +1598,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     private func recoverWssPath(
         trigger: String,
         reason: String,
+        graceful: Bool,
         expectedSession: any WssNativeSession,
         generation: UUID
     ) async {
@@ -1620,15 +1626,25 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         var attributes = [
             "transport": AccessTransport.wss,
             "trigger": trigger,
-            "reason": String(reason.prefix(160)),
         ]
         if let frontID { attributes["front_id"] = frontID }
         // A queued local engine-termination path has precedence. Returning here preserves the
         // active state for that owner; if it wins immediately after this check, it awaits this task
         // and then performs terminal cleanup without relying on the state below remaining intact.
         guard Task.isCancelled == false, snapshot.engine?.hasUnexpectedStop != true else { return }
-        TelemetryManager.record("transport_path_lost", relayId: relayID, attributes: attributes)
-        SharedConnectionState.appendLog("WSS path ended; reconnecting direct-first")
+        // An orderly end is not path loss, and recording it as such buried real losses in the same
+        // counter. What does NOT change is the published status: the replacement session needs its
+        // own ticket and loopback port, so the engine is torn down and rebuilt either way, and
+        // while it is down there is no tunnel. Claiming otherwise would tell someone their traffic
+        // is protected when it is not.
+        if graceful {
+            TelemetryManager.record("transport_session_ended", relayId: relayID, attributes: attributes)
+            SharedConnectionState.appendLog("WSS session ended normally; renewing it")
+        } else {
+            attributes["reason"] = String(reason.prefix(160))
+            TelemetryManager.record("transport_path_lost", relayId: relayID, attributes: attributes)
+            SharedConnectionState.appendLog("WSS path ended; reconnecting direct-first")
+        }
         SharedConnectionState.setStatus(.connecting, clearRelayLabel: true, clearError: true)
         stopHeartbeatLoop()
 
@@ -1638,7 +1654,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             expectedTransportEpoch: snapshot.epoch,
             abortIfUnexpectedEngineStopWon: true
         ) != nil else { return }
-        TelemetryManager.endSession(reason: "wss_path_lost")
+        TelemetryManager.endSession(reason: graceful ? "wss_session_ended" : "wss_path_lost")
 
         do {
             // Always re-observe a satisfied physical path after teardown. This is effectively
@@ -1967,7 +1983,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     }
 
     private enum TransportMonitorEvent {
-        case pathFailure(reason: String, trigger: String)
+        case pathFailure(reason: String, trigger: String, graceful: Bool)
         case localFailure(LocalTunnelError)
     }
 
