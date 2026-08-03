@@ -70,8 +70,8 @@ describe('loadExitNodeDirectory', () => {
         nodeCount: 2,
         // Broker order, with the friendly labels the list picker shows.
         relays: [
-          { id: 'a', label: 'silly-lemur' },
-          { id: 'b', label: 'swift-harbor' },
+          { id: 'a', label: 'silly-lemur', nodeClass: 'volunteer' },
+          { id: 'b', label: 'swift-harbor', nodeClass: 'volunteer' },
         ],
       },
       {
@@ -81,7 +81,7 @@ describe('loadExitNodeDirectory', () => {
         latitude: 52.5244,
         longitude: 13.4105,
         nodeCount: 1,
-        relays: [{ id: 'd', label: null }],
+        relays: [{ id: 'd', label: null, nodeClass: 'volunteer' }],
       },
       {
         countryCode: 'JP',
@@ -90,8 +90,24 @@ describe('loadExitNodeDirectory', () => {
         latitude: 34.6937,
         longitude: 135.5023,
         nodeCount: 1,
-        relays: [{ id: 'c', label: null }],
+        relays: [{ id: 'c', label: null, nodeClass: 'volunteer' }],
       },
+    ]);
+  });
+
+  it('carries each relay class into the picker entries; absent or unknown node_class is volunteer', async () => {
+    const regions = await load([
+      relay({ id: 'official', label: 'steady-anchor', node_class: 'foundation', ...TOKYO }),
+      relay({ id: 'community', label: 'silly-lemur', node_class: 'volunteer', ...TOKYO }),
+      relay({ id: 'legacy', ...TOKYO }),
+      relay({ id: 'future', node_class: 'sponsored', ...TOKYO }),
+    ]);
+    expect(regions).toHaveLength(1);
+    expect(regions[0].relays).toEqual([
+      { id: 'official', label: 'steady-anchor', nodeClass: 'foundation' },
+      { id: 'community', label: 'silly-lemur', nodeClass: 'volunteer' },
+      { id: 'legacy', label: null, nodeClass: 'volunteer' },
+      { id: 'future', label: null, nodeClass: 'volunteer' },
     ]);
   });
 
@@ -127,7 +143,7 @@ describe('loadExitNodeDirectory', () => {
         latitude: 35.6895,
         longitude: 139.6917,
         nodeCount: 1,
-        relays: [{ id: 'a', label: null }],
+        relays: [{ id: 'a', label: null, nodeClass: 'volunteer' }],
       },
       {
         countryCode: 'ZZ',
@@ -136,7 +152,7 @@ describe('loadExitNodeDirectory', () => {
         latitude: 1,
         longitude: 2,
         nodeCount: 1,
-        relays: [{ id: 'b', label: null }],
+        relays: [{ id: 'b', label: null, nodeClass: 'volunteer' }],
       },
     ]);
   });
@@ -153,6 +169,6 @@ describe('loadExitNodeDirectory', () => {
     const regions = await load([relay({ id: '', ...TOKYO }), relay({ id: 'ok', ...TOKYO })]);
     expect(regions).toHaveLength(1);
     expect(regions[0].nodeCount).toBe(1);
-    expect(regions[0].relays).toEqual([{ id: 'ok', label: null }]);
+    expect(regions[0].relays).toEqual([{ id: 'ok', label: null, nodeClass: 'volunteer' }]);
   });
 });

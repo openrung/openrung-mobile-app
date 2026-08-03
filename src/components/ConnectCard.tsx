@@ -31,13 +31,16 @@ import {
 } from 'react-native';
 
 import { statusLabel, useStrings, type Strings } from '../i18n';
-import type { ConnectionStatus } from '../native/types';
+import type { ConnectionStatus, NativeVpnState } from '../native/types';
 import { monoFont, palette, statusDotColor, tokens } from '../theme';
 import { PowerIcon } from './Icons';
+import { RelayClassBadge } from './RelayClassBadge';
 
 export interface ConnectCardProps {
   status: ConnectionStatus;
   relayName: string | null;
+  /** Connected relay's node class (badge next to the relay name); null when not connected. */
+  relayClass: NativeVpnState['relayClass'];
   isConnected: boolean;
   isWorking: boolean;
   onToggle: () => void;
@@ -116,6 +119,7 @@ interface FillGeometry {
 export const ConnectCard = React.memo(function ConnectCardComponent({
   status,
   relayName,
+  relayClass,
   isConnected,
   isWorking,
   onToggle,
@@ -209,12 +213,13 @@ export const ConnectCard = React.memo(function ConnectCardComponent({
     <View style={styles.card}>
       <View style={styles.statusRow}>
         <StatusDot status={status} />
-        <Text style={styles.statusText} numberOfLines={1}>
+        <Text style={styles.statusText} numberOfLines={1} ellipsizeMode="tail">
           {statusLabel(s, status).toUpperCase()}
         </Text>
         <Text style={styles.relayText} numberOfLines={1}>
           {relayName ?? s.relayAuto}
         </Text>
+        {isConnected && relayClass != null ? <RelayClassBadge nodeClass={relayClass} /> : null}
       </View>
 
       <Pressable
@@ -299,6 +304,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 12,
     letterSpacing: 1.5,
+    // Yoga's default flexShrink is 0 — without this, a verbose localized status plus the
+    // relay-class badge would squeeze the flex:1 relay name down to a bare ellipsis on
+    // narrow screens; sharing the shrink keeps the name readable.
+    flexShrink: 1,
   },
   relayText: {
     flex: 1,

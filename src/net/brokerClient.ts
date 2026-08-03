@@ -68,6 +68,7 @@ export function decodeRelayListResponse(body: string): RelayListResponse {
       exit_mode: asString(item.exit_mode),
       max_sessions: asNumber(item.max_sessions),
       max_mbps: asNumber(item.max_mbps),
+      node_class: asOptionalString(item.node_class),
       volunteer_version: asString(item.volunteer_version),
       registered_at: asString(item.registered_at),
       last_heartbeat_at: asString(item.last_heartbeat_at),

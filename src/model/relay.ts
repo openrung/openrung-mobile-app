@@ -23,6 +23,9 @@ export interface RelayDescriptor {
   exit_mode: string;
   max_sessions: number;
   max_mbps: number;
+  // Relay class: 'foundation' (Foundation-operated) or 'volunteer'. Absent on older
+  // brokers — treat absence (or any unknown value) as 'volunteer', like the native decoders.
+  node_class?: string;
   // Legacy broker wire name; this reports the software version for every relay class.
   volunteer_version: string;
   transport?: 'direct' | 'tunnel';

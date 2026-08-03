@@ -41,6 +41,8 @@ export const zhTW: Partial<Strings> = {
   tabAbout: '關於我們',
   aboutTitle: '關於我們',
   relayAuto: '自動中繼',
+  relayClassOfficial: '官方',
+  relayClassVolunteer: '志願',
   settingsGeneralHeader: '一般',
   settingsDiagnosticsHeader: '診斷',
 

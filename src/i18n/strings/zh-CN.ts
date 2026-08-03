@@ -41,6 +41,8 @@ export const zhCN: Partial<Strings> = {
   tabAbout: '关于我们',
   aboutTitle: '关于我们',
   relayAuto: '自动中继',
+  relayClassOfficial: '官方',
+  relayClassVolunteer: '志愿',
   settingsGeneralHeader: '常规',
   settingsDiagnosticsHeader: '诊断',
 

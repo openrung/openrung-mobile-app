@@ -1,5 +1,6 @@
 // Preview: ConnectCard — the home screen's hero control, one cell per
-// connection lifecycle stage (the primary variant axis).
+// connection lifecycle stage (the primary variant axis), plus the two
+// relay-class badges the connected status row can carry.
 import React from 'react';
 import { ConnectCard } from 'openrung-mobile-app';
 
@@ -11,7 +12,8 @@ export function Disconnected(): React.JSX.Element {
     <div style={frame}>
       <ConnectCard
         status="disconnected"
-        relayLabel={null}
+        relayName={null}
+        relayClass={null}
         isConnected={false}
         isWorking={false}
         onToggle={() => {}}
@@ -26,7 +28,8 @@ export function Connecting(): React.JSX.Element {
     <div style={frame}>
       <ConnectCard
         status="connecting"
-        relayLabel={null}
+        relayName={null}
+        relayClass={null}
         isConnected={false}
         isWorking={true}
         onToggle={() => {}}
@@ -35,13 +38,30 @@ export function Connecting(): React.JSX.Element {
   );
 }
 
-/** Connected: solid green DISCONNECT button, resolved exit location. */
-export function Connected(): React.JSX.Element {
+/** Connected to a Foundation relay: green OFFICIAL badge next to the name. */
+export function ConnectedOfficial(): React.JSX.Element {
   return (
     <div style={frame}>
       <ConnectCard
         status="connected"
-        relayLabel="Tokyo, Japan"
+        relayName="silly-lemur"
+        relayClass="foundation"
+        isConnected={true}
+        isWorking={false}
+        onToggle={() => {}}
+      />
+    </div>
+  );
+}
+
+/** Connected to a community relay: orange VOLUNTEER badge next to the name. */
+export function ConnectedVolunteer(): React.JSX.Element {
+  return (
+    <div style={frame}>
+      <ConnectCard
+        status="connected"
+        relayName="brave-falcon"
+        relayClass="volunteer"
         isConnected={true}
         isWorking={false}
         onToggle={() => {}}
@@ -56,7 +76,8 @@ export function Failed(): React.JSX.Element {
     <div style={frame}>
       <ConnectCard
         status="failed"
-        relayLabel={null}
+        relayName={null}
+        relayClass={null}
         isConnected={false}
         isWorking={false}
         onToggle={() => {}}

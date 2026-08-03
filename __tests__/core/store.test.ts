@@ -115,7 +115,8 @@ describe('refreshDirectory', () => {
         latitude: 35.6895, // the broker's coordinate, no client-side geo lookup
         longitude: 139.6917,
         nodeCount: 1,
-        relays: [{ id: 'tokyo-relay-1', label: null }],
+        // No node_class in the fixture -> the volunteer default, like older brokers.
+        relays: [{ id: 'tokyo-relay-1', label: null, nodeClass: 'volunteer' }],
       },
     ]);
     expect(OpenRungVpn.getIdentity).toHaveBeenCalledTimes(1);
@@ -456,6 +457,7 @@ describe('connectedAtMs (session uptime stamp)', () => {
     status: 'disconnected',
     relayLabel: null,
     relayName: null,
+    relayClass: null,
     lastError: null,
     logLines: [],
     recents: [],
@@ -504,5 +506,51 @@ describe('connectedAtMs (session uptime stamp)', () => {
   it('stays null through failed states', () => {
     applyNativeState(nativeState({ status: 'failed', lastError: 'broker unreachable' }));
     expect(getSnapshot().connectedAtMs).toBeNull();
+  });
+});
+
+describe('applyNativeState relayClass mirroring', () => {
+  const nativeState = (partial: Partial<NativeVpnState>): NativeVpnState => ({
+    status: 'disconnected',
+    relayLabel: null,
+    relayName: null,
+    relayClass: null,
+    lastError: null,
+    logLines: [],
+    recents: [],
+    ...partial,
+  });
+
+  it('mirrors the connected relay class into the store', () => {
+    applyNativeState(nativeState({ status: 'connected', relayClass: 'foundation' }));
+    expect(getSnapshot().native.relayClass).toBe('foundation');
+    applyNativeState(nativeState({ status: 'connected', relayClass: 'volunteer' }));
+    expect(getSnapshot().native.relayClass).toBe('volunteer');
+  });
+
+  it('publishes a class-only change (a same-name relay of the other class is not deduped)', () => {
+    applyNativeState(
+      nativeState({ status: 'connected', relayName: 'proud-falcon', relayClass: 'volunteer' }),
+    );
+    const before = getSnapshot().native;
+    applyNativeState(
+      nativeState({ status: 'connected', relayName: 'proud-falcon', relayClass: 'foundation' }),
+    );
+    const after = getSnapshot().native;
+    expect(after).not.toBe(before);
+    expect(after.relayClass).toBe('foundation');
+  });
+
+  it('collapses out-of-contract values to null (stale native build omits the field)', () => {
+    // A binary built before relayClass existed sends events without the key.
+    const legacyEvent = nativeState({ status: 'connected' }) as unknown as Record<string, unknown>;
+    delete legacyEvent.relayClass;
+    applyNativeState(legacyEvent as unknown as NativeVpnState);
+    expect(getSnapshot().native.relayClass).toBeNull();
+
+    applyNativeState(
+      nativeState({ status: 'connected', relayClass: 'sponsored' as unknown as 'volunteer' }),
+    );
+    expect(getSnapshot().native.relayClass).toBeNull();
   });
 });

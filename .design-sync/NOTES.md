@@ -77,6 +77,16 @@ conversion (user-approved 2026-07-07).
 - None as of 2026-07-07 (17/17 clean, 0 thin, 0 variantsIdentical). Any warn
   on a future re-sync is new — investigate before recording here.
 
+## Pending re-sync (2026-08-02, relay-class badges)
+
+- Definitions/previews updated for the relay-class badge feature but NOT yet
+  re-captured: new `RelayClassBadge` component (18th; docs stub + preview +
+  dtsPropsFor + web-entry export), ConnectCard props fixed
+  (relayLabel → relayName, new `relayClass` + ConnectedOfficial /
+  ConnectedVolunteer preview cells), RelayList/OceanTelemetry relay fixtures
+  gained `nodeClass`, tokens.css gained `--or-volunteer: #F5A565`. Run the
+  design-sync skill to rebuild + re-capture before trusting the hosted cards.
+
 ## Re-sync risks
 
 - The RNW alias pins `react-native-web/dist/index.js` — an RNW major bump or

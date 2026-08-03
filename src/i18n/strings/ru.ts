@@ -41,6 +41,8 @@ export const ru: Partial<Strings> = {
   tabAbout: 'О нас',
   aboutTitle: 'О нас',
   relayAuto: 'авто-реле',
+  relayClassOfficial: 'официальный',
+  relayClassVolunteer: 'волонтёр',
   settingsGeneralHeader: 'Основные',
   settingsDiagnosticsHeader: 'Диагностика',
 

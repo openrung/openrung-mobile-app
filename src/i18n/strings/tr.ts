@@ -41,6 +41,8 @@ export const tr: Partial<Strings> = {
   tabAbout: 'Hakkımızda',
   aboutTitle: 'Hakkımızda',
   relayAuto: 'otomatik röle',
+  relayClassOfficial: 'resmi',
+  relayClassVolunteer: 'gönüllü',
   settingsGeneralHeader: 'Genel',
   settingsDiagnosticsHeader: 'Tanılama',
 

@@ -53,6 +53,9 @@ export async function loadExitNodeDirectory(
     const pickerEntry = {
       id: relay.id,
       label: (relay.label ?? '').trim() || null,
+      // Absent/unknown node_class collapses to 'volunteer', matching the native decoders.
+      nodeClass:
+        relay.node_class === 'foundation' ? ('foundation' as const) : ('volunteer' as const),
     };
     const existing = regionsByKey.get(key);
     if (existing) {

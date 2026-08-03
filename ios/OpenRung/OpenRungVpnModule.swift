@@ -16,6 +16,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
     private var status: ConnectionStatus = .disconnected
     private var relayLabel: String?
     private var relayName: String?
+    private var relayClass: String?
     private var lastError: String?
     private var logLines: [String] = []
     private var recentRegions: [RecentNode] = []
@@ -137,6 +138,11 @@ final class OpenRungVpnModule: RCTEventEmitter {
                 let message = AppError.message(for: error)
                 self.lastError = message
                 self.status = .failed
+                // Relay identity never survives a failure (contract: relayClass/relayName are
+                // null whenever not CONNECTED), matching SharedConnectionState.fail().
+                self.relayLabel = nil
+                self.relayName = nil
+                self.relayClass = nil
                 self.emitStateChanged()
                 reject("connect_failed", message, error)
             }
@@ -212,6 +218,10 @@ final class OpenRungVpnModule: RCTEventEmitter {
                     } catch {
                         self.lastError = AppError.message(for: error)
                         self.status = .failed
+                        // Same failure semantics as the connect() catch above.
+                        self.relayLabel = nil
+                        self.relayName = nil
+                        self.relayClass = nil
                         self.emitStateChanged()
                         return
                     }
@@ -343,6 +353,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
             status = .disconnected
             relayLabel = nil
             relayName = nil
+            relayClass = nil
         }
         emitStateChanged()
     }
@@ -351,6 +362,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
         status = snapshot.status
         relayLabel = snapshot.relayLabel
         relayName = snapshot.relayName
+        relayClass = snapshot.relayClass
         lastError = snapshot.lastError
         logLines = snapshot.logLines
         recentRegions = snapshot.recentRegions
@@ -372,6 +384,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
             "status": status.rawValue,
             "relayLabel": relayLabel ?? NSNull(),
             "relayName": relayName ?? NSNull(),
+            "relayClass": relayClass ?? NSNull(),
             "lastError": lastError ?? NSNull(),
             "logLines": logLines,
             "recents": recentRegions.map { node in

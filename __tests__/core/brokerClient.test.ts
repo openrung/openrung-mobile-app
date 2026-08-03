@@ -72,6 +72,23 @@ describe('decodeRelayListResponse', () => {
     });
   });
 
+  it('decodes node_class and leaves it absent when the broker omits or mangles it', () => {
+    const response = decodeRelayListResponse(
+      relayBody([
+        { ...BASE_RELAY, node_class: 'foundation' },
+        { ...BASE_RELAY, id: 'relay-2', node_class: 'volunteer' },
+        { ...BASE_RELAY, id: 'relay-3' }, // older broker: no node_class on the wire
+        { ...BASE_RELAY, id: 'relay-4', node_class: 123 },
+      ]),
+    );
+
+    expect(response.relays[0].node_class).toBe('foundation');
+    expect(response.relays[1].node_class).toBe('volunteer');
+    // Absent/malformed stays undefined here; the directory collapses it to 'volunteer'.
+    expect(response.relays[2].node_class).toBeUndefined();
+    expect(response.relays[3].node_class).toBeUndefined();
+  });
+
   it('keeps optional geo fields absent and normalizes malformed values', () => {
     const response = decodeRelayListResponse(
       relayBody([

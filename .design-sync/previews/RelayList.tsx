@@ -14,9 +14,9 @@ const REGIONS = [
     longitude: 139.69,
     nodeCount: 3,
     relays: [
-      { id: 'relay_8f2c1a9b', label: 'silly-lemur' },
-      { id: 'relay_02e77d41', label: 'quiet-otter' },
-      { id: 'relay_c9b0f3ae', label: null },
+      { id: 'relay_8f2c1a9b', label: 'silly-lemur', nodeClass: 'foundation' as const },
+      { id: 'relay_02e77d41', label: 'quiet-otter', nodeClass: 'volunteer' as const },
+      { id: 'relay_c9b0f3ae', label: null, nodeClass: 'volunteer' as const },
     ],
   },
   {
@@ -27,8 +27,8 @@ const REGIONS = [
     longitude: 8.68,
     nodeCount: 2,
     relays: [
-      { id: 'relay_77aa19c2', label: 'brave-falcon' },
-      { id: 'relay_1d4e8b06', label: 'mellow-yak' },
+      { id: 'relay_77aa19c2', label: 'brave-falcon', nodeClass: 'volunteer' as const },
+      { id: 'relay_1d4e8b06', label: 'mellow-yak', nodeClass: 'foundation' as const },
     ],
   },
   {
@@ -38,7 +38,7 @@ const REGIONS = [
     latitude: 39.04,
     longitude: -77.49,
     nodeCount: 1,
-    relays: [{ id: 'relay_5b39cd12', label: 'lucky-heron' }],
+    relays: [{ id: 'relay_5b39cd12', label: 'lucky-heron', nodeClass: 'volunteer' as const }],
   },
   {
     countryCode: 'BR',
@@ -47,7 +47,7 @@ const REGIONS = [
     latitude: -23.55,
     longitude: -46.63,
     nodeCount: 1,
-    relays: [{ id: 'relay_e60a2f88', label: null }],
+    relays: [{ id: 'relay_e60a2f88', label: null, nodeClass: 'volunteer' as const }],
   },
 ];
 

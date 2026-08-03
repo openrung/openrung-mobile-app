@@ -41,6 +41,8 @@ export const ar: Partial<Strings> = {
   tabAbout: 'من نحن',
   aboutTitle: 'من نحن',
   relayAuto: 'مرحّل تلقائي',
+  relayClassOfficial: 'رسمي',
+  relayClassVolunteer: 'متطوع',
   settingsGeneralHeader: 'عام',
   settingsDiagnosticsHeader: 'التشخيص',
 

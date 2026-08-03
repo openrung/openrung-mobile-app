@@ -32,16 +32,9 @@ enum SharedConnectionState {
         return snapshot
     }
 
-    /// What the app shows on a cold launch: a stale CONNECTED never survives, and relay details
-    /// (which could leak a prior relay) are dropped until re-resolved.
+    /// What the app shows on a cold launch (the rule lives on the snapshot for testability).
     static func sanitizedForColdStart() -> ConnectionStateSnapshot {
-        var snapshot = snapshot()
-        if snapshot.status == .connected {
-            snapshot.status = .disconnected
-        }
-        snapshot.relayLabel = nil
-        snapshot.relayName = nil
-        return snapshot
+        snapshot().sanitizedForColdStart()
     }
 
     // MARK: - Mutators (called by the extension)
@@ -75,17 +68,18 @@ enum SharedConnectionState {
     static func setStatus(
         _ status: ConnectionStatus,
         relayName: String? = nil,
+        relayClass: String? = nil,
         clearRelayLabel: Bool = false,
         clearError: Bool = false
     ) {
         mutate { snapshot in
-            snapshot.status = status
-            // While connected, nil keeps the current name (mirroring the Android store's
-            // default) so a mid-session status re-assert never blanks the UI; every other
-            // status always clears it.
-            snapshot.relayName = status == .connected ? (relayName ?? snapshot.relayName) : nil
-            if clearRelayLabel { snapshot.relayLabel = nil }
-            if clearError { snapshot.lastError = nil }
+            snapshot.apply(
+                status: status,
+                relayName: relayName,
+                relayClass: relayClass,
+                clearRelayLabel: clearRelayLabel,
+                clearError: clearError
+            )
             snapshot.logLines = ActivityLog.appended(snapshot.logLines, ActivityLog.line(status.displayLabel))
         }
     }
@@ -98,10 +92,7 @@ enum SharedConnectionState {
 
     static func fail(_ message: String) {
         mutate { snapshot in
-            snapshot.status = .failed
-            snapshot.lastError = message
-            snapshot.relayLabel = nil
-            snapshot.relayName = nil
+            snapshot.applyFailure(message)
             snapshot.logLines = ActivityLog.appended(snapshot.logLines, ActivityLog.line("error: \(message)"))
         }
     }

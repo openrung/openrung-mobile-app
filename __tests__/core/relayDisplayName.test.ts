@@ -50,20 +50,20 @@ describe('sanitizeRelayName', () => {
 
 describe('relayDisplayName', () => {
   it('uses the sanitized label when present', () => {
-    expect(relayDisplayName({ id: 'relay_jp1', label: ' proud-falcon ' })).toBe('proud-falcon');
+    expect(relayDisplayName({ id: 'relay_jp1', label: ' proud-falcon ', nodeClass: 'volunteer' })).toBe('proud-falcon');
   });
 
   it('falls back to the shortened id when the label is null or unprintable', () => {
-    expect(relayDisplayName({ id: 'relay_abcdef1234567890', label: null })).toBe('abcdef123456');
-    expect(relayDisplayName({ id: 'relay_jp1', label: '\u{202E}\u{200B}' })).toBe('jp1');
+    expect(relayDisplayName({ id: 'relay_abcdef1234567890', label: null, nodeClass: 'volunteer' })).toBe('abcdef123456');
+    expect(relayDisplayName({ id: 'relay_jp1', label: '\u{202E}\u{200B}', nodeClass: 'volunteer' })).toBe('jp1');
   });
 
   it('sanitizes and code-point-clamps the fallback id like native does', () => {
     // A hostile directory could put bidi controls or astral chars in ids.
-    expect(relayDisplayName({ id: 'relay_\u{202E}0123456789abcdef', label: null })).toBe(
+    expect(relayDisplayName({ id: 'relay_\u{202E}0123456789abcdef', label: null, nodeClass: 'volunteer' })).toBe(
       '0123456789ab',
     );
-    expect(relayDisplayName({ id: 'relay_' + '\u{1F680}'.repeat(20), label: null })).toBe(
+    expect(relayDisplayName({ id: 'relay_' + '\u{1F680}'.repeat(20), label: null, nodeClass: 'volunteer' })).toBe(
       '\u{1F680}'.repeat(12),
     );
   });

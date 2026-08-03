@@ -43,6 +43,8 @@ export const my: Partial<Strings> = {
   tabAbout: 'ကျွန်ုပ်တို့အကြောင်း',
   aboutTitle: 'ကျွန်ုပ်တို့အကြောင်း',
   relayAuto: 'အလိုအလျောက် relay',
+  relayClassOfficial: 'တရားဝင်',
+  relayClassVolunteer: 'စေတနာ့ဝန်ထမ်း',
   settingsGeneralHeader: 'အထွေထွေ',
   settingsDiagnosticsHeader: 'စစ်ဆေးခြင်း',
 

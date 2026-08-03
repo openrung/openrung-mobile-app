@@ -87,6 +87,7 @@ function selectMainScreenState(current: AppState) {
     status: current.native.status,
     relayLabel: current.native.relayLabel,
     relayName: current.native.relayName,
+    relayClass: current.native.relayClass,
     lastError: current.native.lastError,
     recents: current.native.recents,
     directoryStatus: current.directoryStatus,
@@ -106,6 +107,7 @@ export function MainScreen(): React.JSX.Element {
     status,
     relayLabel,
     relayName,
+    relayClass,
     lastError,
     recents,
     directoryStatus,
@@ -281,6 +283,7 @@ export function MainScreen(): React.JSX.Element {
           <ConnectCard
             status={status}
             relayName={relayName}
+            relayClass={relayClass}
             isConnected={isConnected}
             isWorking={isWorking}
             onToggle={onToggle}

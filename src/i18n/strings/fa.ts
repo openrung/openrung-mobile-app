@@ -41,6 +41,8 @@ export const fa: Partial<Strings> = {
   tabAbout: 'درباره ما',
   aboutTitle: 'درباره ما',
   relayAuto: 'رله خودکار',
+  relayClassOfficial: 'رسمی',
+  relayClassVolunteer: 'داوطلب',
   settingsGeneralHeader: 'عمومی',
   settingsDiagnosticsHeader: 'عیب‌یابی',
 

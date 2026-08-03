@@ -47,6 +47,7 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
     status: 'disconnected',
     relayLabel: null,
     relayName: null,
+    relayClass: null,
     lastError: null,
     logLines: [],
     recents: [],
@@ -85,8 +86,17 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
     // production does when the broker hasn't sent a city.
     const relayLabel = code === 'JP' ? 'Tokyo, Japan' : countryName;
     const relayId = targetRelayId ?? `${code.toLowerCase()}-relay-1`;
+    // Broker-picked auto connects land on a foundation relay in the mock script; explicitly
+    // chosen relays play a volunteer one, so both badge variants are demoable without native.
+    const relayClass =
+      targetRelayId == null && targetCountry == null ? ('foundation' as const) : ('volunteer' as const);
 
-    this.setStatus('preparing', { relayLabel: null, relayName: null, lastError: null });
+    this.setStatus('preparing', {
+      relayLabel: null,
+      relayName: null,
+      relayClass: null,
+      lastError: null,
+    });
     this.runScript([
       {
         delayMs: 300,
@@ -123,7 +133,12 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
         delayMs: 2300,
         run: () => {
           this.appendLog('internet access verified in 812 ms');
-          this.setStatus('connected', { relayLabel: null, relayName: relayId, lastError: null });
+          this.setStatus('connected', {
+            relayLabel: null,
+            relayName: relayId,
+            relayClass,
+            lastError: null,
+          });
         },
       },
       {
@@ -156,7 +171,12 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
         delayMs: 300,
         run: () => {
           this.sessionId = null;
-          this.setStatus('disconnected', { relayLabel: null, relayName: null, lastError: null });
+          this.setStatus('disconnected', {
+            relayLabel: null,
+            relayName: null,
+            relayClass: null,
+            lastError: null,
+          });
         },
       },
     ]);
@@ -173,8 +193,11 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
     const changed = configJson !== this.splitTunnelConfigJson;
     this.splitTunnelConfigJson = configJson;
     if (changed && this.state.status === 'connected') {
-      // Production reapplies by tearing down + reconnecting to the same target; the mock walks
-      // a quick connecting -> connected sequence so the UI shows the brief reconnect.
+      // Production reapplies by tearing down + reconnecting to the SAME target, which re-stamps
+      // the same relay identity on the new CONNECTED; the mock walks a quick
+      // connecting -> connected sequence (so the UI shows the brief reconnect) and carries the
+      // identity across it — CONNECTING auto-clears relayName/relayClass, exactly like native.
+      const { relayName, relayClass } = this.state;
       this.cancelScript();
       this.setStatus('connecting');
       this.appendLog('applying split tunnel config');
@@ -182,7 +205,7 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
         {
           delayMs: 400,
           run: () => {
-            this.setStatus('connected');
+            this.setStatus('connected', { relayName, relayClass });
           },
         },
       ]);
@@ -212,6 +235,7 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
     overrides: {
       relayLabel?: string | null;
       relayName?: string | null;
+      relayClass?: NativeVpnState['relayClass'];
       lastError?: string | null;
     } = {},
   ): void {
@@ -224,6 +248,12 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
           ? overrides.relayName
           : status === 'connected'
             ? this.state.relayName
+            : null,
+      relayClass:
+        overrides.relayClass !== undefined
+          ? overrides.relayClass
+          : status === 'connected'
+            ? this.state.relayClass
             : null,
       lastError: overrides.lastError !== undefined ? overrides.lastError : this.state.lastError,
     };

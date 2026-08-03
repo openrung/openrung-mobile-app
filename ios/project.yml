@@ -159,6 +159,9 @@ targets:
       - path: Shared/AppConfig.swift
       - path: Shared/BrokerClient.swift
       - path: Shared/BrokerClientError.swift
+      # ConnectionStateSnapshot (ConnectionStateSnapshotTests) + the RecentNode type it embeds.
+      - path: Shared/ConnectionStatus.swift
+      - path: Shared/CountryGeo.swift
       - path: Shared/DeviceAttributes.swift
       - path: Shared/InternetProbe.swift
       - path: Shared/NetworkPathMonitor.swift
