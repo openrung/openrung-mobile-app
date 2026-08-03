@@ -6,5 +6,32 @@
   },
   "ios_latest": "0.3.2",
   "promote": "silent",
-  "notice": null
+  "notice": {
+    "id": "2026-08-release-0.3.5",
+    "level": "info",
+    "title": {
+      "en": "What's new in 0.3.5",
+      "zh-CN": "0.3.5 新功能",
+      "zh-TW": "0.3.5 新功能",
+      "fa": "تازه‌های نسخه ۰.۳.۵",
+      "ru": "Что нового в 0.3.5",
+      "ar": "الجديد في 0.3.5",
+      "tr": "0.3.5'teki yenilikler",
+      "vi": "Có gì mới trong 0.3.5",
+      "my": "0.3.5 အသစ်များ"
+    },
+    "body": {
+      "en": "Relays are now labeled OFFICIAL (Foundation-run) or VOLUNTEER (community-run) in the relay list and while connected. Plus: direct connections on iOS, and a faster, lighter app.",
+      "zh-CN": "中继列表和连接状态现在会标注中继类型：官方（基金会运营）或志愿（社区共享）。另有 iOS 直连支持，应用更快更轻。",
+      "zh-TW": "中繼列表和連線狀態現在會標註中繼類型：官方（基金會營運）或志願（社群共享）。另有 iOS 直連支援，應用更快更輕。",
+      "fa": "رله‌ها اکنون در فهرست و هنگام اتصال با برچسب «رسمی» (بنیاد) یا «داوطلب» (جامعه) مشخص می‌شوند. همچنین اتصال مستقیم در iOS و برنامه‌ای سریع‌تر و سبک‌تر.",
+      "ru": "Реле теперь помечены как «официальный» (фонд) или «волонтёр» (сообщество) — в списке и при подключении. Плюс прямые подключения на iOS и более быстрое, лёгкое приложение.",
+      "ar": "أصبحت المرحّلات تحمل وسم «رسمي» (المؤسسة) أو «متطوع» (المجتمع) في القائمة وأثناء الاتصال. إضافة إلى اتصالات مباشرة على iOS وتطبيق أسرع وأخف.",
+      "tr": "Röleler artık listede ve bağlıyken \"resmi\" (vakıf) veya \"gönüllü\" (topluluk) olarak etiketleniyor. Ayrıca iOS'ta doğrudan bağlantılar ve daha hızlı, daha hafif bir uygulama.",
+      "vi": "Relay giờ được gắn nhãn \"chính thức\" (quỹ vận hành) hoặc \"tình nguyện\" (cộng đồng chia sẻ) trong danh sách và khi kết nối. Thêm kết nối trực tiếp trên iOS, ứng dụng nhanh và nhẹ hơn.",
+      "my": "Relay များကို ယခု စာရင်းနှင့် ချိတ်ဆက်နေစဉ်တွင် တရားဝင် (ဖောင်ဒေးရှင်း) သို့မဟုတ် စေတနာ့ဝန်ထမ်း (အသိုင်းအဝိုင်း) ဟု အမှတ်အသားပြထားသည်။ iOS တွင် တိုက်ရိုက်ချိတ်ဆက်မှုနှင့် ပိုမြန်၍ ပေါ့ပါးသော အက်ပ်လည်း ပါဝင်သည်။"
+    },
+    "url": null,
+    "expires": "2026-09-15T00:00:00Z"
+  }
 }
