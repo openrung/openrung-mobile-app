@@ -150,6 +150,16 @@ class TelemetryManagerApplicationConnectionTest {
     }
 
     @Test
+    fun `verified discovery winner reroutes only its matching active session`() {
+        assertTrue(TelemetryManager.updateBrokerUrl(session.id, "https://winner.example/"))
+        assertEquals("https://winner.example/", TelemetryManager.activeSession()?.brokerUrl)
+
+        val successor = TelemetryManager.beginSession(context, "https://successor.example/")
+        assertFalse(TelemetryManager.updateBrokerUrl(session.id, "https://stale.example/"))
+        assertEquals(successor, TelemetryManager.activeSession())
+    }
+
+    @Test
     fun `flow attribution linearizes after package lookup during session replacement`() {
         recordFlow(packageName = "com.example.replace-race")
         val lookupEntered = CountDownLatch(1)

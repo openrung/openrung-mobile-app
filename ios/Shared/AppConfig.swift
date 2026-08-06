@@ -18,16 +18,11 @@ enum AppConfig {
     /// receives only the winning URL and a verified relay-list snapshot.
     static let defaultBrokerURL = URL(string: "https://broker.openrung.org/")!
 
-    /// Native VPN telemetry / heartbeat target. Uses the same Cloudflare-fronted HTTPS broker as
-    /// discovery, so this traffic is TLS-protected — the app never sends anything in cleartext.
-    /// React Native speed-test telemetry has its own TypeScript constant and reaches this broker
-    /// through `OpenRungBroker`, not this shared Swift client. Kept separate from `defaultBrokerURL`
-    /// because telemetry is high-volume (heartbeats fire ~once/minute per connected user), so it
-    /// consumes the Cloudflare Worker free-tier request quota (100k/day). If that quota becomes a
-    /// constraint, the planned fix is to send telemetry direct-to-origin over TLS via a dedicated
-    /// unproxied hostname — "Option A" in docs/ARCHITECTURE.md § "Network transport". Never revert
-    /// to a raw-IP HTTP endpoint: that leaked the user's real pre-VPN IP, geo and stable client ID
-    /// in cleartext.
+    /// Bootstrap native VPN telemetry / heartbeat target used until verified relay discovery
+    /// selects a live broker front. The active telemetry session then follows that exact winner,
+    /// so a client that reached discovery through fallback does not post diagnostics back to a
+    /// blocked primary. React Native speed-test telemetry has its own TypeScript route. Never use
+    /// a raw-IP HTTP endpoint: that would expose the user's pre-VPN IP, geo and stable client ID.
     static let telemetryBrokerURL = URL(string: "https://broker.openrung.org/")!
 
     /// Broker fronts retained for WSS-ticket ordering and other paths that have their own explicit

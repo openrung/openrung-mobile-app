@@ -64,6 +64,18 @@ enum TelemetryManager {
         TelemetrySessionStore.current()
     }
 
+    /// Routes the still-current session through the broker front that won verified discovery.
+    /// The expected ID prevents a cancelled connect epoch from overwriting its successor's route.
+    @discardableResult
+    static func updateBrokerURL(_ brokerURL: String, forSessionId sessionId: String) -> Bool {
+        guard var session = TelemetrySessionStore.current(), session.id == sessionId else {
+            return false
+        }
+        session.brokerURL = brokerURL
+        TelemetrySessionStore.save(session)
+        return true
+    }
+
     static func markConnected(relayId: String) {
         guard var session = TelemetrySessionStore.current() else { return }
         session.relayId = relayId
@@ -104,8 +116,9 @@ enum TelemetryManager {
         )
     }
 
-    static func endSession(reason: String) {
-        guard let session = TelemetrySessionStore.current() else { return }
+    @discardableResult
+    static func endSession(reason: String) -> String? {
+        guard let session = TelemetrySessionStore.current() else { return nil }
         let now = MonotonicClock.nowMs()
         var measurements: [String: Int64] = ["session_duration_ms": max(now - session.startedElapsedMs, 0)]
         if let connected = session.connectedElapsedMs {
@@ -117,6 +130,7 @@ enum TelemetryManager {
         record("connection_ended", relayId: session.relayId, attributes: ["reason": reason], measurements: measurements)
         resetTrafficCounters()
         TelemetrySessionStore.save(nil)
+        return session.brokerURL
     }
 
     /// Sends a heartbeat while draining queued events in FIFO, identity-homogeneous batches. The

@@ -107,7 +107,6 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         // cancellable) is stopped below, after the await.
         SharedConnectionState.setStatus(.disconnecting)
 
-        let telemetryURLString = AppConfig.telemetryBrokerURL.absoluteString
         Task {
             // Connection-owning tasks must finish before engine teardown. In particular,
             // EmbeddedProxyEngine.start is not cancellable, so stopping it concurrently with a
@@ -118,7 +117,8 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             if let relayID = detached?.relayID {
                 TelemetryManager.record("tunnel_stopped", relayId: relayID)
             }
-            TelemetryManager.endSession(reason: "disconnect")
+            let telemetryURLString = TelemetryManager.endSession(reason: "disconnect")
+                ?? AppConfig.telemetryBrokerURL.absoluteString
             // Engine/WSS observer waits are unblocked by the ordered cleanup above.
             await TunnelTransportCleanup.drain(pending.observers)
             SharedConnectionState.setStatus(.disconnected, clearRelayLabel: true, clearError: true)
@@ -160,9 +160,10 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         // same rules; recovery reconnects re-read on their next connect() pass.
         let splitTunnelRules = resolveSplitTunnelRules()
         self.brokerURL = brokerURL
-        // Telemetry and heartbeats deliberately keep using the separately configured telemetry
-        // target; they do not automatically follow the front that wins relay discovery.
-        let session = TelemetryManager.beginSession(brokerURL: AppConfig.telemetryBrokerURL.absoluteString)
+        // Start with the configured telemetry target so the pre-discovery event has a route. Once
+        // verified discovery succeeds, this session follows the winning front.
+        var telemetryURLString = AppConfig.telemetryBrokerURL.absoluteString
+        let session = TelemetryManager.beginSession(brokerURL: telemetryURLString)
         var failureStage = "preparing"
 
         TelemetryManager.record("connection_attempted")
@@ -192,18 +193,37 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             )
             let response = fetch.response
             let brokerFetchMs = Int64((DispatchTime.now().uptimeNanoseconds - brokerStartedNs) / 1_000_000)
-            // Pin the winning front at the head of this session's native WSS-ticket ladder.
-            // Telemetry remains on AppConfig.telemetryBrokerURL as described above.
+            // Pin the verified winner for every session-scoped broker call, including telemetry.
             if fetch.brokerURL != brokerURL {
-                self.brokerURL = fetch.brokerURL
                 SharedConnectionState.appendLog("configured broker did not win discovery; using fallback \(fetch.brokerURL.absoluteString)")
             }
+            try Task.checkCancellation()
+            telemetryURLString = fetch.brokerURL.absoluteString
+            guard TelemetryManager.updateBrokerURL(
+                telemetryURLString,
+                forSessionId: session.id
+            ) else {
+                throw CancellationError()
+            }
+            self.brokerURL = fetch.brokerURL
             if let geo = await geoLookup {
                 TelemetryManager.setGeoInfo(geo)
             }
 
             let candidates = selector.orderedCandidates(from: response.relays, now: response.serverTime)
             SharedConnectionState.appendLog("broker returned \(response.relays.count) relays; \(candidates.count) usable")
+            // Make the attempt visible before relay dialing. Delivery failure is non-fatal and
+            // leaves the durable outbox untouched, but cancellation still aborts this stale epoch.
+            do {
+                try await TelemetryManager.flush(brokerURL: telemetryURLString)
+            } catch is CancellationError {
+                // Abort only for real task cancellation. The native transport maps its own
+                // "cancelled" kind to CancellationError even while this task is live; that must
+                // stay a failed best-effort attempt, not silently end the epoch mid-connect.
+                try Task.checkCancellation()
+            } catch {
+                // Best effort; the success/failure tail retries the retained outbox.
+            }
             guard candidates.isEmpty == false else {
                 throw PacketTunnelError.noUsableRelay
             }
@@ -346,7 +366,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             // Final, best-effort work only: no connection state or completion follows this await.
             guard Task.isCancelled == false else { return }
             do {
-                try await TelemetryManager.flush(brokerURL: AppConfig.telemetryBrokerURL.absoluteString)
+                try await TelemetryManager.flush(brokerURL: telemetryURLString)
             } catch is CancellationError {
                 return
             } catch {
@@ -367,8 +387,9 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             let detail = FailureClassifier.detail(error)
             if detail.isEmpty == false { attributes["failure_detail"] = detail }
             TelemetryManager.record("connection_failed", attributes: attributes)
-            TelemetryManager.endSession(reason: "connection_failed")
-            try? await TelemetryManager.flush(brokerURL: AppConfig.telemetryBrokerURL.absoluteString)
+            let terminalTelemetryURLString = TelemetryManager.endSession(reason: "connection_failed")
+                ?? telemetryURLString
+            try? await TelemetryManager.flush(brokerURL: terminalTelemetryURLString)
             guard Task.isCancelled == false else {
                 completionHandler?(CancellationError())
                 return
@@ -1721,8 +1742,9 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             cancelMonitor: false,
             expectedTransportEpoch: transportEpoch
         ) != nil else { return }
-        TelemetryManager.endSession(reason: "connection_failed")
-        try? await TelemetryManager.flush(brokerURL: AppConfig.telemetryBrokerURL.absoluteString)
+        let telemetryURLString = TelemetryManager.endSession(reason: "connection_failed")
+            ?? AppConfig.telemetryBrokerURL.absoluteString
+        try? await TelemetryManager.flush(brokerURL: telemetryURLString)
         // Successfully detaching the epoch transfers terminal ownership to this task. Internal
         // replacement may cancel it after that point, but allowing cancellation to abandon the
         // final provider error would leave a transport-less zombie tunnel. User shutdown still

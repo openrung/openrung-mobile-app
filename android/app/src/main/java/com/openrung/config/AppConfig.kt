@@ -9,14 +9,11 @@ object AppConfig {
     const val DEFAULT_BROKER_URL = "https://broker.openrung.org/"
 
     /**
-     * Telemetry / heartbeat / speed-test target. Uses the same Cloudflare-fronted HTTPS broker as
-     * discovery, so this traffic is TLS-protected — the app never sends anything in cleartext. Kept as
-     * a separate constant from [DEFAULT_BROKER_URL] because telemetry is high-volume (heartbeats fire
-     * ~once/minute per connected user), so it consumes the Cloudflare Worker free-tier request quota
-     * (100k/day). If that quota becomes a constraint, the planned fix is to send telemetry
-     * direct-to-origin over TLS via a dedicated unproxied hostname — "Option A" in
-     * docs/ARCHITECTURE.md § "Network transport". Never revert to a raw-IP HTTP endpoint: that leaked
-     * the user's real pre-VPN IP, geo and stable client ID in cleartext.
+     * Bootstrap telemetry / heartbeat target used until verified relay discovery selects a live
+     * broker front. The active telemetry session then follows that exact winner, so a client that
+     * reached discovery through fallback does not post its diagnostics back to a blocked primary.
+     * Never use a raw-IP HTTP endpoint: that would expose the user's pre-VPN IP, geo and stable
+     * client ID in cleartext.
      */
     const val TELEMETRY_BROKER_URL = "https://broker.openrung.org/"
 
