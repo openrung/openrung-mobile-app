@@ -217,7 +217,10 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             do {
                 try await TelemetryManager.flush(brokerURL: telemetryURLString)
             } catch is CancellationError {
-                throw CancellationError()
+                // Abort only for real task cancellation. The native transport maps its own
+                // "cancelled" kind to CancellationError even while this task is live; that must
+                // stay a failed best-effort attempt, not silently end the epoch mid-connect.
+                try Task.checkCancellation()
             } catch {
                 // Best effort; the success/failure tail retries the retained outbox.
             }

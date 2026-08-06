@@ -17,8 +17,11 @@ internal suspend fun bestEffortTelemetryFlush(
     require(timeoutMillis > 0) { "telemetry flush timeout must be positive" }
     try {
         withTimeoutOrNull(timeoutMillis) { flush(brokerUrl) }
-    } catch (cancellation: CancellationException) {
-        throw cancellation
+    } catch (_: CancellationException) {
+        // Propagate only real caller cancellation. The native transport maps its own "cancelled"
+        // kind to CancellationException even while this coroutine is live; treating that as
+        // cancellation would skip a terminal caller's stop and leave the service running.
+        currentCoroutineContext().ensureActive()
     } catch (_: Throwable) {
         // Best effort: the outbox commits only successful uploads and will retry later.
     }

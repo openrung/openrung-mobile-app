@@ -1,5 +1,6 @@
 package com.openrung.vpn
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.launch
@@ -49,6 +50,25 @@ class TerminalTelemetryFlushTest {
             flush = { _ ->
                 order += "flush"
                 awaitCancellation()
+            },
+            stop = { order += "stop" },
+        )
+
+        assertEquals(listOf("flush", "stop"), order)
+    }
+
+    @Test
+    fun `spurious native cancellation is a failed attempt and still stops the service`() = runTest {
+        val order = mutableListOf<String>()
+
+        flushTelemetryBeforeStop(
+            brokerUrl = "https://winner.example/",
+            timeoutMillis = 5_000,
+            flush = { _ ->
+                order += "flush"
+                // The native transport reports its own "cancelled" kind as CancellationException
+                // even while the calling coroutine is live.
+                throw CancellationException("native transport reported cancelled")
             },
             stop = { order += "stop" },
         )
