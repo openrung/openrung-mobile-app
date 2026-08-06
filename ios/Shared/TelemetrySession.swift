@@ -13,7 +13,7 @@ public enum MonotonicClock {
 public struct TelemetrySession: Codable, Sendable, Equatable {
     public let id: String
     public let clientId: String
-    public let brokerURL: String
+    public var brokerURL: String
     public let startedElapsedMs: Int64
     public var relayId: String?
     public var connectedElapsedMs: Int64?

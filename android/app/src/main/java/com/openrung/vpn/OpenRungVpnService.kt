@@ -102,6 +102,7 @@ class OpenRungVpnService : VpnService() {
     private val pendingWssCloses = LinkedHashSet<Deferred<Unit>>()
     private var physicalNetworkMonitor: PhysicalNetworkEpochMonitor? = null
     private var brokerUrl: String = AppConfig.DEFAULT_BROKER_URL
+    private var telemetryBrokerUrl: String = AppConfig.TELEMETRY_BROKER_URL
     private var activeRelayId: String? = null
     private var requestedTargetCountry: String? = null
     private var requestedTargetRelayId: String? = null
@@ -135,7 +136,7 @@ class OpenRungVpnService : VpnService() {
         return START_STICKY
     }
 
-    private fun handleStartAction(
+    private suspend fun handleStartAction(
         action: String?,
         requestedBrokerUrl: String,
         targetCountry: String?,
@@ -223,14 +224,11 @@ class OpenRungVpnService : VpnService() {
     }
 
     override fun onDestroy() {
-        // Teardown runs on the service thread like every other state mutation; only after it
-        // completes is the scope cancelled so its Job and any in-flight coroutines (connect,
-        // heartbeat, the disconnect() telemetry flush) don't outlive this service instance.
-        // Mirrors OpenRungVpnModule.invalidate(). The on-destroy telemetry flush is best-effort —
-        // the outbox retries anything dropped here on the next session. Because [serviceThread]
-        // is process-global, a replacement instance's first command is guaranteed to run AFTER
-        // this teardown, so the dead instance can never end the replacement's telemetry session
-        // or overwrite its published status.
+        // Teardown runs on the service thread like every other state mutation; only after its
+        // bounded telemetry flush and local cleanup complete is the scope cancelled. Mirrors
+        // OpenRungVpnModule.invalidate(). Because [serviceThread] is process-global, a replacement
+        // instance's first command is guaranteed to run AFTER this teardown, so the dead instance
+        // can never end the replacement's telemetry session or overwrite its published status.
         val stopId = lastStartId // captured on Main at post time, same as onRevoke
         serviceScope.launch { disconnect(stopId) }.invokeOnCompletion { serviceScope.cancel() }
         super.onDestroy()
@@ -250,8 +248,10 @@ class OpenRungVpnService : VpnService() {
         // this epoch (preflight, punch, direct, WSS) sees the same rules. Recovery reconnects
         // re-enter connect() and naturally re-read the persisted config.
         splitTunnelRules = withContext(Dispatchers.IO) { currentSplitTunnelRules() }
-        // Telemetry/heartbeats intentionally keep using the dedicated configured target. Discovery's
-        // winning front is not automatically substituted for AppConfig.TELEMETRY_BROKER_URL.
+        // Start with the configured telemetry target so the pre-discovery event has a route. Once
+        // verified discovery succeeds, this session follows the winning front.
+        telemetryBrokerUrl = AppConfig.TELEMETRY_BROKER_URL
+        var sessionTelemetryBrokerUrl = telemetryBrokerUrl
         val telemetrySession = TelemetryManager.beginSession(applicationContext, AppConfig.TELEMETRY_BROKER_URL)
         var failureStage = "preparing"
         TelemetryManager.record("connection_attempted")
@@ -284,16 +284,29 @@ class OpenRungVpnService : VpnService() {
                 result to elapsed
             }
             val relayResponse = fetch.response
-            // Pin the winning front for native session-scoped control-plane work such as WSS
-            // tickets and recovery. Telemetry/heartbeats retain their dedicated configured target.
-            // The persisted/configured URL stays untouched so a user's custom choice survives.
+            // Pin the verified winner for every session-scoped broker call, including telemetry.
+            // The persisted/configured URL stays untouched so a user's custom choice survives the
+            // next session, where discovery will validate and select a winner again.
             if (fetch.brokerUrl != brokerUrl) {
-                this.brokerUrl = fetch.brokerUrl
                 OpenRungStatusStore.appendLog(getString(R.string.log_broker_fallback, fetch.brokerUrl))
             }
+            coroutineContext.ensureActive()
+            if (!TelemetryManager.updateBrokerUrl(telemetrySession.id, fetch.brokerUrl)) {
+                throw CancellationException("telemetry session was superseded")
+            }
+            this.brokerUrl = fetch.brokerUrl
+            telemetryBrokerUrl = fetch.brokerUrl
+            sessionTelemetryBrokerUrl = fetch.brokerUrl
             val candidates = relaySelector.orderedCandidates(relayResponse.relays, relayResponse.serverInstant)
             OpenRungStatusStore.appendLog(
                 getString(R.string.log_broker_returned, relayResponse.relays.size, candidates.size),
+            )
+            // Make the attempt visible before relay dialing. Upload failure is non-fatal and leaves
+            // the durable outbox untouched, but caller cancellation still aborts this stale epoch.
+            bestEffortTelemetryFlush(
+                brokerUrl = sessionTelemetryBrokerUrl,
+                timeoutMillis = TELEMETRY_FLUSH_TIMEOUT_MS,
+                flush = TelemetryManager::flush,
             )
             if (candidates.isEmpty()) {
                 throw RelaySelectionException.NoUsableRelay(getString(R.string.error_no_usable_relay))
@@ -396,9 +409,13 @@ class OpenRungVpnService : VpnService() {
             startTunnelEngineMonitor(relay, coroutineContext[Job])
             startPunchMonitor(relay, coroutineContext[Job])
             startWssMonitor(relay, coroutineContext[Job])
-            // This is deliberately the final operation. runCatching can swallow cancellation, so
-            // no stateful work may follow it; disconnect/recovery own the already-running jobs.
-            runCatching { TelemetryManager.flush(AppConfig.TELEMETRY_BROKER_URL) }
+            // This is deliberately the final operation. No stateful work may follow it;
+            // disconnect/recovery own the already-running jobs.
+            bestEffortTelemetryFlush(
+                brokerUrl = sessionTelemetryBrokerUrl,
+                timeoutMillis = TELEMETRY_FLUSH_TIMEOUT_MS,
+                flush = TelemetryManager::flush,
+            )
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {
@@ -437,12 +454,17 @@ class OpenRungVpnService : VpnService() {
             )
             TelemetryManager.endSession("connection_failed")
             OpenRungStatusStore.fail(error.message ?: getString(R.string.error_vpn_connection_failed))
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            // This epoch's own id, not the latest: a CONNECT delivered meanwhile carries a newer
-            // id, so AMS refuses this stop and the successor keeps the service.
-            stopSelf(epochStartId)
-            // Deliberately last: runCatching swallows cancellation, so nothing may publish after.
-            runCatching { TelemetryManager.flush(AppConfig.TELEMETRY_BROKER_URL) }
+            flushTelemetryBeforeStop(
+                brokerUrl = sessionTelemetryBrokerUrl,
+                timeoutMillis = TELEMETRY_FLUSH_TIMEOUT_MS,
+                flush = TelemetryManager::flush,
+                stop = {
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    // This epoch's own id, not the latest: a CONNECT delivered meanwhile carries a
+                    // newer id, so AMS refuses this stop and the successor keeps the service.
+                    stopSelf(epochStartId)
+                },
+            )
         }
     }
 
@@ -1024,7 +1046,7 @@ class OpenRungVpnService : VpnService() {
      * before either runs; the stale disconnect must clean up its own epoch without stopping the
      * service out from under the newer connect.
      */
-    private fun disconnect(stopId: Int) {
+    private suspend fun disconnect(stopId: Int) {
         heartbeatJob?.cancel()
         heartbeatJob = null
         engineMonitorJob?.cancel()
@@ -1040,14 +1062,21 @@ class OpenRungVpnService : VpnService() {
         activeRelayId?.let {
             TelemetryManager.record("tunnel_stopped", relayId = it)
         }
+        val terminalTelemetryBrokerUrl = TelemetryManager.activeSession()?.brokerUrl
+            ?: telemetryBrokerUrl
         activeRelayId = null
         TelemetryManager.endSession("disconnect")
-        serviceScope.launch {
-            runCatching { TelemetryManager.flush(AppConfig.TELEMETRY_BROKER_URL) }
-        }
-        stopForeground(STOP_FOREGROUND_REMOVE)
         OpenRungStatusStore.setStatus(ConnectionStatus.DISCONNECTED, relayLabel = null, lastError = null)
-        stopSelf(stopId)
+        flushTelemetryBeforeStop(
+            brokerUrl = terminalTelemetryBrokerUrl,
+            timeoutMillis = TELEMETRY_FLUSH_TIMEOUT_MS,
+            flush = TelemetryManager::flush,
+            stop = {
+                if (lastStartId != stopId) return@flushTelemetryBeforeStop
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf(stopId)
+            },
+        )
     }
 
     /**
@@ -1153,15 +1182,22 @@ class OpenRungVpnService : VpnService() {
         // See connect()'s failure tail: a superseded epoch must not end the successor's session,
         // overwrite its status, or stop the service it now owns.
         coroutineContext.ensureActive()
+        val terminalTelemetryBrokerUrl = TelemetryManager.activeSession()?.brokerUrl
+            ?: telemetryBrokerUrl
         activeRelayId = null
         TelemetryManager.endSession("connection_failed")
         OpenRungStatusStore.fail(userMessage)
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        // This epoch's own id, not the latest: a CONNECT delivered meanwhile carries a newer
-        // id, so AMS refuses this stop and the successor keeps the service.
-        stopSelf(epochStartId)
-        // Deliberately last: runCatching swallows cancellation, so nothing may publish after.
-        runCatching { TelemetryManager.flush(AppConfig.TELEMETRY_BROKER_URL) }
+        flushTelemetryBeforeStop(
+            brokerUrl = terminalTelemetryBrokerUrl,
+            timeoutMillis = TELEMETRY_FLUSH_TIMEOUT_MS,
+            flush = TelemetryManager::flush,
+            stop = {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                // This epoch's own id, not the latest: a CONNECT delivered meanwhile carries a
+                // newer id, so AMS refuses this stop and the successor keeps the service.
+                stopSelf(epochStartId)
+            },
+        )
     }
 
     /**
@@ -1716,6 +1752,7 @@ class OpenRungVpnService : VpnService() {
         internal const val PUNCH_HEALTH_MIN_DELAY_MS = 30_000L
         internal const val PUNCH_HEALTH_MAX_BACKOFF_MS = 300_000L
         internal const val PUNCH_HEALTH_FAILURE_THRESHOLD = 3
+        internal const val TELEMETRY_FLUSH_TIMEOUT_MS = 5_000L
         private const val PHYSICAL_NETWORK_RETRY_DELAY_MS = 5_000L
         private const val PHYSICAL_NETWORK_RETRY_MAX_DELAY_MS = 60_000L
         private const val ACCESS_TRANSPORT_DIRECT = "direct"

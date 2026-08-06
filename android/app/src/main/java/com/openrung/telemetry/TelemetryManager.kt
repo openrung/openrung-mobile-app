@@ -175,6 +175,17 @@ object TelemetryManager {
     fun activeSession(): Session? = synchronized(lock) { activeSession }
 
     /**
+     * Routes the still-current session through the broker front that won verified discovery.
+     * The expected ID prevents a cancelled connect epoch from overwriting its successor's route.
+     */
+    fun updateBrokerUrl(sessionId: String, brokerUrl: String): Boolean = synchronized(lock) {
+        val session = activeSession
+        if (session == null || session.id != sessionId) return@synchronized false
+        activeSession = session.copy(brokerUrl = brokerUrl)
+        true
+    }
+
+    /**
      * Records the tunnel's traffic counters for the active session. Reported values must be
      * cumulative since the engine started; the high-water mark is kept so a counter reset
      * (engine restart) never regresses what the session already reported.
