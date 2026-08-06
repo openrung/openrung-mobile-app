@@ -109,7 +109,7 @@ class TelemetryClientTest {
     }
 
     @Test
-    fun `Go cancelled result remains structured cancellation and closes operation`() = runBlocking {
+    fun `spurious Go cancelled result is a typed failure for a live caller and closes operation`() = runBlocking {
         val operation = RecordingNativeBrokerOperation().apply {
             telemetryResult = NativeBrokerCommonResult(
                 succeeded = false,
@@ -118,13 +118,16 @@ class TelemetryClientTest {
             )
         }
 
-        assertSuspendThrows<CancellationException> {
+        // A native "cancelled" kind reaching this live coroutine is a failed upload the outbox
+        // retries later; CancellationException here would end the caller's epoch instead.
+        val failure = assertSuspendThrows<BrokerNativeFailure> {
             TelemetryClient(
                 "https://telemetry.example/",
                 RecordingNativeBrokerOperationFactory(operation),
             ).send(listOf(EVENT))
         }
 
+        assertEquals(BrokerNativeFailureKind.CANCELLED, failure.kind)
         assertEquals(1, operation.closeCalls.get())
     }
 

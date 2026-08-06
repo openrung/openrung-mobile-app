@@ -68,6 +68,33 @@ final class TelemetryClientTests: XCTestCase {
         XCTAssertEqual(removedIDs.get(), [])
     }
 
+    func testSpuriousNativeCancelledSendIsTypedFailureForLiveCaller() async {
+        let operation = TestNativeBrokerOperation()
+        operation.telemetryHandler = { _, _ in
+            NativeBrokerResultSnapshot(
+                succeeded: false,
+                errorKind: "cancelled",
+                errorText: "request cancelled"
+            )
+        }
+        let client = TelemetryClient(
+            brokerURL: brokerURL,
+            operationFactory: TestNativeBrokerFactory(operation: operation)
+        )
+
+        // A native "cancelled" kind reaching this live task is a failed upload the outbox retries
+        // later; CancellationError here would end the caller's epoch instead.
+        do {
+            try await client.send([makeEvent()])
+            XCTFail("expected typed cancelled failure")
+        } catch let failure as BrokerNativeFailure {
+            XCTAssertEqual(failure.kind, .cancelled)
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+        XCTAssertEqual(operation.closeCount, 1)
+    }
+
     func testCancelledSendClosesAndDoesNotCommitQueuedIDs() async {
         let operation = BlockingNativeBrokerOperation()
         let removedIDs = TestLockedBox<Set<String>>([])

@@ -417,7 +417,7 @@ internal suspend fun <T> runNativeBrokerOperation(
 }
 
 /** Turns an unsuccessful or nil snapshot into the bounded native failure contract. */
-internal fun <T : NativeBrokerResult> requireNativeBrokerSuccess(
+internal suspend fun <T : NativeBrokerResult> requireNativeBrokerSuccess(
     result: T?,
     operationName: String,
 ): T {
@@ -437,7 +437,12 @@ internal fun <T : NativeBrokerResult> requireNativeBrokerSuccess(
         "$operationName failed: $detail"
     }
     if (kind == BrokerNativeFailureKind.CANCELLED) {
-        throw CancellationException(message)
+        // Cancellation is only ever the caller's: a genuinely cancelled coroutine propagates its
+        // own CancellationException here. A native "cancelled" kind reaching a live caller is a
+        // failed request — converting it into cancellation would silently end the caller's epoch
+        // (skipping failure status, telemetry, and service stop) on the strength of a Go-side
+        // race or mis-mapped binding error.
+        currentCoroutineContext().ensureActive()
     }
     throw BrokerNativeFailure(
         kind = kind,

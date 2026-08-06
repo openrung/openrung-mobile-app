@@ -6,6 +6,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -116,24 +118,57 @@ class NativeBrokerTransportTest {
     }
 
     @Test
-    fun `blank and future error kinds normalize to unknown and text is sanitized bounded`() {
+    fun `blank and future error kinds normalize to unknown and text is sanitized bounded`() = runBlocking {
         listOf("", "future_kind").forEach { rawKind ->
             val result = NativeBrokerCommonResult(
                 succeeded = false,
                 errorKind = rawKind,
                 errorText = "unsafe\r\n\t" + "😀".repeat(200),
             )
-            val failure = try {
+            val failure = assertSuspendThrows<BrokerNativeFailure> {
                 requireNativeBrokerSuccess(result, "native request")
-                throw AssertionError("expected failure")
-            } catch (error: BrokerNativeFailure) {
-                error
             }
             assertEquals(BrokerNativeFailureKind.UNKNOWN, failure.kind)
             assertFalse(failure.message.orEmpty().contains('\r'))
             assertFalse(failure.message.orEmpty().contains('\n'))
             assertTrue(failure.message.orEmpty().toByteArray(Charsets.UTF_8).size <= 256)
         }
+    }
+
+    @Test
+    fun `native cancelled kind reaching a live caller is a typed failure not cancellation`() = runBlocking {
+        val result = NativeBrokerCommonResult(
+            succeeded = false,
+            errorKind = "cancelled",
+            errorText = "request cancelled",
+        )
+
+        val failure = assertSuspendThrows<BrokerNativeFailure> {
+            requireNativeBrokerSuccess(result, "native request")
+        }
+
+        assertEquals(BrokerNativeFailureKind.CANCELLED, failure.kind)
+        assertFalse(failure.isLocalPlatformFailure)
+    }
+
+    @Test
+    fun `native cancelled kind in a cancelled caller propagates real cancellation`() = runBlocking {
+        val result = NativeBrokerCommonResult(succeeded = false, errorKind = "cancelled")
+        val observed = CompletableDeferred<Throwable>()
+        val job = launch {
+            currentCoroutineContext().cancel(CancellationException("caller cancelled"))
+            try {
+                requireNativeBrokerSuccess(result, "native request")
+            } catch (error: Throwable) {
+                observed.complete(error)
+                throw error
+            }
+        }
+        job.join()
+
+        val error = observed.await()
+        assertTrue("expected CancellationException, got $error", error is CancellationException)
+        assertFalse(error is BrokerNativeFailure)
     }
 
     @Test

@@ -118,6 +118,60 @@ final class WssTicketClientTests: XCTestCase {
         }
     }
 
+    func testSpuriousNativeCancelledAttemptIsTypedFailureAndFailsOverToNextFront() async throws {
+        let cancelledOperation = TestNativeBrokerOperation()
+        cancelledOperation.ticketHandler = { _, _, _, _, _ in
+            NativeBrokerWSSTicketResultSnapshot(
+                succeeded: false,
+                errorKind: "cancelled",
+                errorText: "request cancelled"
+            )
+        }
+        let successOperation = TestNativeBrokerOperation()
+        successOperation.ticketHandler = { _, _, _, _, _ in
+            NativeBrokerWSSTicketResultSnapshot(
+                succeeded: true,
+                ticket: "opaque-ticket",
+                url: Self.frontURL,
+                expiresAtMilliseconds: 1_753_142_520_123
+            )
+        }
+        let factory = TestNativeBrokerFactory([cancelledOperation, successOperation])
+        let attempted = TestLockedBox<[String]>([])
+
+        // A native "cancelled" kind with this task still live is one failed attempt, not epoch
+        // cancellation: failover must continue to the next front instead of aborting the ladder.
+        let ticket = try await WssTicketClient.requestWithFailover(
+            brokerURLs: [Self.primary, Self.secondary],
+            relayID: "relay-a",
+            frontID: "front-a",
+            clientID: nil,
+            sessionID: nil,
+            policy: WssTicketPolicy(),
+            monotonicMilliseconds: { 0 },
+            wait: { _ in },
+            attempt: { brokerURL, relayID, frontID, clientID, sessionID, _ in
+                attempted.mutate { $0.append(brokerURL.absoluteString) }
+                return try await WssTicketClient.requestOnce(
+                    operationFactory: factory,
+                    brokerURL: brokerURL,
+                    relayID: relayID,
+                    frontID: frontID,
+                    clientID: clientID,
+                    sessionID: sessionID
+                )
+            }
+        )
+
+        XCTAssertEqual(ticket.ticket, "opaque-ticket")
+        XCTAssertEqual(
+            attempted.get(),
+            [Self.primary.absoluteString, Self.secondary.absoluteString]
+        )
+        XCTAssertEqual(cancelledOperation.closeCount, 1)
+        XCTAssertEqual(successOperation.closeCount, 1)
+    }
+
     func testLocalNativeFailureWithIncidentalHTTPStatusIsNotProjectedOrRetried() async {
         let first = TestNativeBrokerOperation()
         first.ticketHandler = { _, _, _, _, _ in

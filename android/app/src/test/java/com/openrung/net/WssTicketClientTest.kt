@@ -289,6 +289,56 @@ class WssTicketClientTest {
             }
     }
 
+    // Real time on purpose: requestOnce hops through Dispatchers.IO, which runTest's virtual
+    // clock treats as idle waiting, expiring the per-attempt withTimeout before the fake returns.
+    @Test
+    fun `spurious native cancelled attempt is a typed failure and fails over to the next front`() = runBlocking {
+        val cancelledOperation = RecordingNativeBrokerOperation().apply {
+            wssTicketResult = NativeBrokerWssTicketResult(
+                succeeded = false,
+                errorKind = "cancelled",
+                errorText = "request cancelled",
+            )
+        }
+        val successOperation = RecordingNativeBrokerOperation().apply {
+            wssTicketResult = NativeBrokerWssTicketResult(
+                succeeded = true,
+                ticket = "opaque-ticket",
+                url = FRONT_URL,
+                expiresAtMillis = 1_785_024_060_123,
+            )
+        }
+        val factory = RecordingNativeBrokerOperationFactory(cancelledOperation, successOperation)
+
+        // A native "cancelled" kind with this caller still live is one failed attempt, not epoch
+        // cancellation: failover must continue to the next front instead of aborting the ladder.
+        val result = WssTicketClient.requestWithFailover(
+            brokerUrls = listOf("https://primary.example/", "https://secondary.example/"),
+            relayId = "relay-a",
+            frontId = "front-a",
+            clientId = null,
+            sessionId = null,
+            policy = WssTicketPolicy(totalDeadlineMillis = 20_000),
+            elapsedRealtimeMillis = { 0L },
+            wait = {},
+            attempt = { brokerUrl, relayId, frontId, clientId, sessionId, timeout ->
+                WssTicketClient.requestOnce(
+                    brokerUrl = brokerUrl,
+                    relayId = relayId,
+                    frontId = frontId,
+                    clientId = clientId,
+                    sessionId = sessionId,
+                    timeoutMillis = timeout,
+                    operationFactory = factory,
+                )
+            },
+        )
+
+        assertEquals("opaque-ticket", result.ticket)
+        assertEquals(1, cancelledOperation.wssTicketCalls.size)
+        assertEquals(1, successOperation.wssTicketCalls.size)
+    }
+
     @Test
     fun `caller cancellation propagates and never attempts another front`() = runTest {
         val calls = mutableListOf<String>()
