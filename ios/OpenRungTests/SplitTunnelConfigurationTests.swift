@@ -41,10 +41,12 @@ final class SplitTunnelConfigurationTests: XCTestCase {
         XCTAssertNil(route["rule_set"])
         XCTAssertEqual(try canonicalJSON(route["rules"]), try canonicalJSON([
             ["protocol": "dns", "action": "hijack-dns"],
+            ["action": "sniff"],
+            ["domain": ["cp.cloudflare.com"], "outbound": "proxy"],
             ["ip_is_private": true, "outbound": "direct"],
         ] as [[String: Any]]))
 
-        // Everything outside route — dns (no "rules" key), tun inbound, outbounds — is untouched.
+        // Everything outside route — DNS failover, tun inbound, outbounds — is untouched.
         baseline.removeValue(forKey: "route")
         split.removeValue(forKey: "route")
         XCTAssertEqual(try canonicalJSON(baseline), try canonicalJSON(split))
@@ -68,14 +70,19 @@ final class SplitTunnelConfigurationTests: XCTestCase {
             "type": "udp",
             "server": "178.22.122.100"
         ] as [String: Any]))
-        XCTAssertEqual(try canonicalJSON(dns["rules"]), try canonicalJSON([
-            ["rule_set": ["geosite-ir"], "server": "dns-direct-ir"],
-        ] as [[String: Any]]))
+        let dnsRules = try XCTUnwrap(dns["rules"] as? [[String: Any]])
+        XCTAssertEqual(dnsRules.count, 8)
+        XCTAssertEqual(try canonicalJSON(dnsRules[3]), try canonicalJSON([
+            "rule_set": ["geosite-ir"],
+            "action": "route",
+            "server": "dns-direct-ir",
+        ] as [String: Any]))
 
         let route = try XCTUnwrap(object["route"] as? [String: Any])
         XCTAssertEqual(try canonicalJSON(route["rules"]), try canonicalJSON([
             ["protocol": "dns", "action": "hijack-dns"],
             ["action": "sniff"],
+            ["domain": ["cp.cloudflare.com"], "outbound": "proxy"],
             ["rule_set": ["geosite-ir", "geoip-ir"], "outbound": "direct"],
         ] as [[String: Any]]))
         XCTAssertEqual(try canonicalJSON(route["rule_set"]), try canonicalJSON([
@@ -91,18 +98,23 @@ final class SplitTunnelConfigurationTests: XCTestCase {
 
         let dns = try XCTUnwrap(split["dns"] as? [String: Any])
         let servers = try XCTUnwrap(dns["servers"] as? [[String: Any]])
-        XCTAssertEqual(servers.map { $0["tag"] as? String }, ["dns-0", "dns-1", "dns-direct-ir", "dns-direct-cn"])
+        XCTAssertEqual(
+            servers.map { $0["tag"] as? String },
+            ["dns-proxy-primary", "dns-proxy-secondary", "dns-direct-ir", "dns-direct-cn"]
+        )
         XCTAssertEqual(servers[3]["server"] as? String, "223.5.5.5")
         XCTAssertTrue(servers.suffix(2).allSatisfy { $0["detour"] == nil })
-        XCTAssertEqual(try canonicalJSON(dns["rules"]), try canonicalJSON([
-            ["rule_set": ["geosite-ir"], "server": "dns-direct-ir"],
-            ["rule_set": ["geosite-cn"], "server": "dns-direct-cn"],
+        let dnsRules = try XCTUnwrap(dns["rules"] as? [[String: Any]])
+        XCTAssertEqual(try canonicalJSON(Array(dnsRules[3...4])), try canonicalJSON([
+            ["rule_set": ["geosite-ir"], "action": "route", "server": "dns-direct-ir"],
+            ["rule_set": ["geosite-cn"], "action": "route", "server": "dns-direct-cn"],
         ] as [[String: Any]]))
 
         let route = try XCTUnwrap(split["route"] as? [String: Any])
         XCTAssertEqual(try canonicalJSON(route["rules"]), try canonicalJSON([
             ["protocol": "dns", "action": "hijack-dns"],
             ["action": "sniff"],
+            ["domain": ["cp.cloudflare.com"], "outbound": "proxy"],
             ["ip_is_private": true, "outbound": "direct"],
             ["rule_set": ["geosite-ir", "geoip-ir"], "outbound": "direct"],
             ["rule_set": ["geosite-cn", "geoip-cn"], "outbound": "direct"],
@@ -123,6 +135,84 @@ final class SplitTunnelConfigurationTests: XCTestCase {
             split.removeValue(forKey: key)
         }
         XCTAssertEqual(try canonicalJSON(baseline), try canonicalJSON(split))
+    }
+
+    func testProxiedDNSUsesNonCircularDoH443AndFallsBackToASecondResolver() throws {
+        let object = SingBoxConfiguration(relay: makeWssTestRelay()).makeJSONObject()
+        let dns = try XCTUnwrap(object["dns"] as? [String: Any])
+        let servers = try XCTUnwrap(dns["servers"] as? [[String: Any]])
+
+        XCTAssertEqual(servers.count, 2)
+        XCTAssertEqual(try canonicalJSON(servers[0]), try canonicalJSON([
+            "tag": "dns-proxy-primary",
+            "type": "https",
+            "server": "1.1.1.1",
+            "server_port": 443,
+            "path": "/dns-query",
+            "detour": "proxy",
+            "tls": ["enabled": true, "server_name": "cloudflare-dns.com"],
+        ] as [String: Any]))
+        XCTAssertEqual(try canonicalJSON(servers[1]), try canonicalJSON([
+            "tag": "dns-proxy-secondary",
+            "type": "https",
+            "server": "8.8.8.8",
+            "server_port": 443,
+            "path": "/dns-query",
+            "detour": "proxy",
+            "tls": ["enabled": true, "server_name": "dns.google"],
+        ] as [String: Any]))
+        XCTAssertTrue(servers.allSatisfy { $0["domain_resolver"] == nil })
+        XCTAssertEqual(dns["final"] as? String, "dns-proxy-secondary")
+
+        let rules = try XCTUnwrap(dns["rules"] as? [[String: Any]])
+        XCTAssertEqual(rules.map { $0["action"] as? String }, [
+            "evaluate", "respond", "route", "evaluate", "respond", "respond", "route",
+        ])
+        XCTAssertEqual(rules[1]["ip_accept_any"] as? Bool, true)
+        XCTAssertNil(rules[1]["response_rcode"])
+        XCTAssertEqual(rules[2]["server"] as? String, "dns-proxy-secondary")
+        XCTAssertEqual(rules[3]["server"] as? String, "dns-proxy-primary")
+        XCTAssertEqual(rules[4]["match_response"] as? Bool, true)
+        XCTAssertEqual(rules[4]["response_rcode"] as? String, "NOERROR")
+        XCTAssertNil(rules[4]["server"])
+        XCTAssertEqual(rules[5]["response_rcode"] as? String, "NXDOMAIN")
+        XCTAssertEqual(rules[6]["server"] as? String, "dns-proxy-secondary")
+        XCTAssertEqual(rules[6]["timeout"] as? String, "3s")
+    }
+
+    func testChinaBypassCannotCaptureConnectivityProbeDNSOrHTTPS() throws {
+        let object = SingBoxConfiguration(
+            relay: makeWssTestRelay(),
+            splitTunnel: SplitTunnelRules(
+                bypassLan: false,
+                bypassCountries: ["cn"],
+                ruleSetDirectory: ruleSetDirectory
+            )
+        ).makeJSONObject()
+
+        let dns = try XCTUnwrap(object["dns"] as? [String: Any])
+        let dnsRules = try XCTUnwrap(dns["rules"] as? [[String: Any]])
+        let directDNSIndex = try XCTUnwrap(
+            dnsRules.firstIndex { $0["server"] as? String == "dns-direct-cn" }
+        )
+        XCTAssertGreaterThanOrEqual(directDNSIndex, 3)
+        XCTAssertEqual(dnsRules[0]["domain"] as? [String], ["cp.cloudflare.com"])
+        XCTAssertEqual(dnsRules[0]["server"] as? String, "dns-proxy-primary")
+        XCTAssertEqual(dnsRules[2]["domain"] as? [String], ["cp.cloudflare.com"])
+        XCTAssertEqual(dnsRules[2]["server"] as? String, "dns-proxy-secondary")
+        XCTAssertTrue((dnsRules[0]["disable_cache"] as? Bool) == true)
+        XCTAssertTrue((dnsRules[2]["disable_cache"] as? Bool) == true)
+
+        let route = try XCTUnwrap(object["route"] as? [String: Any])
+        let routeRules = try XCTUnwrap(route["rules"] as? [[String: Any]])
+        let chinaBypassIndex = try XCTUnwrap(
+            routeRules.firstIndex { ($0["rule_set"] as? [String])?.contains("geosite-cn") == true }
+        )
+        let forcedProxyIndex = try XCTUnwrap(
+            routeRules.firstIndex { $0["domain"] as? [String] == ["cp.cloudflare.com"] }
+        )
+        XCTAssertLessThan(forcedProxyIndex, chinaBypassIndex)
+        XCTAssertEqual(routeRules[forcedProxyIndex]["outbound"] as? String, "proxy")
     }
 
     func testBridgeModeKeepsSplitRulesAndStillOmitsRouteExcludeAddress() throws {

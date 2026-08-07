@@ -359,24 +359,25 @@ class OpenRungVpnService : VpnService() {
             }
 
             failureStage = "relay_connect"
-            val connectedRelay = connectFirstAvailable(rankedCandidates.map { it.relay })
-            // If a disconnect raced in while we were connecting, don't publish CONNECTED for a
-            // tunnel that's being torn down. Stopping the engine is owned by disconnect()/a new
-            // connect (both call cleanupActiveTunnel); we just must not commit CONNECTED here.
-            coroutineContext.ensureActive()
-            val relay = connectedRelay.relay
-            activeRelayId = relay.id
-            TelemetryManager.markConnected(relay.id)
-            OpenRungStatusStore.setStatus(
-                ConnectionStatus.CONNECTED,
-                relayLabel = null,
-                relayName = relay.displayName(),
-                // Bridge contract: anything but "foundation" collapses to "volunteer".
-                relayClass = relay.normalizedNodeClass(),
-                lastError = null,
+            val connectedRelay = publishConnectedAfterVerifiedStartup(
+                startAndVerify = { connectFirstAvailable(rankedCandidates.map { it.relay }) },
+                publishConnected = { verifiedRelay ->
+                    val relay = verifiedRelay.relay
+                    activeRelayId = relay.id
+                    TelemetryManager.markConnected(relay.id)
+                    OpenRungStatusStore.setStatus(
+                        ConnectionStatus.CONNECTED,
+                        relayLabel = null,
+                        relayName = relay.displayName(),
+                        // Bridge contract: anything but "foundation" collapses to "volunteer".
+                        relayClass = relay.normalizedNodeClass(),
+                        lastError = null,
+                    )
+                    updateNotification(getString(R.string.status_connected))
+                    applyRelayLocation(relay)
+                },
             )
-            updateNotification(getString(R.string.status_connected))
-            applyRelayLocation(relay)
+            val relay = connectedRelay.relay
             TelemetryManager.record(
                 event = "connection_succeeded",
                 relayId = relay.id,

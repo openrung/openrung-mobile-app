@@ -35,12 +35,17 @@ class SingBoxConfigurationSplitTunnelTest {
 
         val routeRules = config.routeRules()
         assertEquals(baseline.routeRules().size + 1, routeRules.size)
-        val lanRule = routeRules[1].jsonObject
+        val lanRule = routeRules[3].jsonObject
         assertEquals(true, lanRule["ip_is_private"]!!.jsonPrimitive.content.toBoolean())
         assertEquals("direct", lanRule["outbound"]!!.jsonPrimitive.content)
-        assertFalse(routeRules.any { "sniff" == it.jsonObject["action"]?.jsonPrimitive?.content })
+        assertEquals("sniff", routeRules[1].jsonObject["action"]!!.jsonPrimitive.content)
+        assertEquals(
+            SingBoxConfiguration.CONNECTIVITY_PROBE_HOST,
+            routeRules[2].jsonObject["domain"]!!.jsonArray.single().jsonPrimitive.content,
+        )
+        assertEquals("proxy", routeRules[2].jsonObject["outbound"]!!.jsonPrimitive.content)
 
-        assertFalse(config["dns"]!!.jsonObject.containsKey("rules"))
+        assertTrue(config["dns"]!!.jsonObject.containsKey("rules"))
         assertFalse(config["route"]!!.jsonObject.containsKey("rule_set"))
         assertFalse(config.tunInbound().containsKey("exclude_package"))
     }
@@ -55,13 +60,14 @@ class SingBoxConfigurationSplitTunnelTest {
         val routeRules = config.routeRules()
         assertEquals("hijack-dns", routeRules[0].jsonObject["action"]!!.jsonPrimitive.content)
         assertEquals("sniff", routeRules[1].jsonObject["action"]!!.jsonPrimitive.content)
-        val countryRule = routeRules[2].jsonObject
+        assertEquals("proxy", routeRules[2].jsonObject["outbound"]!!.jsonPrimitive.content)
+        val countryRule = routeRules[3].jsonObject
         assertEquals(
             listOf("geosite-ir", "geoip-ir"),
             countryRule["rule_set"]!!.jsonArray.map { it.jsonPrimitive.content },
         )
         assertEquals("direct", countryRule["outbound"]!!.jsonPrimitive.content)
-        assertEquals(3, routeRules.size)
+        assertEquals(4, routeRules.size)
 
         val dns = config["dns"]!!.jsonObject
         val directServer = dns["servers"]!!.jsonArray.last().jsonObject
@@ -74,12 +80,14 @@ class SingBoxConfigurationSplitTunnelTest {
         )
 
         val dnsRules = dns["rules"]!!.jsonArray
-        assertEquals(1, dnsRules.size)
+        val countryDnsRule = dnsRules.first {
+            it.jsonObject["server"]?.jsonPrimitive?.content == "dns-direct-ir"
+        }.jsonObject
         assertEquals(
             listOf("geosite-ir"),
-            dnsRules[0].jsonObject["rule_set"]!!.jsonArray.map { it.jsonPrimitive.content },
+            countryDnsRule["rule_set"]!!.jsonArray.map { it.jsonPrimitive.content },
         )
-        assertEquals("dns-direct-ir", dnsRules[0].jsonObject["server"]!!.jsonPrimitive.content)
+        assertEquals("route", countryDnsRule["action"]!!.jsonPrimitive.content)
 
         val ruleSets = config["route"]!!.jsonObject["rule_set"]!!.jsonArray.map { it.jsonObject }
         assertEquals(listOf("geosite-ir", "geoip-ir"), ruleSets.map { it["tag"]!!.jsonPrimitive.content })
@@ -99,17 +107,18 @@ class SingBoxConfigurationSplitTunnelTest {
         ).makeJsonObject()
 
         val routeRules = config.routeRules().map { it.jsonObject }
-        assertEquals(5, routeRules.size)
+        assertEquals(6, routeRules.size)
         assertEquals("hijack-dns", routeRules[0]["action"]!!.jsonPrimitive.content)
         assertEquals("sniff", routeRules[1]["action"]!!.jsonPrimitive.content)
-        assertEquals(true, routeRules[2]["ip_is_private"]!!.jsonPrimitive.content.toBoolean())
+        assertEquals("proxy", routeRules[2]["outbound"]!!.jsonPrimitive.content)
+        assertEquals(true, routeRules[3]["ip_is_private"]!!.jsonPrimitive.content.toBoolean())
         assertEquals(
             listOf("geosite-ir", "geoip-ir"),
-            routeRules[3]["rule_set"]!!.jsonArray.map { it.jsonPrimitive.content },
+            routeRules[4]["rule_set"]!!.jsonArray.map { it.jsonPrimitive.content },
         )
         assertEquals(
             listOf("geosite-cn", "geoip-cn"),
-            routeRules[4]["rule_set"]!!.jsonArray.map { it.jsonPrimitive.content },
+            routeRules[5]["rule_set"]!!.jsonArray.map { it.jsonPrimitive.content },
         )
 
         val dns = config["dns"]!!.jsonObject
@@ -125,7 +134,10 @@ class SingBoxConfigurationSplitTunnelTest {
         assertTrue(directServers.none { it.containsKey("detour") })
         assertEquals(
             listOf("dns-direct-ir", "dns-direct-cn"),
-            dns["rules"]!!.jsonArray.map { it.jsonObject["server"]!!.jsonPrimitive.content },
+            dns["rules"]!!.jsonArray.mapNotNull {
+                it.jsonObject["server"]?.jsonPrimitive?.content
+                    ?.takeIf { server -> server.startsWith("dns-direct-") }
+            },
         )
         assertEquals(
             listOf("geosite-ir", "geoip-ir", "geosite-cn", "geoip-cn"),

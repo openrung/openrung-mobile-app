@@ -169,10 +169,38 @@ weaken the production OS policy.
   path-health recovery cancels that monitor, stops libbox first, retires the
   epoch monitor, and only then closes the WSS adapter before waiting for a usable
   physical network. On iOS, every startup and health result used for path
-  classification is a bounded HTTPS response-head probe created with
+  classification first sends a raw, uncached A query to the TUN DNS address
+  with `NEPacketTunnelProvider.createUDPSessionThroughTunnel`, then performs a
+  bounded HTTPS response-head probe with
   `NEPacketTunnelProvider.createTCPConnectionThroughTunnel`; a provider-owned
   `URLSession` is excluded from its own TUN and must never authorize fallback
   or recovery.
+- **Tunnel DNS and end-to-end proof** — every generated tunnel configuration
+  sends ordinary DNS through the `proxy` outbound as DoH on TCP/443. The
+  primary transport dials literal `1.1.1.1` while authenticating and sending
+  `cloudflare-dns.com`; the secondary dials literal `8.8.8.8` while
+  authenticating and sending `dns.google`. The literal dial addresses are the
+  bootstrap: reaching DNS never first requires DNS, while TLS still verifies
+  the provider hostname. Sing-box 1.14 `evaluate`/`respond` rules accept a
+  usable primary result and otherwise reach an explicit secondary `route`
+  rule; `dns.final` remains a defensive secondary fallback rather than the
+  mechanism expected to make the second server run.
+
+  Startup and active health use only
+  `https://cp.cloudflare.com/generate_204`. Its exact-host DNS rules run before
+  every country rule, disable normal and optimistic DNS caches, require an
+  address from the primary or try the secondary, and therefore exercise a
+  fresh proxied DNS exchange. After the unconditional sniff action, an
+  exact-host route to `proxy` also runs before LAN and country bypasses. Thus a
+  working direct connection cannot make a dead proxy look healthy when China
+  bypass is enabled; native publishes `CONNECTED` only after this DNS plus
+  HTTPS path succeeds. Android 10+ bypasses netd's lookup cache with
+  `DnsResolver.FLAG_NO_CACHE_LOOKUP`; Android 8–9 instead sends a raw A query
+  to the VPN-advertised DNS listener from a socket bound to the VPN `Network`.
+  Android's separate physical-network recovery check is intentionally
+  different: it remains bound outside the VPN and keeps both gstatic and
+  Cloudflare endpoints so it can distinguish a live local network from a dead
+  tunnel.
 - **Telemetry / heartbeat / speed-test** — currently also `https://broker.openrung.org/`
   (the same Cloudflare-fronted broker); see the trade-off below.
 - **Update manifest** — the exact direct broker and CloudFront candidates use
@@ -184,12 +212,13 @@ weaken the production OS policy.
   accept) — because an unrecognized candidate throws inside the fail-open walk
   and would silently demote the app to the GitHub-only path. `transport:check`
   and `updateManifest.test.ts` both assert the two lists are identical.
-- **Geo lookup** (`https://ipwho.is/`) and **connectivity probes**
-  (`https://www.gstatic.com/generate_204`, `https://cp.cloudflare.com/generate_204`)
-  are HTTPS. Android's physical-network recovery probe deliberately uses
-  `Network.openConnection` against those two independent connectivity
-  endpoints so the check cannot accidentally traverse the unhealthy VPN; it
-  sends no OpenRung identity or broker headers.
+- **Geo lookup** (`https://ipwho.is/`) and both kinds of **connectivity probe**
+  are HTTPS. The through-tunnel startup/health probe is the protected
+  `https://cp.cloudflare.com/generate_204` path described above. Android's
+  physical-network recovery probe deliberately uses `Network.openConnection`
+  against `https://www.gstatic.com/generate_204` and
+  `https://cp.cloudflare.com/generate_204` so that check cannot accidentally
+  traverse the unhealthy VPN; it sends no OpenRung identity or broker headers.
 
 There is no runtime switch back to the removed JavaScript broker transports.
 A missing or stale `OpenRungBroker` binding rejects as `unavailable` and
@@ -275,11 +304,16 @@ At connect time the native generators translate the stored config into
 sing-box deltas: an `ip_is_private` → direct route rule for LAN bypass;
 per-country local rule sets (`geosite-<cc>.srs` / `geoip-<cc>.srs`, bundled
 from `rulesets/dist/` — Android stages them into `<filesDir>/libbox/rulesets/`,
-iOS reads them from the PacketTunnel bundle) routed direct, with a sniff rule
-and per-country DNS over the direct path (Shecan `178.22.122.100` for Iran,
-AliDNS `223.5.5.5` for China); and on Android an OS-level `exclude_package`
-list on the TUN inbound. The Android app picker is fed by the separate
-`OpenRungAppList` module (launcher apps, background-resolved). Everything
+iOS reads them from the PacketTunnel bundle) routed direct, with per-country
+DNS over the direct path (Shecan `178.22.122.100` for Iran, AliDNS
+`223.5.5.5` for China); and on Android an OS-level `exclude_package` list on
+the TUN inbound. Sniffing is part of the baseline configuration because the
+protected `cp.cloudflare.com` route needs the hostname even when no country is
+enabled. The probe-specific DNS and route rules always precede LAN/country
+bypasses; country-specific rules are inserted between that protected prefix
+and the ordinary primary-to-secondary DoH failover tail. The Android app picker
+is fed by the separate `OpenRungAppList` module (launcher apps,
+background-resolved). Everything
 fails open (CONTRACT §1): a bad/missing config or a missing rule-set file
 degrades to full-tunnel behavior with a log line — split tunneling never
 blocks a connect.

@@ -1,10 +1,40 @@
 import Foundation
 
 public struct SingBoxConfiguration: Equatable, Sendable {
+    public struct DNSOverHTTPSResolver: Equatable, Sendable {
+        public let tag: String
+        public let serverAddress: String
+        public let tlsServerName: String
+
+        public init(tag: String, serverAddress: String, tlsServerName: String) {
+            self.tag = tag
+            self.serverAddress = serverAddress
+            self.tlsServerName = tlsServerName
+        }
+    }
+
+    /// A hostname used only to prove that the active tunnel can resolve DNS and complete HTTPS.
+    /// It must stay out of country-bypass routing even if a downloaded geosite rule later grows
+    /// to include it.
+    public static let connectivityProbeHost = "cp.cloudflare.com"
+
+    public static let defaultDNSOverHTTPSResolvers = [
+        DNSOverHTTPSResolver(
+            tag: "dns-proxy-primary",
+            serverAddress: "1.1.1.1",
+            tlsServerName: "cloudflare-dns.com"
+        ),
+        DNSOverHTTPSResolver(
+            tag: "dns-proxy-secondary",
+            serverAddress: "8.8.8.8",
+            tlsServerName: "dns.google"
+        ),
+    ]
+
     public let relay: RelayDescriptor
     public let tunnelIPv4Address: String
     public let tunnelIPv6Address: String
-    public let dnsServers: [String]
+    public let dnsOverHTTPSResolvers: [DNSOverHTTPSResolver]
     public let mtu: Int
     /// Optional loopback endpoint owned by a native access transport such as wsscore.
     public let bridgeHost: String?
@@ -18,7 +48,7 @@ public struct SingBoxConfiguration: Equatable, Sendable {
         relay: RelayDescriptor,
         tunnelIPv4Address: String = "172.19.0.1/30",
         tunnelIPv6Address: String = "fdfe:dcba:9876::1/126",
-        dnsServers: [String] = ["1.1.1.1", "8.8.8.8"],
+        dnsOverHTTPSResolvers: [DNSOverHTTPSResolver] = Self.defaultDNSOverHTTPSResolvers,
         mtu: Int = 1400,
         bridgeHost: String? = nil,
         bridgePort: Int? = nil,
@@ -27,7 +57,7 @@ public struct SingBoxConfiguration: Equatable, Sendable {
         self.relay = relay
         self.tunnelIPv4Address = tunnelIPv4Address
         self.tunnelIPv6Address = tunnelIPv6Address
-        self.dnsServers = dnsServers
+        self.dnsOverHTTPSResolvers = dnsOverHTTPSResolvers
         self.mtu = mtu
         self.bridgeHost = bridgeHost
         self.bridgePort = bridgePort
@@ -74,12 +104,26 @@ public struct SingBoxConfiguration: Equatable, Sendable {
         let bypassCountries = (splitTunnel?.bypassCountries ?? []).compactMap(SplitTunnelCountry.forCode)
         let bypassLan = splitTunnel?.bypassLan == true
 
-        var dnsServerObjects: [[String: Any]] = dnsServers.enumerated().map { index, server in
+        // Resolve DoH without asking DNS how to reach DNS: each resolver dials a literal IP while
+        // TLS still authenticates and sends the provider hostname. Both exchanges use the proxy,
+        // so WSS carries ordinary HTTPS/443 instead of the blackholed TCP/53 traffic it replaced.
+        let proxiedResolvers = dnsOverHTTPSResolvers.count >= 2
+            ? Array(dnsOverHTTPSResolvers.prefix(2))
+            : Self.defaultDNSOverHTTPSResolvers
+        let primaryDNS = proxiedResolvers[0].tag
+        let secondaryDNS = proxiedResolvers[1].tag
+        var dnsServerObjects: [[String: Any]] = proxiedResolvers.map { resolver in
             [
-                "tag": "dns-\(index)",
-                "type": "tcp",
-                "server": server,
-                "detour": "proxy"
+                "tag": resolver.tag,
+                "type": "https",
+                "server": resolver.serverAddress,
+                "server_port": 443,
+                "path": "/dns-query",
+                "detour": "proxy",
+                "tls": [
+                    "enabled": true,
+                    "server_name": resolver.tlsServerName,
+                ] as [String: Any],
             ]
         }
         for country in bypassCountries {
@@ -91,29 +135,86 @@ public struct SingBoxConfiguration: Equatable, Sendable {
                 "server": country.directResolver
             ])
         }
-        var dns: [String: Any] = [
-            "servers": dnsServerObjects,
-            "final": "dns-0"
+        // `final` by itself never retries another resolver. An evaluate action is deliberately
+        // non-terminal: a usable primary response is returned by a following respond rule, while
+        // an exchange error or unusable response falls through to the secondary. The known probe
+        // host requires at least one address; NXDOMAIN, SERVFAIL and empty NOERROR all fail over.
+        // The exact-host rules run first and disable both normal and optimistic caches so every
+        // startup/health HTTPS probe also exercises a fresh upstream DNS exchange.
+        var dnsRules: [[String: Any]] = [
+            [
+                "domain": [Self.connectivityProbeHost],
+                "action": "evaluate",
+                "server": primaryDNS,
+                "timeout": "2s",
+                "disable_cache": true,
+                "disable_optimistic_cache": true,
+            ],
+            [
+                "domain": [Self.connectivityProbeHost],
+                "match_response": true,
+                "ip_accept_any": true,
+                "action": "respond",
+            ],
+            [
+                "domain": [Self.connectivityProbeHost],
+                "action": "route",
+                "server": secondaryDNS,
+                "timeout": "3s",
+                "disable_cache": true,
+                "disable_optimistic_cache": true,
+            ],
         ]
         if bypassCountries.isEmpty == false {
-            dns["rules"] = bypassCountries.map { country in
+            dnsRules.append(contentsOf: bypassCountries.map { country in
                 [
                     "rule_set": [country.geositeTag],
+                    "action": "route",
                     "server": "dns-direct-\(country.code)"
                 ] as [String: Any]
-            }
+            })
         }
+        dnsRules.append([
+            "action": "evaluate",
+            "server": primaryDNS,
+            "timeout": "2s",
+        ])
+        dnsRules.append([
+            "match_response": true,
+            "response_rcode": "NOERROR",
+            "action": "respond",
+        ])
+        dnsRules.append([
+            "match_response": true,
+            "response_rcode": "NXDOMAIN",
+            "action": "respond",
+        ])
+        dnsRules.append([
+            "action": "route",
+            "server": secondaryDNS,
+            "timeout": "3s",
+        ])
+        let dns: [String: Any] = [
+            "servers": dnsServerObjects,
+            "rules": dnsRules,
+            "final": secondaryDNS,
+            "timeout": "3s",
+        ]
 
         var routeRules: [[String: Any]] = [
             [
                 "protocol": "dns",
                 "action": "hijack-dns"
-            ]
+            ],
+            // Sniff before applying the exact-host exception: packets arrive from the TUN with an
+            // IP destination, so country geosite matching and this anti-bypass rule both need the
+            // recovered TLS/HTTP hostname.
+            ["action": "sniff"],
+            [
+                "domain": [Self.connectivityProbeHost],
+                "outbound": "proxy",
+            ],
         ]
-        if bypassCountries.isEmpty == false {
-            // Domain rule sets need the sniffed hostname on raw connections.
-            routeRules.append(["action": "sniff"])
-        }
         if bypassLan {
             routeRules.append([
                 "ip_is_private": true,
@@ -128,7 +229,7 @@ public struct SingBoxConfiguration: Equatable, Sendable {
         }
         var route: [String: Any] = [
             "auto_detect_interface": true,
-            "default_domain_resolver": "dns-0",
+            "default_domain_resolver": primaryDNS,
             "rules": routeRules,
             "final": "proxy"
         ]
