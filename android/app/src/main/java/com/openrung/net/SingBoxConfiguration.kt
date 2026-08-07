@@ -43,6 +43,14 @@ data class SplitTunnelRules(
     }
 }
 
+data class DnsOverHttpsResolver(
+    val tag: String,
+    /** Literal address keeps the resolver bootstrap independent from DNS itself. */
+    val serverAddress: String,
+    /** Hostname authenticated by TLS while [serverAddress] is dialed directly. */
+    val tlsServerName: String,
+)
+
 data class SingBoxConfiguration(
     val relay: RelayDescriptor,
     /** Loopback TCP adapter exposed by a native transport. Empty means use the relay endpoint. */
@@ -50,7 +58,7 @@ data class SingBoxConfiguration(
     val bridgePort: Int = 0,
     val tunnelIPv4Address: String = "172.19.0.1/30",
     val tunnelIPv6Address: String = "fdfe:dcba:9876::1/126",
-    val dnsServers: List<String> = listOf("1.1.1.1", "8.8.8.8"),
+    val dnsOverHttpsResolvers: List<DnsOverHttpsResolver> = DEFAULT_DOH_RESOLVERS,
     val mtu: Int = 1400,
     val splitTunnel: SplitTunnelRules? = null,
 ) {
@@ -72,6 +80,9 @@ data class SingBoxConfiguration(
         val outboundPort = if (useLoopbackAdapter) bridgePort else relay.publicPort
         val bypassCountries = splitTunnel?.bypassCountries.orEmpty()
         val excludedPackages = splitTunnel?.excludedPackages.orEmpty()
+        validateDnsResolvers()
+        val primaryDnsResolver = dnsOverHttpsResolvers.first()
+        val fallbackDnsResolver = dnsOverHttpsResolvers.last()
 
         val tunInbound = mutableMapOf<String, JsonElement>(
             "type" to JsonPrimitive("tun"),
@@ -104,12 +115,21 @@ data class SingBoxConfiguration(
             })
             put("dns", buildJsonObject {
                 put("servers", buildJsonArray {
-                    dnsServers.forEachIndexed { index, server ->
+                    // Resolve DoH without asking DNS how to reach DNS: each resolver dials a
+                    // literal IP while TLS authenticates the provider hostname. WSS therefore
+                    // carries ordinary HTTPS/443 instead of the blackholed TCP/53 it replaces.
+                    dnsOverHttpsResolvers.forEach { resolver ->
                         add(buildJsonObject {
-                            put("tag", "dns-$index")
-                            put("type", "tcp")
-                            put("server", server)
+                            put("tag", resolver.tag)
+                            put("type", "https")
+                            put("server", resolver.serverAddress)
+                            put("server_port", 443)
+                            put("path", "/dns-query")
                             put("detour", "proxy")
+                            put("tls", buildJsonObject {
+                                put("enabled", true)
+                                put("server_name", resolver.tlsServerName)
+                            })
                         })
                     }
                     bypassCountries.forEach { country ->
@@ -123,17 +143,29 @@ data class SingBoxConfiguration(
                         })
                     }
                 })
-                if (bypassCountries.isNotEmpty()) {
-                    put("rules", buildJsonArray {
-                        bypassCountries.forEach { country ->
-                            add(buildJsonObject {
-                                put("rule_set", JsonArray(listOf(JsonPrimitive("geosite-$country"))))
-                                put("server", "dns-direct-$country")
-                            })
-                        }
-                    })
-                }
-                put("final", "dns-0")
+                put("rules", buildJsonArray {
+                    // These exact-host rules deliberately precede every country rule. The probe
+                    // therefore cannot be captured by geosite-cn (or a future country list), and
+                    // disabling both caches makes each health check exercise upstream DoH.
+                    dnsFailoverRules(
+                        domain = CONNECTIVITY_PROBE_HOST,
+                        disableCache = true,
+                        requireAddress = true,
+                    ).forEach(::add)
+                    bypassCountries.forEach { country ->
+                        add(buildJsonObject {
+                            put("rule_set", JsonArray(listOf(JsonPrimitive("geosite-$country"))))
+                            put("action", "route")
+                            put("server", "dns-direct-$country")
+                        })
+                    }
+                    // A static primary `final` never consults a second resolver. Evaluate is
+                    // non-terminal on an exchange error in the pinned sing-box 1.14+ engine; a
+                    // usable response is returned by `respond`, otherwise the next resolver runs.
+                    dnsFailoverRules().forEach(::add)
+                })
+                put("final", fallbackDnsResolver.tag)
+                put("timeout", DNS_FALLBACK_TIMEOUT)
             })
             put("inbounds", JsonArray(listOf(JsonObject(tunInbound))))
             put("outbounds", buildJsonArray {
@@ -172,7 +204,7 @@ data class SingBoxConfiguration(
             put("route", buildJsonObject {
                 put("auto_detect_interface", true)
                 put("find_process", true)
-                put("default_domain_resolver", "dns-0")
+                put("default_domain_resolver", primaryDnsResolver.tag)
                 if (bypassCountries.isNotEmpty()) {
                     put("rule_set", buildJsonArray {
                         bypassCountries.forEach { country ->
@@ -186,12 +218,15 @@ data class SingBoxConfiguration(
                         put("protocol", "dns")
                         put("action", "hijack-dns")
                     })
-                    if (bypassCountries.isNotEmpty()) {
-                        // Route rules need a sniffed domain before geosite matching can work.
-                        add(buildJsonObject {
-                            put("action", "sniff")
-                        })
-                    }
+                    // Raw TUN connections arrive with an IP destination. Sniff first so both the
+                    // exact probe exception and country geosite rules can inspect TLS/HTTP names.
+                    add(buildJsonObject {
+                        put("action", "sniff")
+                    })
+                    add(buildJsonObject {
+                        put("domain", JsonArray(listOf(JsonPrimitive(CONNECTIVITY_PROBE_HOST))))
+                        put("outbound", "proxy")
+                    })
                     if (splitTunnel?.bypassLan == true) {
                         add(buildJsonObject {
                             put("ip_is_private", true)
@@ -225,6 +260,66 @@ data class SingBoxConfiguration(
         }
     }
 
+    /**
+     * Emits an ordered primary-to-secondary resolver chain using sing-box 1.14 DNS actions.
+     * `NOERROR` (including NODATA) and authoritative `NXDOMAIN` are terminal for ordinary
+     * lookups. The known-existing probe is stricter: its primary response is accepted only when
+     * it contains an address. Timeouts, transport errors, SERVFAIL and REFUSED fall through.
+     */
+    private fun dnsFailoverRules(
+        domain: String? = null,
+        disableCache: Boolean = false,
+        requireAddress: Boolean = false,
+    ): List<JsonObject> = buildList {
+        dnsOverHttpsResolvers.dropLast(1).forEach { resolver ->
+            add(buildJsonObject {
+                domain?.let {
+                    put("domain", JsonArray(listOf(JsonPrimitive(it))))
+                }
+                put("action", "evaluate")
+                put("server", resolver.tag)
+                put("timeout", DNS_PRIMARY_TIMEOUT)
+                if (disableCache) {
+                    put("disable_cache", true)
+                    put("disable_optimistic_cache", true)
+                }
+            })
+            if (requireAddress) {
+                add(buildJsonObject {
+                    domain?.let {
+                        put("domain", JsonArray(listOf(JsonPrimitive(it))))
+                    }
+                    put("match_response", true)
+                    put("ip_accept_any", true)
+                    put("action", "respond")
+                })
+            } else {
+                listOf("NOERROR", "NXDOMAIN").forEach { responseCode ->
+                    add(buildJsonObject {
+                        domain?.let {
+                            put("domain", JsonArray(listOf(JsonPrimitive(it))))
+                        }
+                        put("match_response", true)
+                        put("response_rcode", responseCode)
+                        put("action", "respond")
+                    })
+                }
+            }
+        }
+        add(buildJsonObject {
+            domain?.let {
+                put("domain", JsonArray(listOf(JsonPrimitive(it))))
+            }
+            put("action", "route")
+            put("server", dnsOverHttpsResolvers.last().tag)
+            put("timeout", DNS_FALLBACK_TIMEOUT)
+            if (disableCache) {
+                put("disable_cache", true)
+                put("disable_optimistic_cache", true)
+            }
+        })
+    }
+
     private fun localRuleSet(tag: String): JsonObject = buildJsonObject {
         put("type", "local")
         put("tag", tag)
@@ -253,7 +348,44 @@ data class SingBoxConfiguration(
         }
     }
 
+    private fun validateDnsResolvers() {
+        require(dnsOverHttpsResolvers.size >= 2) {
+            "at least two DNS-over-HTTPS resolvers are required for failover"
+        }
+        require(dnsOverHttpsResolvers.map { it.tag }.distinct().size == dnsOverHttpsResolvers.size) {
+            "DNS-over-HTTPS resolver tags must be unique"
+        }
+        dnsOverHttpsResolvers.forEach { resolver ->
+            require(resolver.tag.isNotBlank() && resolver.tlsServerName.isNotBlank()) {
+                "DNS-over-HTTPS resolver requires a tag and TLS server name"
+            }
+            val address = resolver.serverAddress.removePrefix("[").removeSuffix("]")
+            require(address.isIPv4Literal() || address.contains(":")) {
+                "DNS-over-HTTPS resolver bootstrap must be a literal IP address"
+            }
+        }
+    }
+
     companion object {
+        /** Exact host used only by startup and long-lived through-tunnel probes. */
+        const val CONNECTIVITY_PROBE_HOST = "cp.cloudflare.com"
+
+        val DEFAULT_DOH_RESOLVERS: List<DnsOverHttpsResolver> = listOf(
+            DnsOverHttpsResolver(
+                tag = "dns-proxy-primary",
+                serverAddress = "1.1.1.1",
+                tlsServerName = "cloudflare-dns.com",
+            ),
+            DnsOverHttpsResolver(
+                tag = "dns-proxy-secondary",
+                serverAddress = "8.8.8.8",
+                tlsServerName = "dns.google",
+            ),
+        )
+
+        private const val DNS_PRIMARY_TIMEOUT = "2s"
+        private const val DNS_FALLBACK_TIMEOUT = "3s"
+
         private val prettyJson = Json {
             prettyPrint = true
         }

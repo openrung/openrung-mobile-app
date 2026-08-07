@@ -23,16 +23,15 @@ public enum InternetProbeError: LocalizedError {
     }
 }
 
-/// Verifies internet reachability through the active tunnel by hitting captive-portal
-/// `generate_204` endpoints. Port of Android `InternetProbe`.
+/// Verifies internet reachability through the active tunnel by hitting the dedicated
+/// `generate_204` endpoint. Port of Android `InternetProbe`.
 ///
 /// This URLSession implementation is suitable for non-provider callers only. Apple deliberately
 /// excludes a PacketTunnelProvider's own URLSession traffic from its TUN; the extension therefore
-/// uses `PacketTunnelInternetProbe`, backed by `createTCPConnectionThroughTunnel`, whenever the
-/// result is used to classify a Reality/WSS path.
+/// uses `PacketTunnelInternetProbe`, backed by `createUDPSessionThroughTunnel` for fresh DNS and
+/// `createTCPConnectionThroughTunnel` for HTTPS, whenever the result classifies a Reality/WSS path.
 public struct InternetProbe: Sendable {
     public static let defaultEndpoints = [
-        "https://www.gstatic.com/generate_204",
         "https://cp.cloudflare.com/generate_204",
     ]
 

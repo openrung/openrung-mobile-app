@@ -390,11 +390,49 @@ the native WSS adapter. Recovery waits for a usable physical network, fetches
 fresh signed relay data, and starts again at direct Reality; single-use tickets
 and the prior WSS preference are never reused across network epochs.
 
-iOS startup and active-health classification MUST probe over
-`NEPacketTunnelProvider.createTCPConnectionThroughTunnel` with TLS, bounded
-request time, and a bounded HTTP response head. A `URLSession` created by the
+Every generated sing-box configuration MUST use the two ordered proxied DoH
+transports below for ordinary tunnel DNS. They replace proxied TCP/53:
+
+1. `dns-proxy-primary`: HTTPS to literal `1.1.1.1:443`, path `/dns-query`,
+   `detour:"proxy"`, with TLS enabled and `server_name:"cloudflare-dns.com"`;
+2. `dns-proxy-secondary`: HTTPS to literal `8.8.8.8:443`, path `/dns-query`,
+   `detour:"proxy"`, with TLS enabled and `server_name:"dns.google"`.
+
+The transport `server` values MUST remain literal IP addresses. They are the
+non-circular bootstrap: sing-box dials the literal through `proxy`, while the
+TLS name supplies both authenticated SNI and the HTTP authority. Neither DoH
+transport may depend on itself or another network DNS lookup to resolve its
+own server. `dns.final` alone is not failover. With the pinned sing-box 1.14+
+engine, ordinary DNS rules MUST evaluate the primary with a 2 s timeout,
+respond to primary `NOERROR` or `NXDOMAIN`, and otherwise explicitly route to
+the secondary with a 3 s timeout. `dns.final` MUST remain the same secondary
+as a defensive fallback. Transport errors, timeouts, `SERVFAIL`, and `REFUSED`
+therefore exercise the second resolver.
+
+Both platforms' startup and active-health proof MUST use only
+`https://cp.cloudflare.com/generate_204`. Before each HTTPS proof, its
+exact-host DNS chain disables both normal and optimistic caching, evaluates
+the primary, accepts it only when the response contains an address, and routes
+an absent/unusable primary response to the secondary. Those probe DNS rules
+MUST precede all country DNS bypass rules. Route rules MUST sniff first, then
+force the exact probe host to `outbound:"proxy"` before any LAN or country
+bypass rule. A successful direct path is therefore insufficient evidence:
+startup MUST fail and MUST NOT publish `CONNECTED` when that proxied DNS plus
+HTTPS path fails, including while China bypass is enabled.
+
+iOS startup and active-health classification MUST first send a raw A query for
+the probe host to the TUN DNS address through
+`NEPacketTunnelProvider.createUDPSessionThroughTunnel`, requiring a bounded,
+valid response with an address. It MUST then perform the TLS/HTTPS phase over
+`NEPacketTunnelProvider.createTCPConnectionThroughTunnel` with bounded request
+time and a bounded HTTP response head. A `URLSession` created by the
 packet-tunnel provider bypasses that provider's TUN and therefore MUST NOT be
-used as evidence that Reality or WSS carried end-to-end traffic.
+used as evidence that Reality or WSS carried end-to-end traffic. Android's
+through-tunnel proof MUST remain bound to the VPN `Network`. On API 29+ it MUST
+use `DnsResolver.FLAG_NO_CACHE_LOOKUP`; on API 26–28 it MUST send a raw A query
+to the VPN-advertised DNS listener after `Network.bindSocket` and MUST NOT
+protect that socket out of the VPN. Its separate physical-network recovery
+probe remains outside the VPN and is specified below.
 
 - `vpn/OpenRungVpnService.kt`, `vpn/ProxyEngine.kt` — connect flow including
   Android NAT-punch-first/RelayHub and direct-first WSS/CDN fallback,
@@ -426,11 +464,17 @@ used as evidence that Reality or WSS carried end-to-end traffic.
   modern UDP DNS servers already dial directly, while detouring through the
   otherwise-empty tagged direct outbound fails during the sing-box Start stage)
   (`ir` → `178.22.122.100` Shecan, `cn` → `223.5.5.5` AliDNS) and a `dns.rules`
-  entry `{"rule_set":["geosite-<cc>"],"server":"dns-direct-<cc>"}` between
-  `servers` and `final`; `route.rule_set` local/binary entries for
+  entry `{"rule_set":["geosite-<cc>"],"action":"route","server":"dns-direct-<cc>"}`;
+  `route.rule_set` local/binary entries for
   `geosite-<cc>.srs` and `geoip-<cc>.srs` under `ruleSetDirectory`, before
-  `rules`; and `route.rules` ordered [hijack-dns (existing, first),
-  `{"action":"sniff"}` (only when countries non-empty),
+  `rules`. The complete `dns.rules` order is [the three exact
+  `cp.cloudflare.com` evaluate/address-respond/secondary-route rules,
+  per-country direct-DNS rules (`ir` before `cn`), ordinary primary evaluate,
+  primary `NOERROR` respond, primary `NXDOMAIN` respond, ordinary secondary
+  route], with `final:"dns-proxy-secondary"` retained as a defensive fallback.
+  The complete `route.rules` order is
+  [hijack-dns (first), `{"action":"sniff"}` (always), the exact
+  `cp.cloudflare.com` → `proxy` rule,
   `{"ip_is_private":true,"outbound":"direct"}` (only when bypassLan),
   per-country `{"rule_set":["geosite-<cc>","geoip-<cc>"],"outbound":"direct"}`,
   `ir` before `cn`]. `final:"proxy"`, `route_exclude_address` logic,
@@ -511,9 +555,11 @@ used as evidence that Reality or WSS carried end-to-end traffic.
   successful physical-network connectivity probe trigger fresh discovery/re-punch and
   RelayHub fallback. Native path loss waits for a reachable physical network, so
   a local outage leaves the foreground service CONNECTING instead of failing it.
-  That probe stays bound to `Network.openConnection` but targets only
-  `www.gstatic.com/generate_204` and `cp.cloudflare.com/generate_204`; any HTTP
-  response proves connectivity, and no OpenRung identity/broker header is sent.
+  That *physical-network* probe stays bound to `Network.openConnection` but
+  targets only `www.gstatic.com/generate_204` and
+  `cp.cloudflare.com/generate_204`; any HTTP response proves connectivity, and
+  no OpenRung identity/broker header is sent.
+  It is not the protected through-tunnel startup/health proof specified above.
 - A transport-independent engine monitor watches libbox during direct, punched,
   and WSS sessions. Unexpected engine exit is a terminal local failure and never
   starts reladdering or ticket acquisition. WSS network, adapter, and end-to-end

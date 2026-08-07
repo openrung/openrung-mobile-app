@@ -270,44 +270,54 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             }
 
             failureStage = "relay_connect"
-            let connected = try await connectFirstAvailableRelay(
-                rankedCandidates.map(\.relay),
-                splitTunnel: splitTunnelRules
+            let connected = try await StartupConnectionPublicationGate.run(
+                establishAndVerify: {
+                    let connected = try await connectFirstAvailableRelay(
+                        rankedCandidates.map(\.relay),
+                        splitTunnel: splitTunnelRules
+                    )
+
+                    // A stop may have arrived while we were connecting. Don't publish .connected
+                    // for a tunnel that's being torn down; stopTunnel awaited this task and stops
+                    // the engine connectFirstAvailableRelay assigned.
+                    try Task.checkCancellation()
+
+                    let relay = connected.relay
+                    let promoted = lifecycleQueue.sync {
+                        guard
+                            lifecycleIsStopping == false,
+                            activeTransport.epoch == connected.transportEpoch,
+                            activeTransport.engine === connected.engine,
+                            connected.punchSession == nil
+                                || activeTransport.punchSession === connected.punchSession,
+                            connected.wssSession == nil
+                                || activeTransport.wssSession === connected.wssSession
+                        else { return false }
+                        activeTransport.relayID = relay.id
+                        activeTransport.accessTransport = connected.accessTransport
+                        activeTransport.wssFrontID = connected.frontID
+                        // NetworkExtension exposes the recovered session as Connected only after
+                        // the new engine/session tuple atomically replaces the failed transport.
+                        reasserting = false
+                        return true
+                    }
+                    guard promoted else { throw CancellationError() }
+                    return connected
+                },
+                publishConnected: { connected in
+                    let relay = connected.relay
+                    TelemetryManager.markConnected(relayId: relay.id)
+                    SharedConnectionState.setStatus(
+                        .connected,
+                        relayName: relay.displayName(),
+                        // Bridge contract: anything but "foundation" collapses to "volunteer".
+                        relayClass: relay.normalizedNodeClass(),
+                        clearRelayLabel: true,
+                        clearError: true
+                    )
+                }
             )
-
-            // A stop may have arrived while we were connecting. Don't publish .connected or start
-            // the heartbeat for a tunnel that's being torn down; stopTunnel awaited this task and
-            // stops the engine connectFirstAvailableRelay assigned.
-            try Task.checkCancellation()
-
             let relay = connected.relay
-            let promoted = lifecycleQueue.sync {
-                guard
-                    lifecycleIsStopping == false,
-                    activeTransport.epoch == connected.transportEpoch,
-                    activeTransport.engine === connected.engine,
-                    connected.punchSession == nil
-                        || activeTransport.punchSession === connected.punchSession,
-                    connected.wssSession == nil || activeTransport.wssSession === connected.wssSession
-                else { return false }
-                activeTransport.relayID = relay.id
-                activeTransport.accessTransport = connected.accessTransport
-                activeTransport.wssFrontID = connected.frontID
-                // NetworkExtension exposes the recovered session as Connected only after the new
-                // engine/session tuple has atomically replaced the failed transport.
-                reasserting = false
-                return true
-            }
-            guard promoted else { throw CancellationError() }
-            TelemetryManager.markConnected(relayId: relay.id)
-            SharedConnectionState.setStatus(
-                .connected,
-                relayName: relay.displayName(),
-                // Bridge contract: anything but "foundation" collapses to "volunteer".
-                relayClass: relay.normalizedNodeClass(),
-                clearRelayLabel: true,
-                clearError: true
-            )
             applyRelayLocation(relay)
             var successMeasurements: [String: Int64] = [
                 "broker_fetch_ms": brokerFetchMs,
