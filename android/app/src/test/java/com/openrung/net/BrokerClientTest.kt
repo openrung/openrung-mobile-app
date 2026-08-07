@@ -2,6 +2,7 @@ package com.openrung.net
 
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -115,6 +116,34 @@ class BrokerClientTest {
         assertEquals(BrokerNativeFailureKind.HTTP_STATUS, failure.kind)
         assertEquals(503, failure.httpStatus)
         assertEquals(7_000L, failure.retryAfterMillis)
+    }
+
+    @Test
+    fun `spurious native cancelled discovery is a typed failure for a live caller`() = runBlocking {
+        val operation = RecordingNativeBrokerOperation().apply {
+            relayResult = NativeBrokerRelayResult(
+                succeeded = false,
+                errorKind = "cancelled",
+                errorText = "request cancelled",
+            )
+        }
+
+        // The VPN service's connect() rethrows CancellationException without publishing a failure
+        // status or stopping itself; a native "cancelled" kind seen by a live caller must surface
+        // as an ordinary typed failure instead.
+        val failure = assertSuspendThrows<BrokerNativeFailure> {
+            BrokerClient.firstReachable(
+                primary = "https://primary.example/",
+                limit = 5,
+                clientId = null,
+                sessionId = null,
+                operationFactory = RecordingNativeBrokerOperationFactory(operation),
+            )
+        }
+
+        assertEquals(BrokerNativeFailureKind.CANCELLED, failure.kind)
+        assertFalse(failure.isLocalPlatformFailure)
+        assertEquals(1, operation.closeCalls.get())
     }
 
     @Test

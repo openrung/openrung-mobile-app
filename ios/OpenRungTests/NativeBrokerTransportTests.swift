@@ -179,9 +179,15 @@ final class NativeBrokerTransportTests: XCTestCase {
     }
 
     func testBindingCancellationAndFutureKindsAreNormalized() {
+        // No cancelled task exists here: a native "cancelled" kind reaching a live caller is a
+        // bounded typed failure, never cooperative cancellation minted on the binding's behalf.
         let cancelled = NativeBrokerResultSnapshot(succeeded: false, errorKind: "cancelled")
         XCTAssertThrowsError(try cancelled.throwIfFailed()) { error in
-            XCTAssertTrue(error is CancellationError)
+            guard let failure = error as? BrokerNativeFailure else {
+                return XCTFail("unexpected error: \(error)")
+            }
+            XCTAssertEqual(failure.kind, .cancelled)
+            XCTAssertFalse(failure.isLocalPlatformFailure)
         }
 
         for bindingKind in ["", "future_kind", "unavailable", "decode"] {
@@ -199,6 +205,28 @@ final class NativeBrokerTransportTests: XCTestCase {
                 XCTAssertLessThanOrEqual(failure.message.utf8.count, 256)
             }
         }
+    }
+
+    func testBindingCancellationInCancelledTaskRemainsCooperativeCancellation() async {
+        let snapshot = NativeBrokerResultSnapshot(succeeded: false, errorKind: "cancelled")
+        let task = Task.detached { () -> Error? in
+            while Task.isCancelled == false {
+                await Task.yield()
+            }
+            do {
+                try snapshot.throwIfFailed()
+                return nil
+            } catch {
+                return error
+            }
+        }
+        task.cancel()
+
+        let observed = await task.value
+        XCTAssertTrue(
+            observed is CancellationError,
+            "got \(String(describing: observed))"
+        )
     }
 
     func testConfiguredFactoriesSelectNativeAndReactNativeConstructors() {

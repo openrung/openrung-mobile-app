@@ -106,6 +106,34 @@ final class BrokerClientTests: XCTestCase {
         XCTAssertEqual(operation.closeCount, 1)
     }
 
+    func testSpuriousNativeCancelledDiscoveryIsTypedFailureForLiveCaller() async {
+        let operation = TestNativeBrokerOperation()
+        operation.relayHandler = { _, _, _, _ in
+            NativeBrokerRelayResultSnapshot(
+                succeeded: false,
+                errorKind: "cancelled",
+                errorText: "request cancelled"
+            )
+        }
+
+        // The provider's connect path treats CancellationError as a user-initiated stop and skips
+        // cleanup and failure publication; a native "cancelled" kind seen by a live task must
+        // surface as an ordinary typed failure instead.
+        do {
+            _ = try await BrokerClient.firstReachable(
+                primary: primary,
+                operationFactory: TestNativeBrokerFactory(operation: operation)
+            )
+            XCTFail("expected typed cancelled failure")
+        } catch let failure as BrokerNativeFailure {
+            XCTAssertEqual(failure.kind, .cancelled)
+            XCTAssertFalse(failure.isLocalPlatformFailure)
+        } catch {
+            XCTFail("unexpected error: \(error)")
+        }
+        XCTAssertEqual(operation.closeCount, 1)
+    }
+
     func testNilNativeOperationIsUnavailableWithNoHTTPFallback() async {
         let factory = TestNativeBrokerFactory(operation: nil)
         do {

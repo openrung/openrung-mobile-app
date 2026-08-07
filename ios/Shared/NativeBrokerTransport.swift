@@ -543,7 +543,12 @@ public extension NativeBrokerResult {
             message: errorText
         )
         if failure.kind == .cancelled {
-            throw CancellationError()
+            // Cancellation is only ever the caller's: a genuinely cancelled task keeps its
+            // cooperative CancellationError here. A native "cancelled" kind reaching a live task
+            // is a failed request — converting it into cancellation would silently end the
+            // caller's epoch (skipping cleanup, failure status, and telemetry) on the strength
+            // of a Go-side race or mis-mapped binding error.
+            try Task.checkCancellation()
         }
         throw failure
     }
