@@ -48,9 +48,10 @@ data class SingBoxConfiguration(
     /** Loopback TCP adapter exposed by a native transport. Empty means use the relay endpoint. */
     val bridgeHost: String = "",
     val bridgePort: Int = 0,
-    val tunnelIPv4Address: String = "172.19.0.1/30",
+    val tunnelIPv4Address: String = DEFAULT_TUNNEL_IPV4_ADDRESS,
     val tunnelIPv6Address: String = "fdfe:dcba:9876::1/126",
-    val dnsServers: List<String> = listOf("1.1.1.1", "8.8.8.8"),
+    /** DoH resolver IPs in priority order; index 0 is emitted as the final `dns-0` server. */
+    val dnsServers: List<String> = DnsResolverRotation.DEFAULT_RESOLVERS,
     val mtu: Int = 1400,
     val splitTunnel: SplitTunnelRules? = null,
 ) {
@@ -107,7 +108,10 @@ data class SingBoxConfiguration(
                     dnsServers.forEachIndexed { index, server ->
                         add(buildJsonObject {
                             put("tag", "dns-$index")
-                            put("type", "tcp")
+                            // DoH over 443 via the proxy: relays answer 443 on every transport,
+                            // while TCP/53 gets no replies under WSS. IP-literal servers need no
+                            // bootstrap resolver (defaults: port 443, path /dns-query).
+                            put("type", "https")
                             put("server", server)
                             put("detour", "proxy")
                         })
@@ -123,16 +127,26 @@ data class SingBoxConfiguration(
                         })
                     }
                 })
-                if (bypassCountries.isNotEmpty()) {
-                    put("rules", buildJsonArray {
-                        bypassCountries.forEach { country ->
-                            add(buildJsonObject {
-                                put("rule_set", JsonArray(listOf(JsonPrimitive("geosite-$country"))))
-                                put("server", "dns-direct-$country")
-                            })
-                        }
+                put("rules", buildJsonArray {
+                    // Highest priority: probe lookups must reach the proxied DoH resolver even
+                    // when a country rule would divert them (geosite-cn contains gstatic-class
+                    // hosts), and must never be answered from the engine cache — a cached
+                    // answer proves nothing about the tunnel right now.
+                    add(buildJsonObject {
+                        put(
+                            "domain_suffix",
+                            JsonArray(ProbeTargets.RULE_DOMAIN_SUFFIXES.map(::JsonPrimitive)),
+                        )
+                        put("server", "dns-0")
+                        put("disable_cache", true)
                     })
-                }
+                    bypassCountries.forEach { country ->
+                        add(buildJsonObject {
+                            put("rule_set", JsonArray(listOf(JsonPrimitive("geosite-$country"))))
+                            put("server", "dns-direct-$country")
+                        })
+                    }
+                })
                 put("final", "dns-0")
             })
             put("inbounds", JsonArray(listOf(JsonObject(tunInbound))))
@@ -190,6 +204,16 @@ data class SingBoxConfiguration(
                         // Route rules need a sniffed domain before geosite matching can work.
                         add(buildJsonObject {
                             put("action", "sniff")
+                        })
+                        // Probe traffic must reach the proxy even when a bypass rule would send
+                        // it direct; a probe that escapes onto the direct path can report
+                        // CONNECTED over a dead tunnel. Must precede every bypass rule.
+                        add(buildJsonObject {
+                            put(
+                                "domain_suffix",
+                                JsonArray(ProbeTargets.RULE_DOMAIN_SUFFIXES.map(::JsonPrimitive)),
+                            )
+                            put("outbound", "proxy")
                         })
                     }
                     if (splitTunnel?.bypassLan == true) {
@@ -256,6 +280,35 @@ data class SingBoxConfiguration(
     companion object {
         private val prettyJson = Json {
             prettyPrint = true
+        }
+
+        /** Default TUN IPv4 address; the DNS address below is derived from it. */
+        const val DEFAULT_TUNNEL_IPV4_ADDRESS = "172.19.0.1/30"
+
+        /**
+         * The ONLY in-TUN address whose port-53 traffic sing-box hijacks. When the tun inbound
+         * carries no explicit `dns_address` (we emit none), sing-tun derives the hijack address
+         * as the next address after the TUN's own IPv4 address, and the tun inbound tags a
+         * packet `Protocol=DNS` only when its destination equals that address — after which the
+         * router hijacks it into the DNS module ahead of any route rule. A datagram addressed
+         * to a public resolver (1.1.1.1) is NOT tagged, matches no rule, and dies on the
+         * TCP-only proxy outbound, so the fresh-DNS probe must target this address.
+         */
+        val DEFAULT_TUNNEL_DNS_ADDRESS = tunnelDnsAddress(DEFAULT_TUNNEL_IPV4_ADDRESS)
+
+        /** Next IPv4 address after [tunnelIPv4Address], mirroring sing-tun's derivation. */
+        fun tunnelDnsAddress(tunnelIPv4Address: String): String {
+            val octets = tunnelIPv4Address.substringBefore("/").split(".")
+            require(octets.size == 4) { "tunnel address is not IPv4: $tunnelIPv4Address" }
+            val value = octets.fold(0L) { acc, octet ->
+                val part = requireNotNull(octet.toIntOrNull()) {
+                    "tunnel address is not IPv4: $tunnelIPv4Address"
+                }
+                require(part in 0..255) { "tunnel address is not IPv4: $tunnelIPv4Address" }
+                (acc shl 8) or part.toLong()
+            }
+            val next = value + 1
+            return (24 downTo 0 step 8).joinToString(".") { shift -> ((next shr shift) and 0xFF).toString() }
         }
 
         fun relayRouteExcludeAddress(host: String): String? {

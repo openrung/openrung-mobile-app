@@ -36,6 +36,19 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
 
     private let logger = Logger(subsystem: AppConfig.loggingSubsystem, category: "PacketTunnel")
     private let selector = RelaySelector()
+    // Process-lifetime resolver order: a rotation from a failed epoch is deliberately kept for
+    // the next connect, so a resolver that cannot answer through the relays stops being retried
+    // first on every attempt.
+    private lazy var dnsFailover = DnsFailoverReporter { [weak self] failed, next in
+        SharedConnectionState.appendLog(
+            "tunnel DNS resolver is not answering; switching to the alternate resolver"
+        )
+        TelemetryManager.record(
+            "dns_resolver_failover",
+            relayId: self?.lifecycleQueue.sync { self?.activeTransport.relayID } ?? nil,
+            attributes: ["failed_resolver": failed, "next_resolver": next]
+        )
+    }
     private let punchFallbackPolicy = PunchFallbackPolicy()
     private let punchRecoveryCircuitBreaker = PunchRecoveryCircuitBreaker()
     private let wssFallbackPolicy = WssFallbackPolicy(validator: NativeWssFrontValidator())
@@ -478,9 +491,14 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         attempt: Int,
         splitTunnel: SplitTunnelRules?
     ) async throws -> ConnectedRelay {
-        let configuration = SingBoxConfiguration(relay: relay, splitTunnel: splitTunnel)
         do {
-            try EmbeddedProxyEngine.preflight(configuration: configuration)
+            try EmbeddedProxyEngine.preflight(
+                configuration: SingBoxConfiguration(
+                    relay: relay,
+                    dnsServers: dnsFailover.currentServers(),
+                    splitTunnel: splitTunnel
+                )
+            )
             // Validate the WSS bridge graph before any remote reachability check can unlock ticket
             // acquisition. Port 1 is only a structurally valid placeholder; the actual loopback
             // port returned by wsscore is validated again when that engine is started. Carries the
@@ -488,6 +506,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             try EmbeddedProxyEngine.preflight(
                 configuration: SingBoxConfiguration(
                     relay: relay,
+                    dnsServers: dnsFailover.currentServers(),
                     bridgeHost: "127.0.0.1",
                     bridgePort: 1,
                     splitTunnel: splitTunnel
@@ -529,6 +548,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                     relay: relay,
                     configuration: SingBoxConfiguration(
                         relay: relay,
+                        dnsServers: dnsFailover.currentServers(),
                         bridgeHost: punched.result.bridgeHost,
                         bridgePort: punched.result.bridgePort,
                         splitTunnel: splitTunnel
@@ -542,14 +562,35 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 )
             },
             attemptRelayHub: { [self] in
-                try await startTunnel(
-                    relay: relay,
-                    configuration: configuration,
-                    tcpLatencyMs: tcpLatencyMs,
-                    attempt: attempt,
-                    accessTransport: AccessTransport.direct,
-                    frontID: nil
-                )
+                // Plain direct transport is the one place a resolver-only failure can be
+                // retried in place: there is no live bridge to invalidate, so a fresh engine
+                // with the rotated DoH resolver gets one chance per spare resolver before the
+                // relay is blamed and the WSS ladder starts. Bridge transports rethrow instead;
+                // their next ladder rung already builds its config from the rotated order.
+                var spareResolvers = dnsFailover.resolverCount - 1
+                while true {
+                    do {
+                        return try await startTunnel(
+                            relay: relay,
+                            configuration: SingBoxConfiguration(
+                                relay: relay,
+                                dnsServers: dnsFailover.currentServers(),
+                                splitTunnel: splitTunnel
+                            ),
+                            tcpLatencyMs: tcpLatencyMs,
+                            attempt: attempt,
+                            accessTransport: AccessTransport.direct,
+                            frontID: nil
+                        )
+                    } catch let error as DirectPathError {
+                        // startTunnel already rotated the resolver (and logged) for dns_probe.
+                        guard error.stage == startupStageDnsProbe, spareResolvers > 0 else {
+                            throw error
+                        }
+                        spareResolvers -= 1
+                        cleanupActiveTransport()
+                    }
+                }
             },
             onPunchFallback: { [self] failure in
                 cleanupActiveTransport()
@@ -782,6 +823,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             relay: relay,
             configuration: SingBoxConfiguration(
                 relay: relay,
+                dnsServers: dnsFailover.currentServers(),
                 bridgeHost: endpoint.bridgeHost,
                 bridgePort: endpoint.bridgePort,
                 splitTunnel: splitTunnel
@@ -854,48 +896,29 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         let tunnelStartMs = Int64((DispatchTime.now().uptimeNanoseconds - tunnelStartedNs) / 1_000_000)
 
         SharedConnectionState.appendLog("verifying internet access through the VPN")
-        let probe: InternetProbeResult
+        let pathProbe: PacketTunnelPathProbe
         do {
-            probe = try await verifyStartupInternetPath(proxyEngine: proxyEngine)
-            guard proxyEngine.hasUnexpectedStop == false else {
-                throw LocalTunnelError(
-                    stage: "active_tunnel_engine",
-                    underlying: PacketTunnelProxyEngineError.engineStartFailed(
-                        "libbox stopped during startup verification"
-                    )
-                )
-            }
-        } catch is CancellationError {
-            throw CancellationError()
+            pathProbe = PacketTunnelPathProbe(
+                dnsProbe: PacketTunnelDnsProbe(tunnelProvider: self),
+                httpProbe: try PacketTunnelInternetProbe(tunnelProvider: self)
+            )
         } catch {
-            if proxyEngine.hasUnexpectedStop {
-                throw LocalTunnelError(
-                    stage: "active_tunnel_engine",
-                    underlying: PacketTunnelProxyEngineError.engineStartFailed(
-                        "libbox stopped during startup verification"
-                    )
-                )
-            }
-            guard isGenuineRemoteDataPathFailure(error) else {
-                throw LocalTunnelError(stage: "internet_probe", underlying: error)
-            }
-            // Classifying this probe as a remote path failure unlocks direct-to-WSS fallback (and
-            // therefore ticket minting). Linearize that decision against libbox's stop callback:
-            // if the callback already won, this is a local engine failure; if teardown wins, a
-            // later callback is expected because this failed candidate is about to be replaced.
-            guard proxyEngine.prepareForExpectedStop() else {
-                throw LocalTunnelError(
-                    stage: "active_tunnel_engine",
-                    underlying: PacketTunnelProxyEngineError.engineStartFailed(
-                        "libbox stopped while classifying the startup path failure"
-                    )
-                )
-            }
-            if accessTransport == AccessTransport.wss, let frontID {
-                throw WssTransportError(stage: "internet_probe", frontID: frontID, underlying: error)
-            }
-            throw DirectPathError(stage: "internet_probe", underlying: error)
+            throw LocalTunnelError(stage: "internet_probe_setup", underlying: error)
         }
+        let probe = try await verifyStartupTunnelPath(
+            probe: { try await pathProbe.verify() },
+            waitForUnexpectedStop: { await proxyEngine.waitForUnexpectedStop() },
+            hasUnexpectedStop: { proxyEngine.hasUnexpectedStop },
+            prepareForExpectedStop: { proxyEngine.prepareForExpectedStop() },
+            wssFrontID: accessTransport == AccessTransport.wss ? frontID : nil,
+            // A DNS-stage failure implicates the DoH resolver path rather than the relay:
+            // rotate the primary so every config built from here on (same-relay direct retry,
+            // WSS ladder, recovery) leads with the alternate resolver.
+            onDnsPathFailure: { [self] in
+                dnsFailover.reportFailure(configuration.dnsServers)
+            }
+        )
+        dnsFailover.activate(configuration.dnsServers)
         SharedConnectionState.appendLog("internet access verified in \(probe.durationMs) ms")
 
         return ConnectedRelay(
@@ -926,37 +949,6 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             if activeTransport.punchSession == nil, activeTransport.wssSession == nil {
                 activeTransport.epoch = nil
             }
-        }
-    }
-
-    private func verifyStartupInternetPath(
-        proxyEngine: any PacketTunnelProxyEngine
-    ) async throws -> InternetProbeResult {
-        let probe: PacketTunnelInternetProbe
-        do {
-            probe = try PacketTunnelInternetProbe(tunnelProvider: self)
-        } catch {
-            throw LocalTunnelError(stage: "internet_probe_setup", underlying: error)
-        }
-        return try await withThrowingTaskGroup(of: StartupPathEvent.self) { group in
-            group.addTask { .probe(try await probe.verify()) }
-            group.addTask { .engineStopped(await proxyEngine.waitForUnexpectedStop()) }
-            defer { group.cancelAll() }
-            while let event = try await group.next() {
-                switch event {
-                case .probe(let result):
-                    return result
-                case .engineStopped(let reason):
-                    if let reason {
-                        throw LocalTunnelError(
-                            stage: "active_tunnel_engine",
-                            underlying: PacketTunnelProxyEngineError.engineStartFailed(reason)
-                        )
-                    }
-                    try Task.checkCancellation()
-                }
-            }
-            throw CancellationError()
         }
     }
 
@@ -1440,9 +1432,12 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     private func awaitTunnelHealthFailure(
         monitor: PhysicalNetworkEpochMonitor
     ) async throws -> String {
-        let probe: PacketTunnelInternetProbe
+        let probe: PacketTunnelPathProbe
         do {
-            probe = try PacketTunnelInternetProbe(tunnelProvider: self)
+            probe = PacketTunnelPathProbe(
+                dnsProbe: PacketTunnelDnsProbe(tunnelProvider: self),
+                httpProbe: try PacketTunnelInternetProbe(tunnelProvider: self)
+            )
         } catch {
             throw LocalTunnelError(stage: "active_tunnel_health_setup", underlying: error)
         }
@@ -1506,6 +1501,13 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             } catch {
                 guard isGenuineRemoteDataPathFailure(error) else {
                     throw LocalTunnelError(stage: "active_tunnel_health", underlying: error)
+                }
+                if error is DnsPathUnverifiedError {
+                    // Reported (after the remote classification, so local evidence never burns a
+                    // healthy resolver) against the RUNNING engine's frozen order, so
+                    // consecutive strikes advance the rotation exactly once and the recovery
+                    // reconnect leads with the alternate resolver.
+                    dnsFailover.reportFailure()
                 }
                 probeAllowanceMs = Self.tunnelHealthBaseIntervalMs
                 msUntilProbe = 0
@@ -2014,11 +2016,6 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     private enum PunchMonitorEvent {
         case pathFailure(reason: String, trigger: String, countTowardBreaker: Bool)
         case localFailure(LocalTunnelError)
-    }
-
-    private enum StartupPathEvent: Sendable {
-        case probe(InternetProbeResult)
-        case engineStopped(String?)
     }
 
     private struct PendingTunnelTasks {

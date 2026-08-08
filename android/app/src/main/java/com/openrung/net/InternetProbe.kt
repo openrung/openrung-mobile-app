@@ -23,10 +23,10 @@ class InternetProbeHttpStatusException(
     val status: Int,
 ) : IOException("internet probe returned HTTP $status")
 
-class InternetProbe(context: Context) {
+class InternetProbe(context: Context) : TunnelHttpProbe {
     private val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
 
-    suspend fun verify(): InternetProbeResult {
+    override suspend fun verify(): InternetProbeResult {
         val started = SystemClock.elapsedRealtime()
         val deadline = started + PROBE_DEADLINE_MS
         var lastError: Throwable? = null
@@ -66,7 +66,7 @@ class InternetProbe(context: Context) {
     }
 
     /** One no-retry sweep used by the long-lived tunnel health monitor. */
-    suspend fun verifyOnce(): InternetProbeResult {
+    override suspend fun verifyOnce(): InternetProbeResult {
         val started = SystemClock.elapsedRealtime()
         val vpnNetwork = currentVpnNetwork() ?: throw IOException("VPN network is unavailable")
         var lastError: Throwable? = null
@@ -121,10 +121,10 @@ class InternetProbe(context: Context) {
         private const val RETRY_DELAY_MS = 500L
         private const val REQUEST_TIMEOUT_MS = 3_000
 
-        internal val ENDPOINTS = listOf(
-            "https://www.gstatic.com/generate_204",
-            "https://cp.cloudflare.com/generate_204",
-        )
+        // Through-tunnel endpoints only. Every hostname here MUST also appear in
+        // ProbeTargets.RULE_DOMAIN_SUFFIXES so the emitted config pins its DNS and routing
+        // through the proxy ahead of any country-bypass rule.
+        internal val ENDPOINTS = ProbeTargets.TUNNEL_PROBE_URLS
 
         internal fun acceptsHttpStatus(status: Int): Boolean = status in 200..299
     }

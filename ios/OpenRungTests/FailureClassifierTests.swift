@@ -54,6 +54,40 @@ final class FailureClassifierTests: XCTestCase {
         )
     }
 
+    func testDnsPathUnverifiedUnwrapsToTheRealCause() {
+        // The fresh-DNS wrapper must be transparent to the classifier, or every resolver-path
+        // failure would land on the dashboard as "unknown" and break the cross-client token
+        // contract. Both the bare wrapper and the shape verifyStartupTunnelPath actually
+        // produces (DirectPathError wrapping it) are covered.
+        XCTAssertEqual(
+            FailureClassifier.classify(DnsPathUnverifiedError(underlying: URLError(.timedOut))),
+            "timeout"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(
+                DirectPathError(
+                    stage: startupStageDnsProbe,
+                    underlying: DnsPathUnverifiedError(underlying: URLError(.cannotParseResponse))
+                )
+            ),
+            "unknown"
+        )
+        XCTAssertEqual(
+            FailureClassifier.classify(
+                DirectPathError(
+                    stage: startupStageDnsProbe,
+                    underlying: DnsPathUnverifiedError(underlying: URLError(.dnsLookupFailed))
+                )
+            ),
+            "dns_failure"
+        )
+        // detail() unwraps through the same branch.
+        XCTAssertEqual(
+            FailureClassifier.detail(DnsPathUnverifiedError(underlying: URLError(.timedOut))),
+            URLError(.timedOut).localizedDescription
+        )
+    }
+
     // MARK: - Cancellation
 
     func testCancellation() {

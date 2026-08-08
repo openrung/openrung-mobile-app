@@ -151,10 +151,13 @@ targets:
       - path: PacketTunnel/FailureClassifier.swift
       - path: PacketTunnel/PhysicalNetworkEpochMonitor.swift
       - path: PacketTunnel/PunchRecoveryCircuitBreaker.swift
+      - path: PacketTunnel/DnsFailoverReporter.swift
       - path: PacketTunnel/PacketTunnelError.swift
+      - path: PacketTunnel/PacketTunnelDnsProbe.swift
       - path: PacketTunnel/PacketTunnelInternetProbe.swift
       - path: PacketTunnel/PacketTunnelProxyEngineError.swift
       - path: PacketTunnel/PunchNativeClient.swift
+      - path: PacketTunnel/StartupPathVerification.swift
       - path: PacketTunnel/WssNativeClient.swift
       - path: Shared/AppConfig.swift
       - path: Shared/BrokerClient.swift
@@ -163,7 +166,10 @@ targets:
       - path: Shared/ConnectionStatus.swift
       - path: Shared/CountryGeo.swift
       - path: Shared/DeviceAttributes.swift
+      - path: Shared/DnsProbeMessage.swift
+      - path: Shared/DnsResolverRotation.swift
       - path: Shared/InternetProbe.swift
+      - path: Shared/ProbeTargets.swift
       - path: Shared/NetworkPathMonitor.swift
       - path: Shared/NativeBrokerTransport.swift
       - path: Shared/PunchFallbackPolicy.swift

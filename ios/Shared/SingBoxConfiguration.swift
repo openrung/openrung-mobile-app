@@ -1,6 +1,33 @@
 import Foundation
 
 public struct SingBoxConfiguration: Equatable, Sendable {
+    /// Default TUN IPv4 address; the DNS address below is derived from it.
+    public static let defaultTunnelIPv4Address = "172.19.0.1/30"
+
+    /// The ONLY in-TUN address whose port-53 traffic sing-box hijacks. When the tun inbound
+    /// carries no explicit `dns_address` (we emit none), sing-tun derives the hijack address as
+    /// the next address after the TUN's own IPv4 address, and the tun inbound tags a packet
+    /// `Protocol=DNS` only when its destination equals that address — after which the router
+    /// hijacks it into the DNS module ahead of any route rule. A datagram addressed to a public
+    /// resolver (1.1.1.1) is NOT tagged, matches no rule, and dies on the TCP-only proxy
+    /// outbound, so the fresh-DNS probe must target this address. It is also what libbox reports
+    /// to `NEDNSSettings`, so it is exactly where system lookups already go.
+    public static let defaultTunnelDnsAddress = tunnelDnsAddress(for: defaultTunnelIPv4Address)
+
+    /// Next IPv4 address after `tunnelIPv4Address`, mirroring sing-tun's derivation.
+    public static func tunnelDnsAddress(for tunnelIPv4Address: String) -> String {
+        let octets = tunnelIPv4Address.split(separator: "/")[0].split(separator: ".")
+        precondition(octets.count == 4, "tunnel address is not IPv4: \(tunnelIPv4Address)")
+        let value = octets.reduce(UInt32(0)) { accumulated, octet in
+            guard let part = UInt32(octet), part <= 255 else {
+                preconditionFailure("tunnel address is not IPv4: \(tunnelIPv4Address)")
+            }
+            return accumulated << 8 | part
+        }
+        let next = value &+ 1
+        return [24, 16, 8, 0].map { String((next >> UInt32($0)) & 0xFF) }.joined(separator: ".")
+    }
+
     public let relay: RelayDescriptor
     public let tunnelIPv4Address: String
     public let tunnelIPv6Address: String
@@ -16,9 +43,10 @@ public struct SingBoxConfiguration: Equatable, Sendable {
 
     public init(
         relay: RelayDescriptor,
-        tunnelIPv4Address: String = "172.19.0.1/30",
+        tunnelIPv4Address: String = SingBoxConfiguration.defaultTunnelIPv4Address,
         tunnelIPv6Address: String = "fdfe:dcba:9876::1/126",
-        dnsServers: [String] = ["1.1.1.1", "8.8.8.8"],
+        // DoH resolver IPs in priority order; index 0 is emitted as the final `dns-0` server.
+        dnsServers: [String] = DnsResolverRotation.defaultResolvers,
         mtu: Int = 1400,
         bridgeHost: String? = nil,
         bridgePort: Int? = nil,
@@ -77,7 +105,10 @@ public struct SingBoxConfiguration: Equatable, Sendable {
         var dnsServerObjects: [[String: Any]] = dnsServers.enumerated().map { index, server in
             [
                 "tag": "dns-\(index)",
-                "type": "tcp",
+                // DoH over 443 via the proxy: relays answer 443 on every transport, while
+                // TCP/53 gets no replies under WSS. IP-literal servers need no bootstrap
+                // resolver (defaults: port 443, path /dns-query).
+                "type": "https",
                 "server": server,
                 "detour": "proxy"
             ]
@@ -91,18 +122,28 @@ public struct SingBoxConfiguration: Equatable, Sendable {
                 "server": country.directResolver
             ])
         }
-        var dns: [String: Any] = [
+        // Highest priority: probe lookups must reach the proxied DoH resolver even when a
+        // country rule would divert them (geosite-cn contains gstatic-class hosts), and must
+        // never be answered from the engine cache — a cached answer proves nothing about the
+        // tunnel right now.
+        var dnsRules: [[String: Any]] = [
+            [
+                "domain_suffix": ProbeTargets.ruleDomainSuffixes,
+                "server": "dns-0",
+                "disable_cache": true
+            ]
+        ]
+        dnsRules.append(contentsOf: bypassCountries.map { country in
+            [
+                "rule_set": [country.geositeTag],
+                "server": "dns-direct-\(country.code)"
+            ] as [String: Any]
+        })
+        let dns: [String: Any] = [
             "servers": dnsServerObjects,
+            "rules": dnsRules,
             "final": "dns-0"
         ]
-        if bypassCountries.isEmpty == false {
-            dns["rules"] = bypassCountries.map { country in
-                [
-                    "rule_set": [country.geositeTag],
-                    "server": "dns-direct-\(country.code)"
-                ] as [String: Any]
-            }
-        }
 
         var routeRules: [[String: Any]] = [
             [
@@ -113,6 +154,13 @@ public struct SingBoxConfiguration: Equatable, Sendable {
         if bypassCountries.isEmpty == false {
             // Domain rule sets need the sniffed hostname on raw connections.
             routeRules.append(["action": "sniff"])
+            // Probe traffic must reach the proxy even when a bypass rule would send it direct;
+            // a probe that escapes onto the direct path can report CONNECTED over a dead
+            // tunnel. Must precede every bypass rule.
+            routeRules.append([
+                "domain_suffix": ProbeTargets.ruleDomainSuffixes,
+                "outbound": "proxy"
+            ])
         }
         if bypassLan {
             routeRules.append([

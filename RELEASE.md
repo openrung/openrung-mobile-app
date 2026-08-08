@@ -282,9 +282,11 @@ transports.
 Run the static broker-transport guard, Jest, TypeScript, Android unit/build
 checks, Go test/vet/race checks, iOS hostless tests/builds, and both artifact
 symbol/slice checks. The ordinary HTTP exceptions are deliberately narrow:
-the exact redirecting GitHub manifest URL, non-broker GeoIP/connectivity
-checks, and Android's physical-Network-bound gstatic/Cloudflare connectivity
-probe. The broker and CloudFront manifest candidates use brokerapi.
+the exact redirecting GitHub manifest URL, non-broker GeoIP checks, the
+through-tunnel probes (dedicated `probe.openrung.org` plus the Cloudflare
+fallback), and Android's physical-Network-bound gstatic/Cloudflare
+connectivity probe. The broker and CloudFront manifest candidates use
+brokerapi.
 
 Before release, perform these checks on physical devices and do not infer them
 from simulator/unit results:

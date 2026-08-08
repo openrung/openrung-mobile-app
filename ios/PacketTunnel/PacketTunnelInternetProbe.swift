@@ -141,10 +141,10 @@ private final class ProviderThroughTunnelHTTPTransport: ThroughTunnelHTTPTranspo
 /// Internet proof that is guaranteed to traverse the packet tunnel. The injected transport keeps
 /// endpoint/status/retry policy hostlessly testable without opening sockets.
 struct PacketTunnelInternetProbe: Sendable {
-    static let defaultEndpointStrings = [
-        "https://www.gstatic.com/generate_204",
-        "https://cp.cloudflare.com/generate_204",
-    ]
+    // Through-tunnel endpoints only. Every hostname here MUST also appear in
+    // ProbeTargets.ruleDomainSuffixes so the emitted config pins its DNS and routing through
+    // the proxy ahead of any country-bypass rule.
+    static let defaultEndpointStrings = ProbeTargets.tunnelProbeURLs
 
     private let endpoints: [TunnelProbeEndpoint]
     private let transport: any ThroughTunnelHTTPTransport
@@ -255,7 +255,7 @@ struct PacketTunnelInternetProbe: Sendable {
     }
 }
 
-private final class ObservationBox: @unchecked Sendable {
+final class ObservationBox: @unchecked Sendable {
     private let lock = NSLock()
     private var observation: NSKeyValueObservation?
 
@@ -274,7 +274,7 @@ private final class ObservationBox: @unchecked Sendable {
     }
 }
 
-private final class ContinuationGate<Value>: @unchecked Sendable {
+final class ContinuationGate<Value>: @unchecked Sendable {
     private let lock = NSLock()
     private var continuation: CheckedContinuation<Value, Error>?
 

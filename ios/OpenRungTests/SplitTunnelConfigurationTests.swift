@@ -44,7 +44,8 @@ final class SplitTunnelConfigurationTests: XCTestCase {
             ["ip_is_private": true, "outbound": "direct"],
         ] as [[String: Any]]))
 
-        // Everything outside route — dns (no "rules" key), tun inbound, outbounds — is untouched.
+        // Everything outside route — dns (incl. the always-on probe rule), tun inbound,
+        // outbounds — is untouched.
         baseline.removeValue(forKey: "route")
         split.removeValue(forKey: "route")
         XCTAssertEqual(try canonicalJSON(baseline), try canonicalJSON(split))
@@ -69,6 +70,11 @@ final class SplitTunnelConfigurationTests: XCTestCase {
             "server": "178.22.122.100"
         ] as [String: Any]))
         XCTAssertEqual(try canonicalJSON(dns["rules"]), try canonicalJSON([
+            [
+                "domain_suffix": ProbeTargets.ruleDomainSuffixes,
+                "server": "dns-0",
+                "disable_cache": true,
+            ],
             ["rule_set": ["geosite-ir"], "server": "dns-direct-ir"],
         ] as [[String: Any]]))
 
@@ -76,6 +82,7 @@ final class SplitTunnelConfigurationTests: XCTestCase {
         XCTAssertEqual(try canonicalJSON(route["rules"]), try canonicalJSON([
             ["protocol": "dns", "action": "hijack-dns"],
             ["action": "sniff"],
+            ["domain_suffix": ProbeTargets.ruleDomainSuffixes, "outbound": "proxy"],
             ["rule_set": ["geosite-ir", "geoip-ir"], "outbound": "direct"],
         ] as [[String: Any]]))
         XCTAssertEqual(try canonicalJSON(route["rule_set"]), try canonicalJSON([
@@ -95,6 +102,11 @@ final class SplitTunnelConfigurationTests: XCTestCase {
         XCTAssertEqual(servers[3]["server"] as? String, "223.5.5.5")
         XCTAssertTrue(servers.suffix(2).allSatisfy { $0["detour"] == nil })
         XCTAssertEqual(try canonicalJSON(dns["rules"]), try canonicalJSON([
+            [
+                "domain_suffix": ProbeTargets.ruleDomainSuffixes,
+                "server": "dns-0",
+                "disable_cache": true,
+            ],
             ["rule_set": ["geosite-ir"], "server": "dns-direct-ir"],
             ["rule_set": ["geosite-cn"], "server": "dns-direct-cn"],
         ] as [[String: Any]]))
@@ -103,6 +115,7 @@ final class SplitTunnelConfigurationTests: XCTestCase {
         XCTAssertEqual(try canonicalJSON(route["rules"]), try canonicalJSON([
             ["protocol": "dns", "action": "hijack-dns"],
             ["action": "sniff"],
+            ["domain_suffix": ProbeTargets.ruleDomainSuffixes, "outbound": "proxy"],
             ["ip_is_private": true, "outbound": "direct"],
             ["rule_set": ["geosite-ir", "geoip-ir"], "outbound": "direct"],
             ["rule_set": ["geosite-cn", "geoip-cn"], "outbound": "direct"],
