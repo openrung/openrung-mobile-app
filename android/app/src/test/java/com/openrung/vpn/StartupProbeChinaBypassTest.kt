@@ -4,7 +4,6 @@ import com.openrung.model.RelayConstants
 import com.openrung.model.RelayDescriptor
 import com.openrung.model.WssFrontDescriptor
 import com.openrung.net.DnsProbe
-import com.openrung.net.DnsResolverRotation
 import com.openrung.net.InternetProbeResult
 import com.openrung.net.ProbeTargets
 import com.openrung.net.SingBoxConfiguration
@@ -40,64 +39,47 @@ import java.net.SocketTimeoutException
 class StartupProbeChinaBypassTest {
     @Test
     fun `dead proxy with china bypass and working direct internet never connects`() = runBlocking {
-        val rotation = DnsResolverRotation()
         val connected = mutableListOf<String>()
         val events = mutableListOf<String>()
-        val serversUsed = mutableListOf<List<String>>()
 
         var thrown: RelayFailureAlreadyRecordedException? = null
         try {
             connectLadder(
                 relay = relay(),
-                rotation = rotation,
                 dnsTransport = deadProxyDnsTransport(),
                 httpProbe = deadProxyHttpProbe(),
                 onConnected = { connected.add(it) },
                 events = events,
-                serversUsed = serversUsed,
             )
             fail("startup must fail when every probe path is proxied and the proxy is dead")
         } catch (error: RelayFailureAlreadyRecordedException) {
             thrown = error
         }
 
-        // CONNECTED must never have been published, on any transport rung.
+        // CONNECTED must never have been published, on any transport rung. Resolver failover
+        // happens inside the emitted DNS rule chain, so a dns_probe-stage failure here means no
+        // configured resolver answered through the dead proxy.
         assertTrue(connected.isEmpty())
         assertEquals(STARTUP_STAGE_DNS_PROBE, thrown!!.directFailure.stage)
-        assertEquals(listOf("direct", "direct", "fallback", "wss:front-a", "wss:front-b"), events)
-        // Real resolver failover: the same-relay retry and each later rung led with the
-        // alternate resolver of the order that had just failed.
-        assertEquals(
-            listOf(
-                listOf("1.1.1.1", "8.8.8.8"),
-                listOf("8.8.8.8", "1.1.1.1"),
-                listOf("1.1.1.1", "8.8.8.8"),
-                listOf("8.8.8.8", "1.1.1.1"),
-            ),
-            serversUsed,
-        )
+        assertEquals(listOf("direct", "fallback", "wss:front-a", "wss:front-b"), events)
     }
 
     @Test
     fun `working proxy with china bypass connects exactly once`() = runBlocking {
-        val rotation = DnsResolverRotation()
         val connected = mutableListOf<String>()
         val events = mutableListOf<String>()
 
         val result = connectLadder(
             relay = relay(),
-            rotation = rotation,
             dnsTransport = workingProxyDnsTransport(),
             httpProbe = workingProxyHttpProbe(),
             onConnected = { connected.add(it) },
             events = events,
-            serversUsed = mutableListOf(),
         )
 
         assertEquals("direct", result)
         assertEquals(listOf("direct"), connected)
-        // A healthy resolver path must not rotate anything.
-        assertEquals(listOf("1.1.1.1", "8.8.8.8"), rotation.currentServers())
+        assertEquals(listOf("direct"), events)
     }
 
     @Test
@@ -140,23 +122,18 @@ class StartupProbeChinaBypassTest {
      * The service's connect rung for one relay, on the production seams: the WSS fallback policy
      * drives direct → WSS attempts; each attempt races the composite probe against engine stop
      * via [verifyStartupTunnelPath] and only a returned probe result reaches [onConnected] — the
-     * exact gate in front of OpenRungStatusStore.setStatus(CONNECTED). The direct rung retries
-     * once with the rotated resolver, mirroring attemptDirectCandidate.
+     * exact gate in front of OpenRungStatusStore.setStatus(CONNECTED).
      */
     private suspend fun connectLadder(
         relay: RelayDescriptor,
-        rotation: DnsResolverRotation,
         dnsTransport: TunnelDnsTransport,
         httpProbe: TunnelHttpProbe,
         onConnected: (String) -> Unit,
         events: MutableList<String>,
-        serversUsed: MutableList<List<String>>,
     ): String {
         val policy = WssFallbackPolicy(WssFrontSetValidator { it.toList() })
 
         suspend fun verifyRung(transport: String, frontId: String?): String {
-            val servers = rotation.currentServers()
-            serversUsed += servers
             // The clock must advance per look or DnsProbe.verify()'s real deadline never
             // expires against a dead transport (the runTest/SystemClock pitfall, inverted).
             val clock = AtomicLong(0)
@@ -169,7 +146,6 @@ class StartupProbeChinaBypassTest {
                 },
                 awaitUnexpectedEngineStop = { awaitCancellation() },
                 wssFrontId = frontId,
-                onDnsPathFailure = { rotation.noteDnsPathFailure(servers) },
             )
             onConnected(transport)
             return transport
@@ -178,20 +154,8 @@ class StartupProbeChinaBypassTest {
         return policy.connect(
             relay = relay,
             attemptDirect = {
-                var spareResolvers = rotation.resolverCount - 1
-                var result: String? = null
-                while (result == null) {
-                    events += "direct"
-                    try {
-                        result = verifyRung("direct", frontId = null)
-                    } catch (error: DirectPathException) {
-                        if (error.stage != STARTUP_STAGE_DNS_PROBE || spareResolvers <= 0) {
-                            throw error
-                        }
-                        spareResolvers--
-                    }
-                }
-                result
+                events += "direct"
+                verifyRung("direct", frontId = null)
             },
             attemptWss = { front ->
                 events += "wss:${front.id}"

@@ -36,19 +36,6 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
 
     private let logger = Logger(subsystem: AppConfig.loggingSubsystem, category: "PacketTunnel")
     private let selector = RelaySelector()
-    // Process-lifetime resolver order: a rotation from a failed epoch is deliberately kept for
-    // the next connect, so a resolver that cannot answer through the relays stops being retried
-    // first on every attempt.
-    private lazy var dnsFailover = DnsFailoverReporter { [weak self] failed, next in
-        SharedConnectionState.appendLog(
-            "tunnel DNS resolver is not answering; switching to the alternate resolver"
-        )
-        TelemetryManager.record(
-            "dns_resolver_failover",
-            relayId: self?.lifecycleQueue.sync { self?.activeTransport.relayID } ?? nil,
-            attributes: ["failed_resolver": failed, "next_resolver": next]
-        )
-    }
     private let punchFallbackPolicy = PunchFallbackPolicy()
     private let punchRecoveryCircuitBreaker = PunchRecoveryCircuitBreaker()
     private let wssFallbackPolicy = WssFallbackPolicy(validator: NativeWssFrontValidator())
@@ -493,11 +480,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     ) async throws -> ConnectedRelay {
         do {
             try EmbeddedProxyEngine.preflight(
-                configuration: SingBoxConfiguration(
-                    relay: relay,
-                    dnsServers: dnsFailover.currentServers(),
-                    splitTunnel: splitTunnel
-                )
+                configuration: SingBoxConfiguration(relay: relay, splitTunnel: splitTunnel)
             )
             // Validate the WSS bridge graph before any remote reachability check can unlock ticket
             // acquisition. Port 1 is only a structurally valid placeholder; the actual loopback
@@ -506,7 +489,6 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             try EmbeddedProxyEngine.preflight(
                 configuration: SingBoxConfiguration(
                     relay: relay,
-                    dnsServers: dnsFailover.currentServers(),
                     bridgeHost: "127.0.0.1",
                     bridgePort: 1,
                     splitTunnel: splitTunnel
@@ -548,7 +530,6 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                     relay: relay,
                     configuration: SingBoxConfiguration(
                         relay: relay,
-                        dnsServers: dnsFailover.currentServers(),
                         bridgeHost: punched.result.bridgeHost,
                         bridgePort: punched.result.bridgePort,
                         splitTunnel: splitTunnel
@@ -562,35 +543,14 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 )
             },
             attemptRelayHub: { [self] in
-                // Plain direct transport is the one place a resolver-only failure can be
-                // retried in place: there is no live bridge to invalidate, so a fresh engine
-                // with the rotated DoH resolver gets one chance per spare resolver before the
-                // relay is blamed and the WSS ladder starts. Bridge transports rethrow instead;
-                // their next ladder rung already builds its config from the rotated order.
-                var spareResolvers = dnsFailover.resolverCount - 1
-                while true {
-                    do {
-                        return try await startTunnel(
-                            relay: relay,
-                            configuration: SingBoxConfiguration(
-                                relay: relay,
-                                dnsServers: dnsFailover.currentServers(),
-                                splitTunnel: splitTunnel
-                            ),
-                            tcpLatencyMs: tcpLatencyMs,
-                            attempt: attempt,
-                            accessTransport: AccessTransport.direct,
-                            frontID: nil
-                        )
-                    } catch let error as DirectPathError {
-                        // startTunnel already rotated the resolver (and logged) for dns_probe.
-                        guard error.stage == startupStageDnsProbe, spareResolvers > 0 else {
-                            throw error
-                        }
-                        spareResolvers -= 1
-                        cleanupActiveTransport()
-                    }
-                }
+                try await startTunnel(
+                    relay: relay,
+                    configuration: SingBoxConfiguration(relay: relay, splitTunnel: splitTunnel),
+                    tcpLatencyMs: tcpLatencyMs,
+                    attempt: attempt,
+                    accessTransport: AccessTransport.direct,
+                    frontID: nil
+                )
             },
             onPunchFallback: { [self] failure in
                 cleanupActiveTransport()
@@ -823,7 +783,6 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             relay: relay,
             configuration: SingBoxConfiguration(
                 relay: relay,
-                dnsServers: dnsFailover.currentServers(),
                 bridgeHost: endpoint.bridgeHost,
                 bridgePort: endpoint.bridgePort,
                 splitTunnel: splitTunnel
@@ -910,15 +869,8 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             waitForUnexpectedStop: { await proxyEngine.waitForUnexpectedStop() },
             hasUnexpectedStop: { proxyEngine.hasUnexpectedStop },
             prepareForExpectedStop: { proxyEngine.prepareForExpectedStop() },
-            wssFrontID: accessTransport == AccessTransport.wss ? frontID : nil,
-            // A DNS-stage failure implicates the DoH resolver path rather than the relay:
-            // rotate the primary so every config built from here on (same-relay direct retry,
-            // WSS ladder, recovery) leads with the alternate resolver.
-            onDnsPathFailure: { [self] in
-                dnsFailover.reportFailure(configuration.dnsServers)
-            }
+            wssFrontID: accessTransport == AccessTransport.wss ? frontID : nil
         )
-        dnsFailover.activate(configuration.dnsServers)
         SharedConnectionState.appendLog("internet access verified in \(probe.durationMs) ms")
 
         return ConnectedRelay(
@@ -1501,13 +1453,6 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             } catch {
                 guard isGenuineRemoteDataPathFailure(error) else {
                     throw LocalTunnelError(stage: "active_tunnel_health", underlying: error)
-                }
-                if error is DnsPathUnverifiedError {
-                    // Reported (after the remote classification, so local evidence never burns a
-                    // healthy resolver) against the RUNNING engine's frozen order, so
-                    // consecutive strikes advance the rotation exactly once and the recovery
-                    // reconnect leads with the alternate resolver.
-                    dnsFailover.reportFailure()
                 }
                 probeAllowanceMs = Self.tunnelHealthBaseIntervalMs
                 msUntilProbe = 0

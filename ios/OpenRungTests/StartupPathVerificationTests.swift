@@ -13,9 +13,7 @@ import XCTest
 /// `StartupProbeChinaBypassTest`.
 final class StartupPathVerificationTests: XCTestCase {
     func testDeadProxyWithChinaBypassAndWorkingDirectInternetNeverConnects() async throws {
-        let rotation = DnsResolverRotation()
         let harness = LadderHarness(
-            rotation: rotation,
             dnsBehavior: .throwError(URLError(.timedOut)),
             httpBehavior: .throwError(URLError(.timedOut))
         )
@@ -24,6 +22,8 @@ final class StartupPathVerificationTests: XCTestCase {
             _ = try await harness.connectLadder()
             XCTFail("startup must fail when every probe path is proxied and the proxy is dead")
         } catch let error as RelayFailureAlreadyRecordedError {
+            // Resolver failover happens inside the emitted DNS rule chain, so a dns_probe-stage
+            // failure here means no configured resolver answered through the dead proxy.
             XCTAssertEqual(error.directFailure.stage, startupStageDnsProbe)
         }
 
@@ -31,22 +31,11 @@ final class StartupPathVerificationTests: XCTestCase {
         let connected = await harness.log.connected()
         XCTAssertTrue(connected.isEmpty)
         let events = await harness.log.events()
-        XCTAssertEqual(events, ["direct", "direct", "fallback", "wss:front-a", "wss:front-b"])
-        // Real resolver failover: the same-relay retry and each later rung led with the
-        // alternate resolver of the order that had just failed.
-        let serversUsed = await harness.log.serversUsed()
-        XCTAssertEqual(serversUsed, [
-            ["1.1.1.1", "8.8.8.8"],
-            ["8.8.8.8", "1.1.1.1"],
-            ["1.1.1.1", "8.8.8.8"],
-            ["8.8.8.8", "1.1.1.1"],
-        ])
+        XCTAssertEqual(events, ["direct", "fallback", "wss:front-a", "wss:front-b"])
     }
 
     func testWorkingProxyWithChinaBypassConnectsExactlyOnce() async throws {
-        let rotation = DnsResolverRotation()
         let harness = LadderHarness(
-            rotation: rotation,
             dnsBehavior: .answer,
             httpBehavior: .respond204
         )
@@ -55,15 +44,13 @@ final class StartupPathVerificationTests: XCTestCase {
         XCTAssertEqual(result, "direct")
         let connected = await harness.log.connected()
         XCTAssertEqual(connected, ["direct"])
-        // A healthy resolver path must not rotate anything.
-        XCTAssertEqual(rotation.currentServers(), ["1.1.1.1", "8.8.8.8"])
+        let events = await harness.log.events()
+        XCTAssertEqual(events, ["direct"])
     }
 
-    func testEngineStopDuringVerificationStaysLocalAndNeverRotates() async {
-        // A dead engine must neither authorize WSS fallback nor advance the resolver rotation:
-        // the resolver was never given a functioning engine to answer through.
-        let rotation = DnsResolverRotation()
-        var rotated = false
+    func testEngineStopDuringVerificationStaysLocal() async {
+        // A dead engine must never authorize WSS fallback: it is local evidence, not proof of a
+        // remote path problem.
         do {
             _ = try await verifyStartupTunnelPath(
                 probe: {
@@ -73,8 +60,7 @@ final class StartupPathVerificationTests: XCTestCase {
                 waitForUnexpectedStop: { "libbox exited" },
                 hasUnexpectedStop: { true },
                 prepareForExpectedStop: { false },
-                wssFrontID: nil,
-                onDnsPathFailure: { rotated = true }
+                wssFrontID: nil
             )
             XCTFail("an engine stop must fail startup verification")
         } catch let error as LocalTunnelError {
@@ -82,8 +68,6 @@ final class StartupPathVerificationTests: XCTestCase {
         } catch {
             XCTFail("engine stop must classify as a local failure, got \(error)")
         }
-        XCTAssertFalse(rotated)
-        XCTAssertEqual(rotation.currentServers(), ["1.1.1.1", "8.8.8.8"])
     }
 }
 
@@ -92,24 +76,19 @@ final class StartupPathVerificationTests: XCTestCase {
 private actor LadderEventLog {
     private var eventValues: [String] = []
     private var connectedValues: [String] = []
-    private var serverOrders: [[String]] = []
 
     func recordEvent(_ value: String) { eventValues.append(value) }
     func recordConnected(_ value: String) { connectedValues.append(value) }
-    func recordServers(_ value: [String]) { serverOrders.append(value) }
 
     func events() -> [String] { eventValues }
     func connected() -> [String] { connectedValues }
-    func serversUsed() -> [[String]] { serverOrders }
 }
 
 /// The provider's connect rung for one relay, on the production seams: the WSS fallback policy
 /// drives direct → WSS attempts; each attempt races the composite probe against a (quiet) engine
 /// stop via `verifyStartupTunnelPath`, and only a returned probe result records CONNECTED — the
-/// exact gate in front of SharedConnectionState.setStatus(.connected). The direct rung retries
-/// once with the rotated resolver, mirroring attemptDirectCandidate's relay-hub loop.
+/// exact gate in front of SharedConnectionState.setStatus(.connected).
 private struct LadderHarness {
-    let rotation: DnsResolverRotation
     let dnsBehavior: ScriptedDnsBehavior
     let httpBehavior: ScriptedHTTPBehavior
     let log = LadderEventLog()
@@ -121,18 +100,8 @@ private struct LadderHarness {
         return try await policy.connect(
             relay: relay,
             attemptDirect: {
-                var spareResolvers = rotation.resolverCount - 1
-                while true {
-                    await log.recordEvent("direct")
-                    do {
-                        return try await verifyRung(transport: "direct", frontID: nil)
-                    } catch let error as DirectPathError {
-                        guard error.stage == startupStageDnsProbe, spareResolvers > 0 else {
-                            throw error
-                        }
-                        spareResolvers -= 1
-                    }
-                }
+                await log.recordEvent("direct")
+                return try await verifyRung(transport: "direct", frontID: nil)
             },
             attemptWss: { front in
                 await log.recordEvent("wss:\(front.id)")
@@ -144,8 +113,6 @@ private struct LadderHarness {
     }
 
     private func verifyRung(transport: String, frontID: String?) async throws -> String {
-        let servers = rotation.currentServers()
-        await log.recordServers(servers)
         _ = try await verifyStartupTunnelPath(
             probe: {
                 try await PacketTunnelPathProbe(
@@ -171,8 +138,7 @@ private struct LadderHarness {
             },
             hasUnexpectedStop: { false },
             prepareForExpectedStop: { true },
-            wssFrontID: frontID,
-            onDnsPathFailure: { rotation.noteDnsPathFailure(servers) }
+            wssFrontID: frontID
         )
         await log.recordConnected(transport)
         return transport

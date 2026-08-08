@@ -40,8 +40,11 @@ class SingBoxConfigurationSplitTunnelTest {
         assertEquals("direct", lanRule["outbound"]!!.jsonPrimitive.content)
         assertFalse(routeRules.any { "sniff" == it.jsonObject["action"]?.jsonPrimitive?.content })
 
-        // Only the always-on probe DNS rule; no country rules without bypass countries.
-        assertEquals(1, config["dns"]!!.jsonObject["rules"]!!.jsonArray.size)
+        // Only the always-on probe/global failover chains; no country rules without countries.
+        assertEquals(
+            SingBoxConfiguration(relay()).makeJsonObject()["dns"],
+            config["dns"],
+        )
         assertFalse(config["route"]!!.jsonObject.containsKey("rule_set"))
         assertFalse(config.tunInbound().containsKey("exclude_package"))
     }
@@ -82,7 +85,8 @@ class SingBoxConfigurationSplitTunnelTest {
         )
 
         val dnsRules = dns["rules"]!!.jsonArray
-        assertEquals(2, dnsRules.size)
+        // 4-rule probe chain, one country rule, 4-rule global failover chain.
+        assertEquals(9, dnsRules.size)
         // The probe DNS pin outranks every country rule.
         assertEquals(
             ProbeTargets.RULE_DOMAIN_SUFFIXES,
@@ -90,9 +94,9 @@ class SingBoxConfigurationSplitTunnelTest {
         )
         assertEquals(
             listOf("geosite-ir"),
-            dnsRules[1].jsonObject["rule_set"]!!.jsonArray.map { it.jsonPrimitive.content },
+            dnsRules[4].jsonObject["rule_set"]!!.jsonArray.map { it.jsonPrimitive.content },
         )
-        assertEquals("dns-direct-ir", dnsRules[1].jsonObject["server"]!!.jsonPrimitive.content)
+        assertEquals("dns-direct-ir", dnsRules[4].jsonObject["server"]!!.jsonPrimitive.content)
 
         val ruleSets = config["route"]!!.jsonObject["rule_set"]!!.jsonArray.map { it.jsonObject }
         assertEquals(listOf("geosite-ir", "geoip-ir"), ruleSets.map { it["tag"]!!.jsonPrimitive.content })
@@ -138,8 +142,10 @@ class SingBoxConfigurationSplitTunnelTest {
         )
         assertTrue(directServers.none { it.containsKey("detour") })
         assertEquals(
-            listOf("dns-0", "dns-direct-ir", "dns-direct-cn"),
-            dns["rules"]!!.jsonArray.map { it.jsonObject["server"]!!.jsonPrimitive.content },
+            listOf("dns-direct-ir", "dns-direct-cn"),
+            dns["rules"]!!.jsonArray.map { it.jsonObject }
+                .filter { it.containsKey("rule_set") }
+                .map { it["server"]!!.jsonPrimitive.content },
         )
         assertEquals(
             listOf("geosite-ir", "geoip-ir", "geosite-cn", "geoip-cn"),

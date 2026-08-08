@@ -11,6 +11,7 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
+import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ProtocolException
@@ -145,9 +146,10 @@ internal object DnsProbeMessage {
 /**
  * Production transport: a UDP socket bound to the VPN [android.net.Network], addressed to the
  * TUN's own DNS address — the ONLY destination sing-box tags as DNS and hijacks into its DNS
- * module (see [SingBoxConfiguration.DEFAULT_TUNNEL_DNS_ADDRESS]; it is also the resolver the OS
- * advertises for this network, so this is the exact path app lookups take). Timeouts are
- * socket-level ([DatagramSocket.setSoTimeout]) and surface as
+ * module. That address is read from the VPN network's [android.net.LinkProperties] (it is the
+ * resolver the OS advertises, so this is the exact path app lookups take), falling back to the
+ * derivation in [SingBoxConfiguration.DEFAULT_TUNNEL_DNS_ADDRESS] if the platform reports none.
+ * Timeouts are socket-level ([DatagramSocket.setSoTimeout]) and surface as
  * [java.net.SocketTimeoutException], which the remote-failure allow-list already recognizes.
  */
 class VpnNetworkDnsTransport(context: Context) : TunnelDnsTransport {
@@ -159,10 +161,16 @@ class VpnNetworkDnsTransport(context: Context) : TunnelDnsTransport {
                 ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
         } ?: throw IOException("VPN network is unavailable")
 
+        // A public-resolver address here would match no hijack tag, fall to the TCP-only proxy
+        // outbound, and be dropped — failing the probe on every healthy tunnel.
+        val hijackedResolver = connectivityManager.getLinkProperties(vpnNetwork)
+            ?.dnsServers?.firstOrNull { it is Inet4Address }
+            ?: InetAddress.getByName(SingBoxConfiguration.DEFAULT_TUNNEL_DNS_ADDRESS)
+
         DatagramSocket().use { socket ->
             vpnNetwork.bindSocket(socket)
             socket.soTimeout = ATTEMPT_TIMEOUT_MS
-            socket.connect(InetSocketAddress(InetAddress.getByName(HIJACKED_RESOLVER), DNS_PORT))
+            socket.connect(InetSocketAddress(hijackedResolver, DNS_PORT))
             socket.send(DatagramPacket(query, query.size))
             val buffer = ByteArray(MAX_RESPONSE_BYTES)
             val packet = DatagramPacket(buffer, buffer.size)
@@ -172,11 +180,6 @@ class VpnNetworkDnsTransport(context: Context) : TunnelDnsTransport {
     }
 
     private companion object {
-        // MUST stay the TUN's derived DNS address: sing-box tags a packet as DNS (and hijacks
-        // it into the DNS module ahead of every route rule) only when the destination matches
-        // it. A public-resolver address would match no rule and die on the TCP-only proxy
-        // outbound, failing the probe on every healthy tunnel.
-        val HIJACKED_RESOLVER = SingBoxConfiguration.DEFAULT_TUNNEL_DNS_ADDRESS
         const val DNS_PORT = 53
         const val ATTEMPT_TIMEOUT_MS = 2_500
         const val MAX_RESPONSE_BYTES = 1_024

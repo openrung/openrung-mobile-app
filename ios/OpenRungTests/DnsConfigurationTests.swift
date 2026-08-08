@@ -21,6 +21,12 @@ final class DnsConfigurationTests: XCTestCase {
             // IP-literal servers need no bootstrap resolver — the non-circularity guarantee.
             XCTAssertNil(server["domain_resolver"])
         }
+        // TLS authenticates the provider hostname while the dial stays on the IP literal, so a
+        // provider dropping IP SANs from its certificate cannot break resolution.
+        XCTAssertEqual(
+            servers.map { ($0["tls"] as? [String: Any])?["server_name"] as? String },
+            ["cloudflare-dns.com", "dns.google"]
+        )
     }
 
     func testNoProxiedDnsServerSpeaksPort53() throws {
@@ -44,12 +50,38 @@ final class DnsConfigurationTests: XCTestCase {
         }
     }
 
-    func testFinalAndDefaultDomainResolverStayPinnedToThePrimary() throws {
+    func testDefaultDomainResolverStaysOnPrimaryAndFinalOnTerminalFallback() throws {
         let object = SingBoxConfiguration(relay: makeWssTestRelay()).makeJSONObject()
         let dns = try XCTUnwrap(object["dns"] as? [String: Any])
-        XCTAssertEqual(dns["final"] as? String, "dns-0")
+        // The global chain's trailing route rule is the real terminus; `final` names the same
+        // fallback resolver for coherence.
+        XCTAssertEqual(dns["final"] as? String, "dns-1")
+        XCTAssertEqual(dns["timeout"] as? String, "3s")
         let route = try XCTUnwrap(object["route"] as? [String: Any])
         XCTAssertEqual(route["default_domain_resolver"] as? String, "dns-0")
+    }
+
+    func testFailoverChainEvaluatesThePrimaryThenFallsToTheTerminalFallback() throws {
+        // sing-box has no upstream failover of its own: `evaluate` is non-terminal on a
+        // transport error/timeout/SERVFAIL/REFUSED, `respond` returns a usable answer (NOERROR,
+        // or an authoritative NXDOMAIN), and the trailing route rule is the terminal fallback.
+        let object = SingBoxConfiguration(relay: makeWssTestRelay()).makeJSONObject()
+        let dns = try XCTUnwrap(object["dns"] as? [String: Any])
+        let rules = try XCTUnwrap(dns["rules"] as? [[String: Any]]).suffix(4).map { $0 }
+        XCTAssertEqual(rules[0]["action"] as? String, "evaluate")
+        XCTAssertEqual(rules[0]["server"] as? String, "dns-0")
+        XCTAssertEqual(rules[0]["timeout"] as? String, "2s")
+        for (rcode, rule) in [("NOERROR", rules[1]), ("NXDOMAIN", rules[2])] {
+            XCTAssertEqual(rule["match_response"] as? Bool, true)
+            XCTAssertEqual(rule["response_rcode"] as? String, rcode)
+            XCTAssertEqual(rule["action"] as? String, "respond")
+        }
+        XCTAssertEqual(rules[3]["server"] as? String, "dns-1")
+        XCTAssertEqual(rules[3]["timeout"] as? String, "3s")
+        XCTAssertFalse(
+            rules.contains { $0["domain_suffix"] != nil },
+            "the global chain must apply to every query"
+        )
     }
 
     func testProbeDnsPinIsAlwaysFirstProxiedAndUncached() throws {
@@ -65,21 +97,32 @@ final class DnsConfigurationTests: XCTestCase {
 
         for object in [baseline, china] {
             let dns = try XCTUnwrap(object["dns"] as? [String: Any])
-            let rules = try XCTUnwrap(dns["rules"] as? [[String: Any]])
-            let probeRule = try XCTUnwrap(rules.first)
-            XCTAssertEqual(probeRule["domain_suffix"] as? [String], ProbeTargets.ruleDomainSuffixes)
-            XCTAssertEqual(probeRule["server"] as? String, "dns-0")
-            XCTAssertEqual(probeRule["disable_cache"] as? Bool, true)
+            let probeChain = try XCTUnwrap(dns["rules"] as? [[String: Any]]).prefix(4).map { $0 }
+            // Every probe rule is scoped to the probe domains; the chain ends in a terminal
+            // route rule, so a probe lookup can never leak past it into a country rule.
+            for rule in probeChain {
+                XCTAssertEqual(rule["domain_suffix"] as? [String], ProbeTargets.ruleDomainSuffixes)
+                if rule["match_response"] as? Bool != true {
+                    XCTAssertEqual(rule["disable_cache"] as? Bool, true)
+                    XCTAssertEqual(rule["disable_optimistic_cache"] as? Bool, true)
+                }
+            }
+            XCTAssertEqual(probeChain[0]["action"] as? String, "evaluate")
+            XCTAssertEqual(probeChain[0]["server"] as? String, "dns-0")
+            // Nonce probes legitimately draw NXDOMAIN; the primary answering one must respond.
+            XCTAssertEqual(probeChain[2]["response_rcode"] as? String, "NXDOMAIN")
+            XCTAssertNil(probeChain[3]["action"])
+            XCTAssertEqual(probeChain[3]["server"] as? String, "dns-1")
 
-            // Resolve the pinned tag: the rule is only meaningful if the server it names is
-            // itself DoH-through-proxy. This is the premise StartupPathVerificationTests relies
-            // on for the cn shape (every probe flow proxied).
+            // Resolve the pinned tags: the chain is only meaningful if the servers it names are
+            // themselves DoH-through-proxy. This is the premise StartupPathVerificationTests
+            // relies on for the cn shape (every probe flow proxied).
             let servers = try XCTUnwrap(dns["servers"] as? [[String: Any]])
-            let target = try XCTUnwrap(servers.first {
-                $0["tag"] as? String == probeRule["server"] as? String
-            })
-            XCTAssertEqual(target["type"] as? String, "https")
-            XCTAssertEqual(target["detour"] as? String, "proxy")
+            for tag in ["dns-0", "dns-1"] {
+                let target = try XCTUnwrap(servers.first { $0["tag"] as? String == tag })
+                XCTAssertEqual(target["type"] as? String, "https")
+                XCTAssertEqual(target["detour"] as? String, "proxy")
+            }
         }
     }
 
@@ -138,8 +181,9 @@ final class DnsConfigurationTests: XCTestCase {
         let dnsRules = try XCTUnwrap(dns["rules"] as? [[String: Any]])
         XCTAssertNotNil(dnsRules[0]["domain_suffix"])
         XCTAssertEqual(dnsRules[0]["server"] as? String, "dns-0")
+        // The country rule must follow the 4-rule probe chain.
         let countryDnsIndex = dnsRules.firstIndex { $0["rule_set"] != nil }
-        XCTAssertEqual(countryDnsIndex, 1)
+        XCTAssertEqual(countryDnsIndex, 4)
 
         let route = try XCTUnwrap(object["route"] as? [String: Any])
         let routeRules = try XCTUnwrap(route["rules"] as? [[String: Any]])
@@ -151,21 +195,6 @@ final class DnsConfigurationTests: XCTestCase {
         })
         XCTAssertEqual(routeRules[probeIndex]["outbound"] as? String, "proxy")
         XCTAssertLessThan(probeIndex, bypassIndex, "probe route pin must precede every bypass rule")
-    }
-
-    func testRotatedResolverOrderSwapsTheFinalResolver() throws {
-        let rotation = DnsResolverRotation()
-        XCTAssertTrue(rotation.noteDnsPathFailure(rotation.currentServers()))
-
-        let servers = try proxiedDnsServers(
-            SingBoxConfiguration(
-                relay: makeWssTestRelay(),
-                dnsServers: rotation.currentServers()
-            ).makeJSONObject()
-        )
-        XCTAssertEqual(servers[0]["tag"] as? String, "dns-0")
-        XCTAssertEqual(servers[0]["server"] as? String, "8.8.8.8")
-        XCTAssertEqual(servers[1]["server"] as? String, "1.1.1.1")
     }
 
     func testEveryThroughTunnelProbeEndpointIsCoveredByTheRulePins() throws {

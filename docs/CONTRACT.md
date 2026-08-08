@@ -442,14 +442,21 @@ used as evidence that Reality or WSS carried end-to-end traffic.
   `find_process`, and everything else are unchanged.
 - Baseline DNS emission (both platforms): `dns-<i>` servers are DoH
   (`{"type":"https","server":<ip>,"detour":"proxy"}`, defaults port 443 and
-  path `/dns-query`) over the resolver order supplied by `DnsResolverRotation`
-  (`1.1.1.1` then `8.8.8.8` until a fresh-DNS failure rotates it); TCP/53
+  path `/dns-query`, plus `tls.server_name` = the provider hostname —
+  `cloudflare-dns.com` / `dns.google`) over `1.1.1.1` then `8.8.8.8`; TCP/53
   through the proxy is forbidden — it receives no replies under WSS relays.
   IP-literal servers keep the bootstrap non-circular. `dns.rules` ALWAYS
-  starts with the probe DNS pin
-  `{"domain_suffix":[<probe hostnames>],"server":"dns-0","disable_cache":true}`
-  (present in the no-split baseline too), and `dns.final` /
-  `route.default_domain_resolver` stay `dns-0`.
+  contains (no-split baseline included), in order: the 4-rule probe failover
+  chain (`evaluate dns-0` with `disable_cache`+`disable_optimistic_cache` and
+  a 2s timeout, `respond` on `match_response` RCODE NOERROR, `respond` on
+  NXDOMAIN — nonce probes legitimately draw it — then a terminal
+  `server: dns-1` route, all scoped `domain_suffix: [<probe hostnames>]` so a
+  probe lookup can never reach a country rule), then any country rules, then
+  the same 4-rule chain unscoped and cache-friendly as the global failover
+  (sing-box has no upstream failover of its own; `evaluate` is non-terminal
+  on transport error/timeout/SERVFAIL/REFUSED in the pinned engine).
+  `dns.final` names the terminal fallback (`dns-1`), `dns.timeout` is 3s, and
+  `route.default_domain_resolver` stays `dns-0`.
 - `vpn/SplitTunnelStore.kt` — persists the raw config JSON in the
   SharedPreferences file `openrung_split_tunnel`, key `config_json`; `parse`
   uses kotlinx-serialization with `ignoreUnknownKeys`, invalid JSON ⇒ null.
@@ -527,9 +534,10 @@ used as evidence that Reality or WSS carried end-to-end traffic.
   `<nonce>.probe.openrung.org` through the TUN, answered only via the proxied
   DoH resolver; any well-formed response counts) and then HTTPS to
   `probe.openrung.org/generate_204` with `cp.cloudflare.com/generate_204` as
-  fallback — both rule-pinned through the proxy ahead of country bypass. A
-  DNS-stage failure additionally rotates the DoH resolver order for every
-  later attempt (`dns_resolver_failover` telemetry). Three failed tunnel
+  fallback — both rule-pinned through the proxy ahead of country bypass.
+  Resolver failover happens inside the emitted DNS rule chain, so a
+  `dns_probe`-stage failure means no configured resolver answered through
+  that transport. Three failed tunnel
   sweeps plus a successful physical-network connectivity probe trigger fresh
   discovery/re-punch and RelayHub fallback. Native path loss waits for a
   reachable physical network, so a local outage leaves the foreground service

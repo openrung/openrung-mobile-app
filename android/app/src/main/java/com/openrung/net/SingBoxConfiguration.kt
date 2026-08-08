@@ -8,6 +8,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -50,8 +51,11 @@ data class SingBoxConfiguration(
     val bridgePort: Int = 0,
     val tunnelIPv4Address: String = DEFAULT_TUNNEL_IPV4_ADDRESS,
     val tunnelIPv6Address: String = "fdfe:dcba:9876::1/126",
-    /** DoH resolver IPs in priority order; index 0 is emitted as the final `dns-0` server. */
-    val dnsServers: List<String> = DnsResolverRotation.DEFAULT_RESOLVERS,
+    /**
+     * DoH resolver IPs in priority order. The first is the `evaluate`d primary; the last is the
+     * terminal fallback that answers when every earlier resolver times out or errors.
+     */
+    val dnsServers: List<String> = DEFAULT_DOH_RESOLVERS,
     val mtu: Int = 1400,
     val splitTunnel: SplitTunnelRules? = null,
 ) {
@@ -104,6 +108,7 @@ data class SingBoxConfiguration(
                 put("timestamp", true)
             })
             put("dns", buildJsonObject {
+                require(dnsServers.isNotEmpty()) { "at least one DoH resolver is required" }
                 put("servers", buildJsonArray {
                     dnsServers.forEachIndexed { index, server ->
                         add(buildJsonObject {
@@ -114,6 +119,15 @@ data class SingBoxConfiguration(
                             put("type", "https")
                             put("server", server)
                             put("detour", "proxy")
+                            // TLS authenticates the provider hostname while the dial stays on
+                            // the IP literal, so a provider dropping IP SANs from its
+                            // certificate cannot break resolution.
+                            DOH_TLS_SERVER_NAMES[server]?.let { serverName ->
+                                put("tls", buildJsonObject {
+                                    put("enabled", true)
+                                    put("server_name", serverName)
+                                })
+                            }
                         })
                     }
                     bypassCountries.forEach { country ->
@@ -128,26 +142,31 @@ data class SingBoxConfiguration(
                     }
                 })
                 put("rules", buildJsonArray {
-                    // Highest priority: probe lookups must reach the proxied DoH resolver even
+                    // Highest priority: probe lookups must reach the proxied DoH resolvers even
                     // when a country rule would divert them (geosite-cn contains gstatic-class
-                    // hosts), and must never be answered from the engine cache — a cached
-                    // answer proves nothing about the tunnel right now.
-                    add(buildJsonObject {
-                        put(
-                            "domain_suffix",
-                            JsonArray(ProbeTargets.RULE_DOMAIN_SUFFIXES.map(::JsonPrimitive)),
-                        )
-                        put("server", "dns-0")
-                        put("disable_cache", true)
-                    })
+                    // hosts), and must never be answered from any cache — a cached answer
+                    // proves nothing about the tunnel right now. The chain is terminal for
+                    // probe domains (its trailing route rule always fires), so a future geosite
+                    // refresh can never capture a probe lookup.
+                    dnsFailoverRules(
+                        domainSuffixes = ProbeTargets.RULE_DOMAIN_SUFFIXES,
+                        disableCache = true,
+                    ).forEach(::add)
                     bypassCountries.forEach { country ->
                         add(buildJsonObject {
                             put("rule_set", JsonArray(listOf(JsonPrimitive("geosite-$country"))))
                             put("server", "dns-direct-$country")
                         })
                     }
+                    // Real failover for everything else: a static `final` would never consult a
+                    // second resolver. `evaluate` is non-terminal on a transport error, timeout,
+                    // SERVFAIL or REFUSED in the pinned engine — a usable answer (NOERROR, or an
+                    // authoritative NXDOMAIN) is returned by `respond`, anything else falls
+                    // through to the next resolver's terminal route rule.
+                    dnsFailoverRules(domainSuffixes = null, disableCache = false).forEach(::add)
                 })
-                put("final", "dns-0")
+                put("final", "dns-${dnsServers.lastIndex}")
+                put("timeout", DNS_FALLBACK_TIMEOUT)
             })
             put("inbounds", JsonArray(listOf(JsonObject(tunInbound))))
             put("outbounds", buildJsonArray {
@@ -249,6 +268,53 @@ data class SingBoxConfiguration(
         }
     }
 
+    /**
+     * Emits an ordered primary-to-fallback resolver chain from sing-box 1.14 DNS rule actions:
+     * for every resolver but the last, `evaluate` exchanges the query (non-terminal on error)
+     * and `respond` returns its answer when the RCODE is NOERROR or NXDOMAIN — both are real
+     * answers, and probe nonce queries are expected to draw NXDOMAIN. Everything else (timeout,
+     * transport error, SERVFAIL, REFUSED) falls through until the last resolver's terminal
+     * route rule. With [domainSuffixes] the whole chain applies only to those domains and is
+     * guaranteed terminal for them; with null it applies to every remaining query.
+     */
+    private fun dnsFailoverRules(
+        domainSuffixes: List<String>?,
+        disableCache: Boolean,
+    ): List<JsonObject> = buildList {
+        fun JsonObjectBuilder.putScopeAndCache() {
+            domainSuffixes?.let {
+                put("domain_suffix", JsonArray(it.map(::JsonPrimitive)))
+            }
+            if (disableCache) {
+                put("disable_cache", true)
+                put("disable_optimistic_cache", true)
+            }
+        }
+        dnsServers.dropLast(1).forEachIndexed { index, _ ->
+            add(buildJsonObject {
+                putScopeAndCache()
+                put("action", "evaluate")
+                put("server", "dns-$index")
+                put("timeout", DNS_PRIMARY_TIMEOUT)
+            })
+            listOf("NOERROR", "NXDOMAIN").forEach { rcode ->
+                add(buildJsonObject {
+                    domainSuffixes?.let {
+                        put("domain_suffix", JsonArray(it.map(::JsonPrimitive)))
+                    }
+                    put("match_response", true)
+                    put("response_rcode", rcode)
+                    put("action", "respond")
+                })
+            }
+        }
+        add(buildJsonObject {
+            putScopeAndCache()
+            put("server", "dns-${dnsServers.lastIndex}")
+            put("timeout", DNS_FALLBACK_TIMEOUT)
+        })
+    }
+
     private fun localRuleSet(tag: String): JsonObject = buildJsonObject {
         put("type", "local")
         put("tag", tag)
@@ -281,6 +347,19 @@ data class SingBoxConfiguration(
         private val prettyJson = Json {
             prettyPrint = true
         }
+
+        /** DoH-capable public resolvers reached as IP literals: no bootstrap resolution needed. */
+        val DEFAULT_DOH_RESOLVERS = listOf("1.1.1.1", "8.8.8.8")
+
+        /** Hostnames the DoH TLS handshakes authenticate while dialing the IP literals above. */
+        private val DOH_TLS_SERVER_NAMES = mapOf(
+            "1.1.1.1" to "cloudflare-dns.com",
+            "8.8.8.8" to "dns.google",
+        )
+
+        // Per-evaluate budget before the next resolver runs, and the terminal/global budget.
+        private const val DNS_PRIMARY_TIMEOUT = "2s"
+        private const val DNS_FALLBACK_TIMEOUT = "3s"
 
         /** Default TUN IPv4 address; the DNS address below is derived from it. */
         const val DEFAULT_TUNNEL_IPV4_ADDRESS = "172.19.0.1/30"

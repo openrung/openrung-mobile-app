@@ -32,6 +32,12 @@ class SingBoxConfigurationDnsTest {
             // IP-literal servers need no bootstrap resolver — the non-circularity guarantee.
             assertFalse(server.containsKey("domain_resolver"))
         }
+        // TLS authenticates the provider hostname while the dial stays on the IP literal, so a
+        // provider dropping IP SANs from its certificate cannot break resolution.
+        assertEquals(
+            listOf("cloudflare-dns.com", "dns.google"),
+            servers.map { it["tls"]!!.jsonObject["server_name"]!!.jsonPrimitive.content },
+        )
     }
 
     @Test
@@ -49,9 +55,12 @@ class SingBoxConfigurationDnsTest {
     }
 
     @Test
-    fun `final and default domain resolver stay pinned to the primary`() {
+    fun `default domain resolver stays on the primary and final on the terminal fallback`() {
         val config = SingBoxConfiguration(relay()).makeJsonObject()
-        assertEquals("dns-0", config["dns"]!!.jsonObject["final"]!!.jsonPrimitive.content)
+        // The global chain's trailing route rule is the real terminus; `final` names the same
+        // fallback resolver for coherence.
+        assertEquals("dns-1", config["dns"]!!.jsonObject["final"]!!.jsonPrimitive.content)
+        assertEquals("3s", config["dns"]!!.jsonObject["timeout"]!!.jsonPrimitive.content)
         assertEquals(
             "dns-0",
             config["route"]!!.jsonObject["default_domain_resolver"]!!.jsonPrimitive.content,
@@ -59,7 +68,27 @@ class SingBoxConfigurationDnsTest {
     }
 
     @Test
-    fun `probe dns pin is always first proxied and uncached`() {
+    fun `failover chain evaluates the primary then falls to the terminal fallback`() {
+        // sing-box has no upstream failover of its own: `evaluate` is non-terminal on a
+        // transport error/timeout/SERVFAIL/REFUSED, `respond` returns a usable answer (NOERROR,
+        // or an authoritative NXDOMAIN), and the trailing route rule is the terminal fallback.
+        val rules = SingBoxConfiguration(relay()).makeJsonObject()
+            .dnsRules().takeLast(4)
+        assertEquals("evaluate", rules[0]["action"]!!.jsonPrimitive.content)
+        assertEquals("dns-0", rules[0]["server"]!!.jsonPrimitive.content)
+        assertEquals("2s", rules[0]["timeout"]!!.jsonPrimitive.content)
+        listOf("NOERROR" to rules[1], "NXDOMAIN" to rules[2]).forEach { (rcode, rule) ->
+            assertEquals(true, rule["match_response"]!!.jsonPrimitive.content.toBoolean())
+            assertEquals(rcode, rule["response_rcode"]!!.jsonPrimitive.content)
+            assertEquals("respond", rule["action"]!!.jsonPrimitive.content)
+        }
+        assertEquals("dns-1", rules[3]["server"]!!.jsonPrimitive.content)
+        assertEquals("3s", rules[3]["timeout"]!!.jsonPrimitive.content)
+        assertFalse("the global chain must apply to every query", rules.any { it.containsKey("domain_suffix") })
+    }
+
+    @Test
+    fun `probe dns chain is always first uncached and terminal for probe domains`() {
         val baseline = SingBoxConfiguration(relay()).makeJsonObject()
         val china = SingBoxConfiguration(
             relay(),
@@ -67,13 +96,33 @@ class SingBoxConfigurationDnsTest {
         ).makeJsonObject()
 
         listOf(baseline, china).forEach { config ->
-            val probeRule = config["dns"]!!.jsonObject["rules"]!!.jsonArray[0].jsonObject
-            assertEquals(
-                ProbeTargets.RULE_DOMAIN_SUFFIXES,
-                probeRule["domain_suffix"]!!.jsonArray.map { it.jsonPrimitive.content },
-            )
-            assertEquals("dns-0", probeRule["server"]!!.jsonPrimitive.content)
-            assertEquals(true, probeRule["disable_cache"]!!.jsonPrimitive.content.toBoolean())
+            val probeChain = config.dnsRules().take(4)
+            // Every probe rule is scoped to the probe domains; the chain ends in a terminal
+            // route rule, so a probe lookup can never leak past it into a country rule.
+            probeChain.forEach { rule ->
+                if (rule["match_response"]?.jsonPrimitive?.content?.toBoolean() != true) {
+                    assertEquals(
+                        ProbeTargets.RULE_DOMAIN_SUFFIXES,
+                        rule["domain_suffix"]!!.jsonArray.map { it.jsonPrimitive.content },
+                    )
+                    assertEquals(true, rule["disable_cache"]!!.jsonPrimitive.content.toBoolean())
+                    assertEquals(
+                        true,
+                        rule["disable_optimistic_cache"]!!.jsonPrimitive.content.toBoolean(),
+                    )
+                } else {
+                    assertEquals(
+                        ProbeTargets.RULE_DOMAIN_SUFFIXES,
+                        rule["domain_suffix"]!!.jsonArray.map { it.jsonPrimitive.content },
+                    )
+                }
+            }
+            assertEquals("evaluate", probeChain[0]["action"]!!.jsonPrimitive.content)
+            assertEquals("dns-0", probeChain[0]["server"]!!.jsonPrimitive.content)
+            // Nonce probes legitimately draw NXDOMAIN; the primary answering one must respond.
+            assertEquals("NXDOMAIN", probeChain[2]["response_rcode"]!!.jsonPrimitive.content)
+            assertFalse(probeChain[3].containsKey("action"))
+            assertEquals("dns-1", probeChain[3]["server"]!!.jsonPrimitive.content)
         }
     }
 
@@ -87,11 +136,11 @@ class SingBoxConfigurationDnsTest {
             splitTunnel = rules(bypassCountries = listOf("cn")),
         ).makeJsonObject()
 
-        val dnsRules = config["dns"]!!.jsonObject["rules"]!!.jsonArray.map { it.jsonObject }
+        val dnsRules = config.dnsRules()
         assertTrue(dnsRules[0].containsKey("domain_suffix"))
         assertEquals("dns-0", dnsRules[0]["server"]!!.jsonPrimitive.content)
         val countryDnsIndex = dnsRules.indexOfFirst { it.containsKey("rule_set") }
-        assertTrue("country dns rule must exist", countryDnsIndex > 0)
+        assertEquals("country dns rule must follow the 4-rule probe chain", 4, countryDnsIndex)
 
         val routeRules = config["route"]!!.jsonObject["rules"]!!.jsonArray.map { it.jsonObject }
         val probeRouteIndex = routeRules.indexOfFirst { rule ->
@@ -107,20 +156,6 @@ class SingBoxConfigurationDnsTest {
             "probe route pin must precede every direct-bypass rule",
             bypassRouteIndex > probeRouteIndex,
         )
-    }
-
-    @Test
-    fun `rotated resolver order swaps the final resolver`() {
-        val rotation = DnsResolverRotation()
-        assertTrue(rotation.noteDnsPathFailure(rotation.currentServers()))
-
-        val rotated = SingBoxConfiguration(
-            relay(),
-            dnsServers = rotation.currentServers(),
-        ).makeJsonObject().dnsServers()
-        assertEquals("dns-0", rotated[0].tag())
-        assertEquals("8.8.8.8", rotated[0]["server"]!!.jsonPrimitive.content)
-        assertEquals("1.1.1.1", rotated[1]["server"]!!.jsonPrimitive.content)
     }
 
     @Test
@@ -181,6 +216,9 @@ class SingBoxConfigurationDnsTest {
     private fun JsonObject.dnsServers(): List<JsonObject> =
         this["dns"]!!.jsonObject["servers"]!!.jsonArray.map { it.jsonObject }
             .filter { it.tag().startsWith("dns-") && !it.tag().startsWith("dns-direct-") }
+
+    private fun JsonObject.dnsRules(): List<JsonObject> =
+        this["dns"]!!.jsonObject["rules"]!!.jsonArray.map { it.jsonObject }
 
     private fun JsonObject.tag(): String = this["tag"]!!.jsonPrimitive.content
 

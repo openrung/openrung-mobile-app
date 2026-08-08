@@ -12,8 +12,9 @@ internal const val STARTUP_STAGE_INTERNET_PROBE = "internet_probe"
  * the engine's stop signal, and projects a failure into the fallback taxonomy:
  *
  *  - engine stop / local evidence → [LocalTunnelException] (aborts the whole relay ladder);
- *  - DNS-stage remote failure → stage `dns_probe`, after [onDnsPathFailure] has run so the
- *    resolver rotation advances before any retry builds its configuration;
+ *  - DNS-stage remote failure → stage `dns_probe`. The emitted resolver chain already fell
+ *    over in-engine, so this stage failing means NO configured resolver answered through this
+ *    transport — evidence against the path, not one resolver;
  *  - HTTPS-stage remote failure → stage `internet_probe`;
  *  - remote failures type as [WssTransportException] when [wssFrontId] is set (WSS transport),
  *    else [DirectPathException] — the only type that can unlock WSS fallback.
@@ -25,22 +26,20 @@ internal suspend fun verifyStartupTunnelPath(
     probe: suspend () -> InternetProbeResult,
     awaitUnexpectedEngineStop: suspend () -> String,
     wssFrontId: String?,
-    onDnsPathFailure: () -> Unit,
 ): InternetProbeResult = try {
     awaitStartupProbeOrEngineStop(probe, awaitUnexpectedEngineStop)
 } catch (error: CancellationException) {
     throw error
 } catch (error: Throwable) {
     if (error is LocalTunnelException) throw error
-    val dnsStage = error is DnsPathUnverifiedException
-    val stage = if (dnsStage) STARTUP_STAGE_DNS_PROBE else STARTUP_STAGE_INTERNET_PROBE
+    val stage = if (error is DnsPathUnverifiedException) {
+        STARTUP_STAGE_DNS_PROBE
+    } else {
+        STARTUP_STAGE_INTERNET_PROBE
+    }
     if (!isGenuineRemoteDataPathFailure(error)) {
         throw LocalTunnelException(stage, error)
     }
-    // Only a failure classified as REMOTE is evidence about the resolver path; rotating on
-    // local evidence would burn a healthy resolver and emit false failover telemetry. Still
-    // ahead of the typed throws, so any retry below builds its config from the rotated order.
-    if (dnsStage) onDnsPathFailure()
     if (wssFrontId != null) {
         throw WssTransportException(stage, wssFrontId, error)
     }

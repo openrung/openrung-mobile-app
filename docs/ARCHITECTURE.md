@@ -203,15 +203,19 @@ weaken the production OS policy.
   so the check cannot accidentally traverse the unhealthy VPN and sends no
   OpenRung identity or broker headers.
 - **In-tunnel DNS** — DoH over 443 to IP-literal resolvers (`1.1.1.1`, then
-  `8.8.8.8`), detoured through the `proxy` outbound. IP literals keep the
-  bootstrap non-circular (no resolver is needed to reach the resolver), and
-  port 443 works over every transport — the previous TCP/53-via-proxy design
-  received no replies under WSS relays. sing-box has no upstream failover, so
-  the native layer rotates which resolver is emitted as `dns-0`/`final`
-  (`DnsResolverRotation`) whenever the fresh-DNS probe shows the primary
-  cannot answer; the plain direct transport retries the same relay once with
-  the rotated order, and every later attempt or recovery reconnect builds its
-  config from it. Split-tunnel bypassed domains still resolve via the
+  `8.8.8.8`), detoured through the `proxy` outbound, with TLS authenticating
+  the provider hostnames (`cloudflare-dns.com`, `dns.google`) so a provider
+  dropping IP SANs from its certificate cannot break resolution. IP literals
+  keep the bootstrap non-circular (no resolver is needed to reach the
+  resolver), and port 443 works over every transport — the previous
+  TCP/53-via-proxy design received no replies under WSS relays. sing-box has
+  no upstream failover of its own, so the emitted `dns.rules` build one from
+  1.14 rule actions: `evaluate` the primary (non-terminal on transport
+  error/timeout/SERVFAIL/REFUSED), `respond` with any usable answer (NOERROR,
+  or an authoritative NXDOMAIN), else fall through to the fallback resolver's
+  terminal route rule — per query, mid-session, with no engine restart. A
+  `dns_probe`-stage failure therefore means NO configured resolver answered
+  through that transport. Split-tunnel bypassed domains still resolve via the
   in-country UDP resolvers over the direct path (unchanged).
 
 There is no runtime switch back to the removed JavaScript broker transports.

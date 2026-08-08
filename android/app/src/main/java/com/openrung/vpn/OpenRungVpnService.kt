@@ -90,17 +90,6 @@ class OpenRungVpnService : VpnService() {
      */
     private var epochStartId = -1
     private val relaySelector = RelaySelector()
-    // Process-lifetime resolver order: a rotation from a failed epoch is deliberately kept for
-    // the next connect, so a resolver that cannot answer through the relays stops being retried
-    // first on every attempt.
-    private val dnsFailover = DnsFailoverReporter { failed, next ->
-        OpenRungStatusStore.appendLog(getString(R.string.log_dns_resolver_failover))
-        TelemetryManager.record(
-            event = "dns_resolver_failover",
-            relayId = activeRelayId,
-            attributes = mapOf("failed_resolver" to failed, "next_resolver" to next),
-        )
-    }
     private val punchRecoveryCircuitBreaker = PunchRecoveryCircuitBreaker()
     private val wssFallbackPolicy = WssFallbackPolicy(NativeWssFrontSetValidator)
     private var connectJob: Job? = null
@@ -579,7 +568,6 @@ class OpenRungVpnService : VpnService() {
                         relay = relay,
                         bridgeHost = punched.bridgeHost,
                         bridgePort = punched.bridgePort,
-                        dnsServers = dnsFailover.currentServers(),
                         splitTunnel = splitTunnelRules,
                     ),
                     tcpLatencyMs = tcpLatencyMs,
@@ -608,34 +596,13 @@ class OpenRungVpnService : VpnService() {
             }
         }
 
-        // Plain direct transport is the one place a resolver-only failure can be retried in
-        // place: there is no live bridge to invalidate, so a fresh engine with the rotated DoH
-        // resolver gets one chance per spare resolver before the relay is blamed and the WSS
-        // ladder starts. Bridge transports rethrow instead; their next ladder rung already
-        // builds its config from the rotated order.
-        var spareResolvers = dnsFailover.resolverCount - 1
-        while (true) {
-            try {
-                return startTunnel(
-                    relay = relay,
-                    config = SingBoxConfiguration(
-                        relay = relay,
-                        dnsServers = dnsFailover.currentServers(),
-                        splitTunnel = splitTunnelRules,
-                    ),
-                    tcpLatencyMs = tcpLatencyMs,
-                    attempt = attempt,
-                    accessTransport = ACCESS_TRANSPORT_DIRECT,
-                )
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: DirectPathException) {
-                // startTunnel already rotated the resolver (and logged) for a dns_probe stage.
-                if (error.stage != STARTUP_STAGE_DNS_PROBE || spareResolvers <= 0) throw error
-                spareResolvers--
-                cleanupActiveTunnel()
-            }
-        }
+        return startTunnel(
+            relay = relay,
+            config = SingBoxConfiguration(relay = relay, splitTunnel = splitTunnelRules),
+            tcpLatencyMs = tcpLatencyMs,
+            attempt = attempt,
+            accessTransport = ACCESS_TRANSPORT_DIRECT,
+        )
     }
 
     /** Fail local setup before a raw relay failure can authorize any ticket request. */
@@ -657,16 +624,11 @@ class OpenRungVpnService : VpnService() {
             // pure parse/construct/close preflight; it starts no service, opens no TUN and performs
             // no network I/O. The actual adapter port is immaterial to graph validation.
             listOf(
-                SingBoxConfiguration(
-                    relay = relay,
-                    dnsServers = dnsFailover.currentServers(),
-                    splitTunnel = splitTunnelRules,
-                ).encodedJsonString(),
+                SingBoxConfiguration(relay, splitTunnel = splitTunnelRules).encodedJsonString(),
                 SingBoxConfiguration(
                     relay = relay,
                     bridgeHost = "127.0.0.1",
                     bridgePort = 1,
-                    dnsServers = dnsFailover.currentServers(),
                     splitTunnel = splitTunnelRules,
                 ).encodedJsonString(),
             ).forEach(ProxyEngineFactory::preflight)
@@ -758,7 +720,6 @@ class OpenRungVpnService : VpnService() {
                 relay = relay,
                 bridgeHost = result.bridgeHost,
                 bridgePort = result.bridgePort,
-                dnsServers = dnsFailover.currentServers(),
                 splitTunnel = splitTunnelRules,
             ),
             tcpLatencyMs = null,
@@ -968,14 +929,7 @@ class OpenRungVpnService : VpnService() {
             } else {
                 null
             },
-            // A DNS-stage failure implicates the DoH resolver path rather than the relay:
-            // rotate the primary so every config built from here on (same-relay direct retry,
-            // WSS ladder, recovery) leads with the alternate resolver.
-            onDnsPathFailure = {
-                dnsFailover.reportFailure(config.dnsServers)
-            },
         )
-        dnsFailover.activate(config.dnsServers)
         OpenRungStatusStore.appendLog(
             getString(R.string.log_internet_verified, internetProbe.durationMs),
         )
@@ -1587,13 +1541,6 @@ class OpenRungVpnService : VpnService() {
             } catch (error: Throwable) {
                 if (!isGenuineRemoteDataPathFailure(error)) {
                     throw LocalTunnelException("active_tunnel_health", error)
-                }
-                if (error is DnsPathUnverifiedException) {
-                    // Reported (after the remote classification, so local evidence never burns a
-                    // healthy resolver) against the RUNNING engine's order, so consecutive
-                    // strikes advance the rotation exactly once and the recovery reconnect leads
-                    // with the alternate resolver.
-                    dnsFailover.reportFailure()
                 }
                 probeAllowanceMs = PUNCH_HEALTH_MIN_DELAY_MS
                 msUntilProbe = 0

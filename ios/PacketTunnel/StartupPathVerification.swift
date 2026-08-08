@@ -12,8 +12,9 @@ private enum VerifiedStartupPathEvent {
 /// the engine's stop signal, and projects a failure into the fallback taxonomy:
 ///
 ///  - engine stop / local evidence → `LocalTunnelError` (aborts the whole relay ladder);
-///  - DNS-stage remote failure → stage `dns_probe`, after `onDnsPathFailure` has run so the
-///    resolver rotation advances before any retry builds its configuration;
+///  - DNS-stage remote failure → stage `dns_probe`. The emitted resolver chain already fell
+///    over in-engine, so this stage failing means NO configured resolver answered through this
+///    transport — evidence against the path, not one resolver;
 ///  - HTTPS-stage remote failure → stage `internet_probe`;
 ///  - remote failures type as `WssTransportError` when `wssFrontID` is set (WSS transport),
 ///    else `DirectPathError` — the only type that can unlock WSS fallback.
@@ -29,8 +30,7 @@ func verifyStartupTunnelPath(
     waitForUnexpectedStop: @escaping @Sendable () async -> String?,
     hasUnexpectedStop: () -> Bool,
     prepareForExpectedStop: () -> Bool,
-    wssFrontID: String?,
-    onDnsPathFailure: () -> Void
+    wssFrontID: String?
 ) async throws -> InternetProbeResult {
     do {
         let result = try await withThrowingTaskGroup(of: VerifiedStartupPathEvent.self) { group in
@@ -73,8 +73,7 @@ func verifyStartupTunnelPath(
                 )
             )
         }
-        let dnsStage = error is DnsPathUnverifiedError
-        let stage = dnsStage ? startupStageDnsProbe : startupStageInternetProbe
+        let stage = error is DnsPathUnverifiedError ? startupStageDnsProbe : startupStageInternetProbe
         guard isGenuineRemoteDataPathFailure(error) else {
             throw LocalTunnelError(stage: stage, underlying: error)
         }
@@ -86,11 +85,6 @@ func verifyStartupTunnelPath(
                 )
             )
         }
-        // Only a failure classified as REMOTE (and not one the engine-stop callback just
-        // claimed) is evidence about the resolver path; rotating on local evidence would burn a
-        // healthy resolver and emit false failover telemetry. Still ahead of the typed throws,
-        // so any retry below builds its config from the rotated order.
-        if dnsStage { onDnsPathFailure() }
         if let wssFrontID {
             throw WssTransportError(stage: stage, frontID: wssFrontID, underlying: error)
         }
