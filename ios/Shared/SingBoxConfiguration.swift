@@ -55,7 +55,6 @@ public struct SingBoxConfiguration: Equatable, Sendable {
     public let relay: RelayDescriptor
     public let tunnelIPv4Address: String
     public let tunnelIPv6Address: String
-    public let dnsServers: [String]
     public let mtu: Int
     /// Optional loopback endpoint owned by a native access transport such as wsscore.
     public let bridgeHost: String?
@@ -69,9 +68,6 @@ public struct SingBoxConfiguration: Equatable, Sendable {
         relay: RelayDescriptor,
         tunnelIPv4Address: String = SingBoxConfiguration.defaultTunnelIPv4Address,
         tunnelIPv6Address: String = "fdfe:dcba:9876::1/126",
-        // DoH resolver IPs in priority order. The first is the `evaluate`d primary; the last is
-        // the terminal fallback that answers when every earlier resolver times out or errors.
-        dnsServers: [String] = SingBoxConfiguration.defaultDoHResolvers,
         mtu: Int = 1400,
         bridgeHost: String? = nil,
         bridgePort: Int? = nil,
@@ -80,7 +76,6 @@ public struct SingBoxConfiguration: Equatable, Sendable {
         self.relay = relay
         self.tunnelIPv4Address = tunnelIPv4Address
         self.tunnelIPv6Address = tunnelIPv6Address
-        self.dnsServers = dnsServers
         self.mtu = mtu
         self.bridgeHost = bridgeHost
         self.bridgePort = bridgePort
@@ -127,6 +122,7 @@ public struct SingBoxConfiguration: Equatable, Sendable {
         let bypassCountries = (splitTunnel?.bypassCountries ?? []).compactMap(SplitTunnelCountry.forCode)
         let bypassLan = splitTunnel?.bypassLan == true
 
+        let dnsServers = Self.defaultDoHResolvers
         var dnsServerObjects: [[String: Any]] = dnsServers.enumerated().map { index, server in
             var object: [String: Any] = [
                 "tag": "dns-\(index)",
@@ -307,6 +303,7 @@ public struct SingBoxConfiguration: Equatable, Sendable {
         domainSuffixes: [String]?,
         disableCache: Bool
     ) -> [[String: Any]] {
+        let dnsServers = Self.defaultDoHResolvers
         var rules: [[String: Any]] = []
         for index in 0..<(dnsServers.count - 1) {
             var evaluate: [String: Any] = [

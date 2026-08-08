@@ -7,7 +7,7 @@ import XCTest
 ///
 /// These run the REAL seams — the WSS fallback ladder, the startup verification/classification
 /// (`verifyStartupTunnelPath`, which alone authorizes success), the composite fresh-DNS + HTTPS
-/// probe, resolver rotation, and the real cn-bypass configuration (DnsConfigurationTests pins
+/// probe, resolver failover, and the real cn-bypass configuration (DnsConfigurationTests pins
 /// that every probe flow is proxied). Fakes exist only at the two socket boundaries, which is
 /// precisely what a dead or working proxy controls. Mirror of Android
 /// `StartupProbeChinaBypassTest`.
