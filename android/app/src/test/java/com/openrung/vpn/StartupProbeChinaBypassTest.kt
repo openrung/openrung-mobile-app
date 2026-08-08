@@ -30,7 +30,7 @@ import java.net.SocketTimeoutException
  *
  * These run the REAL seams — the WSS fallback ladder, the startup guard race, the startup
  * classification ([verifyStartupTunnelPath], which alone authorizes success), the composite
- * fresh-DNS + HTTPS probe, resolver rotation, and the real cn-bypass configuration. Fakes exist
+ * fresh-DNS + HTTPS probe, resolver failover, and the real cn-bypass configuration. Fakes exist
  * only at the two socket boundaries, which is precisely what a dead or working proxy controls:
  * with the emitted config, ALL probe DNS and HTTPS flows traverse the proxy (asserted below and
  * in SingBoxConfigurationDnsTest), so "proxy dead + direct internet fine" means both boundaries

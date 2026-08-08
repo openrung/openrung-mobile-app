@@ -1,6 +1,6 @@
 {
   "name": "openrung-mobile-app",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "private": true,
   "scripts": {
     "android": "react-native run-android",
