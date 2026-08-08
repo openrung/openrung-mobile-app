@@ -14,6 +14,19 @@ import java.net.SocketTimeoutException
 
 class DnsProbeTest {
     @Test
+    fun `probe budgets outlive the emitted failover chain`() {
+        // A blackholed primary legitimately consumes its full evaluate timeout before the
+        // terminal fallback answers; an attempt budget below the chain's worst case would
+        // starve the fallback and condemn a healthy transport. Both budgets are derived from
+        // the chain constants — this pins the derivation against hand-tuning regressions.
+        assertEquals(5_000L, SingBoxConfiguration.DNS_FAILOVER_WORST_CASE_MS)
+        assertTrue(
+            DnsProbe.ATTEMPT_TIMEOUT_MS >= SingBoxConfiguration.DNS_FAILOVER_WORST_CASE_MS + 1_000,
+        )
+        assertTrue(DnsProbe.PROBE_DEADLINE_MS >= 2 * DnsProbe.ATTEMPT_TIMEOUT_MS)
+    }
+
+    @Test
     fun `query encodes a well-formed recursion-desired A question`() {
         val query = DnsProbeMessage.encodeQuery(0xBEEF, "abc.probe.openrung.org")
 

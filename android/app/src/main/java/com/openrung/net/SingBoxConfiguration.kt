@@ -358,8 +358,19 @@ data class SingBoxConfiguration(
         )
 
         // Per-evaluate budget before the next resolver runs, and the terminal/global budget.
-        private const val DNS_PRIMARY_TIMEOUT = "2s"
-        private const val DNS_FALLBACK_TIMEOUT = "3s"
+        const val DNS_PRIMARY_TIMEOUT_MS = 2_000L
+        const val DNS_FALLBACK_TIMEOUT_MS = 3_000L
+        private val DNS_PRIMARY_TIMEOUT = "${DNS_PRIMARY_TIMEOUT_MS / 1_000}s"
+        private val DNS_FALLBACK_TIMEOUT = "${DNS_FALLBACK_TIMEOUT_MS / 1_000}s"
+
+        /**
+         * Engine-side worst case for one lookup through the default chain: every non-terminal
+         * resolver may consume its full evaluate timeout before the terminal fallback gets its
+         * own. Probe budgets are derived from this (see [DnsProbe]) so they can never again
+         * abort an attempt while the chain is still legitimately working.
+         */
+        val DNS_FAILOVER_WORST_CASE_MS =
+            (DEFAULT_DOH_RESOLVERS.size - 1) * DNS_PRIMARY_TIMEOUT_MS + DNS_FALLBACK_TIMEOUT_MS
 
         /** Default TUN IPv4 address; the DNS address below is derived from it. */
         const val DEFAULT_TUNNEL_IPV4_ADDRESS = "172.19.0.1/30"

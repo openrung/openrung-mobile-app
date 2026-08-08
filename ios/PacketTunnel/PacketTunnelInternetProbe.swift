@@ -146,6 +146,13 @@ struct PacketTunnelInternetProbe: Sendable {
     // the proxy ahead of any country-bypass rule.
     static let defaultEndpointStrings = ProbeTargets.tunnelProbeURLs
 
+    /// The per-request budget wraps `createTCPConnectionThroughTunnel`, whose hostname
+    /// resolution runs through the emitted DNS chain — deliberately uncached for probe domains
+    /// — so it must fit the chain's worst case (a blackholed primary spends its full evaluate
+    /// timeout before the fallback answers) PLUS the TLS connect and response itself.
+    static let defaultRequestTimeoutMilliseconds: UInt64 =
+        SingBoxConfiguration.dnsFailoverWorstCaseMilliseconds + 3_000
+
     private let endpoints: [TunnelProbeEndpoint]
     private let transport: any ThroughTunnelHTTPTransport
     private let deadlineMilliseconds: UInt64
@@ -167,7 +174,7 @@ struct PacketTunnelInternetProbe: Sendable {
         transport: any ThroughTunnelHTTPTransport,
         deadlineMilliseconds: UInt64 = 12_000,
         retryDelayNanoseconds: UInt64 = 500_000_000,
-        requestTimeoutMilliseconds: UInt64 = 3_000
+        requestTimeoutMilliseconds: UInt64 = PacketTunnelInternetProbe.defaultRequestTimeoutMilliseconds
     ) throws {
         self.endpoints = try endpoints.map(TunnelProbeEndpoint.init)
         guard self.endpoints.isEmpty == false else { throw URLError(.badURL) }

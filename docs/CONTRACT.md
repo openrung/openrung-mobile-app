@@ -456,7 +456,13 @@ used as evidence that Reality or WSS carried end-to-end traffic.
   (sing-box has no upstream failover of its own; `evaluate` is non-terminal
   on transport error/timeout/SERVFAIL/REFUSED in the pinned engine).
   `dns.final` names the terminal fallback (`dns-1`), `dns.timeout` is 3s, and
-  `route.default_domain_resolver` stays `dns-0`.
+  `route.default_domain_resolver` stays `dns-0`. Probe budgets are DERIVED
+  from these chain constants, never hand-tuned: one raw-DNS attempt gets the
+  chain's worst case (primary evaluate + terminal fallback = 5s) plus 1s
+  margin, the startup deadline covers two attempts, and the iOS through-tunnel
+  HTTPS request budget adds the worst case on top of its 3s exchange budget
+  because its in-tunnel resolution is uncached for probe domains by design —
+  a blackholed primary must never starve the fallback into a false failure.
 - `vpn/SplitTunnelStore.kt` — persists the raw config JSON in the
   SharedPreferences file `openrung_split_tunnel`, key `config_json`; `parse`
   uses kotlinx-serialization with `ignoreUnknownKeys`, invalid JSON ⇒ null.

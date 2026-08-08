@@ -11,8 +11,19 @@ public struct SingBoxConfiguration: Equatable, Sendable {
     ]
 
     // Per-evaluate budget before the next resolver runs, and the terminal/global budget.
-    private static let dnsPrimaryTimeout = "2s"
-    private static let dnsFallbackTimeout = "3s"
+    public static let dnsPrimaryTimeoutMilliseconds: UInt64 = 2_000
+    public static let dnsFallbackTimeoutMilliseconds: UInt64 = 3_000
+    private static let dnsPrimaryTimeout = "\(dnsPrimaryTimeoutMilliseconds / 1_000)s"
+    private static let dnsFallbackTimeout = "\(dnsFallbackTimeoutMilliseconds / 1_000)s"
+
+    /// Engine-side worst case for one lookup through the default chain: every non-terminal
+    /// resolver may consume its full evaluate timeout before the terminal fallback gets its
+    /// own. Probe budgets are derived from this (see `PacketTunnelDnsProbe` and
+    /// `PacketTunnelInternetProbe`) so they can never again abort an attempt while the chain
+    /// is still legitimately working.
+    public static let dnsFailoverWorstCaseMilliseconds: UInt64 =
+        UInt64(defaultDoHResolvers.count - 1) * dnsPrimaryTimeoutMilliseconds
+            + dnsFallbackTimeoutMilliseconds
 
     /// Default TUN IPv4 address; the DNS address below is derived from it.
     public static let defaultTunnelIPv4Address = "172.19.0.1/30"

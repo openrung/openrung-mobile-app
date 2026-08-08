@@ -87,7 +87,20 @@ class DnsProbe(
     }
 
     companion object {
-        private const val PROBE_DEADLINE_MS = 5_000L
+        /**
+         * One transport attempt must outlive the emitted failover chain's worst case (the
+         * primary's evaluate timeout plus the terminal fallback's own budget) with margin for
+         * the hijack round trip — otherwise a blackholed primary consumes its full evaluate
+         * timeout and the probe aborts while the fallback is still legitimately answering,
+         * condemning a healthy transport. Both budgets are derived, never hand-tuned.
+         */
+        internal val ATTEMPT_TIMEOUT_MS =
+            SingBoxConfiguration.DNS_FAILOVER_WORST_CASE_MS + CHAIN_MARGIN_MS
+
+        /** Startup budget: two full-chain attempts plus the retry gap. */
+        internal val PROBE_DEADLINE_MS = 2 * ATTEMPT_TIMEOUT_MS + RETRY_DELAY_MS
+
+        private const val CHAIN_MARGIN_MS = 1_000L
         private const val RETRY_DELAY_MS = 250L
         private const val NONCE_LENGTH = 16
         private const val NONCE_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789"
@@ -169,7 +182,7 @@ class VpnNetworkDnsTransport(context: Context) : TunnelDnsTransport {
 
         DatagramSocket().use { socket ->
             vpnNetwork.bindSocket(socket)
-            socket.soTimeout = ATTEMPT_TIMEOUT_MS
+            socket.soTimeout = DnsProbe.ATTEMPT_TIMEOUT_MS.toInt()
             socket.connect(InetSocketAddress(hijackedResolver, DNS_PORT))
             socket.send(DatagramPacket(query, query.size))
             val buffer = ByteArray(MAX_RESPONSE_BYTES)
@@ -181,7 +194,6 @@ class VpnNetworkDnsTransport(context: Context) : TunnelDnsTransport {
 
     private companion object {
         const val DNS_PORT = 53
-        const val ATTEMPT_TIMEOUT_MS = 2_500
         const val MAX_RESPONSE_BYTES = 1_024
     }
 }

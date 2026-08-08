@@ -2,6 +2,28 @@ import Foundation
 import XCTest
 
 final class PacketTunnelDnsProbeTests: XCTestCase {
+    func testProbeBudgetsOutliveTheEmittedFailoverChain() {
+        // A blackholed primary legitimately consumes its full evaluate timeout before the
+        // terminal fallback answers; an attempt budget below the chain's worst case would
+        // starve the fallback and condemn a healthy transport. Both budgets are derived from
+        // the chain constants — this pins the derivation against hand-tuning regressions.
+        XCTAssertEqual(SingBoxConfiguration.dnsFailoverWorstCaseMilliseconds, 5_000)
+        XCTAssertGreaterThanOrEqual(
+            PacketTunnelDnsProbe.defaultAttemptTimeoutMilliseconds,
+            SingBoxConfiguration.dnsFailoverWorstCaseMilliseconds + 1_000
+        )
+        XCTAssertGreaterThanOrEqual(
+            PacketTunnelDnsProbe.defaultDeadlineMilliseconds,
+            2 * PacketTunnelDnsProbe.defaultAttemptTimeoutMilliseconds
+        )
+        // The HTTPS probe's per-request budget wraps in-tunnel resolution (uncached for probe
+        // domains by design), so it must fit the chain's worst case plus the exchange itself.
+        XCTAssertGreaterThanOrEqual(
+            PacketTunnelInternetProbe.defaultRequestTimeoutMilliseconds,
+            SingBoxConfiguration.dnsFailoverWorstCaseMilliseconds + 3_000
+        )
+    }
+
     func testAcceptsAMatchingResponseIncludingNXDOMAIN() async throws {
         let transport = ScriptedDatagramTransport(respondWith: .echoTransactionID(rcode: 3))
         let probe = PacketTunnelDnsProbe(transport: transport)

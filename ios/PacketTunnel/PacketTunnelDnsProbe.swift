@@ -16,6 +16,17 @@ protocol ThroughTunnelDatagramTransport: Sendable {
 /// response counts, including NXDOMAIN: the answer's content is irrelevant, its arrival is the
 /// proof. Port of Android `DnsProbe`.
 struct PacketTunnelDnsProbe: Sendable {
+    /// One transport attempt must outlive the emitted failover chain's worst case (the
+    /// primary's evaluate timeout plus the terminal fallback's own budget) with margin for the
+    /// hijack round trip — otherwise a blackholed primary consumes its full evaluate timeout
+    /// and the probe aborts while the fallback is still legitimately answering, condemning a
+    /// healthy transport. Both budgets are derived, never hand-tuned.
+    static let defaultAttemptTimeoutMilliseconds: UInt64 =
+        SingBoxConfiguration.dnsFailoverWorstCaseMilliseconds + 1_000
+
+    /// Startup budget: two full-chain attempts plus the retry gap.
+    static let defaultDeadlineMilliseconds: UInt64 = 2 * defaultAttemptTimeoutMilliseconds + 250
+
     private let transport: any ThroughTunnelDatagramTransport
     private let qnameSuffix: String
     private let deadlineMilliseconds: UInt64
@@ -29,9 +40,9 @@ struct PacketTunnelDnsProbe: Sendable {
     init(
         transport: any ThroughTunnelDatagramTransport,
         qnameSuffix: String = ProbeTargets.dnsProbeQnameSuffix,
-        deadlineMilliseconds: UInt64 = 5_000,
+        deadlineMilliseconds: UInt64 = PacketTunnelDnsProbe.defaultDeadlineMilliseconds,
         retryDelayNanoseconds: UInt64 = 250_000_000,
-        attemptTimeoutMilliseconds: UInt64 = 2_500
+        attemptTimeoutMilliseconds: UInt64 = PacketTunnelDnsProbe.defaultAttemptTimeoutMilliseconds
     ) {
         self.transport = transport
         self.qnameSuffix = qnameSuffix
