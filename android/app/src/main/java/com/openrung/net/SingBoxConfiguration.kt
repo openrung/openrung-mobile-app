@@ -51,11 +51,6 @@ data class SingBoxConfiguration(
     val bridgePort: Int = 0,
     val tunnelIPv4Address: String = DEFAULT_TUNNEL_IPV4_ADDRESS,
     val tunnelIPv6Address: String = "fdfe:dcba:9876::1/126",
-    /**
-     * DoH resolver IPs in priority order. The first is the `evaluate`d primary; the last is the
-     * terminal fallback that answers when every earlier resolver times out or errors.
-     */
-    val dnsServers: List<String> = DEFAULT_DOH_RESOLVERS,
     val mtu: Int = 1400,
     val splitTunnel: SplitTunnelRules? = null,
 ) {
@@ -77,6 +72,7 @@ data class SingBoxConfiguration(
         val outboundPort = if (useLoopbackAdapter) bridgePort else relay.publicPort
         val bypassCountries = splitTunnel?.bypassCountries.orEmpty()
         val excludedPackages = splitTunnel?.excludedPackages.orEmpty()
+        val dnsServers = DEFAULT_DOH_RESOLVERS
 
         val tunInbound = mutableMapOf<String, JsonElement>(
             "type" to JsonPrimitive("tun"),
@@ -108,7 +104,6 @@ data class SingBoxConfiguration(
                 put("timestamp", true)
             })
             put("dns", buildJsonObject {
-                require(dnsServers.isNotEmpty()) { "at least one DoH resolver is required" }
                 put("servers", buildJsonArray {
                     dnsServers.forEachIndexed { index, server ->
                         add(buildJsonObject {
@@ -281,6 +276,7 @@ data class SingBoxConfiguration(
         domainSuffixes: List<String>?,
         disableCache: Boolean,
     ): List<JsonObject> = buildList {
+        val dnsServers = DEFAULT_DOH_RESOLVERS
         fun JsonObjectBuilder.putScopeAndCache() {
             domainSuffixes?.let {
                 put("domain_suffix", JsonArray(it.map(::JsonPrimitive)))
