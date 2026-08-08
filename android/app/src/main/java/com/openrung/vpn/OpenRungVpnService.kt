@@ -24,8 +24,8 @@ import com.openrung.model.RelaySelector
 import com.openrung.model.WssFrontDescriptor
 import com.openrung.net.BrokerClient
 import com.openrung.net.BrokerNativeFailure
+import com.openrung.net.DnsPathUnverifiedException
 import com.openrung.net.GeoIpClient
-import com.openrung.net.InternetProbe
 import com.openrung.net.NatPunchClient
 import com.openrung.net.NatPunchResult
 import com.openrung.net.NatPunchSession
@@ -36,6 +36,7 @@ import com.openrung.net.RelayRanker
 import com.openrung.net.RelayReachability
 import com.openrung.net.SingBoxConfiguration
 import com.openrung.net.SplitTunnelRules
+import com.openrung.net.TunnelPathProbe
 import com.openrung.net.WssClient
 import com.openrung.net.WssSession
 import com.openrung.net.WssTicketClient
@@ -920,27 +921,15 @@ class OpenRungVpnService : VpnService() {
         val tunnelStartMs = SystemClock.elapsedRealtime() - tunnelStarted
         engine = proxyEngine
         OpenRungStatusStore.appendLog(getString(R.string.log_verifying_internet))
-        val internetProbe = try {
-            awaitStartupProbeOrEngineStop(
-                probe = { InternetProbe(applicationContext).verify() },
-                awaitUnexpectedEngineStop = proxyEngine::awaitUnexpectedStop,
-            )
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: Throwable) {
-            if (error is LocalTunnelException) throw error
-            if (!isGenuineRemoteDataPathFailure(error)) {
-                throw LocalTunnelException("internet_probe", error)
-            }
-            if (accessTransport == ACCESS_TRANSPORT_WSS) {
-                throw WssTransportException(
-                    stage = "internet_probe",
-                    frontId = checkNotNull(frontId) { "WSS transport requires a front id" },
-                    cause = error,
-                )
-            }
-            throw DirectPathException("internet_probe", error)
-        }
+        val internetProbe = verifyStartupTunnelPath(
+            probe = { TunnelPathProbe(applicationContext).verify() },
+            awaitUnexpectedEngineStop = proxyEngine::awaitUnexpectedStop,
+            wssFrontId = if (accessTransport == ACCESS_TRANSPORT_WSS) {
+                checkNotNull(frontId) { "WSS transport requires a front id" }
+            } else {
+                null
+            },
+        )
         OpenRungStatusStore.appendLog(
             getString(R.string.log_internet_verified, internetProbe.durationMs),
         )
@@ -1543,7 +1532,7 @@ class OpenRungVpnService : VpnService() {
             val sendWithoutReply = uplinkGrew && !downlinkGrew
             if (failures == 0 && !sendWithoutReply && msUntilProbe > 0) continue
             try {
-                InternetProbe(applicationContext).verifyOnce()
+                TunnelPathProbe(applicationContext).verifyOnce()
                 failures = 0
                 probeAllowanceMs = (probeAllowanceMs * 2).coerceAtMost(PUNCH_HEALTH_MAX_BACKOFF_MS)
                 msUntilProbe = probeAllowanceMs

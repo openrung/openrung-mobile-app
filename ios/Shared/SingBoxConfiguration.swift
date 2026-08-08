@@ -1,6 +1,57 @@
 import Foundation
 
 public struct SingBoxConfiguration: Equatable, Sendable {
+    /// DoH-capable public resolvers reached as IP literals: no bootstrap resolution needed.
+    public static let defaultDoHResolvers = ["1.1.1.1", "8.8.8.8"]
+
+    /// Hostnames the DoH TLS handshakes authenticate while dialing the IP literals above.
+    private static let dohTLSServerNames = [
+        "1.1.1.1": "cloudflare-dns.com",
+        "8.8.8.8": "dns.google",
+    ]
+
+    // Per-evaluate budget before the next resolver runs, and the terminal/global budget.
+    public static let dnsPrimaryTimeoutMilliseconds: UInt64 = 2_000
+    public static let dnsFallbackTimeoutMilliseconds: UInt64 = 3_000
+    private static let dnsPrimaryTimeout = "\(dnsPrimaryTimeoutMilliseconds / 1_000)s"
+    private static let dnsFallbackTimeout = "\(dnsFallbackTimeoutMilliseconds / 1_000)s"
+
+    /// Engine-side worst case for one lookup through the default chain: every non-terminal
+    /// resolver may consume its full evaluate timeout before the terminal fallback gets its
+    /// own. Probe budgets are derived from this (see `PacketTunnelDnsProbe` and
+    /// `PacketTunnelInternetProbe`) so they can never again abort an attempt while the chain
+    /// is still legitimately working.
+    public static let dnsFailoverWorstCaseMilliseconds: UInt64 =
+        UInt64(defaultDoHResolvers.count - 1) * dnsPrimaryTimeoutMilliseconds
+            + dnsFallbackTimeoutMilliseconds
+
+    /// Default TUN IPv4 address; the DNS address below is derived from it.
+    public static let defaultTunnelIPv4Address = "172.19.0.1/30"
+
+    /// The ONLY in-TUN address whose port-53 traffic sing-box hijacks. When the tun inbound
+    /// carries no explicit `dns_address` (we emit none), sing-tun derives the hijack address as
+    /// the next address after the TUN's own IPv4 address, and the tun inbound tags a packet
+    /// `Protocol=DNS` only when its destination equals that address — after which the router
+    /// hijacks it into the DNS module ahead of any route rule. A datagram addressed to a public
+    /// resolver (1.1.1.1) is NOT tagged, matches no rule, and dies on the TCP-only proxy
+    /// outbound, so the fresh-DNS probe must target this address. It is also what libbox reports
+    /// to `NEDNSSettings`, so it is exactly where system lookups already go.
+    public static let defaultTunnelDnsAddress = tunnelDnsAddress(for: defaultTunnelIPv4Address)
+
+    /// Next IPv4 address after `tunnelIPv4Address`, mirroring sing-tun's derivation.
+    public static func tunnelDnsAddress(for tunnelIPv4Address: String) -> String {
+        let octets = tunnelIPv4Address.split(separator: "/")[0].split(separator: ".")
+        precondition(octets.count == 4, "tunnel address is not IPv4: \(tunnelIPv4Address)")
+        let value = octets.reduce(UInt32(0)) { accumulated, octet in
+            guard let part = UInt32(octet), part <= 255 else {
+                preconditionFailure("tunnel address is not IPv4: \(tunnelIPv4Address)")
+            }
+            return accumulated << 8 | part
+        }
+        let next = value &+ 1
+        return [24, 16, 8, 0].map { String((next >> UInt32($0)) & 0xFF) }.joined(separator: ".")
+    }
+
     public let relay: RelayDescriptor
     public let tunnelIPv4Address: String
     public let tunnelIPv6Address: String
@@ -16,9 +67,11 @@ public struct SingBoxConfiguration: Equatable, Sendable {
 
     public init(
         relay: RelayDescriptor,
-        tunnelIPv4Address: String = "172.19.0.1/30",
+        tunnelIPv4Address: String = SingBoxConfiguration.defaultTunnelIPv4Address,
         tunnelIPv6Address: String = "fdfe:dcba:9876::1/126",
-        dnsServers: [String] = ["1.1.1.1", "8.8.8.8"],
+        // DoH resolver IPs in priority order. The first is the `evaluate`d primary; the last is
+        // the terminal fallback that answers when every earlier resolver times out or errors.
+        dnsServers: [String] = SingBoxConfiguration.defaultDoHResolvers,
         mtu: Int = 1400,
         bridgeHost: String? = nil,
         bridgePort: Int? = nil,
@@ -75,12 +128,21 @@ public struct SingBoxConfiguration: Equatable, Sendable {
         let bypassLan = splitTunnel?.bypassLan == true
 
         var dnsServerObjects: [[String: Any]] = dnsServers.enumerated().map { index, server in
-            [
+            var object: [String: Any] = [
                 "tag": "dns-\(index)",
-                "type": "tcp",
+                // DoH over 443 via the proxy: relays answer 443 on every transport, while
+                // TCP/53 gets no replies under WSS. IP-literal servers need no bootstrap
+                // resolver (defaults: port 443, path /dns-query).
+                "type": "https",
                 "server": server,
                 "detour": "proxy"
             ]
+            // TLS authenticates the provider hostname while the dial stays on the IP literal,
+            // so a provider dropping IP SANs from its certificate cannot break resolution.
+            if let serverName = Self.dohTLSServerNames[server] {
+                object["tls"] = ["enabled": true, "server_name": serverName] as [String: Any]
+            }
+            return object
         }
         for country in bypassCountries {
             // Modern UDP DNS servers use a direct dialer when detour is omitted. Detouring to our
@@ -91,18 +153,33 @@ public struct SingBoxConfiguration: Equatable, Sendable {
                 "server": country.directResolver
             ])
         }
-        var dns: [String: Any] = [
+        // Highest priority: probe lookups must reach the proxied DoH resolvers even when a
+        // country rule would divert them (geosite-cn contains gstatic-class hosts), and must
+        // never be answered from any cache — a cached answer proves nothing about the tunnel
+        // right now. The chain is terminal for probe domains (its trailing route rule always
+        // fires), so a future geosite refresh can never capture a probe lookup.
+        var dnsRules = dnsFailoverRules(
+            domainSuffixes: ProbeTargets.ruleDomainSuffixes,
+            disableCache: true
+        )
+        dnsRules.append(contentsOf: bypassCountries.map { country in
+            [
+                "rule_set": [country.geositeTag],
+                "server": "dns-direct-\(country.code)"
+            ] as [String: Any]
+        })
+        // Real failover for everything else: a static `final` would never consult a second
+        // resolver. `evaluate` is non-terminal on a transport error, timeout, SERVFAIL or
+        // REFUSED in the pinned engine — a usable answer (NOERROR, or an authoritative
+        // NXDOMAIN) is returned by `respond`, anything else falls through to the next
+        // resolver's terminal route rule.
+        dnsRules.append(contentsOf: dnsFailoverRules(domainSuffixes: nil, disableCache: false))
+        let dns: [String: Any] = [
             "servers": dnsServerObjects,
-            "final": "dns-0"
+            "rules": dnsRules,
+            "final": "dns-\(dnsServers.count - 1)",
+            "timeout": Self.dnsFallbackTimeout
         ]
-        if bypassCountries.isEmpty == false {
-            dns["rules"] = bypassCountries.map { country in
-                [
-                    "rule_set": [country.geositeTag],
-                    "server": "dns-direct-\(country.code)"
-                ] as [String: Any]
-            }
-        }
 
         var routeRules: [[String: Any]] = [
             [
@@ -113,6 +190,13 @@ public struct SingBoxConfiguration: Equatable, Sendable {
         if bypassCountries.isEmpty == false {
             // Domain rule sets need the sniffed hostname on raw connections.
             routeRules.append(["action": "sniff"])
+            // Probe traffic must reach the proxy even when a bypass rule would send it direct;
+            // a probe that escapes onto the direct path can report CONNECTED over a dead
+            // tunnel. Must precede every bypass rule.
+            routeRules.append([
+                "domain_suffix": ProbeTargets.ruleDomainSuffixes,
+                "outbound": "proxy"
+            ])
         }
         if bypassLan {
             routeRules.append([
@@ -210,6 +294,53 @@ public struct SingBoxConfiguration: Equatable, Sendable {
                 "clash_api": [String: Any]()
             ]
         ]
+    }
+
+    /// Emits an ordered primary-to-fallback resolver chain from sing-box 1.14 DNS rule actions:
+    /// for every resolver but the last, `evaluate` exchanges the query (non-terminal on error)
+    /// and `respond` returns its answer when the RCODE is NOERROR or NXDOMAIN — both are real
+    /// answers, and probe nonce queries are expected to draw NXDOMAIN. Everything else (timeout,
+    /// transport error, SERVFAIL, REFUSED) falls through until the last resolver's terminal
+    /// route rule. With `domainSuffixes` the whole chain applies only to those domains and is
+    /// guaranteed terminal for them; with nil it applies to every remaining query.
+    private func dnsFailoverRules(
+        domainSuffixes: [String]?,
+        disableCache: Bool
+    ) -> [[String: Any]] {
+        var rules: [[String: Any]] = []
+        for index in 0..<(dnsServers.count - 1) {
+            var evaluate: [String: Any] = [
+                "action": "evaluate",
+                "server": "dns-\(index)",
+                "timeout": Self.dnsPrimaryTimeout
+            ]
+            if let domainSuffixes { evaluate["domain_suffix"] = domainSuffixes }
+            if disableCache {
+                evaluate["disable_cache"] = true
+                evaluate["disable_optimistic_cache"] = true
+            }
+            rules.append(evaluate)
+            for rcode in ["NOERROR", "NXDOMAIN"] {
+                var respond: [String: Any] = [
+                    "match_response": true,
+                    "response_rcode": rcode,
+                    "action": "respond"
+                ]
+                if let domainSuffixes { respond["domain_suffix"] = domainSuffixes }
+                rules.append(respond)
+            }
+        }
+        var route: [String: Any] = [
+            "server": "dns-\(dnsServers.count - 1)",
+            "timeout": Self.dnsFallbackTimeout
+        ]
+        if let domainSuffixes { route["domain_suffix"] = domainSuffixes }
+        if disableCache {
+            route["disable_cache"] = true
+            route["disable_optimistic_cache"] = true
+        }
+        rules.append(route)
+        return rules
     }
 
     private static func relayRouteExcludeAddress(for host: String) -> String? {

@@ -478,9 +478,10 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         attempt: Int,
         splitTunnel: SplitTunnelRules?
     ) async throws -> ConnectedRelay {
-        let configuration = SingBoxConfiguration(relay: relay, splitTunnel: splitTunnel)
         do {
-            try EmbeddedProxyEngine.preflight(configuration: configuration)
+            try EmbeddedProxyEngine.preflight(
+                configuration: SingBoxConfiguration(relay: relay, splitTunnel: splitTunnel)
+            )
             // Validate the WSS bridge graph before any remote reachability check can unlock ticket
             // acquisition. Port 1 is only a structurally valid placeholder; the actual loopback
             // port returned by wsscore is validated again when that engine is started. Carries the
@@ -544,7 +545,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             attemptRelayHub: { [self] in
                 try await startTunnel(
                     relay: relay,
-                    configuration: configuration,
+                    configuration: SingBoxConfiguration(relay: relay, splitTunnel: splitTunnel),
                     tcpLatencyMs: tcpLatencyMs,
                     attempt: attempt,
                     accessTransport: AccessTransport.direct,
@@ -854,48 +855,22 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         let tunnelStartMs = Int64((DispatchTime.now().uptimeNanoseconds - tunnelStartedNs) / 1_000_000)
 
         SharedConnectionState.appendLog("verifying internet access through the VPN")
-        let probe: InternetProbeResult
+        let pathProbe: PacketTunnelPathProbe
         do {
-            probe = try await verifyStartupInternetPath(proxyEngine: proxyEngine)
-            guard proxyEngine.hasUnexpectedStop == false else {
-                throw LocalTunnelError(
-                    stage: "active_tunnel_engine",
-                    underlying: PacketTunnelProxyEngineError.engineStartFailed(
-                        "libbox stopped during startup verification"
-                    )
-                )
-            }
-        } catch is CancellationError {
-            throw CancellationError()
+            pathProbe = PacketTunnelPathProbe(
+                dnsProbe: PacketTunnelDnsProbe(tunnelProvider: self),
+                httpProbe: try PacketTunnelInternetProbe(tunnelProvider: self)
+            )
         } catch {
-            if proxyEngine.hasUnexpectedStop {
-                throw LocalTunnelError(
-                    stage: "active_tunnel_engine",
-                    underlying: PacketTunnelProxyEngineError.engineStartFailed(
-                        "libbox stopped during startup verification"
-                    )
-                )
-            }
-            guard isGenuineRemoteDataPathFailure(error) else {
-                throw LocalTunnelError(stage: "internet_probe", underlying: error)
-            }
-            // Classifying this probe as a remote path failure unlocks direct-to-WSS fallback (and
-            // therefore ticket minting). Linearize that decision against libbox's stop callback:
-            // if the callback already won, this is a local engine failure; if teardown wins, a
-            // later callback is expected because this failed candidate is about to be replaced.
-            guard proxyEngine.prepareForExpectedStop() else {
-                throw LocalTunnelError(
-                    stage: "active_tunnel_engine",
-                    underlying: PacketTunnelProxyEngineError.engineStartFailed(
-                        "libbox stopped while classifying the startup path failure"
-                    )
-                )
-            }
-            if accessTransport == AccessTransport.wss, let frontID {
-                throw WssTransportError(stage: "internet_probe", frontID: frontID, underlying: error)
-            }
-            throw DirectPathError(stage: "internet_probe", underlying: error)
+            throw LocalTunnelError(stage: "internet_probe_setup", underlying: error)
         }
+        let probe = try await verifyStartupTunnelPath(
+            probe: { try await pathProbe.verify() },
+            waitForUnexpectedStop: { await proxyEngine.waitForUnexpectedStop() },
+            hasUnexpectedStop: { proxyEngine.hasUnexpectedStop },
+            prepareForExpectedStop: { proxyEngine.prepareForExpectedStop() },
+            wssFrontID: accessTransport == AccessTransport.wss ? frontID : nil
+        )
         SharedConnectionState.appendLog("internet access verified in \(probe.durationMs) ms")
 
         return ConnectedRelay(
@@ -926,37 +901,6 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             if activeTransport.punchSession == nil, activeTransport.wssSession == nil {
                 activeTransport.epoch = nil
             }
-        }
-    }
-
-    private func verifyStartupInternetPath(
-        proxyEngine: any PacketTunnelProxyEngine
-    ) async throws -> InternetProbeResult {
-        let probe: PacketTunnelInternetProbe
-        do {
-            probe = try PacketTunnelInternetProbe(tunnelProvider: self)
-        } catch {
-            throw LocalTunnelError(stage: "internet_probe_setup", underlying: error)
-        }
-        return try await withThrowingTaskGroup(of: StartupPathEvent.self) { group in
-            group.addTask { .probe(try await probe.verify()) }
-            group.addTask { .engineStopped(await proxyEngine.waitForUnexpectedStop()) }
-            defer { group.cancelAll() }
-            while let event = try await group.next() {
-                switch event {
-                case .probe(let result):
-                    return result
-                case .engineStopped(let reason):
-                    if let reason {
-                        throw LocalTunnelError(
-                            stage: "active_tunnel_engine",
-                            underlying: PacketTunnelProxyEngineError.engineStartFailed(reason)
-                        )
-                    }
-                    try Task.checkCancellation()
-                }
-            }
-            throw CancellationError()
         }
     }
 
@@ -1440,9 +1384,12 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     private func awaitTunnelHealthFailure(
         monitor: PhysicalNetworkEpochMonitor
     ) async throws -> String {
-        let probe: PacketTunnelInternetProbe
+        let probe: PacketTunnelPathProbe
         do {
-            probe = try PacketTunnelInternetProbe(tunnelProvider: self)
+            probe = PacketTunnelPathProbe(
+                dnsProbe: PacketTunnelDnsProbe(tunnelProvider: self),
+                httpProbe: try PacketTunnelInternetProbe(tunnelProvider: self)
+            )
         } catch {
             throw LocalTunnelError(stage: "active_tunnel_health_setup", underlying: error)
         }
@@ -2014,11 +1961,6 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     private enum PunchMonitorEvent {
         case pathFailure(reason: String, trigger: String, countTowardBreaker: Bool)
         case localFailure(LocalTunnelError)
-    }
-
-    private enum StartupPathEvent: Sendable {
-        case probe(InternetProbeResult)
-        case engineStopped(String?)
     }
 
     private struct PendingTunnelTasks {

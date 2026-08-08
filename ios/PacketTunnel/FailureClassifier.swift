@@ -24,6 +24,7 @@ enum FailureClassifier {
         if let direct = error as? DirectPathError { return classify(direct.underlying) }
         if let local = error as? LocalTunnelError { return classify(local.underlying) }
         if let wss = error as? WssTransportError { return classify(wss.underlying) }
+        if let dnsPath = error as? DnsPathUnverifiedError { return classify(dnsPath.underlying) }
         if let probe = error as? InternetProbeError {
             return probe.underlyingError.map(classify) ?? "network_unreachable"
         }
@@ -189,6 +190,7 @@ enum FailureClassifier {
         if let direct = error as? DirectPathError { return direct.underlying }
         if let local = error as? LocalTunnelError { return local.underlying }
         if let wss = error as? WssTransportError { return wss.underlying }
+        if let dnsPath = error as? DnsPathUnverifiedError { return dnsPath.underlying }
         if let probe = error as? InternetProbeError { return probe.underlyingError }
         if let recorded = error as? RelayFailureAlreadyRecordedError {
             if let lastWssFailure = recorded.wssFailures.last {

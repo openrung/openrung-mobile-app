@@ -426,15 +426,43 @@ used as evidence that Reality or WSS carried end-to-end traffic.
   modern UDP DNS servers already dial directly, while detouring through the
   otherwise-empty tagged direct outbound fails during the sing-box Start stage)
   (`ir` → `178.22.122.100` Shecan, `cn` → `223.5.5.5` AliDNS) and a `dns.rules`
-  entry `{"rule_set":["geosite-<cc>"],"server":"dns-direct-<cc>"}` between
-  `servers` and `final`; `route.rule_set` local/binary entries for
-  `geosite-<cc>.srs` and `geoip-<cc>.srs` under `ruleSetDirectory`, before
-  `rules`; and `route.rules` ordered [hijack-dns (existing, first),
-  `{"action":"sniff"}` (only when countries non-empty),
-  `{"ip_is_private":true,"outbound":"direct"}` (only when bypassLan),
-  per-country `{"rule_set":["geosite-<cc>","geoip-<cc>"],"outbound":"direct"}`,
+  entry `{"rule_set":["geosite-<cc>"],"server":"dns-direct-<cc>"}` appended
+  after the always-present probe pin (below), before `final`; `route.rule_set`
+  local/binary entries for `geosite-<cc>.srs` and `geoip-<cc>.srs` under
+  `ruleSetDirectory`, before `rules`; and `route.rules` ordered [hijack-dns
+  (existing, first), `{"action":"sniff"}` (only when countries non-empty),
+  the probe route pin
+  `{"domain_suffix":[<probe hostnames>],"outbound":"proxy"}` (only when
+  countries non-empty; it must precede every bypass rule so a dead proxy can
+  never look healthy via a bypassed probe — geosite-cn contains
+  `www.gstatic.com`), `{"ip_is_private":true,"outbound":"direct"}` (only when
+  bypassLan), per-country
+  `{"rule_set":["geosite-<cc>","geoip-<cc>"],"outbound":"direct"}`,
   `ir` before `cn`]. `final:"proxy"`, `route_exclude_address` logic,
   `find_process`, and everything else are unchanged.
+- Baseline DNS emission (both platforms): `dns-<i>` servers are DoH
+  (`{"type":"https","server":<ip>,"detour":"proxy"}`, defaults port 443 and
+  path `/dns-query`, plus `tls.server_name` = the provider hostname —
+  `cloudflare-dns.com` / `dns.google`) over `1.1.1.1` then `8.8.8.8`; TCP/53
+  through the proxy is forbidden — it receives no replies under WSS relays.
+  IP-literal servers keep the bootstrap non-circular. `dns.rules` ALWAYS
+  contains (no-split baseline included), in order: the 4-rule probe failover
+  chain (`evaluate dns-0` with `disable_cache`+`disable_optimistic_cache` and
+  a 2s timeout, `respond` on `match_response` RCODE NOERROR, `respond` on
+  NXDOMAIN — nonce probes legitimately draw it — then a terminal
+  `server: dns-1` route, all scoped `domain_suffix: [<probe hostnames>]` so a
+  probe lookup can never reach a country rule), then any country rules, then
+  the same 4-rule chain unscoped and cache-friendly as the global failover
+  (sing-box has no upstream failover of its own; `evaluate` is non-terminal
+  on transport error/timeout/SERVFAIL/REFUSED in the pinned engine).
+  `dns.final` names the terminal fallback (`dns-1`), `dns.timeout` is 3s, and
+  `route.default_domain_resolver` stays `dns-0`. Probe budgets are DERIVED
+  from these chain constants, never hand-tuned: one raw-DNS attempt gets the
+  chain's worst case (primary evaluate + terminal fallback = 5s) plus 1s
+  margin, the startup deadline covers two attempts, and the iOS through-tunnel
+  HTTPS request budget adds the worst case on top of its 3s exchange budget
+  because its in-tunnel resolution is uncached for probe domains by design —
+  a blackholed primary must never starve the fallback into a false failure.
 - `vpn/SplitTunnelStore.kt` — persists the raw config JSON in the
   SharedPreferences file `openrung_split_tunnel`, key `config_json`; `parse`
   uses kotlinx-serialization with `ignoreUnknownKeys`, invalid JSON ⇒ null.
@@ -507,13 +535,22 @@ used as evidence that Reality or WSS carried end-to-end traffic.
   appears in `AppConfig.PUNCH_COORDINATOR_CERT_SHA256_BY_HOST`; hostname endpoints
   use normal public-CA validation. Redirects and cleartext are always rejected.
 - After a direct connection reaches CONNECTED, Android races native QUIC closure
-  against a jittered end-to-end health monitor. Three failed tunnel sweeps plus a
-  successful physical-network connectivity probe trigger fresh discovery/re-punch and
-  RelayHub fallback. Native path loss waits for a reachable physical network, so
-  a local outage leaves the foreground service CONNECTING instead of failing it.
-  That probe stays bound to `Network.openConnection` but targets only
-  `www.gstatic.com/generate_204` and `cp.cloudflare.com/generate_204`; any HTTP
-  response proves connectivity, and no OpenRung identity/broker header is sent.
+  against a jittered end-to-end health monitor. Startup and health sweeps verify
+  fresh DNS first (a nonce-labelled raw query for
+  `<nonce>.probe.openrung.org` through the TUN, answered only via the proxied
+  DoH resolver; any well-formed response counts) and then HTTPS to
+  `probe.openrung.org/generate_204` with `cp.cloudflare.com/generate_204` as
+  fallback — both rule-pinned through the proxy ahead of country bypass.
+  Resolver failover happens inside the emitted DNS rule chain, so a
+  `dns_probe`-stage failure means no configured resolver answered through
+  that transport. Three failed tunnel
+  sweeps plus a successful physical-network connectivity probe trigger fresh
+  discovery/re-punch and RelayHub fallback. Native path loss waits for a
+  reachable physical network, so a local outage leaves the foreground service
+  CONNECTING instead of failing it. The PHYSICAL probe stays bound to
+  `Network.openConnection` but targets only `www.gstatic.com/generate_204`
+  and `cp.cloudflare.com/generate_204`; any HTTP response proves
+  connectivity, and no OpenRung identity/broker header is sent.
 - A transport-independent engine monitor watches libbox during direct, punched,
   and WSS sessions. Unexpected engine exit is a terminal local failure and never
   starts reladdering or ticket acquisition. WSS network, adapter, and end-to-end

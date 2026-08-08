@@ -44,7 +44,8 @@ final class SplitTunnelConfigurationTests: XCTestCase {
             ["ip_is_private": true, "outbound": "direct"],
         ] as [[String: Any]]))
 
-        // Everything outside route — dns (no "rules" key), tun inbound, outbounds — is untouched.
+        // Everything outside route — dns (incl. the always-on probe rule), tun inbound,
+        // outbounds — is untouched.
         baseline.removeValue(forKey: "route")
         split.removeValue(forKey: "route")
         XCTAssertEqual(try canonicalJSON(baseline), try canonicalJSON(split))
@@ -68,14 +69,17 @@ final class SplitTunnelConfigurationTests: XCTestCase {
             "type": "udp",
             "server": "178.22.122.100"
         ] as [String: Any]))
-        XCTAssertEqual(try canonicalJSON(dns["rules"]), try canonicalJSON([
-            ["rule_set": ["geosite-ir"], "server": "dns-direct-ir"],
-        ] as [[String: Any]]))
+        XCTAssertEqual(try canonicalJSON(dns["rules"]), try canonicalJSON(
+            expectedProbeFailoverChain()
+                + [["rule_set": ["geosite-ir"], "server": "dns-direct-ir"] as [String: Any]]
+                + expectedGlobalFailoverChain()
+        ))
 
         let route = try XCTUnwrap(object["route"] as? [String: Any])
         XCTAssertEqual(try canonicalJSON(route["rules"]), try canonicalJSON([
             ["protocol": "dns", "action": "hijack-dns"],
             ["action": "sniff"],
+            ["domain_suffix": ProbeTargets.ruleDomainSuffixes, "outbound": "proxy"],
             ["rule_set": ["geosite-ir", "geoip-ir"], "outbound": "direct"],
         ] as [[String: Any]]))
         XCTAssertEqual(try canonicalJSON(route["rule_set"]), try canonicalJSON([
@@ -94,15 +98,20 @@ final class SplitTunnelConfigurationTests: XCTestCase {
         XCTAssertEqual(servers.map { $0["tag"] as? String }, ["dns-0", "dns-1", "dns-direct-ir", "dns-direct-cn"])
         XCTAssertEqual(servers[3]["server"] as? String, "223.5.5.5")
         XCTAssertTrue(servers.suffix(2).allSatisfy { $0["detour"] == nil })
-        XCTAssertEqual(try canonicalJSON(dns["rules"]), try canonicalJSON([
-            ["rule_set": ["geosite-ir"], "server": "dns-direct-ir"],
-            ["rule_set": ["geosite-cn"], "server": "dns-direct-cn"],
-        ] as [[String: Any]]))
+        XCTAssertEqual(try canonicalJSON(dns["rules"]), try canonicalJSON(
+            expectedProbeFailoverChain()
+                + [
+                    ["rule_set": ["geosite-ir"], "server": "dns-direct-ir"] as [String: Any],
+                    ["rule_set": ["geosite-cn"], "server": "dns-direct-cn"] as [String: Any],
+                ]
+                + expectedGlobalFailoverChain()
+        ))
 
         let route = try XCTUnwrap(split["route"] as? [String: Any])
         XCTAssertEqual(try canonicalJSON(route["rules"]), try canonicalJSON([
             ["protocol": "dns", "action": "hijack-dns"],
             ["action": "sniff"],
+            ["domain_suffix": ProbeTargets.ruleDomainSuffixes, "outbound": "proxy"],
             ["ip_is_private": true, "outbound": "direct"],
             ["rule_set": ["geosite-ir", "geoip-ir"], "outbound": "direct"],
             ["rule_set": ["geosite-cn", "geoip-cn"], "outbound": "direct"],
@@ -270,6 +279,51 @@ final class SplitTunnelConfigurationTests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    /// The always-emitted probe DNS chain (spec §2): evaluate the primary uncached, respond on
+    /// any real answer (NOERROR/NXDOMAIN — nonce probes draw the latter), else the terminal
+    /// fallback route. Scoped to the probe domains and terminal for them.
+    private func expectedProbeFailoverChain() -> [[String: Any]] {
+        [
+            [
+                "domain_suffix": ProbeTargets.ruleDomainSuffixes,
+                "action": "evaluate",
+                "server": "dns-0",
+                "timeout": "2s",
+                "disable_cache": true,
+                "disable_optimistic_cache": true,
+            ],
+            [
+                "domain_suffix": ProbeTargets.ruleDomainSuffixes,
+                "match_response": true,
+                "response_rcode": "NOERROR",
+                "action": "respond",
+            ],
+            [
+                "domain_suffix": ProbeTargets.ruleDomainSuffixes,
+                "match_response": true,
+                "response_rcode": "NXDOMAIN",
+                "action": "respond",
+            ],
+            [
+                "domain_suffix": ProbeTargets.ruleDomainSuffixes,
+                "server": "dns-1",
+                "timeout": "3s",
+                "disable_cache": true,
+                "disable_optimistic_cache": true,
+            ],
+        ]
+    }
+
+    /// The always-emitted global failover chain: same shape, unscoped and cache-friendly.
+    private func expectedGlobalFailoverChain() -> [[String: Any]] {
+        [
+            ["action": "evaluate", "server": "dns-0", "timeout": "2s"],
+            ["match_response": true, "response_rcode": "NOERROR", "action": "respond"],
+            ["match_response": true, "response_rcode": "NXDOMAIN", "action": "respond"],
+            ["server": "dns-1", "timeout": "3s"],
+        ]
+    }
 
     private var fullRules: SplitTunnelRules {
         SplitTunnelRules(

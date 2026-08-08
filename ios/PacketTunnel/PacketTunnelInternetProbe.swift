@@ -141,10 +141,17 @@ private final class ProviderThroughTunnelHTTPTransport: ThroughTunnelHTTPTranspo
 /// Internet proof that is guaranteed to traverse the packet tunnel. The injected transport keeps
 /// endpoint/status/retry policy hostlessly testable without opening sockets.
 struct PacketTunnelInternetProbe: Sendable {
-    static let defaultEndpointStrings = [
-        "https://www.gstatic.com/generate_204",
-        "https://cp.cloudflare.com/generate_204",
-    ]
+    // Through-tunnel endpoints only. Every hostname here MUST also appear in
+    // ProbeTargets.ruleDomainSuffixes so the emitted config pins its DNS and routing through
+    // the proxy ahead of any country-bypass rule.
+    static let defaultEndpointStrings = ProbeTargets.tunnelProbeURLs
+
+    /// The per-request budget wraps `createTCPConnectionThroughTunnel`, whose hostname
+    /// resolution runs through the emitted DNS chain — deliberately uncached for probe domains
+    /// — so it must fit the chain's worst case (a blackholed primary spends its full evaluate
+    /// timeout before the fallback answers) PLUS the TLS connect and response itself.
+    static let defaultRequestTimeoutMilliseconds: UInt64 =
+        SingBoxConfiguration.dnsFailoverWorstCaseMilliseconds + 3_000
 
     private let endpoints: [TunnelProbeEndpoint]
     private let transport: any ThroughTunnelHTTPTransport
@@ -167,7 +174,7 @@ struct PacketTunnelInternetProbe: Sendable {
         transport: any ThroughTunnelHTTPTransport,
         deadlineMilliseconds: UInt64 = 12_000,
         retryDelayNanoseconds: UInt64 = 500_000_000,
-        requestTimeoutMilliseconds: UInt64 = 3_000
+        requestTimeoutMilliseconds: UInt64 = PacketTunnelInternetProbe.defaultRequestTimeoutMilliseconds
     ) throws {
         self.endpoints = try endpoints.map(TunnelProbeEndpoint.init)
         guard self.endpoints.isEmpty == false else { throw URLError(.badURL) }
@@ -255,7 +262,7 @@ struct PacketTunnelInternetProbe: Sendable {
     }
 }
 
-private final class ObservationBox: @unchecked Sendable {
+final class ObservationBox: @unchecked Sendable {
     private let lock = NSLock()
     private var observation: NSKeyValueObservation?
 
@@ -274,7 +281,7 @@ private final class ObservationBox: @unchecked Sendable {
     }
 }
 
-private final class ContinuationGate<Value>: @unchecked Sendable {
+final class ContinuationGate<Value>: @unchecked Sendable {
     private let lock = NSLock()
     private var continuation: CheckedContinuation<Value, Error>?
 

@@ -184,12 +184,39 @@ weaken the production OS policy.
   accept) — because an unrecognized candidate throws inside the fail-open walk
   and would silently demote the app to the GitHub-only path. `transport:check`
   and `updateManifest.test.ts` both assert the two lists are identical.
-- **Geo lookup** (`https://ipwho.is/`) and **connectivity probes**
-  (`https://www.gstatic.com/generate_204`, `https://cp.cloudflare.com/generate_204`)
-  are HTTPS. Android's physical-network recovery probe deliberately uses
-  `Network.openConnection` against those two independent connectivity
-  endpoints so the check cannot accidentally traverse the unhealthy VPN; it
-  sends no OpenRung identity or broker headers.
+- **Geo lookup** (`https://ipwho.is/`) and **connectivity probes** are HTTPS.
+  The through-tunnel probes target `https://probe.openrung.org/generate_204`
+  (dedicated, OpenRung-controlled; server-side route is a Cloudflare Worker
+  returning 204) with `https://cp.cloudflare.com/generate_204` as the
+  third-party fallback, plus a fresh-DNS check: a raw nonce-labelled A query
+  (`<nonce>.probe.openrung.org`) sent through the TUN, hijacked by sing-box,
+  and resolved via the proxied DoH resolver — any well-formed response
+  (including NXDOMAIN) proves the DNS path; nonces defeat OS, engine, and
+  upstream caches. Neither hostname appears in any bundled geosite rule set,
+  and the emitted config pins both (DNS rule → proxied DoH with
+  `disable_cache`; route rule → `proxy`) ahead of every country-bypass rule,
+  so a split-tunnel preset can never route a probe onto the direct path
+  (geosite-cn contains `www.gstatic.com`, which is why gstatic was dropped
+  from the through-tunnel lists). Android's physical-network recovery probe
+  is unchanged and deliberately identity-free: `Network.openConnection`
+  against `www.gstatic.com/generate_204` and `cp.cloudflare.com/generate_204`
+  so the check cannot accidentally traverse the unhealthy VPN and sends no
+  OpenRung identity or broker headers.
+- **In-tunnel DNS** — DoH over 443 to IP-literal resolvers (`1.1.1.1`, then
+  `8.8.8.8`), detoured through the `proxy` outbound, with TLS authenticating
+  the provider hostnames (`cloudflare-dns.com`, `dns.google`) so a provider
+  dropping IP SANs from its certificate cannot break resolution. IP literals
+  keep the bootstrap non-circular (no resolver is needed to reach the
+  resolver), and port 443 works over every transport — the previous
+  TCP/53-via-proxy design received no replies under WSS relays. sing-box has
+  no upstream failover of its own, so the emitted `dns.rules` build one from
+  1.14 rule actions: `evaluate` the primary (non-terminal on transport
+  error/timeout/SERVFAIL/REFUSED), `respond` with any usable answer (NOERROR,
+  or an authoritative NXDOMAIN), else fall through to the fallback resolver's
+  terminal route rule — per query, mid-session, with no engine restart. A
+  `dns_probe`-stage failure therefore means NO configured resolver answered
+  through that transport. Split-tunnel bypassed domains still resolve via the
+  in-country UDP resolvers over the direct path (unchanged).
 
 There is no runtime switch back to the removed JavaScript broker transports.
 A missing or stale `OpenRungBroker` binding rejects as `unavailable` and

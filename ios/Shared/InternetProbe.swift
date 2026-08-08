@@ -31,10 +31,10 @@ public enum InternetProbeError: LocalizedError {
 /// uses `PacketTunnelInternetProbe`, backed by `createTCPConnectionThroughTunnel`, whenever the
 /// result is used to classify a Reality/WSS path.
 public struct InternetProbe: Sendable {
-    public static let defaultEndpoints = [
-        "https://www.gstatic.com/generate_204",
-        "https://cp.cloudflare.com/generate_204",
-    ]
+    // Through-tunnel endpoints only. Every hostname here MUST also appear in
+    // ProbeTargets.ruleDomainSuffixes so the emitted config pins its DNS and routing through
+    // the proxy ahead of any country-bypass rule.
+    public static let defaultEndpoints = ProbeTargets.tunnelProbeURLs
 
     private let endpoints: [String]
     private let session: URLSession
@@ -113,11 +113,26 @@ public struct InternetProbe: Sendable {
     }
 }
 
+/// Marks a failure of the fresh-DNS stage of tunnel verification. `underlying` carries the real
+/// network error for classification/allow-listing; the wrapper only tells the caller that the
+/// resolver path (not the HTTP path) is what failed, so it can rotate the DoH resolver before
+/// the next attempt.
+public struct DnsPathUnverifiedError: Error {
+    public let underlying: Error
+
+    public init(underlying: Error) {
+        self.underlying = underlying
+    }
+}
+
 /// Positive allow-list for failures that actually demonstrate a remote network/data-path problem.
 /// Unknown, permission, configuration, runtime and platform errors fail local/closed and therefore
 /// can never unlock WSS fallback or advance to another signed front.
 func isGenuineRemoteDataPathFailure(_ error: Error, depth: Int = 0) -> Bool {
     guard depth < 8 else { return false }
+    if let dnsPathError = error as? DnsPathUnverifiedError {
+        return isGenuineRemoteDataPathFailure(dnsPathError.underlying, depth: depth + 1)
+    }
     if let probeError = error as? InternetProbeError {
         guard let underlying = probeError.underlyingError else { return false }
         return isGenuineRemoteDataPathFailure(underlying, depth: depth + 1)
