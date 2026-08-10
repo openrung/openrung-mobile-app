@@ -4,8 +4,8 @@ github.com/gorilla/websocket v1.5.3 h1:saDtZ6Pbx/0u+bgYQ3q96pZgCzfhKXGPqt7kZ72aN
 github.com/gorilla/websocket v1.5.3/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
 github.com/hashicorp/yamux v0.1.2 h1:XtB8kyFOyHXYVFnwT5C3+Bdo8gArse7j2AQ0DA0Uey8=
 github.com/hashicorp/yamux v0.1.2/go.mod h1:C+zze2n6e/7wshOZep2A70/aQU6QBRWJO/G6FT1wIns=
-github.com/openrung/openrung/brokerapi v0.3.0 h1:bjO1zLtyyWiNJZ+pwhqPbZwyhYGr1kHMvZbP1T45z9E=
-github.com/openrung/openrung/brokerapi v0.3.0/go.mod h1:TcbVpmHKwGObQdfiNWtsBv4Ct3fJrw9s7CdOo4CNkfg=
+github.com/openrung/openrung/brokerapi v0.4.1 h1:ffTkQu/z6dKoQKDYbm1aaxM7WTwGEC6iHZNDP4DGuLU=
+github.com/openrung/openrung/brokerapi v0.4.1/go.mod h1:TcbVpmHKwGObQdfiNWtsBv4Ct3fJrw9s7CdOo4CNkfg=
 github.com/openrung/openrung/punchcore v0.1.0 h1:15jV81Fq4WXg4nQOKQxuwS7LRPxxQ+sAsbGvDSVrufc=
 github.com/openrung/openrung/punchcore v0.1.0/go.mod h1:ngh0ZjATF0dujNXQq67Jj1a/ZSsXd781o8S1aYm3ehA=
 github.com/openrung/openrung/wsscore v0.5.0 h1:APnO0qzzMgfGzcZUtCTYjI/4SfYUwdpPvXwXfnx+R2E=

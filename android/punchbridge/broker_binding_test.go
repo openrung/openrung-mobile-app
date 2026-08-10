@@ -209,7 +209,7 @@ func TestOpenRungBrokerReactNativePlatformIsOneStringEnum(t *testing.T) {
 }
 
 func TestOpenRungDefaultBrokerURLsJSON(t *testing.T) {
-	const want = `["https://broker.openrung.org/","https://d2r7mdpyevvs1m.cloudfront.net/"]`
+	const want = `["https://broker.openrung.org/","https://d2r7mdpyevvs1m.cloudfront.net/","https://cdn-edge-cxdnhsg2aadmaubj.z02.azurefd.net/"]`
 	if got := OpenRungDefaultBrokerURLsJSON(); got != want {
 		t.Fatalf("OpenRungDefaultBrokerURLsJSON() = %q, want %q", got, want)
 	}
@@ -256,6 +256,7 @@ func TestOpenRungFirstReachableUsesBrokerapiCandidatePolicy(t *testing.T) {
 			"https://custom.example/",
 			brokerapi.DefaultBrokerURL,
 			brokerapi.CloudFrontBrokerURL,
+			brokerapi.AzureBrokerURL,
 		}) {
 		t.Fatalf("custom candidate policy = %+v", gotCandidates)
 	}
@@ -272,6 +273,7 @@ func TestOpenRungFirstReachablePreservesDefaultCandidatePolicy(t *testing.T) {
 		"",
 		brokerapi.DefaultBrokerURL,
 		brokerapi.CloudFrontBrokerURL,
+		brokerapi.AzureBrokerURL,
 	} {
 		t.Run(primary, func(t *testing.T) {
 			operation := NewOpenRungBrokerOperationForIOS("1.2.3", "18.5")
