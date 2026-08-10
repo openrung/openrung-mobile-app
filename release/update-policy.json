@@ -5,33 +5,33 @@
     "ios": "0.0.0"
   },
   "ios_latest": "0.3.6",
-  "promote": "silent",
+  "promote": "notify",
   "notice": {
-    "id": "2026-08-release-0.3.5",
+    "id": "2026-08-release-0.3.6",
     "level": "info",
     "title": {
-      "en": "What's new in 0.3.5",
-      "zh-CN": "0.3.5 新功能",
-      "zh-TW": "0.3.5 新功能",
-      "fa": "تازه‌های نسخه ۰.۳.۵",
-      "ru": "Что нового в 0.3.5",
-      "ar": "الجديد في 0.3.5",
-      "tr": "0.3.5'teki yenilikler",
-      "vi": "Có gì mới trong 0.3.5",
-      "my": "0.3.5 အသစ်များ"
+      "en": "What's new in 0.3.6",
+      "zh-CN": "0.3.6 新功能",
+      "zh-TW": "0.3.6 新功能",
+      "fa": "تازه‌های نسخه ۰.۳.۶",
+      "ru": "Что нового в 0.3.6",
+      "ar": "الجديد في 0.3.6",
+      "tr": "0.3.6'daki yenilikler",
+      "vi": "Có gì mới trong 0.3.6",
+      "my": "0.3.6 အသစ်များ"
     },
     "body": {
-      "en": "Relays are now labeled OFFICIAL (Foundation-run) or VOLUNTEER (community-run) in the relay list and while connected. Plus: direct connections on iOS, and a faster, lighter app.",
-      "zh-CN": "中继列表和连接状态现在会标注中继类型：官方（基金会运营）或志愿（社区共享）。另有 iOS 直连支持，应用更快更轻。",
-      "zh-TW": "中繼列表和連線狀態現在會標註中繼類型：官方（基金會營運）或志願（社群共享）。另有 iOS 直連支援，應用更快更輕。",
-      "fa": "رله‌ها اکنون در فهرست و هنگام اتصال با برچسب «رسمی» (بنیاد) یا «داوطلب» (جامعه) مشخص می‌شوند. همچنین اتصال مستقیم در iOS و برنامه‌ای سریع‌تر و سبک‌تر.",
-      "ru": "Реле теперь помечены как «официальный» (фонд) или «волонтёр» (сообщество) — в списке и при подключении. Плюс прямые подключения на iOS и более быстрое, лёгкое приложение.",
-      "ar": "أصبحت المرحّلات تحمل وسم «رسمي» (المؤسسة) أو «متطوع» (المجتمع) في القائمة وأثناء الاتصال. إضافة إلى اتصالات مباشرة على iOS وتطبيق أسرع وأخف.",
-      "tr": "Röleler artık listede ve bağlıyken \"resmi\" (vakıf) veya \"gönüllü\" (topluluk) olarak etiketleniyor. Ayrıca iOS'ta doğrudan bağlantılar ve daha hızlı, daha hafif bir uygulama.",
-      "vi": "Relay giờ được gắn nhãn \"chính thức\" (quỹ vận hành) hoặc \"tình nguyện\" (cộng đồng chia sẻ) trong danh sách và khi kết nối. Thêm kết nối trực tiếp trên iOS, ứng dụng nhanh và nhẹ hơn.",
-      "my": "Relay များကို ယခု စာရင်းနှင့် ချိတ်ဆက်နေစဉ်တွင် တရားဝင် (ဖောင်ဒေးရှင်း) သို့မဟုတ် စေတနာ့ဝန်ထမ်း (အသိုင်းအဝိုင်း) ဟု အမှတ်အသားပြထားသည်။ iOS တွင် တိုက်ရိုက်ချိတ်ဆက်မှုနှင့် ပိုမြန်၍ ပေါ့ပါးသော အက်ပ်လည်း ပါဝင်သည်။"
+      "en": "Version 0.3.6 improves connectivity and reliability, particularly for users in regions where WSS sessions are required. It also fixes an issue where the app could incorrectly appear connected when the VPN connection was not working, along with other performance and stability improvements.",
+      "zh-CN": "0.3.6 版提升了连接能力与稳定性，尤其是在需要使用 WSS 会话的地区。此版本还修复了 VPN 实际未连通时应用可能错误显示为已连接的问题，并包含其他性能与稳定性改进。",
+      "zh-TW": "0.3.6 版提升了連線能力與穩定性，尤其是在需要使用 WSS 工作階段的地區。此版本也修正了 VPN 實際未連通時應用程式可能錯誤顯示為已連線的問題，並包含其他效能與穩定性改進。",
+      "fa": "نسخهٔ ۰.۳.۶ اتصال و پایداری را بهبود می‌دهد، به‌ویژه برای کاربران مناطقی که به نشست‌های WSS نیاز دارند. همچنین مشکلی برطرف شده که در آن برنامه با وجود برقرار نبودن اتصال VPN، به‌اشتباه «متصل» نشان داده می‌شد؛ به‌همراه بهبودهای دیگر در کارایی و پایداری.",
+      "ru": "Версия 0.3.6 улучшает подключение и стабильность, особенно для пользователей в регионах, где требуются сессии WSS. Также исправлена ошибка, из-за которой приложение могло ошибочно показывать подключение, когда VPN на самом деле не работал. Плюс другие улучшения производительности и стабильности.",
+      "ar": "يُحسّن الإصدار 0.3.6 الاتصال والموثوقية، خاصةً للمستخدمين في المناطق التي تتطلب جلسات WSS. كما يعالج مشكلة قد يظهر فيها التطبيق متصلاً بينما اتصال VPN لا يعمل، إضافةً إلى تحسينات أخرى في الأداء والاستقرار.",
+      "tr": "0.3.6 sürümü, özellikle WSS oturumlarının gerekli olduğu bölgelerdeki kullanıcılar için bağlantıyı ve kararlılığı iyileştirir. Ayrıca VPN bağlantısı çalışmazken uygulamanın yanlışlıkla bağlı görünmesine yol açan bir sorunu giderir; performans ve kararlılıkla ilgili başka iyileştirmeler de içerir.",
+      "vi": "Phiên bản 0.3.6 cải thiện khả năng kết nối và độ ổn định, đặc biệt cho người dùng ở những khu vực cần dùng phiên WSS. Bản này cũng khắc phục lỗi khiến ứng dụng có thể hiển thị sai là đã kết nối trong khi VPN không hoạt động, cùng các cải tiến khác về hiệu năng và độ ổn định.",
+      "my": "၀.၃.၆ ဗားရှင်းသည် ချိတ်ဆက်မှုနှင့် တည်ငြိမ်မှုကို တိုးတက်စေပြီး အထူးသဖြင့် WSS ချိတ်ဆက်မှုများ လိုအပ်သည့် ဒေသများရှိ အသုံးပြုသူများအတွက် ဖြစ်သည်။ VPN ချိတ်ဆက်မှု အလုပ်မလုပ်သည့်အခါ အက်ပ်က ချိတ်ဆက်ပြီးဟု မှားယွင်းပြသနိုင်သည့် ပြဿနာကိုလည်း ပြင်ဆင်ထားပြီး အခြားသော စွမ်းဆောင်ရည်နှင့် တည်ငြိမ်မှု တိုးတက်မှုများလည်း ပါဝင်သည်။"
     },
     "url": null,
-    "expires": "2026-09-15T00:00:00Z"
+    "expires": "2026-10-15T00:00:00Z"
   }
 }
