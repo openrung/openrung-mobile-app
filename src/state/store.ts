@@ -377,7 +377,7 @@ let splitTunnelHydrationPromise: Promise<void> | null = null;
 /**
  * Serializes the contract §3 SplitTunnelConfig JSON with the stable key order the native
  * stores rely on for their skip-reapply string comparison:
- * version, enabled, bypass_lan, bypass_countries, excluded_packages.
+ * version, enabled, bypass_lan, bypass_countries, country_source, excluded_packages.
  */
 function splitTunnelConfigJson(split: SplitTunnelState): string {
   return JSON.stringify({
@@ -385,6 +385,13 @@ function splitTunnelConfigJson(split: SplitTunnelState): string {
     enabled: split.enabled,
     bypass_lan: split.bypassLan,
     bypass_countries: split.bypassCountries,
+    // Provenance, not a preference. `bypass_countries` is a snapshot taken whenever JS last ran;
+    // `country_source: "auto"` tells native to re-derive it from the device's OWN time zone every
+    // time it builds a config — including the background recovery rebuilds after a physical
+    // network change, which no JS code participates in. Without this a phone that auto-selected
+    // China in Shanghai could have its tunnel rebuilt with geosite-cn bypassed in Berlin, before
+    // the user ever opens the app.
+    country_source: splitTunnelAutoRegion === null ? 'manual' : 'auto',
     excluded_packages: split.excludedApps,
   });
 }

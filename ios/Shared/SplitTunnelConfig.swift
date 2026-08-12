@@ -1,14 +1,79 @@
 import Foundation
 
+/// Where the device is, for split-tunnel country defaults — the Swift port of
+/// `src/model/splitTunnelDefaults.ts`, and the reason a background recovery can re-derive an
+/// automatic country selection without any help from the RN process.
+///
+/// The IANA time zone is the only evidence used: offline, permission-free, and read fresh from the
+/// OS on every call, so a device that changed zones while the app was suspended is seen correctly.
+/// There is deliberately no locale fallback — a language preference is not evidence of physical
+/// location, and guessing from it would put the China preset on exactly the diaspora devices this
+/// protects.
+public enum SplitTunnelRegion {
+    public static let iran = "IR"
+    public static let china = "CN"
+
+    /// Zones that place the device inside a country with a bundled preset (canonical names plus
+    /// the legacy aliases a device may still report). Hong Kong and Macau are deliberately absent:
+    /// neither sits behind the GFW, so the mainland preset would cost them the tunnel without
+    /// buying reachability.
+    private static let regionByTimeZone: [String: String] = [
+        "asia/tehran": iran,
+        "iran": iran,
+        "asia/shanghai": china,
+        "asia/chongqing": china,
+        "asia/chungking": china,
+        "asia/harbin": china,
+        "asia/urumqi": china,
+        "asia/kashgar": china,
+        "prc": china,
+    ]
+
+    /// ISO-3166 region for an IANA zone id, or "" when it carries no usable location.
+    public static func region(forTimeZone timeZoneID: String) -> String {
+        let normalized = timeZoneID.trimmingCharacters(in: .whitespaces).lowercased()
+        if normalized == "utc" || normalized == "gmt" || normalized == "local"
+            || normalized.hasPrefix("etc/") {
+            return ""
+        }
+        return regionByTimeZone[normalized] ?? ""
+    }
+
+    /// ISO-3166 region for this device right now, or "" when the zone gives no usable answer.
+    public static var deviceRegion: String {
+        region(forTimeZone: TimeZone.current.identifier)
+    }
+
+    /// Bypass-country presets for a region; empty everywhere without a bundled rule set.
+    public static func bypassCountries(forRegion region: String) -> [String] {
+        switch region.uppercased() {
+        case iran:
+            return ["ir"]
+        case china:
+            return ["cn"]
+        default:
+            return []
+        }
+    }
+}
+
 /// The persisted split-tunnel preferences JSON pushed from React Native via
 /// `setSplitTunnelConfig` (contract §3). Port of Android `SplitTunnelStore`'s config type:
 /// snake_case keys, every field defaulted, unknown keys ignored (forward compat). iOS parses
 /// `excluded_packages` but never acts on it — OS-level per-app exclusion is Android-only.
 public struct SplitTunnelConfig: Codable, Equatable, Sendable {
+    public static let countrySourceAuto = "auto"
+    public static let countrySourceManual = "manual"
+
     public let version: Int
     public let enabled: Bool
     public let bypassLan: Bool
     public let bypassCountries: [String]
+    /// `"auto"` when RN derived `bypassCountries` from the device region rather than the user
+    /// choosing them, in which case `resolvedBypassCountries` re-derives here instead of trusting
+    /// the stored snapshot. Defaults to manual so an older RN layer (which never sends the field)
+    /// behaves exactly as before.
+    public let countrySource: String
     public let excludedPackages: [String]
 
     enum CodingKeys: String, CodingKey {
@@ -16,6 +81,7 @@ public struct SplitTunnelConfig: Codable, Equatable, Sendable {
         case enabled
         case bypassLan = "bypass_lan"
         case bypassCountries = "bypass_countries"
+        case countrySource = "country_source"
         case excludedPackages = "excluded_packages"
     }
 
@@ -24,12 +90,14 @@ public struct SplitTunnelConfig: Codable, Equatable, Sendable {
         enabled: Bool = false,
         bypassLan: Bool = true,
         bypassCountries: [String] = [],
+        countrySource: String = SplitTunnelConfig.countrySourceManual,
         excludedPackages: [String] = []
     ) {
         self.version = version
         self.enabled = enabled
         self.bypassLan = bypassLan
         self.bypassCountries = bypassCountries
+        self.countrySource = countrySource
         self.excludedPackages = excludedPackages
     }
 
@@ -39,7 +107,22 @@ public struct SplitTunnelConfig: Codable, Equatable, Sendable {
         enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
         bypassLan = try container.decodeIfPresent(Bool.self, forKey: .bypassLan) ?? true
         bypassCountries = try container.decodeIfPresent([String].self, forKey: .bypassCountries) ?? []
+        countrySource = try container.decodeIfPresent(String.self, forKey: .countrySource)
+            ?? SplitTunnelConfig.countrySourceManual
         excludedPackages = try container.decodeIfPresent([String].self, forKey: .excludedPackages) ?? []
+    }
+
+    /// The countries this config actually asks for. An automatic selection is re-derived from
+    /// `region` every time, because the stored list is only a snapshot of wherever the device was
+    /// when JS last ran — and the extension rebuilds configs on its own after every physical-network
+    /// change, while the app may not have been opened for weeks. A selection the user made by hand
+    /// is always honored verbatim, however far the device has travelled.
+    public func resolvedBypassCountries(
+        region: String = SplitTunnelRegion.deviceRegion
+    ) -> [String] {
+        countrySource == Self.countrySourceAuto
+            ? SplitTunnelRegion.bypassCountries(forRegion: region)
+            : bypassCountries
     }
 
     /// Invalid or non-object JSON decodes to nil — fail-open (contract §1): a bad payload means
@@ -54,10 +137,19 @@ public struct SplitTunnelConfig: Codable, Equatable, Sendable {
     /// signature, so a no-op push — e.g. the first persistence of a disabled config, or
     /// any change to `excluded_packages` (which iOS never emits) — is not treated as a change.
     public static func effectiveSignature(ofRawJSON json: String?) -> String {
+        effectiveSignature(ofRawJSON: json, region: SplitTunnelRegion.deviceRegion)
+    }
+
+    /// As above, against an explicit region. Callers comparing two payloads should pass ONE region
+    /// read to both, so a zone change landing between them cannot masquerade as a config change.
+    public static func effectiveSignature(ofRawJSON json: String?, region: String) -> String {
         let disabled = "disabled"
         guard let json, let config = parse(json), config.enabled else { return disabled }
         var countries: [String] = []
-        for code in config.bypassCountries.map({ $0.lowercased() }) {
+        // The emission side re-derives an automatic selection, so the signature must too —
+        // otherwise a push that flips country_source without changing bypass_countries would look
+        // like a no-op while the emitted config actually changed.
+        for code in config.resolvedBypassCountries(region: region).map({ $0.lowercased() }) {
             if SplitTunnelCountry.forCode(code) != nil, !countries.contains(code) {
                 countries.append(code)
             }

@@ -1893,8 +1893,15 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         }
         let ruleSetDirectory = Bundle(for: PacketTunnelProvider.self).resourcePath
         var bypassCountries: [String] = []
+        // An automatic country selection is re-derived from the device's CURRENT time zone here,
+        // not taken from the stored snapshot. This method runs on every connect attempt including
+        // the recovery reconnects that follow a physical-network change, so a phone that
+        // auto-selected China in Shanghai stops bypassing geosite-cn as soon as it rebuilds in
+        // Berlin — even if the app has not been opened since, and even if the RN foreground
+        // re-check never got the chance to run or lost the race with an in-flight recovery.
+        let requestedCountries = config.resolvedBypassCountries()
         // Iterating the supported list (not the config order) normalizes to ir,cn order.
-        for country in SplitTunnelCountry.supported where config.bypassCountries.contains(country.code) {
+        for country in SplitTunnelCountry.supported where requestedCountries.contains(country.code) {
             let hasBothFiles = ruleSetDirectory.map { directory in
                 FileManager.default.fileExists(atPath: "\(directory)/\(country.geositeTag).srs")
                     && FileManager.default.fileExists(atPath: "\(directory)/\(country.geoipTag).srs")

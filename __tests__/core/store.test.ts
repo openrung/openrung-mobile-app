@@ -290,7 +290,7 @@ describe('splitTunnel', () => {
     jest.advanceTimersByTime(1200);
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
-      '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["ir"],"excluded_packages":[]}',
+      '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["ir"],"country_source":"manual","excluded_packages":[]}',
     );
   });
 
@@ -304,7 +304,7 @@ describe('splitTunnel', () => {
     jest.advanceTimersByTime(1);
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
-      '{"version":1,"enabled":true,"bypass_lan":false,"bypass_countries":["cn"],"excluded_packages":[]}',
+      '{"version":1,"enabled":true,"bypass_lan":false,"bypass_countries":["cn"],"country_source":"manual","excluded_packages":[]}',
     );
   });
 
@@ -329,7 +329,7 @@ describe('splitTunnel', () => {
     jest.advanceTimersByTime(1200);
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
-      '{"version":1,"enabled":true,"bypass_lan":false,"bypass_countries":["cn"],"excluded_packages":["com.tencent.mm"]}',
+      '{"version":1,"enabled":true,"bypass_lan":false,"bypass_countries":["cn"],"country_source":"manual","excluded_packages":["com.tencent.mm"]}',
     );
   });
 
@@ -354,7 +354,7 @@ describe('splitTunnel', () => {
 
     jest.advanceTimersByTime(1200);
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
-      '{"version":1,"enabled":false,"bypass_lan":false,"bypass_countries":["cn"],"excluded_packages":[]}',
+      '{"version":1,"enabled":false,"bypass_lan":false,"bypass_countries":["cn"],"country_source":"manual","excluded_packages":[]}',
     );
   });
 
@@ -373,7 +373,7 @@ describe('splitTunnel', () => {
     jest.advanceTimersByTime(1200);
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
     expect(mockSetSplitTunnelConfig).toHaveBeenLastCalledWith(
-      '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["cn"],"excluded_packages":[]}',
+      '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["cn"],"country_source":"manual","excluded_packages":[]}',
     );
 
     resolveRead?.(
@@ -444,7 +444,7 @@ describe('splitTunnel', () => {
     jest.advanceTimersByTime(1200);
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
     expect(mockSetSplitTunnelConfig).toHaveBeenLastCalledWith(
-      '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["ir"],"excluded_packages":[]}',
+      '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["ir"],"country_source":"manual","excluded_packages":[]}',
     );
   });
 
@@ -456,7 +456,7 @@ describe('splitTunnel', () => {
 
     jest.advanceTimersByTime(1200);
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
-      '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":[],"excluded_packages":[]}',
+      '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":[],"country_source":"auto","excluded_packages":[]}',
     );
   });
 
@@ -468,7 +468,7 @@ describe('splitTunnel', () => {
 
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
-      '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["cn"],"excluded_packages":[]}',
+      '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["cn"],"country_source":"auto","excluded_packages":[]}',
     );
   });
 
@@ -486,7 +486,7 @@ describe('splitTunnel', () => {
 
     jest.advanceTimersByTime(1200);
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
-      '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":[],"excluded_packages":[]}',
+      '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":[],"country_source":"auto","excluded_packages":[]}',
     );
   });
 
@@ -570,7 +570,7 @@ describe('splitTunnel', () => {
 
     jest.advanceTimersByTime(1200);
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
-      '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":[],"excluded_packages":[]}',
+      '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":[],"country_source":"auto","excluded_packages":[]}',
     );
   });
 
@@ -652,7 +652,7 @@ describe('splitTunnel', () => {
 
       jest.advanceTimersByTime(1200);
       expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
-        '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":[],"excluded_packages":[]}',
+        '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":[],"country_source":"auto","excluded_packages":[]}',
       );
     });
 
@@ -665,7 +665,7 @@ describe('splitTunnel', () => {
       expect(getSnapshot().splitTunnel.bypassCountries).toEqual([]);
       expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
       expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
-        '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":[],"excluded_packages":[]}',
+        '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":[],"country_source":"auto","excluded_packages":[]}',
       );
     });
 
@@ -713,6 +713,25 @@ describe('splitTunnel', () => {
       expect(AsyncStorage.setItem).not.toHaveBeenCalled();
       expect(getSnapshot().splitTunnel.bypassCountries).toEqual(['cn']);
     });
+  });
+
+  it('tells native whether the country selection is automatic', async () => {
+    // The native generators re-derive an automatic selection from the device's own time zone on
+    // every config build, including the background recovery rebuilds no JS code takes part in.
+    // They can only do that if this flag reaches them.
+    mockRegion.mockReturnValue('CN');
+    resetStoreForTests();
+
+    await flushSplitTunnelPush();
+    expect(mockSetSplitTunnelConfig).toHaveBeenLastCalledWith(
+      expect.stringContaining('"country_source":"auto"'),
+    );
+
+    setSplitTunnel({ bypassCountries: ['ir'] });
+    jest.advanceTimersByTime(1200);
+    expect(mockSetSplitTunnelConfig).toHaveBeenLastCalledWith(
+      expect.stringContaining('"country_source":"manual"'),
+    );
   });
 
   it('stops tracking the region once the user picks countries, but not for other edits', async () => {

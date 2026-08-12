@@ -292,8 +292,8 @@ Settings → Split tunneling is presets-only: a master toggle (default on), with
 presets defaulted from where the device actually is, and — Android only — a
 bypassed-apps picker (no individual apps are preselected). RN persists its own
 slice, debounces changes, and pushes one small snake_case JSON config
-(`version`, `enabled`, `bypass_lan`, `bypass_countries`, `excluded_packages`)
-through `setSplitTunnelConfig`.
+(`version`, `enabled`, `bypass_lan`, `bypass_countries`, `country_source`,
+`excluded_packages`) through `setSplitTunnelConfig`.
 
 Native persists the raw string (Android SharedPreferences
 `openrung_split_tunnel`, iOS app-group defaults key `split_tunnel_config`)
@@ -321,7 +321,18 @@ so a phone that auto-selected China in Shanghai drops it on landing in Berlin.
 That check runs on every app foreground and immediately before every connect,
 not just at hydration — hydration settles once per JS process, and the process
 routinely survives the flight. A selection the user made by hand is frozen and
-never re-derived. Installs that persisted the old unconditional `["ir","cn"]` default
+never re-derived.
+
+RN is not the last line of defence, because it is not always running. The pushed
+config carries `country_source`, and on an automatic selection each native
+generator ignores the stored country list and re-derives from its own `TimeZone`
+whenever it builds a config — which includes the recovery reconnects both
+services perform on their own after a physical-network change, with the app
+possibly unopened for weeks. That is what stops a tunnel from being rebuilt with
+`geosite-cn` bypassed in Berlin, and it removes the race where a foreground
+re-check arrives while a recovery is already connecting (reapply is deliberately
+skipped in that window). `SplitTunnelRegion` is ported into Kotlin and Swift
+alongside `src/model/splitTunnelDefaults.ts`; all three must agree. Installs that persisted the old unconditional `["ir","cn"]` default
 are repaired once, keyed on a `defaultsRevision` stamp. All of this lives in
 RN's own persisted slice, never in the native config JSON (see CONTRACT §3).
 

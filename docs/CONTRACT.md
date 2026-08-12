@@ -173,10 +173,11 @@ unverified snapshot with kind `verification` rather than decoding it. Relay
 verification moving into Go must not leave the shell indifferent to it.
 
 `setSplitTunnelConfig` payload — the shared split-tunnel config JSON. TS
-serializes with exactly this key order (snake_case):
+serializes with exactly this key order (snake_case): `version`, `enabled`,
+`bypass_lan`, `bypass_countries`, `country_source`, `excluded_packages`.
 
 ```json
-{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["ir","cn"],"excluded_packages":["com.tencent.mm"]}
+{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["cn"],"country_source":"auto","excluded_packages":["com.tencent.mm"]}
 ```
 
 - `version` is currently 1; parsers accept any object with `version >= 1` and
@@ -190,6 +191,23 @@ serializes with exactly this key order (snake_case):
   off) and hydration collapses any pair it finds. The field stays a list and
   native parsers stay tolerant of several, so this is a product invariant, not
   a wire-format change.
+- `country_source`: `"auto"` when RN derived `bypass_countries` from the device
+  region, `"manual"` when the user chose them. Absent means `"manual"`, so an
+  older RN layer behaves exactly as before. This is **provenance, not a
+  preference**, and it is load-bearing: on an `"auto"` config each native
+  generator IGNORES the stored `bypass_countries` and re-derives from its own
+  `TimeZone` at the moment it builds a config. `bypass_countries` remains a
+  snapshot of wherever the device was when JS last ran, kept for older native
+  binaries and as a fallback.
+
+  The reason is that both services rebuild sing-box configs on their own —
+  every connect attempt AND every recovery reconnect after a physical-network
+  change — while the app may not have been opened for weeks. Trusting the
+  snapshot would let a phone that auto-selected China in Shanghai have its
+  tunnel rebuilt with `geosite-cn` bypassed in Berlin, before the user ever
+  opens OpenRung, and would leave the RN foreground re-check racing an
+  already-started recovery (which deliberately skips reapply while connecting).
+  Native re-deriving at construction time removes both.
 - `excluded_packages`: Android package names excluded from the VPN at the OS
   level. iOS parses and ignores the field.
 - With no saved user preference, RN initializes and persists `enabled:true`,
@@ -228,8 +246,9 @@ serializes with exactly this key order (snake_case):
      process and that process routinely outlives a flight, so RN repeats the
      check on every app foreground and immediately before every connect
      (`refreshSplitTunnelRegion`), persisting and pushing whenever the region
-     moved. The pre-connect call is the load-bearing one: it runs at the moment a
-     stale preset would take effect.
+     moved. RN is not the last line of defence either: `country_source` (above)
+     lets each native generator re-derive independently, which is what covers a
+     background recovery rebuild that no JS code takes part in.
   3. **Exclusivity** — whatever survives collapses to a single preset, keeping
      the device's own if it is one of the pair.
 
@@ -241,7 +260,11 @@ serializes with exactly this key order (snake_case):
 - Both platforms persist the raw JSON string on every push, but reapply only
   when the *effective* config changes — the signature that determines the
   emitted sing-box config (Android: `enabled`, `bypass_lan`, recognized
-  countries, excluded packages; iOS ignores `excluded_packages`). Two payloads
+  countries — RESOLVED through `country_source`, so an automatic selection is
+  compared as the countries it currently derives to — and excluded packages; iOS
+  ignores `excluded_packages`). Both sides of a comparison resolve against one
+  region read, so a zone change landing mid-comparison cannot masquerade as a
+  config change. Two payloads
   that both resolve to disabled, or to the same rule set, do not reconnect. So
   a redundant push (RN rehydration after a restore), the first persistence of
   any disabled config, or a change that nets to the same routing is a
@@ -459,6 +482,14 @@ used as evidence that Reality or WSS carried end-to-end traffic.
   Collects `OpenRungStatusStore.uiState`, maps to a WritableMap, emits events.
   `prepare()` uses VpnService.prepare + ActivityEventListener (request code 7001)
   and POST_NOTIFICATIONS via PermissionAwareActivity on API 33+.
+- `vpn/SplitTunnelStore.kt` also holds `SplitTunnelRegion` (the Kotlin port of
+  `src/model/splitTunnelDefaults.ts`: IANA zone → ISO region → preset, read fresh
+  from `TimeZone.getDefault()` on every call) and
+  `SplitTunnelConfig.resolvedBypassCountries(region)`, which re-derives the
+  countries of a `country_source:"auto"` config and returns a manual one
+  verbatim. `OpenRungVpnService.currentSplitTunnelRules()` calls it, so every
+  connect attempt AND every recovery reconnect resolves against where the device
+  is at that moment — no RN participation required.
 - Split-tunnel emission (`net/SingBoxConfiguration.kt`): optional constructor
   input `splitTunnel: SplitTunnelRules? = null` (bypassLan, bypassCountries —
   pre-validated by the caller and normalized to `ir`,`cn` order,
@@ -674,7 +705,12 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   not load React or Libbox.
 - Split tunneling: the raw config JSON is stored in app-group UserDefaults
   under `AppConfig.splitTunnelConfigDefaultsKey` (`"split_tunnel_config"`).
-  `ios/Shared/SplitTunnelConfig.swift` (compiled into both targets) decodes it
+  `ios/Shared/SplitTunnelConfig.swift` (compiled into both targets) also holds
+  `SplitTunnelRegion` — the Swift port of `src/model/splitTunnelDefaults.ts`,
+  reading `TimeZone.current` fresh on every call — and
+  `resolvedBypassCountries(region:)`, which `resolveSplitTunnelRules()` uses so
+  every connect attempt and recovery reconnect re-derives an automatic selection
+  itself. The same file decodes it
   — `load(from:)` returns nil on absence, parse failure, or `enabled == false`
   — and defines `SplitTunnelRules` (bypassLan, bypassCountries,
   ruleSetDirectory; no package field) plus the §6 country constants.

@@ -166,6 +166,82 @@ final class SplitTunnelConfigurationTests: XCTestCase {
         XCTAssertNil(SplitTunnelCountry.forCode("us"))
     }
 
+    // MARK: - Region detection and automatic-country resolution
+
+    /// Must stay behaviourally identical to `src/model/splitTunnelDefaults.ts` and the Kotlin port.
+    /// The whole point is that the extension can answer "where is this device now?" itself, without
+    /// the RN process, so a background recovery after a physical-network change rebuilds with the
+    /// right rule set.
+    func testRegionDetectionFromTimeZone() {
+        XCTAssertEqual(SplitTunnelRegion.region(forTimeZone: "Asia/Tehran"), "IR")
+        XCTAssertEqual(SplitTunnelRegion.region(forTimeZone: "Iran"), "IR")
+        XCTAssertEqual(SplitTunnelRegion.region(forTimeZone: "Asia/Shanghai"), "CN")
+        XCTAssertEqual(SplitTunnelRegion.region(forTimeZone: "Asia/Urumqi"), "CN")
+        XCTAssertEqual(SplitTunnelRegion.region(forTimeZone: "PRC"), "CN")
+
+        // Hong Kong and Macau are deliberately not mainland: neither sits behind the GFW.
+        for zone in [
+            "Europe/Berlin", "America/Los_Angeles", "Asia/Hong_Kong", "Asia/Macau",
+            "UTC", "GMT", "Etc/UTC", "Etc/GMT+3", "local", "",
+        ] {
+            XCTAssertEqual(SplitTunnelRegion.region(forTimeZone: zone), "", "no region for \(zone)")
+        }
+
+        XCTAssertEqual(SplitTunnelRegion.bypassCountries(forRegion: "IR"), ["ir"])
+        XCTAssertEqual(SplitTunnelRegion.bypassCountries(forRegion: "CN"), ["cn"])
+        XCTAssertEqual(SplitTunnelRegion.bypassCountries(forRegion: ""), [])
+        XCTAssertEqual(SplitTunnelRegion.bypassCountries(forRegion: "DE"), [])
+    }
+
+    func testAutomaticSelectionIsRederivedWhileHandPickedIsHonored() throws {
+        // The travel case RN alone cannot fix: the app auto-selected cn in Shanghai and has not
+        // been opened since, but the extension is rebuilding its config in Berlin.
+        let auto = try XCTUnwrap(SplitTunnelConfig.parse(
+            #"{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["cn"],"country_source":"auto","excluded_packages":[]}"#
+        ))
+        XCTAssertEqual(auto.resolvedBypassCountries(region: "CN"), ["cn"])
+        XCTAssertEqual(auto.resolvedBypassCountries(region: ""), [])
+        XCTAssertEqual(auto.resolvedBypassCountries(region: "IR"), ["ir"])
+
+        let manual = try XCTUnwrap(SplitTunnelConfig.parse(
+            #"{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["cn"],"country_source":"manual","excluded_packages":[]}"#
+        ))
+        for region in ["CN", "", "IR"] {
+            XCTAssertEqual(manual.resolvedBypassCountries(region: region), ["cn"])
+        }
+
+        // A config from an older RN layer carries no source and is treated as hand-picked.
+        let legacy = try XCTUnwrap(SplitTunnelConfig.parse(
+            #"{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["ir"],"excluded_packages":[]}"#
+        ))
+        XCTAssertEqual(legacy.countrySource, SplitTunnelConfig.countrySourceManual)
+        XCTAssertEqual(legacy.resolvedBypassCountries(region: ""), ["ir"])
+    }
+
+    func testEffectiveSignatureFollowsTheRederivedCountries() {
+        let autoCn =
+            #"{"version":1,"enabled":true,"bypass_lan":false,"bypass_countries":["cn"],"country_source":"auto","excluded_packages":[]}"#
+        let manualCn =
+            #"{"version":1,"enabled":true,"bypass_lan":false,"bypass_countries":["cn"],"country_source":"manual","excluded_packages":[]}"#
+
+        // In China both resolve to cn, so declaring the same list hand-picked changes nothing.
+        XCTAssertEqual(
+            SplitTunnelConfig.effectiveSignature(ofRawJSON: autoCn, region: "CN"),
+            SplitTunnelConfig.effectiveSignature(ofRawJSON: manualCn, region: "CN")
+        )
+        // Outside China the automatic one resolves to no country, so the emitted config differs —
+        // the signature must track that, not the stored snapshot.
+        XCTAssertNotEqual(
+            SplitTunnelConfig.effectiveSignature(ofRawJSON: autoCn, region: ""),
+            SplitTunnelConfig.effectiveSignature(ofRawJSON: manualCn, region: "")
+        )
+        // An automatic selection with nothing else effective is indistinguishable from disabled.
+        XCTAssertEqual(
+            SplitTunnelConfig.effectiveSignature(ofRawJSON: autoCn, region: ""),
+            SplitTunnelConfig.effectiveSignature(ofRawJSON: nil)
+        )
+    }
+
     // MARK: - Persisted config parsing (spec §1)
 
     func testConfigParsingAppliesDefaultsAndToleratesUnknownKeys() throws {
