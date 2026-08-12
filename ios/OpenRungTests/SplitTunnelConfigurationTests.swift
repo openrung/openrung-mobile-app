@@ -64,14 +64,17 @@ final class SplitTunnelConfigurationTests: XCTestCase {
         let dns = try XCTUnwrap(object["dns"] as? [String: Any])
         let servers = try XCTUnwrap(dns["servers"] as? [[String: Any]])
         XCTAssertEqual(servers.count, 3)
+        // The bypass resolver is dialed directly, so the query rides the user's real IP while
+        // the tunnel is up: DoH over 443, never plaintext UDP/53.
         XCTAssertEqual(try canonicalJSON(servers[2]), try canonicalJSON([
             "tag": "dns-direct-ir",
-            "type": "udp",
-            "server": "178.22.122.100"
+            "type": "https",
+            "server": "178.22.122.100",
+            "tls": ["enabled": true, "server_name": "free.shecan.ir"] as [String: Any]
         ] as [String: Any]))
         XCTAssertEqual(try canonicalJSON(dns["rules"]), try canonicalJSON(
             expectedProbeFailoverChain()
-                + [["rule_set": ["geosite-ir"], "server": "dns-direct-ir"] as [String: Any]]
+                + expectedCountryFailoverChain(geositeTag: "geosite-ir", server: "dns-direct-ir")
                 + expectedGlobalFailoverChain()
         ))
 
@@ -97,13 +100,18 @@ final class SplitTunnelConfigurationTests: XCTestCase {
         let servers = try XCTUnwrap(dns["servers"] as? [[String: Any]])
         XCTAssertEqual(servers.map { $0["tag"] as? String }, ["dns-0", "dns-1", "dns-direct-ir", "dns-direct-cn"])
         XCTAssertEqual(servers[3]["server"] as? String, "223.5.5.5")
+        XCTAssertEqual(
+            (servers[3]["tls"] as? [String: Any])?["server_name"] as? String,
+            "dns.alidns.com"
+        )
+        // Every resolver encrypted, and the bypass pair still detour-less (a detour to the empty
+        // direct outbound is rejected at engine start).
+        XCTAssertTrue(servers.allSatisfy { $0["type"] as? String == "https" })
         XCTAssertTrue(servers.suffix(2).allSatisfy { $0["detour"] == nil })
         XCTAssertEqual(try canonicalJSON(dns["rules"]), try canonicalJSON(
             expectedProbeFailoverChain()
-                + [
-                    ["rule_set": ["geosite-ir"], "server": "dns-direct-ir"] as [String: Any],
-                    ["rule_set": ["geosite-cn"], "server": "dns-direct-cn"] as [String: Any],
-                ]
+                + expectedCountryFailoverChain(geositeTag: "geosite-ir", server: "dns-direct-ir")
+                + expectedCountryFailoverChain(geositeTag: "geosite-cn", server: "dns-direct-cn")
                 + expectedGlobalFailoverChain()
         ))
 
@@ -156,9 +164,11 @@ final class SplitTunnelConfigurationTests: XCTestCase {
         XCTAssertEqual(SplitTunnelCountry.forCode("ir")?.geositeTag, "geosite-ir")
         XCTAssertEqual(SplitTunnelCountry.forCode("ir")?.geoipTag, "geoip-ir")
         XCTAssertEqual(SplitTunnelCountry.forCode("ir")?.directResolver, "178.22.122.100")
+        XCTAssertEqual(SplitTunnelCountry.forCode("ir")?.directResolverServerName, "free.shecan.ir")
         XCTAssertEqual(SplitTunnelCountry.forCode("cn")?.geositeTag, "geosite-cn")
         XCTAssertEqual(SplitTunnelCountry.forCode("cn")?.geoipTag, "geoip-cn")
         XCTAssertEqual(SplitTunnelCountry.forCode("cn")?.directResolver, "223.5.5.5")
+        XCTAssertEqual(SplitTunnelCountry.forCode("cn")?.directResolverServerName, "dns.alidns.com")
         XCTAssertNil(SplitTunnelCountry.forCode("us"))
     }
 
@@ -311,6 +321,32 @@ final class SplitTunnelConfigurationTests: XCTestCase {
                 "timeout": "3s",
                 "disable_cache": true,
                 "disable_optimistic_cache": true,
+            ],
+        ]
+    }
+
+    /// A bypass country's DNS chain: ask its in-country DoH resolver, keep only a real answer,
+    /// and otherwise fall through to the proxied global chain rather than failing the lookup —
+    /// so an unreachable or expired-certificate resolver costs latency, not reachability.
+    private func expectedCountryFailoverChain(geositeTag: String, server: String) -> [[String: Any]] {
+        [
+            [
+                "rule_set": [geositeTag],
+                "action": "evaluate",
+                "server": server,
+                "timeout": "2s",
+            ],
+            [
+                "rule_set": [geositeTag],
+                "match_response": true,
+                "response_rcode": "NOERROR",
+                "action": "respond",
+            ],
+            [
+                "rule_set": [geositeTag],
+                "match_response": true,
+                "response_rcode": "NXDOMAIN",
+                "action": "respond",
             ],
         ]
     }

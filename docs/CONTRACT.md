@@ -185,10 +185,25 @@ serializes with exactly this key order (snake_case):
   `"cn"`; unknown codes are ignored (forward compatibility).
 - `excluded_packages`: Android package names excluded from the VPN at the OS
   level. iOS parses and ignores the field.
-- With no saved user preference, RN initializes and persists
-  `enabled:true`, `bypass_lan:true`, and `bypass_countries:["ir","cn"]`;
-  `excluded_packages` starts empty. A valid saved preference, including an
-  explicit `enabled:false`, always wins over these fresh-install defaults.
+- With no saved user preference, RN initializes and persists `enabled:true`,
+  `bypass_lan:true`, and the country preset for the region the device is
+  actually in — `["ir"]` in Iran, `["cn"]` in mainland China, `[]` everywhere
+  else; `excluded_packages` starts empty. A valid saved preference, including
+  an explicit `enabled:false`, always wins over these fresh-install defaults.
+  The region comes from the device's IANA time zone (falling back to the
+  locale's region subtag only when the zone carries no location) — offline, no
+  geo-IP call, no location permission. A country preset must never ship on
+  outside its country: `geosite-cn` carries hosts the whole world loads
+  (doubleclick.net, fonts.googleapis.com, www.gstatic.com …), so bypassing it
+  elsewhere hands the user's real IP to those on ordinary page loads while the
+  app reports CONNECTED.
+- RN stores a `defaultsRevision` alongside its own persisted slice (RN-local,
+  never part of this payload). Revision 2 introduced the region-aware defaults
+  above; hydrating a slice written under revision 1 re-derives
+  `bypass_countries` when — and only when — it is still the shipped
+  `["ir","cn"]` pair on an enabled config, so installs that materialized the
+  unconditional default get repaired exactly once. Any other saved selection is
+  the user's own and is left alone.
 - Parse failure, an absent config, or `enabled:false` ⇒ "no split tunneling":
   the generated sing-box config is byte-identical to the no-split output
   (fail-open, §1).
@@ -422,12 +437,19 @@ used as evidence that Reality or WSS carried end-to-end traffic.
   the tun inbound (after `endpoint_independent_nat`; only when excludedPackages
   is non-empty; `include_package` is NEVER emitted); per enabled country, `ir`
   first, an appended dns server
-  `{"tag":"dns-direct-<cc>","type":"udp","server":<resolver>}` (no `detour`:
-  modern UDP DNS servers already dial directly, while detouring through the
-  otherwise-empty tagged direct outbound fails during the sing-box Start stage)
-  (`ir` → `178.22.122.100` Shecan, `cn` → `223.5.5.5` AliDNS) and a `dns.rules`
-  entry `{"rule_set":["geosite-<cc>"],"server":"dns-direct-<cc>"}` appended
-  after the always-present probe pin (below), before `final`; `route.rule_set`
+  `{"tag":"dns-direct-<cc>","type":"https","server":<resolver ip>,"tls":{"enabled":true,"server_name":<provider host>}}`
+  (no `detour`: a detour-less DNS server already builds its own direct dialer,
+  while detouring through the otherwise-empty tagged direct outbound fails
+  during the sing-box Start stage) (`ir` → `178.22.122.100` / `free.shecan.ir`
+  Shecan, `cn` → `223.5.5.5` / `dns.alidns.com` AliDNS — DoH over 443, never
+  plaintext UDP/53: these queries ride the direct path on the user's real IP
+  while the tunnel is up) and a three-rule `dns.rules` chain
+  `{"rule_set":["geosite-<cc>"],"action":"evaluate","server":"dns-direct-<cc>","timeout":"2s"}`
+  followed by the two NOERROR/NXDOMAIN `match_response` `respond` rules scoped
+  to the same rule set, so a resolver that is unreachable, times out or has let
+  its certificate lapse falls through to the global chain instead of failing
+  the lookup; appended after the always-present probe pin (below), before
+  `final`; `route.rule_set`
   local/binary entries for `geosite-<cc>.srs` and `geoip-<cc>.srs` under
   `ruleSetDirectory`, before `rules`; and `route.rules` ordered [hijack-dns
   (existing, first), `{"action":"sniff"}` (only when countries non-empty),
@@ -682,8 +704,11 @@ hidden legacy transport switch.
 - Per-app split-tunnel bypass is Android-only: `excluded_packages` is parsed
   and ignored on iOS (no iOS per-app tunnel exclusion).
 - With a country bypass preset enabled, DNS for bypassed domains resolves via
-  in-country public resolvers over the direct path (Shecan `178.22.122.100`
-  for `ir`, AliDNS `223.5.5.5` for `cn`).
+  in-country public resolvers over the direct path — as DoH over 443 (Shecan
+  `178.22.122.100` / `free.shecan.ir` for `ir`, AliDNS `223.5.5.5` /
+  `dns.alidns.com` for `cn`), so the query is encrypted even though it leaves
+  the device on the user's real IP. A failing in-country resolver falls back to
+  the proxied chain rather than failing the lookup.
 - Apps excluded at the OS level (Android `exclude_package`) bypass the TUN
   entirely and are invisible to telemetry/traffic counters; sing-box-routed
   direct flows (LAN/country bypass) remain counted.

@@ -29,7 +29,7 @@ final class DnsConfigurationTests: XCTestCase {
         )
     }
 
-    func testNoProxiedDnsServerSpeaksPort53() throws {
+    func testNoDnsServerAnywhereSpeaksPlaintextDns() throws {
         let object = SingBoxConfiguration(
             relay: makeWssTestRelay(),
             splitTunnel: SplitTunnelRules(
@@ -40,13 +40,17 @@ final class DnsConfigurationTests: XCTestCase {
         ).makeJSONObject()
         let dns = try XCTUnwrap(object["dns"] as? [String: Any])
         for server in try XCTUnwrap(dns["servers"] as? [[String: Any]]) {
-            if server["detour"] as? String == "proxy" {
-                XCTAssertEqual(
-                    server["type"] as? String,
-                    "https",
-                    "proxied resolvers must use DoH over 443"
-                )
-            }
+            // Proxied resolvers need DoH because relays answer 443 on every transport while
+            // TCP/53 gets no replies under WSS. The bypass-country resolvers need it for a
+            // different reason: they are dialed DIRECTLY, so an unencrypted query would leave
+            // the device on the user's real IP — in cleartext, and forgeable — while the tunnel
+            // is up. Neither may ever regress to udp/tcp.
+            let tag = server["tag"] as? String ?? "?"
+            XCTAssertEqual(server["type"] as? String, "https", "\(tag) must be encrypted")
+            XCTAssertNotNil(
+                (server["tls"] as? [String: Any])?["server_name"],
+                "\(tag) must authenticate a provider hostname"
+            )
         }
     }
 

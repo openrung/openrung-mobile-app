@@ -98,11 +98,13 @@ clients**. The prototype IDs are `com.openrung.mobile` on Android and
   and broker-hosted manifest candidates use the same Go `brokerapi` runtime as
   the VPN services, with single-use cancellation-safe operations and no
   production JavaScript network fallback.
-- 🔀 **Preset split tunneling** — on by default, bypassing the local network
-  plus Iranian and Chinese sites & apps (bundled sing-box rule sets). On Android,
-  users can also bypass individual apps. Changes apply live via a quick reconnect,
-  and a bad config or missing rule set degrades to full tunnel — it never breaks
-  connect.
+- 🔀 **Preset split tunneling** — on by default, bypassing the local network,
+  plus Iranian or Chinese sites & apps (bundled sing-box rule sets) on devices
+  that are actually in those countries — a preset is never enabled where it
+  would only push ordinary traffic out of the tunnel. Both are one tap away
+  anywhere. On Android, users can also bypass individual apps. Changes apply
+  live via a quick reconnect, and a bad config or missing rule set degrades to
+  full tunnel — it never breaks connect.
 - 🧪 **Demoable without a native build** — a scripted mock engine drives the UI
   through the full connect lifecycle so you can develop and demo with no device.
 

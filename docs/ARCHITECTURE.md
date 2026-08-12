@@ -288,11 +288,25 @@ shape (the RN 0.86 bridgeless interop layer handles it):
 ### Split tunneling (presets)
 
 Settings → Split tunneling is presets-only: a master toggle (default on), with
-"bypass local network" plus the Iranian and Chinese sites & apps presets also
-on by default, and — Android only — a bypassed-apps picker (no individual apps
-are preselected). RN persists its own slice, debounces changes, and pushes one
-small snake_case JSON config (`version`, `enabled`, `bypass_lan`,
-`bypass_countries`, `excluded_packages`) through `setSplitTunnelConfig`.
+"bypass local network" also on by default, the Iranian and Chinese sites & apps
+presets defaulted from where the device actually is, and — Android only — a
+bypassed-apps picker (no individual apps are preselected). RN persists its own
+slice, debounces changes, and pushes one small snake_case JSON config
+(`version`, `enabled`, `bypass_lan`, `bypass_countries`, `excluded_packages`)
+through `setSplitTunnelConfig`.
+
+A country preset may only ship on inside its own country: `geosite-cn` carries
+hosts the whole world loads on ordinary pages (doubleclick.net,
+fonts.googleapis.com, www.gstatic.com …), so bypassing it elsewhere would put
+those requests on the direct path with the user's real IP while the app reports
+CONNECTED, and inside China the same bypassed hosts are GFW-blocked and simply
+fail. `src/model/splitTunnelDefaults.ts` picks the default from the device's
+IANA time zone (locale region subtag only as a fallback) — offline, no geo-IP
+call and no location permission — so a fresh install starts with Iran + LAN in
+Iran, China + LAN in mainland China, and LAN alone everywhere else. Installs
+that already persisted the old unconditional `["ir","cn"]` default are repaired
+once at hydration, keyed on a `defaultsRevision` stamp in RN's own slice
+(see CONTRACT §3).
 Native persists the raw string (Android SharedPreferences
 `openrung_split_tunnel`, iOS app-group defaults key `split_tunnel_config`)
 and, when the tunnel is up and the string changed, reapplies by reconnecting
@@ -304,7 +318,10 @@ per-country local rule sets (`geosite-<cc>.srs` / `geoip-<cc>.srs`, bundled
 from `rulesets/dist/` — Android stages them into `<filesDir>/libbox/rulesets/`,
 iOS reads them from the PacketTunnel bundle) routed direct, with a sniff rule
 and per-country DNS over the direct path (Shecan `178.22.122.100` for Iran,
-AliDNS `223.5.5.5` for China); and on Android an OS-level `exclude_package`
+AliDNS `223.5.5.5` for China — as DoH over 443, since those queries leave the
+device on the user's real IP and must not be readable or forgeable on the way;
+a failing in-country resolver falls through to the proxied chain rather than
+failing the lookup); and on Android an OS-level `exclude_package`
 list on the TUN inbound. The Android app picker is fed by the separate
 `OpenRungAppList` module (launcher apps, background-resolved). Everything
 fails open (CONTRACT §1): a bad/missing config or a missing rule-set file

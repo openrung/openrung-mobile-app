@@ -22,6 +22,12 @@ jest.mock('../../src/native/OpenRungAppList', () => ({
   getInstalledApps: jest.fn(async () => []),
 }));
 
+// Which country presets a fresh install starts with depends on where the device is (Intl time
+// zone), so pin it: this suite renders the screen from a device outside Iran and China.
+jest.mock('../../src/model/splitTunnelDefaults', () => ({
+  defaultBypassCountries: () => [],
+}));
+
 // The store's debounced push goes through the bridge; mocking it keeps the suite off the
 // scripted simulator (its reconnect walk would mutate the mirrored native state).
 jest.mock('../../src/native/OpenRungVpn', () => ({
@@ -82,15 +88,18 @@ describe('SplitTunnelingScreen', () => {
     await unmount(tree);
   });
 
-  it('starts with every preset on and disables the bypass rows when the master is turned off', async () => {
+  it('starts with the local-network preset on and disables the bypass rows when the master is turned off', async () => {
     const tree = await renderScreen();
-    const [master, ...bypassRows] = switches(tree);
+    const [master, lan, ...countryRows] = switches(tree);
 
     expect(master.props.disabled).toBeUndefined();
     expect(master.props.value).toBe(true);
-    expect(bypassRows).toHaveLength(3);
-    expect(bypassRows.every(row => row.props.value === true)).toBe(true);
-    expect(bypassRows.every(row => row.props.disabled === false)).toBe(true);
+    // On a device outside Iran and China the country presets start off: geosite-cn carries
+    // globally common hosts, so bypassing it there would leak ordinary page loads.
+    expect(lan.props.value).toBe(true);
+    expect(countryRows).toHaveLength(2);
+    expect(countryRows.every(row => row.props.value === false)).toBe(true);
+    expect([lan, ...countryRows].every(row => row.props.disabled === false)).toBe(true);
 
     await ReactTestRenderer.act(async () => {
       master.props.onChange(false);

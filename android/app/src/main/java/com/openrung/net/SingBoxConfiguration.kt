@@ -35,10 +35,23 @@ data class SplitTunnelRules(
         /** Countries with bundled rule sets, in the canonical emission order. */
         val SUPPORTED_COUNTRIES: List<String> = listOf(COUNTRY_IR, COUNTRY_CN)
 
-        /** In-country public resolver bypassed domains resolve through over the direct path. */
-        fun directDnsServer(country: String): String = when (country) {
-            COUNTRY_IR -> "178.22.122.100" // Shecan
-            COUNTRY_CN -> "223.5.5.5" // AliDNS
+        /**
+         * An in-country public resolver reached over the DIRECT path, so bypassed domains resolve
+         * to in-country CDN nodes instead of the relay exit's view of them.
+         *
+         * DoH over 443, never plaintext UDP/53: these queries leave the device on the user's real
+         * IP while the tunnel is up, so the local network, the ISP and anything else on the path
+         * must not get a cleartext list of the domains being bypassed (nor the chance to forge the
+         * answers). [server] stays an IP literal so no bootstrap lookup is needed, and TLS
+         * authenticates [tlsServerName] — the same shape the proxied DoH resolvers use.
+         */
+        data class DirectResolver(val server: String, val tlsServerName: String)
+
+        fun directResolver(country: String): DirectResolver = when (country) {
+            // Shecan (Iranian public resolver); 178.22.122.100:443 serves the free.shecan.ir cert.
+            COUNTRY_IR -> DirectResolver("178.22.122.100", "free.shecan.ir")
+            // AliDNS (Chinese public resolver); https://223.5.5.5/dns-query is a published endpoint.
+            COUNTRY_CN -> DirectResolver("223.5.5.5", "dns.alidns.com")
             else -> throw IllegalArgumentException("unsupported split-tunnel country: $country")
         }
     }
@@ -126,13 +139,21 @@ data class SingBoxConfiguration(
                         })
                     }
                     bypassCountries.forEach { country ->
+                        val resolver = SplitTunnelRules.directResolver(country)
                         add(buildJsonObject {
                             put("tag", "dns-direct-$country")
-                            put("type", "udp")
-                            put("server", SplitTunnelRules.directDnsServer(country))
-                            // Modern UDP DNS servers use a direct dialer when detour is omitted.
-                            // Detouring to our otherwise-empty tagged direct outbound is rejected
-                            // during sing-box's Start stage ("detour to an empty direct outbound").
+                            // DoH over 443 on the direct path: encrypted, and 443 survives the
+                            // middleboxes that a bare 853 often does not.
+                            put("type", "https")
+                            put("server", resolver.server)
+                            put("tls", buildJsonObject {
+                                put("enabled", true)
+                                put("server_name", resolver.tlsServerName)
+                            })
+                            // A DNS server with no detour builds its own direct dialer, which is
+                            // exactly what a bypass resolver needs. Detouring to our otherwise-empty
+                            // tagged direct outbound is rejected during sing-box's Start stage
+                            // ("detour to an empty direct outbound").
                         })
                     }
                 })
@@ -148,10 +169,7 @@ data class SingBoxConfiguration(
                         disableCache = true,
                     ).forEach(::add)
                     bypassCountries.forEach { country ->
-                        add(buildJsonObject {
-                            put("rule_set", JsonArray(listOf(JsonPrimitive("geosite-$country"))))
-                            put("server", "dns-direct-$country")
-                        })
+                        countryDnsRules(country).forEach(::add)
                     }
                     // Real failover for everything else: a static `final` would never consult a
                     // second resolver. `evaluate` is non-terminal on a transport error, timeout,
@@ -309,6 +327,35 @@ data class SingBoxConfiguration(
             put("server", "dns-${dnsServers.lastIndex}")
             put("timeout", DNS_FALLBACK_TIMEOUT)
         })
+    }
+
+    /**
+     * Per-country lookup chain for the domains that country bypasses: ask the in-country DoH
+     * resolver, and return its answer when it is a real one (NOERROR, or an authoritative
+     * NXDOMAIN). Nothing else is terminal, so a resolver that is unreachable, times out, or has
+     * let its certificate lapse falls through to the proxied global chain below instead of
+     * failing the lookup outright — the same fail-open posture as the rest of the feature
+     * (CONTRACT §1), and the reason moving off plaintext UDP cannot cost anyone reachability.
+     *
+     * `rule_set` matches against the queried domain in both the query and the response pass, so
+     * the response rules stay scoped to this country's domains.
+     */
+    private fun countryDnsRules(country: String): List<JsonObject> = buildList {
+        val ruleSet = JsonArray(listOf(JsonPrimitive("geosite-$country")))
+        add(buildJsonObject {
+            put("rule_set", ruleSet)
+            put("action", "evaluate")
+            put("server", "dns-direct-$country")
+            put("timeout", DNS_PRIMARY_TIMEOUT)
+        })
+        listOf("NOERROR", "NXDOMAIN").forEach { rcode ->
+            add(buildJsonObject {
+                put("rule_set", ruleSet)
+                put("match_response", true)
+                put("response_rcode", rcode)
+                put("action", "respond")
+            })
+        }
     }
 
     private fun localRuleSet(tag: String): JsonObject = buildJsonObject {

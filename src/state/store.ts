@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useRef, useSyncExternalStore } from 'react';
 import { AppConfig } from '../config';
 import type { DirectoryStatus, ExitNodeRegion, HomeViewMode } from '../model/exitNode';
+import { defaultBypassCountries } from '../model/splitTunnelDefaults';
 import { INITIAL_UPDATE_UI, type UpdateUiState } from '../model/updateStatus';
 import { firstReachable } from '../net/brokerClient';
 import { loadExitNodeDirectory } from '../net/exitNodeDirectory';
@@ -54,12 +55,20 @@ const INITIAL_NATIVE_STATE: NativeVpnState = {
   recents: [],
 };
 
-const INITIAL_SPLIT_TUNNEL: SplitTunnelState = {
-  enabled: true,
-  bypassLan: true,
-  bypassCountries: ['ir', 'cn'],
-  excludedApps: [],
-};
+/**
+ * Fresh-install split-tunnel defaults: master on, LAN bypassed, and a country preset ONLY on a
+ * device that is actually in that country (see model/splitTunnelDefaults — geosite-cn outside
+ * China would push ordinary Google/CDN hosts onto the direct path). Derived per call rather than
+ * frozen in a module constant so `resetStoreForTests` re-reads the device region.
+ */
+function initialSplitTunnel(): SplitTunnelState {
+  return {
+    enabled: true,
+    bypassLan: true,
+    bypassCountries: defaultBypassCountries(),
+    excludedApps: [],
+  };
+}
 
 function initialState(): AppState {
   return {
@@ -69,7 +78,7 @@ function initialState(): AppState {
     availableRegions: [],
     languageTag: '',
     homeViewMode: 'map',
-    splitTunnel: INITIAL_SPLIT_TUNNEL,
+    splitTunnel: initialSplitTunnel(),
     connectedAtMs: null,
     update: INITIAL_UPDATE_UI,
   };
@@ -401,6 +410,30 @@ export async function flushSplitTunnelPush(): Promise<void> {
 }
 
 /**
+ * Revision of the shipped defaults the persisted slice was written under. Bumped only when a
+ * default changes in a way that must also repair installs which already materialized the old
+ * one; `repairShippedCountryDefaults` reads it. Revision 1 is implicit — it is what every write
+ * before region-aware defaults produced.
+ */
+const SPLIT_TUNNEL_DEFAULTS_REVISION = 2;
+
+/** The persisted slice plus the defaults revision that produced it. */
+interface PersistedSplitTunnel {
+  splitTunnel: SplitTunnelState;
+  defaultsRevision: number;
+}
+
+/** Best-effort persistence of the slice, stamped with the defaults revision it was derived under. */
+function persistSplitTunnel(splitTunnel: SplitTunnelState): Promise<void> {
+  return AsyncStorage.setItem(
+    SPLIT_TUNNEL_STORAGE_KEY,
+    JSON.stringify({ ...splitTunnel, defaultsRevision: SPLIT_TUNNEL_DEFAULTS_REVISION }),
+  ).catch(() => {
+    // Persistence is best-effort, same as the language selection.
+  });
+}
+
+/**
  * Merges a split-tunnel patch into the state, persists it to AsyncStorage, and pushes the
  * contract §3 config JSON to the native store (debounced).
  */
@@ -411,14 +444,12 @@ export function setSplitTunnel(patch: Partial<SplitTunnelState>): void {
   splitTunnelHydrated = true;
   const splitTunnel = { ...state.splitTunnel, ...patch };
   setState({ ...state, splitTunnel });
-  AsyncStorage.setItem(SPLIT_TUNNEL_STORAGE_KEY, JSON.stringify(splitTunnel)).catch(() => {
-    // Persistence is best-effort, same as the language selection.
-  });
+  persistSplitTunnel(splitTunnel);
   scheduleSplitTunnelPush();
 }
 
 /** Validates a persisted SplitTunnelState shape; null on anything malformed. */
-function parsePersistedSplitTunnel(raw: string): SplitTunnelState | null {
+function parsePersistedSplitTunnel(raw: string): PersistedSplitTunnel | null {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -429,7 +460,7 @@ function parsePersistedSplitTunnel(raw: string): SplitTunnelState | null {
     return null;
   }
   const candidate = parsed as Record<string, unknown>;
-  const { enabled, bypassLan, bypassCountries, excludedApps } = candidate;
+  const { enabled, bypassLan, bypassCountries, excludedApps, defaultsRevision } = candidate;
   if (typeof enabled !== 'boolean' || typeof bypassLan !== 'boolean') {
     return null;
   }
@@ -438,14 +469,47 @@ function parsePersistedSplitTunnel(raw: string): SplitTunnelState | null {
   }
   const isString = (value: unknown): value is string => typeof value === 'string';
   return {
-    enabled,
-    bypassLan,
-    // Only the v1-recognized countries survive hydration (unknown codes are dropped).
-    bypassCountries: bypassCountries
-      .filter(isString)
-      .filter(code => code === 'ir' || code === 'cn'),
-    excludedApps: excludedApps.filter(isString),
+    splitTunnel: {
+      enabled,
+      bypassLan,
+      // Only the v1-recognized countries survive hydration (unknown codes are dropped).
+      bypassCountries: bypassCountries
+        .filter(isString)
+        .filter(code => code === 'ir' || code === 'cn'),
+      excludedApps: excludedApps.filter(isString),
+    },
+    // Anything written before region-aware defaults carries no revision at all.
+    defaultsRevision: typeof defaultsRevision === 'number' ? defaultsRevision : 1,
   };
+}
+
+/**
+ * One-time repair of the revision-1 default. That release materialized bypassCountries
+ * ['ir', 'cn'] on EVERY install regardless of where the device was, so outside Iran and China the
+ * geosite-cn set — which carries hosts the whole world loads on ordinary pages (doubleclick.net,
+ * fonts.googleapis.com, www.gstatic.com …) — sent those requests out on the direct path with the
+ * user's real IP while the app reported CONNECTED. Only a still-enabled config whose countries
+ * are exactly that pair is re-derived from the device region; every other saved selection is the
+ * user's own and is left alone, and a config that is already off leaks nothing to repair.
+ *
+ * A user who deliberately picked exactly ir+cn is indistinguishable from the untouched default
+ * and gets re-defaulted once. That is the safe direction, both toggles are one tap away, and the
+ * revision stamp written afterwards means a re-selection is never undone again.
+ */
+function repairShippedCountryDefaults(persisted: PersistedSplitTunnel): SplitTunnelState {
+  const { splitTunnel, defaultsRevision } = persisted;
+  if (defaultsRevision >= SPLIT_TUNNEL_DEFAULTS_REVISION) {
+    return splitTunnel;
+  }
+  const { enabled, bypassCountries } = splitTunnel;
+  const isShippedDefault =
+    enabled &&
+    bypassCountries.length === 2 &&
+    bypassCountries.includes('ir') &&
+    bypassCountries.includes('cn');
+  return isShippedDefault
+    ? { ...splitTunnel, bypassCountries: defaultBypassCountries() }
+    : splitTunnel;
 }
 
 /**
@@ -481,16 +545,11 @@ export function hydrateSplitTunnel(): Promise<void> {
 
       if (persisted == null) {
         // No explicit preference exists (fresh install, or an upgrade from the old default-off
-        // release where untouched defaults were never persisted). Materialize the new product
-        // default in both stores: split tunneling on, bypassing LAN + Iran + China. Existing users
-        // with any valid saved selection — including enabled:false — take the parsed branch below
-        // and keep that choice.
-        await AsyncStorage.setItem(
-          SPLIT_TUNNEL_STORAGE_KEY,
-          JSON.stringify(state.splitTunnel),
-        ).catch(() => {
-          // Persistence remains best-effort; native still receives this launch's default.
-        });
+        // release where untouched defaults were never persisted). Materialize the product default
+        // in both stores: split tunneling on, bypassing LAN plus whichever country preset matches
+        // where the device is. Existing users with any valid saved selection — including
+        // enabled:false — take the parsed branch below and keep that choice.
+        await persistSplitTunnel(state.splitTunnel);
         scheduleSplitTunnelPush();
         return;
       }
@@ -502,8 +561,14 @@ export function hydrateSplitTunnel(): Promise<void> {
         // launch, while native continues its fail-open behavior.
         return;
       }
-      if (JSON.stringify(parsed) !== JSON.stringify(state.splitTunnel)) {
-        setState({ ...state, splitTunnel: parsed });
+      const splitTunnel = repairShippedCountryDefaults(parsed);
+      if (JSON.stringify(splitTunnel) !== JSON.stringify(state.splitTunnel)) {
+        setState({ ...state, splitTunnel });
+      }
+      if (parsed.defaultsRevision < SPLIT_TUNNEL_DEFAULTS_REVISION) {
+        // Stamp the revision (carrying any repair with it) so a deliberate ir+cn selection made
+        // after this launch is never re-derived away on the next one.
+        await persistSplitTunnel(splitTunnel);
       }
       // Sync native from RN's persisted truth (e.g. after a reinstall/backup restore where the
       // native store was cleared); the native effective-config comparison makes this a no-op when

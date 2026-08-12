@@ -119,28 +119,38 @@ public struct SplitTunnelRules: Equatable, Sendable {
 /// The v1 bypass-country presets. Each pairs the bundled sing-box rule-set tags with an
 /// in-country public DNS resolver used over the direct path, so bypassed domains resolve to
 /// in-country CDN nodes instead of the relay exit's view of them.
+///
+/// That resolver is reached by DoH over 443, never plaintext UDP/53: these queries leave the
+/// device on the user's real IP while the tunnel is up, so the local network, the ISP and
+/// anything else on the path must not get a cleartext list of the domains being bypassed (nor the
+/// chance to forge the answers). `directResolver` stays an IP literal so no bootstrap lookup is
+/// needed, and TLS authenticates `directResolverServerName` — the same shape the proxied DoH
+/// resolvers use.
 public struct SplitTunnelCountry: Equatable, Sendable {
     public let code: String
     public let geositeTag: String
     public let geoipTag: String
     public let directResolver: String
+    public let directResolverServerName: String
 
     /// Recognized countries in the normalized emission order: ir first, then cn. Unknown codes
     /// in a persisted config are ignored (forward compat).
     public static let supported: [SplitTunnelCountry] = [
-        // Shecan (Iranian public resolver).
+        // Shecan (Iranian public resolver); 178.22.122.100:443 serves the free.shecan.ir cert.
         SplitTunnelCountry(
             code: "ir",
             geositeTag: "geosite-ir",
             geoipTag: "geoip-ir",
-            directResolver: "178.22.122.100"
+            directResolver: "178.22.122.100",
+            directResolverServerName: "free.shecan.ir"
         ),
-        // AliDNS (Chinese public resolver).
+        // AliDNS (Chinese public resolver); https://223.5.5.5/dns-query is a published endpoint.
         SplitTunnelCountry(
             code: "cn",
             geositeTag: "geosite-cn",
             geoipTag: "geoip-cn",
-            directResolver: "223.5.5.5"
+            directResolver: "223.5.5.5",
+            directResolverServerName: "dns.alidns.com"
         ),
     ]
 
