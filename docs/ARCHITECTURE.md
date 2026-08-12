@@ -316,10 +316,12 @@ starts with Iran + LAN in Iran, China + LAN in mainland China, and LAN alone
 everywhere else.
 
 An automatic selection keeps following the device: RN records the region it was
-derived from (`autoCountryRegion`) and re-derives on the next launch after the
-device moves, so a phone that auto-selected China in Shanghai drops it on
-landing in Berlin. A selection the user made by hand is frozen and never
-re-derived. Installs that persisted the old unconditional `["ir","cn"]` default
+derived from (`autoCountryRegion`) and re-derives whenever the device has moved,
+so a phone that auto-selected China in Shanghai drops it on landing in Berlin.
+That check runs on every app foreground and immediately before every connect,
+not just at hydration — hydration settles once per JS process, and the process
+routinely survives the flight. A selection the user made by hand is frozen and
+never re-derived. Installs that persisted the old unconditional `["ir","cn"]` default
 are repaired once, keyed on a `defaultsRevision` stamp. All of this lives in
 RN's own persisted slice, never in the native config JSON (see CONTRACT §3).
 

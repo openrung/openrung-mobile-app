@@ -423,12 +423,55 @@ function scheduleSplitTunnelPush(): void {
  */
 export async function flushSplitTunnelPush(): Promise<void> {
   await hydrateSplitTunnel();
+  // Hydration settles the region once per JS process and is a no-op on every later call, so the
+  // region is re-checked HERE as well — this runs immediately before the connect that would
+  // otherwise carry a stale country preset onto the direct path.
+  refreshSplitTunnelRegion();
   if (splitTunnelPushTimer == null) {
     return;
   }
   clearTimeout(splitTunnelPushTimer);
   splitTunnelPushTimer = null;
   await pushSplitTunnelToNative();
+}
+
+/**
+ * Re-checks an AUTOMATIC country selection against where the device is now, re-deriving it (and
+ * persisting + pushing) when the device has moved. One Intl read and a no-op in every normal case.
+ *
+ * Hydration cannot carry this on its own: it settles the region once per JS process, and that
+ * process routinely outlives a flight — suspended in Shanghai, resumed in Berlin with the same
+ * module state, after which every `hydrateSplitTunnel()` returns early and `['cn']` stays live on
+ * the direct path. So this also runs on every app foreground (App.tsx) and immediately before
+ * every connect (`flushSplitTunnelPush`).
+ *
+ * A resumed process only sees the new zone if the platform re-reads it for a freshly constructed
+ * `Intl.DateTimeFormat`; a cold launch always does, via `initialSplitTunnel`. The pre-connect call
+ * is the load-bearing one either way, since it runs at the moment a stale preset would take
+ * effect.
+ */
+export function refreshSplitTunnelRegion(): void {
+  if (!splitTunnelHydrated) {
+    // Storage has not been read yet (or the read failed), so a comparison now could overwrite a
+    // selection we have never seen. Hydration performs this same check as it completes.
+    return;
+  }
+  if (splitTunnelAutoRegion === null) {
+    return; // The user chose these countries by hand; travelling must never undo that.
+  }
+  const region = deviceRegion();
+  if (region === splitTunnelAutoRegion) {
+    return;
+  }
+  splitTunnelAutoRegion = region;
+  const bypassCountries = bypassCountriesForRegion(region);
+  if (!shallowEqual(bypassCountries, state.splitTunnel.bypassCountries)) {
+    setState({ ...state, splitTunnel: { ...state.splitTunnel, bypassCountries } });
+  }
+  // Persist even when the countries happen to match already: the recorded provenance moved, and
+  // leaving the old region stored would repeat this work on every foreground.
+  persistSplitTunnel(state.splitTunnel);
+  scheduleSplitTunnelPush();
 }
 
 /**

@@ -17,7 +17,7 @@
  * (exit).
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { BackHandler, Platform, StatusBar, StyleSheet, View } from 'react-native';
+import { AppState, BackHandler, Platform, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { NativeTabs } from './src/components/NativeTabs';
@@ -31,7 +31,11 @@ import { MainScreen } from './src/screens/MainScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SplitTunnelingScreen } from './src/screens/SplitTunnelingScreen';
 import { UpdateRequiredScreen } from './src/screens/UpdateRequiredScreen';
-import { hydrateSplitTunnel, useAppSelector } from './src/state/store';
+import {
+  hydrateSplitTunnel,
+  refreshSplitTunnelRegion,
+  useAppSelector,
+} from './src/state/store';
 import { startUpdateCheck } from './src/state/updateCheck';
 import { palette } from './src/theme';
 
@@ -50,6 +54,17 @@ function App(): React.JSX.Element {
   useEffect(() => {
     // hydrateSplitTunnel is best-effort and never rejects.
     hydrateSplitTunnel();
+    // Hydration settles the country presets once per JS process, but that process routinely
+    // outlives a flight: suspended in Shanghai, resumed in Berlin with the same module state.
+    // Re-check on every foreground so an automatically chosen preset cannot stay behind and keep
+    // a whole country's domains on the direct path. Synchronous, and a no-op unless the device
+    // actually moved.
+    const subscription = AppState.addEventListener('change', status => {
+      if (status === 'active') {
+        refreshSplitTunnelRegion();
+      }
+    });
+    return () => subscription.remove();
   }, []);
 
   return (

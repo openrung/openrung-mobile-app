@@ -223,6 +223,13 @@ serializes with exactly this key order (snake_case):
      hand-picked selection is never re-derived, however far the device travels;
      only a `bypass_countries` edit forfeits tracking, since toggling LAN or apps
      says nothing about which country's rule set belongs there.
+
+     This check does NOT run only at hydration. Hydration happens once per JS
+     process and that process routinely outlives a flight, so RN repeats the
+     check on every app foreground and immediately before every connect
+     (`refreshSplitTunnelRegion`), persisting and pushing whenever the region
+     moved. The pre-connect call is the load-bearing one: it runs at the moment a
+     stale preset would take effect.
   3. **Exclusivity** — whatever survives collapses to a single preset, keeping
      the device's own if it is one of the pair.
 

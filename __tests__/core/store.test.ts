@@ -59,6 +59,7 @@ import {
   hydrateSplitTunnel,
   flushSplitTunnelPush,
   refreshDirectory,
+  refreshSplitTunnelRegion,
   resetStoreForTests,
   setHomeViewMode,
   setSplitTunnel,
@@ -615,6 +616,103 @@ describe('splitTunnel', () => {
     expect(getSnapshot().splitTunnel).toEqual(saved);
     // Nothing changed, so the settled launch does not rewrite storage.
     expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+  });
+
+  describe('mid-process travel (the JS process outlives the flight)', () => {
+    /** Hydrates an automatic ['cn'] selection made in China, then moves the device. */
+    async function landInBerlinAfterAutoSelectingChina(): Promise<void> {
+      mockRegion.mockReturnValue('CN');
+      resetStoreForTests();
+      await AsyncStorage.setItem(
+        SPLIT_TUNNEL_STORAGE_KEY,
+        persistedJson(
+          { enabled: true, bypassLan: true, bypassCountries: ['cn'], excludedApps: [] },
+          { autoCountryRegion: 'CN' },
+        ),
+      );
+      await hydrateSplitTunnel();
+      expect(getSnapshot().splitTunnel.bypassCountries).toEqual(['cn']);
+      mockSetSplitTunnelConfig.mockClear();
+      // The flight. Same JS process, same module state — hydration will never run again.
+      mockRegion.mockReturnValue('');
+    }
+
+    it('re-derives on foreground, since hydration is a no-op by then', async () => {
+      await landInBerlinAfterAutoSelectingChina();
+
+      // Proves the gap this closes: hydration alone leaves the stale preset live.
+      await hydrateSplitTunnel();
+      expect(getSnapshot().splitTunnel.bypassCountries).toEqual(['cn']);
+
+      refreshSplitTunnelRegion();
+      expect(getSnapshot().splitTunnel.bypassCountries).toEqual([]);
+      expect(await AsyncStorage.getItem(SPLIT_TUNNEL_STORAGE_KEY)).toBe(
+        persistedJson(DEFAULT_SPLIT_TUNNEL),
+      );
+
+      jest.advanceTimersByTime(1200);
+      expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
+        '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":[],"excluded_packages":[]}',
+      );
+    });
+
+    it('corrects the config before a connect can read it', async () => {
+      await landInBerlinAfterAutoSelectingChina();
+
+      // The connect path's own pre-flight. It must not hand the service ['cn'] in Berlin.
+      await flushSplitTunnelPush();
+
+      expect(getSnapshot().splitTunnel.bypassCountries).toEqual([]);
+      expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
+      expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
+        '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":[],"excluded_packages":[]}',
+      );
+    });
+
+    it('leaves a hand-picked selection alone across the same move', async () => {
+      mockRegion.mockReturnValue('CN');
+      resetStoreForTests();
+      await AsyncStorage.setItem(
+        SPLIT_TUNNEL_STORAGE_KEY,
+        persistedJson(
+          { enabled: true, bypassLan: true, bypassCountries: ['cn'], excludedApps: [] },
+          { autoCountryRegion: null },
+        ),
+      );
+      await hydrateSplitTunnel();
+      mockRegion.mockReturnValue('');
+
+      refreshSplitTunnelRegion();
+      await flushSplitTunnelPush();
+      expect(getSnapshot().splitTunnel.bypassCountries).toEqual(['cn']);
+    });
+
+    it('is a no-op while the device stays put, and before hydration has read storage', async () => {
+      mockRegion.mockReturnValue('CN');
+      resetStoreForTests();
+      await AsyncStorage.setItem(
+        SPLIT_TUNNEL_STORAGE_KEY,
+        persistedJson(
+          { enabled: true, bypassLan: true, bypassCountries: ['cn'], excludedApps: [] },
+          { autoCountryRegion: 'CN' },
+        ),
+      );
+
+      // Before hydration: storage is unread, so a comparison here could clobber it.
+      mockRegion.mockReturnValue('');
+      (AsyncStorage.setItem as jest.Mock).mockClear();
+      refreshSplitTunnelRegion();
+      expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+
+      mockRegion.mockReturnValue('CN');
+      await hydrateSplitTunnel();
+      (AsyncStorage.setItem as jest.Mock).mockClear();
+
+      // Settled and stationary: nothing to do.
+      refreshSplitTunnelRegion();
+      expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+      expect(getSnapshot().splitTunnel.bypassCountries).toEqual(['cn']);
+    });
   });
 
   it('stops tracking the region once the user picks countries, but not for other edits', async () => {
