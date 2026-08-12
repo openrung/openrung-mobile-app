@@ -150,6 +150,9 @@ export const ar: Partial<Strings> = {
   splitTunnelAppPickerClose: 'إغلاق',
   splitTunnelApplyHint:
     'تُطبَّق التغييرات فورًا؛ يعيد النفق الاتصال لبضع ثوانٍ.',
+  splitTunnelResetHint: 'تُعاد إعدادات إيران والصين إلى الوضع الافتراضي عند إعادة تشغيل التطبيق.',
+  splitTunnelResetHintWithApps:
+    'تُعاد إعدادات إيران والصين إلى الوضع الافتراضي عند إعادة تشغيل التطبيق؛ أما التطبيقات المستثناة فتُحفظ.',
 
   // --- In-app update check (manifest banner / blocking screen / broadcast notice) ---
   updateRequiredTitle: 'التحديث مطلوب',

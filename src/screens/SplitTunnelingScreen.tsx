@@ -5,9 +5,10 @@
  * module is linked — an APPS section whose "Bypassed apps" row opens a modal
  * picker of installed launcher apps. Changes auto-apply: the store debounces a
  * config push to native, which reconnects the live tunnel to the same target
- * (the footer hint says so). Every selection here is SESSION-SCOPED — nothing is
- * persisted, and the next launch starts from the region-derived default again. A
- * bad config never breaks connect — native degrades to full-tunnel behavior
+ * (the footer hint says so). The ROUTING selections here are session-scoped —
+ * the next launch starts from the region-derived default again — while the
+ * bypassed-apps list is remembered; the second footer line tells the user both.
+ * A bad config never breaks connect — native degrades to full-tunnel behavior
  * (contract §1).
  */
 import React, { useCallback, useEffect, useState } from 'react';
@@ -45,6 +46,9 @@ export function SplitTunnelingScreen({ onBack }: SplitTunnelingScreenProps): Rea
   const s = useStrings();
   const insets = useSafeAreaInsets();
   const splitTunnel = useAppSelector(current => current.splitTunnel);
+  // Per-app bypass is Android-only (iOS has no OS-level per-app exclusion), and the footer copy
+  // below must only promise what this build can actually show.
+  const showApps = Platform.OS === 'android' && isAppListAvailable;
 
   useEffect(() => {
     // Ensure this session's default reached native even when the screen is rendered outside the
@@ -128,7 +132,7 @@ export function SplitTunnelingScreen({ onBack }: SplitTunnelingScreenProps): Rea
         </View>
       </View>
 
-      {Platform.OS === 'android' && isAppListAvailable ? (
+      {showApps ? (
         <>
           <Text style={styles.sectionHeader}>{s.splitTunnelAppsHeader.toUpperCase()}</Text>
           <AppPickerRow excludedApps={splitTunnel.excludedApps} />
@@ -136,6 +140,12 @@ export function SplitTunnelingScreen({ onBack }: SplitTunnelingScreenProps): Rea
       ) : null}
 
       <Text style={styles.footer}>{s.splitTunnelApplyHint}</Text>
+      {/* The country presets are session-scoped while bypassed apps are remembered, so say so
+          rather than letting a preset silently vanish. Only the Android build mentions apps —
+          elsewhere there is no APPS section to refer to. */}
+      <Text style={styles.footer}>
+        {showApps ? s.splitTunnelResetHintWithApps : s.splitTunnelResetHint}
+      </Text>
     </ScrollView>
   );
 }

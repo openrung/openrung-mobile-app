@@ -51,10 +51,17 @@ export interface AppState {
 export const LANGUAGE_STORAGE_KEY = 'openrung.language';
 export const HOME_VIEW_MODE_STORAGE_KEY = 'openrung.homeViewMode';
 /**
- * Split-tunnel selections are session-scoped and NOT persisted, so nothing writes this key any
- * more. It survives only so `initializeSplitTunnel` can delete what older builds left behind.
+ * The whole-slice key older builds wrote. Nothing writes it any more — the routing selections it
+ * held are session-scoped now — and `initializeSplitTunnel` deletes what it left behind.
  */
 export const SPLIT_TUNNEL_STORAGE_KEY = 'openrung.splitTunnel';
+/**
+ * Bypassed Android packages, the ONE split-tunnel setting that outlives the session. Picking apps
+ * out of a list of everything installed is real work, and an app bypass is a lasting statement
+ * about that app ("my bank refuses the VPN"), not a temporary routing tweak like the country
+ * presets — so it is remembered while they reset.
+ */
+export const SPLIT_TUNNEL_APPS_STORAGE_KEY = 'openrung.splitTunnel.excludedApps';
 
 const INITIAL_NATIVE_STATE: NativeVpnState = {
   status: 'disconnected',
@@ -369,15 +376,18 @@ const SPLIT_TUNNEL_PUSH_DEBOUNCE_MS = 1200;
 let splitTunnelPushTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
- * Split-tunnel selections are SESSION-SCOPED: every launch starts from the product default
- * (`initialSplitTunnel`) and a user's changes last only as long as this JS process. Nothing about
- * the slice is persisted on the RN side, so there is no stored preference to load, merge, or
- * migrate — the in-memory slice is authoritative for the whole session.
+ * Split-tunnel ROUTING selections are SESSION-SCOPED: every launch starts from the product default
+ * (`initialSplitTunnel`) and a user's changes to the master switch, LAN bypass and country presets
+ * last only as long as this JS process. The bypassed-apps list is the one exception and is
+ * persisted (see SPLIT_TUNNEL_APPS_STORAGE_KEY).
  *
  * The shared promise collapses the App + screen mount calls into one initialization.
+ * `splitTunnelAppsSettled` closes the read/edit race the apps list reintroduces: once a local edit
+ * has happened, the launch read must not overwrite it.
  */
 let splitTunnelInitialized = false;
 let splitTunnelInitializationPromise: Promise<void> | null = null;
+let splitTunnelAppsSettled = false;
 
 /**
  * Serializes the contract §3 SplitTunnelConfig JSON with the stable key order the native
@@ -486,30 +496,61 @@ export function setSplitTunnel(patch: Partial<SplitTunnelState>): void {
   }
   const splitTunnel = { ...state.splitTunnel, ...patch };
   setState({ ...state, splitTunnel });
-  // Deliberately not persisted: the edit lasts for this session only (see
-  // splitTunnelInitialized). Native still receives it, because the VPN service reads its own
-  // store at connect time and must route this session the way the user just asked.
+  if (patch.excludedApps !== undefined) {
+    // The one setting that outlives the session. Also marks the apps list settled, so a launch
+    // read still in flight cannot overwrite what the user just picked.
+    splitTunnelAppsSettled = true;
+    persistExcludedApps(splitTunnel.excludedApps);
+  }
+  // The routing selections are deliberately NOT persisted: they last for this session only. Native
+  // still receives them, because the VPN service reads its own store at connect time and must
+  // route this session the way the user just asked.
   scheduleSplitTunnelPush();
 }
 
+/** Best-effort persistence of the bypassed-apps list, the only split-tunnel setting we remember. */
+function persistExcludedApps(excludedApps: string[]): Promise<void> {
+  return AsyncStorage.setItem(SPLIT_TUNNEL_APPS_STORAGE_KEY, JSON.stringify(excludedApps)).catch(
+    () => {
+      // Persistence is best-effort, same as the language selection.
+    },
+  );
+}
+
+/** The persisted bypassed-apps list, or null when absent/malformed. */
+function parseExcludedApps(raw: string | null): string[] | null {
+  if (raw == null) {
+    return null;
+  }
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.filter((value): value is string => typeof value === 'string')
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Materializes this session's split-tunnel config: pushes the launch default to native and drops
- * the preferences key older builds persisted. Idempotent — App and the split-tunneling screen can
- * mount close together, and they share one initialization.
+ * Materializes this session's split-tunnel config: restores the remembered bypassed-apps list,
+ * pushes the result to native, and drops the whole-slice key older builds persisted. Idempotent —
+ * App and the split-tunneling screen can mount close together, and they share one initialization.
  *
- * There is nothing to load. The slice already holds this launch's default (`initialSplitTunnel`),
- * and by design no earlier selection is restored: a user's changes last only while the app is
- * open. What DOES need doing is telling native, because its store still holds whatever the
- * previous session pushed and the VPN service reads that store on every connect — including the
- * background recovery rebuilds it performs on its own. Pushing here is what makes "reopening the
- * app returns to the default" true for routing and not just for the toggles on screen.
+ * No routing selection is restored, by design: the master switch, LAN bypass and country presets
+ * start from this launch's default and a user's changes to them last only while the app is open.
+ * Only the bypassed-apps list is read back.
  *
- * A live tunnel whose config differed from the default therefore reapplies (a brief reconnect)
- * shortly after launch. That is the intended consequence of session-scoped settings.
+ * Telling native is the load-bearing part. Its store still holds whatever the previous session
+ * pushed, and the VPN service reads that store on every connect — including the background
+ * recovery rebuilds it performs on its own. Pushing here is what makes "reopening the app returns
+ * to the default" true for routing and not just for the toggles on screen. A live tunnel whose
+ * config differed from the default therefore reapplies (a brief reconnect) shortly after launch,
+ * which is the intended consequence of session-scoped settings.
  */
 export function initializeSplitTunnel(): Promise<void> {
   // Promise first: `splitTunnelInitialized` is set synchronously below, so checking it first
-  // would make concurrent callers miss the shared attempt and never await the cleanup.
+  // would make concurrent callers miss the shared attempt and never await it.
   if (splitTunnelInitializationPromise != null) {
     return splitTunnelInitializationPromise;
   }
@@ -518,20 +559,30 @@ export function initializeSplitTunnel(): Promise<void> {
   }
   splitTunnelInitialized = true;
 
-  // Push before the cleanup: the config reaching native is what matters, and the removal is
-  // housekeeping that must never delay or block it.
-  scheduleSplitTunnelPush();
-
   let attempt: Promise<void>;
-  attempt = AsyncStorage.removeItem(SPLIT_TUNNEL_STORAGE_KEY)
-    .catch(() => {
-      // Best-effort. A key left behind is inert — nothing reads it any more.
-    })
-    .finally(() => {
-      if (splitTunnelInitializationPromise === attempt) {
-        splitTunnelInitializationPromise = null;
+  attempt = (async () => {
+    try {
+      const stored = parseExcludedApps(await AsyncStorage.getItem(SPLIT_TUNNEL_APPS_STORAGE_KEY));
+      if (stored != null && !splitTunnelAppsSettled) {
+        splitTunnelAppsSettled = true;
+        if (!shallowEqual(stored, state.splitTunnel.excludedApps)) {
+          setState({ ...state, splitTunnel: { ...state.splitTunnel, excludedApps: stored } });
+        }
       }
-    });
+    } catch {
+      // Best-effort: a failed read just leaves the list empty for this session.
+    }
+    // Scheduled after the read so native receives ONE config carrying both this launch's routing
+    // default and the remembered apps, instead of a bare default followed by a correction.
+    scheduleSplitTunnelPush();
+    // Housekeeping, last: nothing reads the old whole-slice key any more, so a failure to delete
+    // it is inert and must never delay the push above.
+    await AsyncStorage.removeItem(SPLIT_TUNNEL_STORAGE_KEY).catch(() => {});
+  })().finally(() => {
+    if (splitTunnelInitializationPromise === attempt) {
+      splitTunnelInitializationPromise = null;
+    }
+  });
   splitTunnelInitializationPromise = attempt;
   return attempt;
 }
@@ -545,6 +596,7 @@ export function applyUpdateUiState(update: UpdateUiState): void {
 export function resetStoreForTests(): void {
   directoryGeneration++;
   splitTunnelInitialized = false;
+  splitTunnelAppsSettled = false;
   // An old attempt cannot be cancelled; clearing the slot lets the reset store initialize again.
   splitTunnelInitializationPromise = null;
   if (splitTunnelPushTimer != null) {

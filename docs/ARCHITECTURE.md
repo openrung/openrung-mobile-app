@@ -295,10 +295,14 @@ and pushes one small snake_case JSON config (`version`, `enabled`, `bypass_lan`,
 `bypass_countries`, `country_source`, `excluded_packages`) through
 `setSplitTunnelConfig`.
 
-**Selections are session-scoped.** RN persists nothing: every launch starts from
-the default above, and a change the user makes lasts only while the app is open
-— reopening it puts every split-tunnel setting back, the Android bypassed-apps
-list included. Native still persists the raw string (Android SharedPreferences
+**Routing selections are session-scoped.** The master switch, LAN bypass and
+country presets are not persisted: every launch starts from the default above,
+and a change to them lasts only while the app is open. The Android
+bypassed-apps list is the one exception and is remembered across launches, under
+its own key — picking apps out of everything installed is real work, and an app
+bypass is a lasting statement about that app rather than a temporary routing
+tweak. The screen's footer states both halves. Native still persists the raw
+string (Android SharedPreferences
 `openrung_split_tunnel`, iOS app-group defaults key `split_tunnel_config`)
 because the VPN service reads its own store on every connect, including the
 background recovery rebuilds it performs after a physical-network change; that

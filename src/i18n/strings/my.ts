@@ -167,6 +167,9 @@ export const my: Partial<Strings> = {
   splitTunnelAppPickerClose: 'ပိတ်မည်',
   splitTunnelApplyHint:
     'ပြောင်းလဲမှုများ ချက်ချင်း သက်ရောက်သည်။ ဥမင်သည် စက္ကန့်အနည်းငယ် ပြန်လည်ချိတ်ဆက်မည်။',
+  splitTunnelResetHint: 'အက်ပ်ကို ပြန်စတင်သည့်အခါ အီရန်နှင့် တရုတ် သတ်မှတ်ချက်များ ပြန်လည်သတ်မှတ်မည်။',
+  splitTunnelResetHintWithApps:
+    'အက်ပ်ကို ပြန်စတင်သည့်အခါ အီရန်နှင့် တရုတ် သတ်မှတ်ချက်များ ပြန်လည်သတ်မှတ်မည်။ ချွင်းချက်ပြုထားသော အက်ပ်များကို ထိန်းသိမ်းထားမည်။',
 
   // --- In-app update check (manifest banner / blocking screen / broadcast notice) ---
   updateRequiredTitle: 'အပ်ဒိတ် လုပ်ရန် လိုအပ်သည်',

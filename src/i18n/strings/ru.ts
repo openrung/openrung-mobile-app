@@ -147,6 +147,9 @@ export const ru: Partial<Strings> = {
   splitTunnelAppPickerClose: 'ЗАКРЫТЬ',
   splitTunnelApplyHint:
     'изменения применяются сразу; туннель переподключается на несколько секунд.',
+  splitTunnelResetHint: 'после перезапуска приложения наборы для Ирана и Китая сбрасываются.',
+  splitTunnelResetHintWithApps:
+    'после перезапуска приложения наборы для Ирана и Китая сбрасываются; исключённые приложения сохраняются.',
 
   // --- In-app update check (manifest banner / blocking screen / broadcast notice) ---
   updateRequiredTitle: 'Требуется обновление',

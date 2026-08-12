@@ -52,6 +52,7 @@ import { deviceRegion } from '../../src/model/splitTunnelDefaults';
 import { OpenRungVpn } from '../../src/native/OpenRungVpn';
 import {
   HOME_VIEW_MODE_STORAGE_KEY,
+  SPLIT_TUNNEL_APPS_STORAGE_KEY,
   SPLIT_TUNNEL_STORAGE_KEY,
   applyNativeState,
   getSnapshot,
@@ -240,6 +241,7 @@ describe('splitTunnel', () => {
 
   beforeEach(async () => {
     await AsyncStorage.removeItem(SPLIT_TUNNEL_STORAGE_KEY);
+    await AsyncStorage.removeItem(SPLIT_TUNNEL_APPS_STORAGE_KEY);
     // Outside Iran and China unless a test places the device somewhere else; re-derive the
     // launch slice so the change takes effect.
     mockRegion.mockReturnValue('');
@@ -300,9 +302,8 @@ describe('splitTunnel', () => {
   });
 
   describe('session-scoped selections', () => {
-    it('never writes the selection to storage', async () => {
+    it('never writes a routing selection to storage', async () => {
       setSplitTunnel({ enabled: false, bypassLan: false, bypassCountries: ['cn'] });
-      setSplitTunnel({ excludedApps: ['com.tencent.mm'] });
       jest.advanceTimersByTime(1200);
 
       // The push reached native (the service needs it for THIS session) but nothing was saved.
@@ -311,11 +312,10 @@ describe('splitTunnel', () => {
       expect(await AsyncStorage.getItem(SPLIT_TUNNEL_STORAGE_KEY)).toBeNull();
     });
 
-    it('starts the next launch from the default, discarding every edit', async () => {
+    it('starts the next launch from the routing default, discarding those edits', async () => {
       mockRegion.mockReturnValue('CN');
       relaunchApp();
       setSplitTunnel({ enabled: false, bypassLan: false, bypassCountries: ['ir'] });
-      setSplitTunnel({ excludedApps: ['com.tencent.mm'] });
       jest.advanceTimersByTime(1200);
 
       relaunchApp();
@@ -330,7 +330,56 @@ describe('splitTunnel', () => {
       expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(pushedConfig('["cn"]'));
     });
 
-    it('ignores a preference persisted by an older build, and deletes it', async () => {
+    it('remembers the bypassed-apps list across launches', async () => {
+      // Picking apps out of everything installed is real work, and "my bank refuses the VPN" is a
+      // lasting statement — unlike a temporary routing tweak. So apps are exempt from the reset.
+      setSplitTunnel({ excludedApps: ['com.tencent.mm', 'org.telegram.messenger'] });
+      jest.advanceTimersByTime(1200);
+      expect(await AsyncStorage.getItem(SPLIT_TUNNEL_APPS_STORAGE_KEY)).toBe(
+        '["com.tencent.mm","org.telegram.messenger"]',
+      );
+
+      relaunchApp();
+      // Before the read lands the list is empty; initialization restores it.
+      await initializeSplitTunnel();
+      expect(getSnapshot().splitTunnel.excludedApps).toEqual([
+        'com.tencent.mm',
+        'org.telegram.messenger',
+      ]);
+
+      // Native gets ONE config carrying both the launch routing default and the remembered apps.
+      jest.advanceTimersByTime(1200);
+      expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
+      expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
+        pushedConfig('[]', { packages: '["com.tencent.mm","org.telegram.messenger"]' }),
+      );
+    });
+
+    it('lets a cleared apps list survive too, and ignores a malformed one', async () => {
+      setSplitTunnel({ excludedApps: ['com.tencent.mm'] });
+      setSplitTunnel({ excludedApps: [] });
+      relaunchApp();
+      await initializeSplitTunnel();
+      expect(getSnapshot().splitTunnel.excludedApps).toEqual([]);
+
+      await AsyncStorage.setItem(SPLIT_TUNNEL_APPS_STORAGE_KEY, 'not json');
+      relaunchApp();
+      await initializeSplitTunnel();
+      expect(getSnapshot().splitTunnel.excludedApps).toEqual([]);
+    });
+
+    it('does not let the launch read overwrite an apps edit made first', async () => {
+      await AsyncStorage.setItem(SPLIT_TUNNEL_APPS_STORAGE_KEY, '["com.stale.package"]');
+      relaunchApp();
+
+      const initializing = initializeSplitTunnel();
+      setSplitTunnel({ excludedApps: ['com.chosen.now'] });
+      await initializing;
+
+      expect(getSnapshot().splitTunnel.excludedApps).toEqual(['com.chosen.now']);
+    });
+
+    it('ignores the whole-slice preference persisted by an older build, and deletes it', async () => {
       await AsyncStorage.setItem(
         SPLIT_TUNNEL_STORAGE_KEY,
         JSON.stringify({

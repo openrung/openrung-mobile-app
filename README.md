@@ -103,10 +103,12 @@ clients**. The prototype IDs are `com.openrung.mobile` on Android and
   that are actually in those countries — a preset is never enabled where it
   would only push ordinary traffic out of the tunnel, and the two are mutually
   exclusive. Either is one tap away anywhere. On Android, users can also bypass
-  individual apps. Changes apply live via a quick reconnect and last for the
-  session: closing the app returns every split-tunnel setting to the default, so
-  a temporary bypass can never quietly outlive the reason for it. A bad config or
-  missing rule set degrades to full tunnel — it never breaks connect.
+  individual apps. Changes apply live via a quick reconnect, and the routing
+  choices last for the session: closing the app returns the master switch, LAN
+  bypass and country presets to the default, so a temporary bypass can never
+  quietly outlive the reason for it. Bypassed apps are remembered, since those
+  are a lasting statement about an app rather than a routing tweak. A bad config
+  or missing rule set degrades to full tunnel — it never breaks connect.
 - 🧪 **Demoable without a native build** — a scripted mock engine drives the UI
   through the full connect lifecycle so you can develop and demo with no device.
 

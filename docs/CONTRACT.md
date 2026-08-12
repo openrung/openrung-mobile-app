@@ -210,19 +210,26 @@ serializes with exactly this key order (snake_case): `version`, `enabled`,
   Native re-deriving at construction time removes both.
 - `excluded_packages`: Android package names excluded from the VPN at the OS
   level. iOS parses and ignores the field.
-- **Split-tunnel selections are session-scoped.** RN persists nothing: every
-  launch starts from the product default — `enabled:true`, `bypass_lan:true`,
-  and the country preset for the region the device is actually in (`["ir"]` in
-  Iran, `["cn"]` in mainland China, `[]` everywhere else), with
-  `excluded_packages` empty — and a user's changes last only as long as the JS
-  process. Reopening the app returns every split-tunnel setting to that default,
-  including the Android bypassed-apps list. There is no stored preference to
-  load, merge, or migrate; `initializeSplitTunnel` deletes the
-  `openrung.splitTunnel` key older builds wrote.
+- **Split-tunnel routing selections are session-scoped.** The master switch, LAN
+  bypass and country presets are never persisted: every launch starts from the
+  product default — `enabled:true`, `bypass_lan:true`, and the country preset for
+  the region the device is actually in (`["ir"]` in Iran, `["cn"]` in mainland
+  China, `[]` everywhere else) — and a user's changes to them last only as long
+  as the JS process. `initializeSplitTunnel` deletes the `openrung.splitTunnel`
+  key older builds wrote, which held the whole slice.
+- **`excluded_packages` is the exception and IS remembered**, under its own RN key
+  `openrung.splitTunnel.excludedApps` (a JSON string array). Picking apps out of
+  everything installed is real work, and an app bypass is a lasting statement
+  about that app ("my bank refuses the VPN") rather than a temporary routing
+  tweak. Initialization reads it back before the launch push, so native receives
+  ONE config carrying both this launch's routing default and the remembered
+  packages. A local edit that lands while that read is in flight wins.
+  The split-tunneling screen states both halves of this in its footer, and says
+  so only on builds that have an APPS section (Android).
 - Native still persists the raw JSON (§6/§7) because the VPN service reads its
   own store on every connect, including background recovery rebuilds. That store
   therefore holds the CURRENT session's config, and each app launch overwrites it
-  with that launch's default. A live tunnel whose config differed from the
+  with that launch's routing default plus the remembered packages. A live tunnel whose config differed from the
   default reapplies (a brief reconnect) shortly after launch — the intended
   consequence of session-scoped settings, not a bug.
 - The region comes from the device's IANA time zone ONLY — offline, no geo-IP
