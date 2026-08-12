@@ -32,7 +32,7 @@ import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SplitTunnelingScreen } from './src/screens/SplitTunnelingScreen';
 import { UpdateRequiredScreen } from './src/screens/UpdateRequiredScreen';
 import {
-  hydrateSplitTunnel,
+  initializeSplitTunnel,
   refreshSplitTunnelRegion,
   useAppSelector,
 } from './src/state/store';
@@ -47,14 +47,14 @@ function App(): React.JSX.Element {
   // It never gates rendering: the manifest only ever changes what AppRoutes shows.
   useEffect(() => startUpdateCheck(), []);
 
-  // Hydrate the split-tunnel slice at launch (not only when the sub-screen mounts) so the
-  // Settings row reflects the routing the native side actually applies — otherwise it would read
-  // "Off / all traffic through the relay" while native bypass rules are live, misreporting the
-  // leak surface in a censorship-circumvention app.
+  // Publish this session's split-tunnel default at launch (not only when the sub-screen mounts):
+  // selections are session-scoped, so native may still be routing the PREVIOUS session's choice
+  // until this push lands, and the Settings row must describe what native actually applies —
+  // misreporting the leak surface is not acceptable in a censorship-circumvention app.
   useEffect(() => {
-    // hydrateSplitTunnel is best-effort and never rejects.
-    hydrateSplitTunnel();
-    // Hydration settles the country presets once per JS process, but that process routinely
+    // initializeSplitTunnel is best-effort and never rejects.
+    initializeSplitTunnel();
+    // The launch default already reflects the device region, but this JS process routinely
     // outlives a flight: suspended in Shanghai, resumed in Berlin with the same module state.
     // Re-check on every foreground so an automatically chosen preset cannot stay behind and keep
     // a whole country's domains on the direct path. Synchronous, and a no-op unless the device

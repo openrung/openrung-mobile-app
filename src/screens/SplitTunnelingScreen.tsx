@@ -5,8 +5,10 @@
  * module is linked — an APPS section whose "Bypassed apps" row opens a modal
  * picker of installed launcher apps. Changes auto-apply: the store debounces a
  * config push to native, which reconnects the live tunnel to the same target
- * (the footer hint says so). A bad config never breaks connect — native
- * degrades to full-tunnel behavior (contract §1).
+ * (the footer hint says so). Every selection here is SESSION-SCOPED — nothing is
+ * persisted, and the next launch starts from the region-derived default again. A
+ * bad config never breaks connect — native degrades to full-tunnel behavior
+ * (contract §1).
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -29,7 +31,7 @@ import {
   isAppListAvailable,
   type InstalledApp,
 } from '../native/OpenRungAppList';
-import { hydrateSplitTunnel, setSplitTunnel, useAppSelector } from '../state/store';
+import { initializeSplitTunnel, setSplitTunnel, useAppSelector } from '../state/store';
 import { monoFont, palette, tokens } from '../theme';
 
 export interface SplitTunnelingScreenProps {
@@ -45,9 +47,10 @@ export function SplitTunnelingScreen({ onBack }: SplitTunnelingScreenProps): Rea
   const splitTunnel = useAppSelector(current => current.splitTunnel);
 
   useEffect(() => {
-    // Ensure hydration has run when this screen is rendered outside the normal App launch flow.
-    // The store coalesces this with the launch call and local edits always remain authoritative.
-    hydrateSplitTunnel();
+    // Ensure this session's default reached native even when the screen is rendered outside the
+    // normal App launch flow. The store coalesces this with the launch call, and a local edit
+    // made first still wins because the push always serializes the latest state.
+    initializeSplitTunnel();
   }, []);
 
   const toggleCountry = useCallback(

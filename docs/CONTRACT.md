@@ -210,12 +210,22 @@ serializes with exactly this key order (snake_case): `version`, `enabled`,
   Native re-deriving at construction time removes both.
 - `excluded_packages`: Android package names excluded from the VPN at the OS
   level. iOS parses and ignores the field.
-- With no saved user preference, RN initializes and persists `enabled:true`,
-  `bypass_lan:true`, and the country preset for the region the device is
-  actually in — `["ir"]` in Iran, `["cn"]` in mainland China, `[]` everywhere
-  else; `excluded_packages` starts empty. A valid saved preference, including
-  an explicit `enabled:false`, always wins over these fresh-install defaults.
-  The region comes from the device's IANA time zone ONLY — offline, no geo-IP
+- **Split-tunnel selections are session-scoped.** RN persists nothing: every
+  launch starts from the product default — `enabled:true`, `bypass_lan:true`,
+  and the country preset for the region the device is actually in (`["ir"]` in
+  Iran, `["cn"]` in mainland China, `[]` everywhere else), with
+  `excluded_packages` empty — and a user's changes last only as long as the JS
+  process. Reopening the app returns every split-tunnel setting to that default,
+  including the Android bypassed-apps list. There is no stored preference to
+  load, merge, or migrate; `initializeSplitTunnel` deletes the
+  `openrung.splitTunnel` key older builds wrote.
+- Native still persists the raw JSON (§6/§7) because the VPN service reads its
+  own store on every connect, including background recovery rebuilds. That store
+  therefore holds the CURRENT session's config, and each app launch overwrites it
+  with that launch's default. A live tunnel whose config differed from the
+  default reapplies (a brief reconnect) shortly after launch — the intended
+  consequence of session-scoped settings, not a bug.
+- The region comes from the device's IANA time zone ONLY — offline, no geo-IP
   call, no location permission, and deliberately no locale fallback: a language
   preference is not evidence of physical location, so a zone that carries none
   yields no preset rather than a guess. A country preset must never ship on
@@ -223,37 +233,16 @@ serializes with exactly this key order (snake_case): `version`, `enabled`,
   (doubleclick.net, fonts.googleapis.com, www.gstatic.com …), so bypassing it
   elsewhere hands the user's real IP to those on ordinary page loads while the
   app reports CONNECTED.
-- RN stores `defaultsRevision` and `autoCountryRegion` alongside its own
-  persisted slice (RN-local, never part of this payload). Hydration settles the
-  countries in three ordered passes:
-  1. **Repair** — a slice written under revision 1 whose countries are still the
-     shipped `["ir","cn"]` pair is re-derived from the device region, so installs
-     that materialized the unconditional default are fixed exactly once. This
-     applies even when `enabled` is false: that flag says whether split
-     tunneling is running, not where the countries came from, and a stale pair
-     parked behind an off switch just arms the leak for whenever it is flipped
-     back on.
-  2. **Refresh** — `autoCountryRegion` records the region an automatic selection
-     was derived from, and is null once the user picks countries by hand. An
-     automatic selection whose region no longer matches the device is
-     re-derived, so a phone that auto-selected `["cn"]` in Shanghai drops it on
-     landing in Berlin (and picks `["ir"]` up on landing in Tehran). A
-     hand-picked selection is never re-derived, however far the device travels;
-     only a `bypass_countries` edit forfeits tracking, since toggling LAN or apps
-     says nothing about which country's rule set belongs there.
-
-     This check does NOT run only at hydration. Hydration happens once per JS
-     process and that process routinely outlives a flight, so RN repeats the
-     check on every app foreground and immediately before every connect
-     (`refreshSplitTunnelRegion`), persisting and pushing whenever the region
-     moved. RN is not the last line of defence either: `country_source` (above)
-     lets each native generator re-derive independently, which is what covers a
-     background recovery rebuild that no JS code takes part in.
-  3. **Exclusivity** — whatever survives collapses to a single preset, keeping
-     the device's own if it is one of the pair.
-
-  Order matters: collapsing first would destroy the exact pair the repair keys
-  on.
+- Within a session, an automatic selection keeps following the device: RN
+  re-derives it on every app foreground and immediately before every connect
+  (`refreshSplitTunnelRegion`) when the region it was derived from no longer
+  matches, because the JS process routinely outlives a flight. A selection the
+  user made by hand is never re-derived for the rest of that session; only a
+  `bypass_countries` edit forfeits tracking, since toggling LAN or apps says
+  nothing about which country's rule set belongs there. RN is not the last line
+  of defence either — `country_source` (above) lets each native generator
+  re-derive independently, which is what covers a background recovery rebuild
+  that no JS code takes part in.
 - Parse failure, an absent config, or `enabled:false` ⇒ "no split tunneling":
   the generated sing-box config is byte-identical to the no-split output
   (fail-open, §1).
