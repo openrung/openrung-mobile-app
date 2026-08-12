@@ -47,10 +47,27 @@ data class SplitTunnelRules(
          */
         data class DirectResolver(val server: String, val tlsServerName: String)
 
-        fun directResolver(country: String): DirectResolver = when (country) {
-            // Shecan (Iranian public resolver); 178.22.122.100:443 serves the free.shecan.ir cert.
-            COUNTRY_IR -> DirectResolver("178.22.122.100", "free.shecan.ir")
-            // AliDNS (Chinese public resolver); https://223.5.5.5/dns-query is a published endpoint.
+        /**
+         * Null when the country has no encrypted public resolver we can currently stand behind.
+         * Its bypass then keeps its ROUTE rules — the traffic still takes the direct path — and
+         * only its lookups fall to the proxied DoH chain, resolving through the relay exit's view.
+         * That costs in-country CDN affinity and nothing else.
+         *
+         * A resolver goes in here only while its certificate actually validates. Anything else is
+         * worse than omitting it: sing-box would spend the full evaluate timeout failing the TLS
+         * handshake on EVERY bypassed lookup before the fallback runs, so users would pay latency
+         * for an in-country answer they can never receive. Never restore one on the strength of
+         * its documentation — verify the live endpoint first.
+         */
+        fun directResolver(country: String): DirectResolver? = when (country) {
+            // Shecan is Iran's usual public resolver, but every endpoint it publishes
+            // (178.22.122.100, 185.51.200.2, dns.shecan.ir) served an expired Let's Encrypt
+            // certificate as of 2026-08-12 (notAfter Jul 10 2026), on both 443 and 853. Electro
+            // (78.157.42.100) refuses both ports and Begzar's DoH host no longer resolves, so
+            // Iran has no verifiable encrypted resolver to point at right now.
+            COUNTRY_IR -> null
+            // AliDNS (Chinese public resolver); https://223.5.5.5/dns-query is a published
+            // endpoint and its certificate covers the IP literal.
             COUNTRY_CN -> DirectResolver("223.5.5.5", "dns.alidns.com")
             else -> throw IllegalArgumentException("unsupported split-tunnel country: $country")
         }
@@ -139,7 +156,7 @@ data class SingBoxConfiguration(
                         })
                     }
                     bypassCountries.forEach { country ->
-                        val resolver = SplitTunnelRules.directResolver(country)
+                        val resolver = SplitTunnelRules.directResolver(country) ?: return@forEach
                         add(buildJsonObject {
                             put("tag", "dns-direct-$country")
                             // DoH over 443 on the direct path: encrypted, and 443 survives the
@@ -339,8 +356,12 @@ data class SingBoxConfiguration(
      *
      * `rule_set` matches against the queried domain in both the query and the response pass, so
      * the response rules stay scoped to this country's domains.
+     *
+     * Empty for a country with no usable in-country resolver: with nothing to evaluate, its
+     * lookups simply reach the global chain, which is where they would end up anyway.
      */
     private fun countryDnsRules(country: String): List<JsonObject> = buildList {
+        if (SplitTunnelRules.directResolver(country) == null) return@buildList
         val ruleSet = JsonArray(listOf(JsonPrimitive("geosite-$country")))
         add(buildJsonObject {
             put("rule_set", ruleSet)

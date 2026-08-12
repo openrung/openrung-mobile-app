@@ -4,13 +4,9 @@
  * fonts.googleapis.com, www.gstatic.com …), so a false positive outside China puts ordinary page
  * loads on the direct path with the user's real IP while the app reports CONNECTED.
  */
-import {
-  bypassCountriesForRegion,
-  defaultBypassCountries,
-  deviceRegion,
-} from '../../src/model/splitTunnelDefaults';
+import { bypassCountriesForRegion, deviceRegion } from '../../src/model/splitTunnelDefaults';
 
-/** Stands in for the device's Intl, which is where both location signals come from. */
+/** Stands in for the device's Intl, which is where the location signal comes from. */
 function placeDevice(options: { timeZone?: unknown; locale?: unknown }): void {
   jest
     .spyOn(Intl, 'DateTimeFormat')
@@ -76,47 +72,25 @@ describe('deviceRegion', () => {
     expect(deviceRegion()).toBe('');
   });
 
-  it('falls back to the locale region when the zone carries no location', () => {
-    for (const timeZone of ['UTC', 'GMT', 'Etc/UTC', 'Etc/GMT+3', undefined, '']) {
+  it('never falls back to the locale when the zone carries no location', () => {
+    // A language preference is not evidence of physical location. Guessing from it would hand the
+    // China preset to exactly the diaspora devices this module protects, so no evidence must mean
+    // no preset — a one-tap cost, never a leak.
+    for (const timeZone of ['UTC', 'GMT', 'Etc/UTC', 'Etc/GMT+3', 'local', undefined, '', 7]) {
+      placeDevice({ timeZone, locale: 'zh-Hans-CN' });
+      expect(deviceRegion()).toBe('');
       placeDevice({ timeZone, locale: 'fa-IR' });
-      expect(deviceRegion()).toBe('IR');
+      expect(deviceRegion()).toBe('');
     }
-    placeDevice({ timeZone: 'UTC', locale: 'zh-Hans-CN' });
-    expect(deviceRegion()).toBe('CN');
-  });
-
-  it('stops locale scanning at the extension singleton', () => {
-    // 'ca' in the -u- extension is a calendar key, not a region.
-    placeDevice({ timeZone: 'UTC', locale: 'fa-u-ca-persian' });
-    expect(deviceRegion()).toBe('');
-    placeDevice({ timeZone: 'UTC', locale: 'fa-IR-u-ca-persian' });
-    expect(deviceRegion()).toBe('IR');
   });
 
   it('returns nothing usable rather than guessing', () => {
-    placeDevice({ timeZone: undefined, locale: 'fa' });
-    expect(deviceRegion()).toBe('');
-    placeDevice({ timeZone: 7, locale: 42 });
+    placeDevice({ timeZone: undefined, locale: undefined });
     expect(deviceRegion()).toBe('');
 
     jest.spyOn(Intl, 'DateTimeFormat').mockImplementation(() => {
       throw new Error('no Intl');
     });
     expect(deviceRegion()).toBe('');
-  });
-});
-
-describe('defaultBypassCountries', () => {
-  it('ships LAN-only defaults (no country preset) outside Iran and China', () => {
-    placeDevice({ timeZone: 'Europe/Berlin', locale: 'de-DE' });
-    expect(defaultBypassCountries()).toEqual([]);
-  });
-
-  it('ships exactly the local preset inside Iran and China', () => {
-    placeDevice({ timeZone: 'Asia/Tehran', locale: 'fa-IR' });
-    expect(defaultBypassCountries()).toEqual(['ir']);
-
-    placeDevice({ timeZone: 'Asia/Shanghai', locale: 'zh-Hans-CN' });
-    expect(defaultBypassCountries()).toEqual(['cn']);
   });
 });

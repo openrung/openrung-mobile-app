@@ -25,7 +25,8 @@ jest.mock('../../src/native/OpenRungAppList', () => ({
 // Which country presets a fresh install starts with depends on where the device is (Intl time
 // zone), so pin it: this suite renders the screen from a device outside Iran and China.
 jest.mock('../../src/model/splitTunnelDefaults', () => ({
-  defaultBypassCountries: () => [],
+  ...jest.requireActual('../../src/model/splitTunnelDefaults'),
+  deviceRegion: () => '',
 }));
 
 // The store's debounced push goes through the bridge; mocking it keeps the suite off the

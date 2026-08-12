@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useRef, useSyncExternalStore } from 'react';
 import { AppConfig } from '../config';
 import type { DirectoryStatus, ExitNodeRegion, HomeViewMode } from '../model/exitNode';
-import { defaultBypassCountries } from '../model/splitTunnelDefaults';
+import { bypassCountriesForRegion, deviceRegion } from '../model/splitTunnelDefaults';
 import { INITIAL_UPDATE_UI, type UpdateUiState } from '../model/updateStatus';
 import { firstReachable } from '../net/brokerClient';
 import { loadExitNodeDirectory } from '../net/exitNodeDirectory';
@@ -63,16 +63,31 @@ const INITIAL_NATIVE_STATE: NativeVpnState = {
 };
 
 /**
+ * The device region the current country selection was derived from, or null once the user has
+ * picked countries by hand.
+ *
+ * This is what separates "we guessed this for you" from "you chose this", and the difference is
+ * load-bearing: an automatic selection must follow the device, because a phone that auto-selected
+ * `['cn']` in Shanghai and is now in Berlin would otherwise keep pushing geosite-cn (gstatic,
+ * doubleclick, fonts.googleapis.com …) onto the direct path forever. A deliberate choice must
+ * never be second-guessed, however far the user travels. Persisted alongside the slice.
+ */
+let splitTunnelAutoRegion: string | null = null;
+
+/**
  * Fresh-install split-tunnel defaults: master on, LAN bypassed, and a country preset ONLY on a
  * device that is actually in that country (see model/splitTunnelDefaults — geosite-cn outside
- * China would push ordinary Google/CDN hosts onto the direct path). Derived per call rather than
- * frozen in a module constant so `resetStoreForTests` re-reads the device region.
+ * China would push ordinary Google/CDN hosts onto the direct path).
+ *
+ * Records the region it derived from as it goes: the two must never disagree, and doing it here
+ * means no caller can create a selection without its provenance.
  */
 function initialSplitTunnel(): SplitTunnelState {
+  splitTunnelAutoRegion = deviceRegion();
   return {
     enabled: true,
     bypassLan: true,
-    bypassCountries: defaultBypassCountries(),
+    bypassCountries: bypassCountriesForRegion(splitTunnelAutoRegion),
     excludedApps: [],
   };
 }
@@ -424,17 +439,23 @@ export async function flushSplitTunnelPush(): Promise<void> {
  */
 const SPLIT_TUNNEL_DEFAULTS_REVISION = 2;
 
-/** The persisted slice plus the defaults revision that produced it. */
+/** The persisted slice plus the metadata describing where its country selection came from. */
 interface PersistedSplitTunnel {
   splitTunnel: SplitTunnelState;
   defaultsRevision: number;
+  /** Region the countries were auto-derived from; null when the user picked them. */
+  autoCountryRegion: string | null;
 }
 
-/** Best-effort persistence of the slice, stamped with the defaults revision it was derived under. */
+/** Best-effort persistence of the slice, stamped with the metadata hydration needs to interpret it. */
 function persistSplitTunnel(splitTunnel: SplitTunnelState): Promise<void> {
   return AsyncStorage.setItem(
     SPLIT_TUNNEL_STORAGE_KEY,
-    JSON.stringify({ ...splitTunnel, defaultsRevision: SPLIT_TUNNEL_DEFAULTS_REVISION }),
+    JSON.stringify({
+      ...splitTunnel,
+      defaultsRevision: SPLIT_TUNNEL_DEFAULTS_REVISION,
+      autoCountryRegion: splitTunnelAutoRegion,
+    }),
   ).catch(() => {
     // Persistence is best-effort, same as the language selection.
   });
@@ -449,6 +470,12 @@ export function setSplitTunnel(patch: Partial<SplitTunnelState>): void {
   // Mark hydration complete and invalidate that read before changing either state or storage.
   splitTunnelGeneration++;
   splitTunnelHydrated = true;
+  if (patch.bypassCountries !== undefined) {
+    // The user set the countries themselves, so they stop tracking the device region — travelling
+    // must never undo a deliberate choice. Only a country edit forfeits automatic tracking;
+    // toggling LAN or apps says nothing about which country's rule set belongs here.
+    splitTunnelAutoRegion = null;
+  }
   const splitTunnel = { ...state.splitTunnel, ...patch };
   setState({ ...state, splitTunnel });
   persistSplitTunnel(splitTunnel);
@@ -461,11 +488,11 @@ export function setSplitTunnel(patch: Partial<SplitTunnelState>): void {
  * a hand-edited value): keep the one matching where the device is, else the first listed. Never
  * both, so a legacy pair can't re-enter the emitted config through hydration.
  */
-function soleCountry(countries: string[]): string[] {
+function soleCountry(countries: string[], region: string): string[] {
   if (countries.length <= 1) {
     return countries;
   }
-  const [local] = defaultBypassCountries();
+  const [local] = bypassCountriesForRegion(region);
   return local != null && countries.includes(local) ? [local] : countries.slice(0, 1);
 }
 
@@ -481,7 +508,8 @@ function parsePersistedSplitTunnel(raw: string): PersistedSplitTunnel | null {
     return null;
   }
   const candidate = parsed as Record<string, unknown>;
-  const { enabled, bypassLan, bypassCountries, excludedApps, defaultsRevision } = candidate;
+  const { enabled, bypassLan, bypassCountries, excludedApps, defaultsRevision, autoCountryRegion } =
+    candidate;
   if (typeof enabled !== 'boolean' || typeof bypassLan !== 'boolean') {
     return null;
   }
@@ -502,37 +530,56 @@ function parsePersistedSplitTunnel(raw: string): PersistedSplitTunnel | null {
     },
     // Anything written before region-aware defaults carries no revision at all.
     defaultsRevision: typeof defaultsRevision === 'number' ? defaultsRevision : 1,
+    // Absent means "not known to be automatic" — the conservative reading, since treating a
+    // deliberate choice as automatic would let a later move overwrite it. The revision-1 repair
+    // below re-establishes provenance for the one selection we know was machine-made.
+    autoCountryRegion: typeof autoCountryRegion === 'string' ? autoCountryRegion : null,
   };
 }
 
 /**
- * Settles the country presets of a hydrated slice: a one-time repair pass, then the exclusivity
- * invariant. Order matters — collapsing first would destroy the exact pair the repair keys on.
+ * Settles the country presets of a hydrated slice and re-establishes their provenance. Three
+ * passes, in this order — collapsing first would destroy the exact pair the repair keys on.
  *
  * REPAIR: the revision-1 default materialized bypassCountries ['ir', 'cn'] on EVERY install
  * regardless of where the device was, so outside Iran and China the geosite-cn set — which
  * carries hosts the whole world loads on ordinary pages (doubleclick.net, fonts.googleapis.com,
  * www.gstatic.com …) — sent those requests out on the direct path with the user's real IP while
- * the app reported CONNECTED. Only a still-enabled config whose countries are exactly that pair
- * is re-derived from the device region; every other saved selection is the user's own and is left
- * alone, and a config that is already off leaks nothing to repair. A user who deliberately picked
+ * the app reported CONNECTED. Any config whose countries are exactly that pair is re-derived from
+ * the device region, INCLUDING a disabled one: `enabled` says whether split tunneling is running,
+ * not where the countries came from, and leaving a stale pair parked behind an off switch just
+ * arms the same leak for whenever the user flips it back on. A user who deliberately picked
  * exactly ir+cn is indistinguishable from the untouched default and gets re-defaulted once — the
- * safe direction, both toggles are one tap away, and the revision stamp written afterwards means
- * a re-selection is never undone again.
+ * safe direction, and both toggles are one tap away.
  *
- * EXCLUSIVITY: whatever survives collapses to a single preset, which also catches the pairs the
- * repair deliberately left alone (a disabled config, or one saved under a later revision).
+ * REFRESH: an automatic selection follows the device. If the region it was derived from is no
+ * longer where the device is — the user moved, or a wrong time zone got corrected — it is
+ * re-derived. Without this, a phone that auto-selected ['cn'] in Shanghai keeps bypassing
+ * geosite-cn forever once it lands in Berlin, which is the original leak with extra steps. A
+ * selection the user made by hand (autoCountryRegion null) is never touched.
+ *
+ * EXCLUSIVITY: whatever survives collapses to a single preset, catching pairs neither earlier
+ * pass claimed (e.g. one saved under the current revision).
  */
 function normalizeHydratedSplitTunnel(persisted: PersistedSplitTunnel): SplitTunnelState {
-  const { splitTunnel, defaultsRevision } = persisted;
-  const { enabled, bypassCountries } = splitTunnel;
+  const { splitTunnel, defaultsRevision, autoCountryRegion } = persisted;
+  const { bypassCountries } = splitTunnel;
+  const region = deviceRegion();
+
   const isShippedDefault =
     defaultsRevision < SPLIT_TUNNEL_DEFAULTS_REVISION &&
-    enabled &&
     bypassCountries.length === 2 &&
     bypassCountries.includes('ir') &&
     bypassCountries.includes('cn');
-  const countries = isShippedDefault ? defaultBypassCountries() : soleCountry(bypassCountries);
+  const isStaleAutomatic = autoCountryRegion !== null && autoCountryRegion !== region;
+
+  if (isShippedDefault || isStaleAutomatic) {
+    splitTunnelAutoRegion = region;
+    return { ...splitTunnel, bypassCountries: bypassCountriesForRegion(region) };
+  }
+
+  splitTunnelAutoRegion = autoCountryRegion;
+  const countries = soleCountry(bypassCountries, region);
   return countries === bypassCountries
     ? splitTunnel
     : { ...splitTunnel, bypassCountries: countries };
@@ -593,11 +640,13 @@ export function hydrateSplitTunnel(): Promise<void> {
       }
       if (
         parsed.defaultsRevision < SPLIT_TUNNEL_DEFAULTS_REVISION ||
-        splitTunnel !== parsed.splitTunnel
+        splitTunnel !== parsed.splitTunnel ||
+        splitTunnelAutoRegion !== parsed.autoCountryRegion
       ) {
-        // Stamp the revision (carrying any repair with it) so a deliberate ir+cn selection made
-        // after this launch is never re-derived away on the next one, and write back a pair that
-        // exclusivity collapsed so storage stops disagreeing with the state.
+        // Write back whenever this pass changed anything storage records: the revision stamp, a
+        // repaired/refreshed/collapsed country list, or the provenance that decides whether the
+        // next launch may re-derive it. Otherwise storage and state disagree and the same work
+        // repeats on every launch.
         await persistSplitTunnel(splitTunnel);
       }
       // Sync native from RN's persisted truth (e.g. after a reinstall/backup restore where the

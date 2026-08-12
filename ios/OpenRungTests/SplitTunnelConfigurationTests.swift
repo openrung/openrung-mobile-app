@@ -61,22 +61,12 @@ final class SplitTunnelConfigurationTests: XCTestCase {
             )
         ).makeJSONObject()
 
-        let dns = try XCTUnwrap(object["dns"] as? [String: Any])
-        let servers = try XCTUnwrap(dns["servers"] as? [[String: Any]])
-        XCTAssertEqual(servers.count, 3)
-        // The bypass resolver is dialed directly, so the query rides the user's real IP while
-        // the tunnel is up: DoH over 443, never plaintext UDP/53.
-        XCTAssertEqual(try canonicalJSON(servers[2]), try canonicalJSON([
-            "tag": "dns-direct-ir",
-            "type": "https",
-            "server": "178.22.122.100",
-            "tls": ["enabled": true, "server_name": "free.shecan.ir"] as [String: Any]
-        ] as [String: Any]))
-        XCTAssertEqual(try canonicalJSON(dns["rules"]), try canonicalJSON(
-            expectedProbeFailoverChain()
-                + expectedCountryFailoverChain(geositeTag: "geosite-ir", server: "dns-direct-ir")
-                + expectedGlobalFailoverChain()
-        ))
+        // Iran has no encrypted public resolver we can currently stand behind, so it contributes
+        // no dns server and no dns rules at all — its ROUTE bypass below is untouched, and its
+        // lookups just reach the proxied global chain. A dead primary would be strictly worse:
+        // every bypassed lookup would burn the full evaluate timeout on a doomed TLS handshake.
+        let baselineDns = SingBoxConfiguration(relay: makeWssTestRelay()).makeJSONObject()["dns"]
+        XCTAssertEqual(try canonicalJSON(object["dns"]), try canonicalJSON(baselineDns))
 
         let route = try XCTUnwrap(object["route"] as? [String: Any])
         XCTAssertEqual(try canonicalJSON(route["rules"]), try canonicalJSON([
@@ -98,19 +88,20 @@ final class SplitTunnelConfigurationTests: XCTestCase {
 
         let dns = try XCTUnwrap(split["dns"] as? [String: Any])
         let servers = try XCTUnwrap(dns["servers"] as? [[String: Any]])
-        XCTAssertEqual(servers.map { $0["tag"] as? String }, ["dns-0", "dns-1", "dns-direct-ir", "dns-direct-cn"])
-        XCTAssertEqual(servers[3]["server"] as? String, "223.5.5.5")
+        // Only China contributes a resolver today (see SplitTunnelCountry.directResolver), but the
+        // ROUTE rules below still cover both countries.
+        XCTAssertEqual(servers.map { $0["tag"] as? String }, ["dns-0", "dns-1", "dns-direct-cn"])
+        XCTAssertEqual(servers[2]["server"] as? String, "223.5.5.5")
         XCTAssertEqual(
-            (servers[3]["tls"] as? [String: Any])?["server_name"] as? String,
+            (servers[2]["tls"] as? [String: Any])?["server_name"] as? String,
             "dns.alidns.com"
         )
-        // Every resolver encrypted, and the bypass pair still detour-less (a detour to the empty
-        // direct outbound is rejected at engine start).
+        // Every resolver encrypted, and the bypass resolver still detour-less (a detour to the
+        // empty direct outbound is rejected at engine start).
         XCTAssertTrue(servers.allSatisfy { $0["type"] as? String == "https" })
-        XCTAssertTrue(servers.suffix(2).allSatisfy { $0["detour"] == nil })
+        XCTAssertNil(servers[2]["detour"])
         XCTAssertEqual(try canonicalJSON(dns["rules"]), try canonicalJSON(
             expectedProbeFailoverChain()
-                + expectedCountryFailoverChain(geositeTag: "geosite-ir", server: "dns-direct-ir")
                 + expectedCountryFailoverChain(geositeTag: "geosite-cn", server: "dns-direct-cn")
                 + expectedGlobalFailoverChain()
         ))
@@ -163,12 +154,15 @@ final class SplitTunnelConfigurationTests: XCTestCase {
         XCTAssertEqual(SplitTunnelCountry.supported.map(\.code), ["ir", "cn"])
         XCTAssertEqual(SplitTunnelCountry.forCode("ir")?.geositeTag, "geosite-ir")
         XCTAssertEqual(SplitTunnelCountry.forCode("ir")?.geoipTag, "geoip-ir")
-        XCTAssertEqual(SplitTunnelCountry.forCode("ir")?.directResolver, "178.22.122.100")
-        XCTAssertEqual(SplitTunnelCountry.forCode("ir")?.directResolverServerName, "free.shecan.ir")
+        // Iran ships no resolver while Shecan's certificate is expired; see the type's docs
+        // before restoring one, and verify the live endpoint rather than its documentation.
+        XCTAssertNil(SplitTunnelCountry.forCode("ir")?.directResolver)
         XCTAssertEqual(SplitTunnelCountry.forCode("cn")?.geositeTag, "geosite-cn")
         XCTAssertEqual(SplitTunnelCountry.forCode("cn")?.geoipTag, "geoip-cn")
-        XCTAssertEqual(SplitTunnelCountry.forCode("cn")?.directResolver, "223.5.5.5")
-        XCTAssertEqual(SplitTunnelCountry.forCode("cn")?.directResolverServerName, "dns.alidns.com")
+        XCTAssertEqual(
+            SplitTunnelCountry.forCode("cn")?.directResolver,
+            SplitTunnelDirectResolver(server: "223.5.5.5", tlsServerName: "dns.alidns.com")
+        )
         XCTAssertNil(SplitTunnelCountry.forCode("us"))
     }
 

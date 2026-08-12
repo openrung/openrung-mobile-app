@@ -145,12 +145,12 @@ public struct SingBoxConfiguration: Equatable, Sendable {
             // bypass resolver needs. Detouring to our otherwise-empty tagged direct outbound is
             // rejected during sing-box's Start stage. DoH over 443 keeps the query encrypted on
             // that direct path, and 443 survives the middleboxes that a bare 853 often does not.
+            guard let resolver = country.directResolver else { continue }
             dnsServerObjects.append([
                 "tag": "dns-direct-\(country.code)",
                 "type": "https",
-                "server": country.directResolver,
-                "tls": ["enabled": true, "server_name": country.directResolverServerName]
-                    as [String: Any]
+                "server": resolver.server,
+                "tls": ["enabled": true, "server_name": resolver.tlsServerName] as [String: Any]
             ])
         }
         // Highest priority: probe lookups must reach the proxied DoH resolvers even when a
@@ -300,7 +300,11 @@ public struct SingBoxConfiguration: Equatable, Sendable {
     ///
     /// `rule_set` matches against the queried domain in both the query and the response pass, so
     /// the response rules stay scoped to this country's domains.
+    ///
+    /// Empty for a country with no usable in-country resolver: with nothing to evaluate, its
+    /// lookups simply reach the global chain, which is where they would end up anyway.
     private static func countryDnsRules(for country: SplitTunnelCountry) -> [[String: Any]] {
+        guard country.directResolver != nil else { return [] }
         var rules: [[String: Any]] = [
             [
                 "rule_set": [country.geositeTag],

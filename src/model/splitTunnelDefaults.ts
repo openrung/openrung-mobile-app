@@ -10,10 +10,12 @@
  * Iran + LAN in Iran, China + LAN in China, LAN alone everywhere else — and anyone who wants the
  * other preset can switch it on from the split-tunneling screen.
  *
- * Detection is offline and permission-free (no geo-IP call, no location permission): the IANA
- * time zone first, because it tracks where the device physically is, and a language preference
- * does not — a diaspora phone set to zh-CN in Berlin must NOT get the China preset. The locale's
- * region subtag is only a fallback for devices that report no usable zone.
+ * The IANA time zone is the ONLY evidence used, and it is offline and permission-free (no geo-IP
+ * call, no location permission). Deliberately no locale fallback: a language preference is not
+ * evidence of physical location — a phone set to zh-CN is just as likely to be in Berlin as in
+ * Shanghai — and guessing from it would put the China preset on exactly the diaspora devices this
+ * module exists to protect. When the zone carries no location, the answer is no preset, which
+ * costs one tap and leaks nothing.
  */
 
 /**
@@ -56,46 +58,14 @@ function deviceTimeZone(): string {
 }
 
 /**
- * ISO-3166 region subtag of the system locale ('fa-IR' → 'IR', 'zh-Hans-CN' → 'CN'), or '' when
- * the locale carries none ('fa'). Scanning stops at the first one-character subtag: everything
- * past that singleton is an extension ('en-US-u-ca-persian'), where two-letter keys are not
- * regions.
- */
-function localeRegion(): string {
-  try {
-    const locale = Intl.DateTimeFormat().resolvedOptions().locale;
-    if (typeof locale !== 'string') {
-      return '';
-    }
-    const subtags = locale.split('-');
-    for (let index = 1; index < subtags.length; index++) {
-      const subtag = subtags[index];
-      if (subtag.length === 1) {
-        break;
-      }
-      if (/^[A-Za-z]{2}$/.test(subtag)) {
-        return subtag.toUpperCase();
-      }
-    }
-    return '';
-  } catch {
-    return '';
-  }
-}
-
-/**
- * Best-effort ISO-3166 region for the device, or '' when nothing usable is available.
+ * Best-effort ISO-3166 region for the device, or '' when the time zone gives no usable answer.
  *
- * A specific time zone is authoritative in BOTH directions: 'America/Los_Angeles' means the
- * device is not in Iran or China even when the locale claims fa-IR or zh-CN. Only a device
- * reporting no real zone falls back to the locale.
+ * A real zone is authoritative in BOTH directions: `Asia/Tehran` means Iran even on a phone set
+ * to English, and `America/Los_Angeles` means the device is NOT in Iran or China no matter what
+ * the locale claims. '' means "no location evidence", never "somewhere we should guess at".
  */
 export function deviceRegion(): string {
-  const zone = deviceTimeZone();
-  if (zone !== '') {
-    return REGION_BY_TIME_ZONE[zone] ?? '';
-  }
-  return localeRegion();
+  return REGION_BY_TIME_ZONE[deviceTimeZone()] ?? '';
 }
 
 /** Bypass-country presets for an ISO-3166 region; empty for everywhere without a bundled set. */
@@ -108,9 +78,4 @@ export function bypassCountriesForRegion(region: string): string[] {
     default:
       return [];
   }
-}
-
-/** Country presets a fresh install should start with on this device. */
-export function defaultBypassCountries(): string[] {
-  return bypassCountriesForRegion(deviceRegion());
 }

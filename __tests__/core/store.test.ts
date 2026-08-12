@@ -26,11 +26,11 @@ jest.mock('../../src/net/brokerClient', () => ({
   firstReachable: (...args: unknown[]) => mockFirstReachable(...args),
 }));
 
-// Which country presets a fresh install starts with depends on where the device is, which is
-// host state (Intl time zone). Pin it so the defaults are deterministic, and let the tests that
-// care place the device explicitly.
+// Where the device is comes from host state (Intl time zone). Pin the region so the defaults are
+// deterministic and tests can move the device; the region → countries mapping stays real.
 jest.mock('../../src/model/splitTunnelDefaults', () => ({
-  defaultBypassCountries: jest.fn(() => [] as string[]),
+  ...jest.requireActual('../../src/model/splitTunnelDefaults'),
+  deviceRegion: jest.fn(() => ''),
 }));
 
 // The store reads its paired native identity before directory selection and pushes split-tunnel
@@ -48,7 +48,7 @@ jest.mock('../../src/native/OpenRungVpn', () => ({
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { AppConfig } from '../../src/config';
-import { defaultBypassCountries } from '../../src/model/splitTunnelDefaults';
+import { deviceRegion } from '../../src/model/splitTunnelDefaults';
 import { OpenRungVpn } from '../../src/native/OpenRungVpn';
 import {
   HOME_VIEW_MODE_STORAGE_KEY,
@@ -211,7 +211,7 @@ describe('homeViewMode', () => {
 describe('splitTunnel', () => {
   const mockSetSplitTunnelConfig = OpenRungVpn.setSplitTunnelConfig as jest.Mock;
   const mockGetItem = AsyncStorage.getItem as jest.Mock;
-  const mockDefaultCountries = defaultBypassCountries as jest.Mock;
+  const mockRegion = deviceRegion as jest.Mock;
 
   /** The default on a device that is neither in Iran nor in China: LAN bypass only. */
   const DEFAULT_SPLIT_TUNNEL = {
@@ -221,17 +221,24 @@ describe('splitTunnel', () => {
     excludedApps: [],
   };
 
-  /** What `setSplitTunnel`/hydration actually write: the slice plus the defaults-revision stamp. */
-  const persistedJson = (splitTunnel: object, defaultsRevision = 2): string =>
-    JSON.stringify({ ...splitTunnel, defaultsRevision });
+  /**
+   * What `setSplitTunnel`/hydration actually write: the slice, the defaults-revision stamp, and
+   * the provenance of the country selection (the region it was auto-derived from, or null once
+   * the user chose it by hand).
+   */
+  const persistedJson = (
+    splitTunnel: object,
+    { defaultsRevision = 2, autoCountryRegion = '' as string | null } = {},
+  ): string => JSON.stringify({ ...splitTunnel, defaultsRevision, autoCountryRegion });
 
-  /** A pre-region-aware write: the shipped ir+cn default, with no revision stamp. */
-  const LEGACY_DEFAULT_JSON = JSON.stringify({
-    enabled: true,
-    bypassLan: true,
-    bypassCountries: ['ir', 'cn'],
-    excludedApps: [],
-  });
+  /** A pre-region-aware write: the shipped ir+cn default, with no revision or provenance. */
+  const legacyDefaultJson = (enabled = true): string =>
+    JSON.stringify({
+      enabled,
+      bypassLan: true,
+      bypassCountries: ['ir', 'cn'],
+      excludedApps: [],
+    });
 
   beforeEach(async () => {
     await AsyncStorage.removeItem(SPLIT_TUNNEL_STORAGE_KEY);
@@ -239,7 +246,7 @@ describe('splitTunnel', () => {
     mockSetSplitTunnelConfig.mockClear();
     // Outside Iran and China unless a test places the device somewhere else; re-derive the
     // initial slice so the change takes effect.
-    mockDefaultCountries.mockReturnValue([]);
+    mockRegion.mockReturnValue('');
     resetStoreForTests();
     jest.useFakeTimers();
   });
@@ -254,11 +261,11 @@ describe('splitTunnel', () => {
   });
 
   it('defaults to the local country preset on a device inside Iran or China', () => {
-    mockDefaultCountries.mockReturnValue(['ir']);
+    mockRegion.mockReturnValue('IR');
     resetStoreForTests();
     expect(getSnapshot().splitTunnel).toEqual({ ...DEFAULT_SPLIT_TUNNEL, bypassCountries: ['ir'] });
 
-    mockDefaultCountries.mockReturnValue(['cn']);
+    mockRegion.mockReturnValue('CN');
     resetStoreForTests();
     expect(getSnapshot().splitTunnel).toEqual({ ...DEFAULT_SPLIT_TUNNEL, bypassCountries: ['cn'] });
   });
@@ -272,7 +279,8 @@ describe('splitTunnel', () => {
       excludedApps: [],
     });
     expect(await AsyncStorage.getItem(SPLIT_TUNNEL_STORAGE_KEY)).toBe(
-      persistedJson(getSnapshot().splitTunnel),
+      // Picking countries by hand forfeits automatic region tracking.
+      persistedJson(getSnapshot().splitTunnel, { autoCountryRegion: null }),
     );
 
     // The native push waits out the debounce, then sends the §1 JSON with the stable
@@ -452,7 +460,7 @@ describe('splitTunnel', () => {
   });
 
   it('flushes fresh-install initialization before the first native connect can start', async () => {
-    mockDefaultCountries.mockReturnValue(['cn']);
+    mockRegion.mockReturnValue('CN');
     resetStoreForTests();
 
     await flushSplitTunnelPush();
@@ -466,7 +474,7 @@ describe('splitTunnel', () => {
   it('re-derives the shipped ir+cn default on upgrade, from where the device actually is', async () => {
     // Every 0.3.x install materialized ir+cn regardless of location, so geosite-cn (gstatic,
     // doubleclick, fonts.googleapis.com …) escaped onto the direct path worldwide.
-    await AsyncStorage.setItem(SPLIT_TUNNEL_STORAGE_KEY, LEGACY_DEFAULT_JSON);
+    await AsyncStorage.setItem(SPLIT_TUNNEL_STORAGE_KEY, legacyDefaultJson());
 
     await hydrateSplitTunnel();
     expect(getSnapshot().splitTunnel).toEqual(DEFAULT_SPLIT_TUNNEL);
@@ -482,8 +490,8 @@ describe('splitTunnel', () => {
   });
 
   it('keeps the local preset when repairing on a device inside Iran', async () => {
-    mockDefaultCountries.mockReturnValue(['ir']);
-    await AsyncStorage.setItem(SPLIT_TUNNEL_STORAGE_KEY, LEGACY_DEFAULT_JSON);
+    mockRegion.mockReturnValue('IR');
+    await AsyncStorage.setItem(SPLIT_TUNNEL_STORAGE_KEY, legacyDefaultJson());
 
     await hydrateSplitTunnel();
     expect(getSnapshot().splitTunnel.bypassCountries).toEqual(['ir']);
@@ -498,53 +506,138 @@ describe('splitTunnel', () => {
     expect(getSnapshot().splitTunnel).toEqual(saved);
   });
 
-  it('collapses a persisted country pair the repair does not claim', async () => {
-    // A disabled config leaks nothing, so the repair leaves it alone — but the presets are still
-    // mutually exclusive, so hydration must not load both. The device's own preset wins.
-    mockDefaultCountries.mockReturnValue(['cn']);
-    await AsyncStorage.setItem(
-      SPLIT_TUNNEL_STORAGE_KEY,
-      JSON.stringify({
-        enabled: false,
-        bypassLan: true,
-        bypassCountries: ['ir', 'cn'],
-        excludedApps: [],
-      }),
-    );
+  it('repairs the shipped default even while split tunneling is off', async () => {
+    // `enabled` says whether split tunneling is running, not where the countries came from.
+    // Leaving the stale pair parked behind an off switch would just arm the leak for whenever the
+    // user flips it back on — and outside both countries the survivor would be "ir" purely
+    // because it is listed first.
+    await AsyncStorage.setItem(SPLIT_TUNNEL_STORAGE_KEY, legacyDefaultJson(false));
 
     await hydrateSplitTunnel();
     expect(getSnapshot().splitTunnel).toEqual({
       enabled: false,
       bypassLan: true,
-      bypassCountries: ['cn'],
+      bypassCountries: [],
       excludedApps: [],
     });
-    // Storage is rewritten so it stops disagreeing with the state.
     expect(await AsyncStorage.getItem(SPLIT_TUNNEL_STORAGE_KEY)).toBe(
       persistedJson({
         enabled: false,
         bypassLan: true,
-        bypassCountries: ['cn'],
+        bypassCountries: [],
         excludedApps: [],
       }),
     );
   });
 
-  it('collapses a country pair saved under the current revision, keeping the first', async () => {
-    // Nothing writes a pair any more, but a stamped one must not survive either. With no local
-    // preset to prefer, the first listed wins.
+  it('collapses a hand-picked country pair, keeping the first when neither is local', async () => {
+    // Nothing writes a pair any more, but a stamped one must not survive either.
     await AsyncStorage.setItem(
       SPLIT_TUNNEL_STORAGE_KEY,
-      persistedJson({
-        enabled: true,
-        bypassLan: true,
-        bypassCountries: ['cn', 'ir'],
-        excludedApps: [],
-      }),
+      persistedJson(
+        {
+          enabled: true,
+          bypassLan: true,
+          bypassCountries: ['cn', 'ir'],
+          excludedApps: [],
+        },
+        { autoCountryRegion: null },
+      ),
     );
 
     await hydrateSplitTunnel();
     expect(getSnapshot().splitTunnel.bypassCountries).toEqual(['cn']);
+  });
+
+  it('re-derives an automatic selection after the device moves', async () => {
+    // The travel leak: a fresh install in China persists ['cn'], the phone lands in Berlin, and
+    // without provenance hydration would read that as a user preference and keep bypassing
+    // geosite-cn (gstatic, doubleclick …) on the direct path forever.
+    await AsyncStorage.setItem(
+      SPLIT_TUNNEL_STORAGE_KEY,
+      persistedJson(
+        { enabled: true, bypassLan: true, bypassCountries: ['cn'], excludedApps: [] },
+        { autoCountryRegion: 'CN' },
+      ),
+    );
+
+    await hydrateSplitTunnel();
+    expect(getSnapshot().splitTunnel).toEqual(DEFAULT_SPLIT_TUNNEL);
+    expect(await AsyncStorage.getItem(SPLIT_TUNNEL_STORAGE_KEY)).toBe(
+      persistedJson(DEFAULT_SPLIT_TUNNEL),
+    );
+
+    jest.advanceTimersByTime(1200);
+    expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
+      '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":[],"excluded_packages":[]}',
+    );
+  });
+
+  it('picks up the local preset when an automatic selection moves INTO a preset country', async () => {
+    mockRegion.mockReturnValue('IR');
+    await AsyncStorage.setItem(
+      SPLIT_TUNNEL_STORAGE_KEY,
+      persistedJson(
+        { enabled: true, bypassLan: true, bypassCountries: [], excludedApps: [] },
+        { autoCountryRegion: '' },
+      ),
+    );
+
+    await hydrateSplitTunnel();
+    expect(getSnapshot().splitTunnel.bypassCountries).toEqual(['ir']);
+  });
+
+  it('never re-derives a hand-picked selection, however far the device travels', async () => {
+    // A deliberate choice outsanks the device region for good — someone who wants Chinese sites
+    // bypassed from Berlin keeps that until they change it themselves.
+    await AsyncStorage.setItem(
+      SPLIT_TUNNEL_STORAGE_KEY,
+      persistedJson(
+        { enabled: true, bypassLan: true, bypassCountries: ['cn'], excludedApps: [] },
+        { autoCountryRegion: null },
+      ),
+    );
+
+    await hydrateSplitTunnel();
+    expect(getSnapshot().splitTunnel.bypassCountries).toEqual(['cn']);
+  });
+
+  it('leaves an automatic selection alone while the device stays put', async () => {
+    mockRegion.mockReturnValue('CN');
+    const saved = { enabled: true, bypassLan: true, bypassCountries: ['cn'], excludedApps: [] };
+    await AsyncStorage.setItem(
+      SPLIT_TUNNEL_STORAGE_KEY,
+      persistedJson(saved, { autoCountryRegion: 'CN' }),
+    );
+    (AsyncStorage.setItem as jest.Mock).mockClear();
+
+    await hydrateSplitTunnel();
+    expect(getSnapshot().splitTunnel).toEqual(saved);
+    // Nothing changed, so the settled launch does not rewrite storage.
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+  });
+
+  it('stops tracking the region once the user picks countries, but not for other edits', async () => {
+    mockRegion.mockReturnValue('CN');
+    resetStoreForTests();
+
+    // A LAN edit says nothing about which country's rule set belongs here.
+    setSplitTunnel({ bypassLan: false });
+    expect(await AsyncStorage.getItem(SPLIT_TUNNEL_STORAGE_KEY)).toBe(
+      persistedJson(
+        { enabled: true, bypassLan: false, bypassCountries: ['cn'], excludedApps: [] },
+        { autoCountryRegion: 'CN' },
+      ),
+    );
+
+    // Choosing a country does.
+    setSplitTunnel({ bypassCountries: ['ir'] });
+    expect(await AsyncStorage.getItem(SPLIT_TUNNEL_STORAGE_KEY)).toBe(
+      persistedJson(
+        { enabled: true, bypassLan: false, bypassCountries: ['ir'], excludedApps: [] },
+        { autoCountryRegion: null },
+      ),
+    );
   });
 
   it('filters unrecognized countries out of a hydrated selection', async () => {

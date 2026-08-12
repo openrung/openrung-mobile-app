@@ -308,23 +308,35 @@ by an older install. A preset may also only ship on *inside* its own country:
 elsewhere would put those requests on the direct path with the user's real IP
 while the app reports CONNECTED, and inside China the same bypassed hosts are
 GFW-blocked and simply fail. `src/model/splitTunnelDefaults.ts` picks the
-default from the device's IANA time zone (locale region subtag only as a
-fallback) — offline, no geo-IP call and no location permission — so a fresh
-install starts with Iran + LAN in Iran, China + LAN in mainland China, and LAN
-alone everywhere else. Installs that already persisted the old unconditional
-`["ir","cn"]` default are repaired once at hydration, keyed on a
-`defaultsRevision` stamp in RN's own slice (see CONTRACT §3).
+default from the device's IANA time zone and nothing else — offline, no geo-IP
+call, no location permission, and no locale fallback, since a language
+preference is not evidence of location and guessing from it would hand the
+China preset to exactly the diaspora phones this protects. A fresh install
+starts with Iran + LAN in Iran, China + LAN in mainland China, and LAN alone
+everywhere else.
+
+An automatic selection keeps following the device: RN records the region it was
+derived from (`autoCountryRegion`) and re-derives on the next launch after the
+device moves, so a phone that auto-selected China in Shanghai drops it on
+landing in Berlin. A selection the user made by hand is frozen and never
+re-derived. Installs that persisted the old unconditional `["ir","cn"]` default
+are repaired once, keyed on a `defaultsRevision` stamp. All of this lives in
+RN's own persisted slice, never in the native config JSON (see CONTRACT §3).
 
 At connect time the native generators translate the stored config into
 sing-box deltas: an `ip_is_private` → direct route rule for LAN bypass;
 per-country local rule sets (`geosite-<cc>.srs` / `geoip-<cc>.srs`, bundled
 from `rulesets/dist/` — Android stages them into `<filesDir>/libbox/rulesets/`,
 iOS reads them from the PacketTunnel bundle) routed direct, with a sniff rule
-and per-country DNS over the direct path (Shecan `178.22.122.100` for Iran,
-AliDNS `223.5.5.5` for China — as DoH over 443, since those queries leave the
-device on the user's real IP and must not be readable or forgeable on the way;
-a failing in-country resolver falls through to the proxied chain rather than
-failing the lookup); and on Android an OS-level `exclude_package`
+and per-country DNS over the direct path where a trustworthy in-country
+resolver exists (AliDNS `223.5.5.5` for China — as DoH over 443, since those
+queries leave the device on the user's real IP and must not be readable or
+forgeable on the way; a failing resolver falls through to the proxied chain
+rather than failing the lookup). Iran currently ships none: every endpoint
+Shecan publishes served an expired certificate as of 2026-08-12, and a primary
+that must fail a TLS handshake on every lookup is worse than none at all, so
+Iranian bypass traffic takes the direct path while resolving through the proxied
+chain. And on Android an OS-level `exclude_package`
 list on the TUN inbound. The Android app picker is fed by the separate
 `OpenRungAppList` module (launcher apps, background-resolved). Everything
 fails open (CONTRACT §1): a bad/missing config or a missing rule-set file
@@ -467,8 +479,11 @@ LICENSE_TEXT) with hardware-back mapping — no navigation library.
   keeps full production telemetry.
 - Per-app split-tunnel bypass is Android-only; iOS parses and ignores
   `excluded_packages`.
-- With a country bypass preset on, DNS for bypassed domains resolves via
-  in-country public resolvers (Shecan / AliDNS) over the direct path.
+- With a country bypass preset on, DNS for bypassed domains resolves via that
+  country's in-country public resolver over the direct path, encrypted (DoH/443)
+  and falling back to the proxied chain. China uses AliDNS; Iran has no
+  currently valid encrypted resolver, so it resolves through the proxied chain
+  while its traffic still takes the direct path.
 - Android apps excluded at the OS level are invisible to telemetry/traffic
   counters; sing-box-routed direct flows (LAN/country bypass) remain counted.
 - License: GPL-3.0-or-later (statically links sing-box), same as production.

@@ -291,7 +291,10 @@ missing or stale module reports that a native rebuild is required.
 - Per-app split-tunnel bypass is Android-only; iOS parses and ignores
   `excluded_packages`.
 - With a country bypass preset enabled, DNS for bypassed domains resolves via
-  in-country public resolvers (Shecan / AliDNS) over the direct path.
+  that country's in-country public resolver over the direct path, encrypted
+  (DoH/443) and falling back to the proxied chain. China uses AliDNS; Iran has
+  no currently valid encrypted resolver, so it resolves through the proxied
+  chain while its traffic still takes the direct path.
 - Android apps excluded from the VPN at the OS level bypass the TUN entirely
   and are invisible to telemetry/traffic counters; sing-box-routed direct flows
   (LAN/country bypass) remain counted.

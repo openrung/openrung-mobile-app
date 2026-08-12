@@ -75,49 +75,19 @@ class SingBoxConfigurationSplitTunnelTest {
         assertEquals(4, routeRules.size)
 
         val dns = config["dns"]!!.jsonObject
-        val directServer = dns["servers"]!!.jsonArray.last().jsonObject
-        assertEquals("dns-direct-ir", directServer["tag"]!!.jsonPrimitive.content)
-        // These queries ride the direct path on the user's real IP while the tunnel is up, so
-        // they must be encrypted — never plaintext UDP/53.
-        assertEquals("https", directServer["type"]!!.jsonPrimitive.content)
-        assertEquals("178.22.122.100", directServer["server"]!!.jsonPrimitive.content)
+        // Iran has no encrypted public resolver we can currently stand behind, so it contributes
+        // no dns server and no dns rules at all — its ROUTE bypass above is untouched, and its
+        // lookups just reach the proxied global chain. A dead primary would be strictly worse:
+        // every bypassed lookup would burn the full evaluate timeout on a doomed TLS handshake.
         assertEquals(
-            "free.shecan.ir",
-            directServer["tls"]!!.jsonObject["server_name"]!!.jsonPrimitive.content,
+            SingBoxConfiguration(relay()).makeJsonObject()["dns"],
+            config["dns"],
         )
-        assertFalse(
-            "A detour-less DNS server is already direct; detouring through an empty direct outbound fails at engine start",
-            directServer.containsKey("detour"),
+        assertTrue(
+            dns["servers"]!!.jsonArray.none {
+                it.jsonObject["tag"]!!.jsonPrimitive.content.startsWith("dns-direct-")
+            },
         )
-
-        val dnsRules = dns["rules"]!!.jsonArray
-        // 4-rule probe chain, 3-rule country chain, 4-rule global failover chain.
-        assertEquals(11, dnsRules.size)
-        // The probe DNS pin outranks every country rule.
-        assertEquals(
-            ProbeTargets.RULE_DOMAIN_SUFFIXES,
-            dnsRules[0].jsonObject["domain_suffix"]!!.jsonArray.map { it.jsonPrimitive.content },
-        )
-        val countryChain = dnsRules.subList(4, 7).map { it.jsonObject }
-        countryChain.forEach { rule ->
-            assertEquals(
-                listOf("geosite-ir"),
-                rule["rule_set"]!!.jsonArray.map { it.jsonPrimitive.content },
-            )
-        }
-        // Ask the in-country resolver, keep only a real answer, and otherwise fall through to the
-        // proxied global chain rather than failing the lookup.
-        assertEquals("evaluate", countryChain[0]["action"]!!.jsonPrimitive.content)
-        assertEquals("dns-direct-ir", countryChain[0]["server"]!!.jsonPrimitive.content)
-        assertEquals("2s", countryChain[0]["timeout"]!!.jsonPrimitive.content)
-        assertEquals(
-            listOf("NOERROR", "NXDOMAIN"),
-            countryChain.drop(1).map { it["response_rcode"]!!.jsonPrimitive.content },
-        )
-        countryChain.drop(1).forEach { rule ->
-            assertEquals(true, rule["match_response"]!!.jsonPrimitive.content.toBoolean())
-            assertEquals("respond", rule["action"]!!.jsonPrimitive.content)
-        }
 
         val ruleSets = config["route"]!!.jsonObject["rule_set"]!!.jsonArray.map { it.jsonObject }
         assertEquals(listOf("geosite-ir", "geoip-ir"), ruleSets.map { it["tag"]!!.jsonPrimitive.content })
@@ -152,22 +122,25 @@ class SingBoxConfigurationSplitTunnelTest {
         )
 
         val dns = config["dns"]!!.jsonObject
-        val directServers = dns["servers"]!!.jsonArray.takeLast(2).map { it.jsonObject }
+        // Only China contributes a resolver today (see SplitTunnelRules.directResolver), but the
+        // ROUTE rules above still cover both countries.
+        val directServers = dns["servers"]!!.jsonArray.map { it.jsonObject }
+            .filter { it["tag"]!!.jsonPrimitive.content.startsWith("dns-direct-") }
         assertEquals(
-            listOf("dns-direct-ir", "dns-direct-cn"),
+            listOf("dns-direct-cn"),
             directServers.map { it["tag"]!!.jsonPrimitive.content },
         )
         assertEquals(
-            listOf("178.22.122.100", "223.5.5.5"),
+            listOf("223.5.5.5"),
             directServers.map { it["server"]!!.jsonPrimitive.content },
         )
         assertEquals(
-            listOf("free.shecan.ir", "dns.alidns.com"),
+            listOf("dns.alidns.com"),
             directServers.map { it["tls"]!!.jsonObject["server_name"]!!.jsonPrimitive.content },
         )
         assertTrue(directServers.none { it.containsKey("detour") })
         assertEquals(
-            listOf("dns-direct-ir", "dns-direct-cn"),
+            listOf("dns-direct-cn"),
             dns["rules"]!!.jsonArray.map { it.jsonObject }
                 .filter { it.containsKey("rule_set") && it.containsKey("server") }
                 .map { it["server"]!!.jsonPrimitive.content },
