@@ -286,7 +286,7 @@ describe('splitTunnel', () => {
   });
 
   it('collapses rapid changes into a single debounced push of the final state', () => {
-    setSplitTunnel({ enabled: true, bypassCountries: ['ir', 'cn'] });
+    setSplitTunnel({ enabled: true, bypassCountries: ['cn'] });
     jest.advanceTimersByTime(600);
     setSplitTunnel({ bypassLan: false });
     jest.advanceTimersByTime(1199);
@@ -295,7 +295,7 @@ describe('splitTunnel', () => {
     jest.advanceTimersByTime(1);
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
-      '{"version":1,"enabled":true,"bypass_lan":false,"bypass_countries":["ir","cn"],"excluded_packages":[]}',
+      '{"version":1,"enabled":true,"bypass_lan":false,"bypass_countries":["cn"],"excluded_packages":[]}',
     );
   });
 
