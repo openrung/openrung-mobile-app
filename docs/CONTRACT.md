@@ -182,7 +182,14 @@ serializes with exactly this key order (snake_case):
 - `version` is currently 1; parsers accept any object with `version >= 1` and
   ignore unknown fields.
 - `bypass_countries`: lowercase ISO codes. v1 recognizes only `"ir"` and
-  `"cn"`; unknown codes are ignored (forward compatibility).
+  `"cn"`; unknown codes are ignored (forward compatibility). The two are
+  **mutually exclusive** and RN sends at most one: the presets say where the
+  device is, and no device is in two countries at once, so enabling both only
+  adds a country's worth of domains to the direct path where they cannot help.
+  The split-tunneling screen enforces it (switching one on switches the other
+  off) and hydration collapses any pair it finds. The field stays a list and
+  native parsers stay tolerant of several, so this is a product invariant, not
+  a wire-format change.
 - `excluded_packages`: Android package names excluded from the VPN at the OS
   level. iOS parses and ignores the field.
 - With no saved user preference, RN initializes and persists `enabled:true`,
@@ -203,7 +210,10 @@ serializes with exactly this key order (snake_case):
   `bypass_countries` when — and only when — it is still the shipped
   `["ir","cn"]` pair on an enabled config, so installs that materialized the
   unconditional default get repaired exactly once. Any other saved selection is
-  the user's own and is left alone.
+  the user's own and is left alone — but still has the exclusivity rule applied
+  after the repair, keeping the device's own preset if it is one of the pair.
+  Order matters: collapsing first would destroy the exact pair the repair keys
+  on.
 - Parse failure, an absent config, or `enabled:false` ⇒ "no split tunneling":
   the generated sing-box config is byte-identical to the no-split output
   (fail-open, §1).

@@ -18,7 +18,14 @@ import type { NativeVpnState, RecentNode } from '../native/types';
 export interface SplitTunnelState {
   enabled: boolean;
   bypassLan: boolean;
-  bypassCountries: string[]; // lowercase ISO codes; v1 recognizes only 'ir' and 'cn'
+  /**
+   * Lowercase ISO codes; v1 recognizes only 'ir' and 'cn', and holds AT MOST ONE of them. The
+   * presets describe where the device is, and no device is in two countries at once: enabling
+   * both only adds a whole country's domains to the direct path where they cannot help — which
+   * is exactly the leak the region-derived default exists to avoid. Stays an array because the
+   * native contract field is a list (§3) and native parsers remain tolerant of several.
+   */
+  bypassCountries: string[];
   excludedApps: string[]; // Android package names (iOS parses and ignores)
 }
 
@@ -448,6 +455,20 @@ export function setSplitTunnel(patch: Partial<SplitTunnelState>): void {
   scheduleSplitTunnelPush();
 }
 
+/**
+ * Collapses a country list to the single preset the exclusivity invariant allows. The screen only
+ * ever writes one, so a pair can only arrive from an install that predates the invariant (or from
+ * a hand-edited value): keep the one matching where the device is, else the first listed. Never
+ * both, so a legacy pair can't re-enter the emitted config through hydration.
+ */
+function soleCountry(countries: string[]): string[] {
+  if (countries.length <= 1) {
+    return countries;
+  }
+  const [local] = defaultBypassCountries();
+  return local != null && countries.includes(local) ? [local] : countries.slice(0, 1);
+}
+
 /** Validates a persisted SplitTunnelState shape; null on anything malformed. */
 function parsePersistedSplitTunnel(raw: string): PersistedSplitTunnel | null {
   let parsed: unknown;
@@ -472,7 +493,8 @@ function parsePersistedSplitTunnel(raw: string): PersistedSplitTunnel | null {
     splitTunnel: {
       enabled,
       bypassLan,
-      // Only the v1-recognized countries survive hydration (unknown codes are dropped).
+      // Only the v1-recognized countries survive hydration (unknown codes are dropped). The
+      // exclusivity invariant is applied later, by normalizeHydratedSplitTunnel.
       bypassCountries: bypassCountries
         .filter(isString)
         .filter(code => code === 'ir' || code === 'cn'),
@@ -484,32 +506,36 @@ function parsePersistedSplitTunnel(raw: string): PersistedSplitTunnel | null {
 }
 
 /**
- * One-time repair of the revision-1 default. That release materialized bypassCountries
- * ['ir', 'cn'] on EVERY install regardless of where the device was, so outside Iran and China the
- * geosite-cn set — which carries hosts the whole world loads on ordinary pages (doubleclick.net,
- * fonts.googleapis.com, www.gstatic.com …) — sent those requests out on the direct path with the
- * user's real IP while the app reported CONNECTED. Only a still-enabled config whose countries
- * are exactly that pair is re-derived from the device region; every other saved selection is the
- * user's own and is left alone, and a config that is already off leaks nothing to repair.
+ * Settles the country presets of a hydrated slice: a one-time repair pass, then the exclusivity
+ * invariant. Order matters — collapsing first would destroy the exact pair the repair keys on.
  *
- * A user who deliberately picked exactly ir+cn is indistinguishable from the untouched default
- * and gets re-defaulted once. That is the safe direction, both toggles are one tap away, and the
- * revision stamp written afterwards means a re-selection is never undone again.
+ * REPAIR: the revision-1 default materialized bypassCountries ['ir', 'cn'] on EVERY install
+ * regardless of where the device was, so outside Iran and China the geosite-cn set — which
+ * carries hosts the whole world loads on ordinary pages (doubleclick.net, fonts.googleapis.com,
+ * www.gstatic.com …) — sent those requests out on the direct path with the user's real IP while
+ * the app reported CONNECTED. Only a still-enabled config whose countries are exactly that pair
+ * is re-derived from the device region; every other saved selection is the user's own and is left
+ * alone, and a config that is already off leaks nothing to repair. A user who deliberately picked
+ * exactly ir+cn is indistinguishable from the untouched default and gets re-defaulted once — the
+ * safe direction, both toggles are one tap away, and the revision stamp written afterwards means
+ * a re-selection is never undone again.
+ *
+ * EXCLUSIVITY: whatever survives collapses to a single preset, which also catches the pairs the
+ * repair deliberately left alone (a disabled config, or one saved under a later revision).
  */
-function repairShippedCountryDefaults(persisted: PersistedSplitTunnel): SplitTunnelState {
+function normalizeHydratedSplitTunnel(persisted: PersistedSplitTunnel): SplitTunnelState {
   const { splitTunnel, defaultsRevision } = persisted;
-  if (defaultsRevision >= SPLIT_TUNNEL_DEFAULTS_REVISION) {
-    return splitTunnel;
-  }
   const { enabled, bypassCountries } = splitTunnel;
   const isShippedDefault =
+    defaultsRevision < SPLIT_TUNNEL_DEFAULTS_REVISION &&
     enabled &&
     bypassCountries.length === 2 &&
     bypassCountries.includes('ir') &&
     bypassCountries.includes('cn');
-  return isShippedDefault
-    ? { ...splitTunnel, bypassCountries: defaultBypassCountries() }
-    : splitTunnel;
+  const countries = isShippedDefault ? defaultBypassCountries() : soleCountry(bypassCountries);
+  return countries === bypassCountries
+    ? splitTunnel
+    : { ...splitTunnel, bypassCountries: countries };
 }
 
 /**
@@ -561,13 +587,17 @@ export function hydrateSplitTunnel(): Promise<void> {
         // launch, while native continues its fail-open behavior.
         return;
       }
-      const splitTunnel = repairShippedCountryDefaults(parsed);
+      const splitTunnel = normalizeHydratedSplitTunnel(parsed);
       if (JSON.stringify(splitTunnel) !== JSON.stringify(state.splitTunnel)) {
         setState({ ...state, splitTunnel });
       }
-      if (parsed.defaultsRevision < SPLIT_TUNNEL_DEFAULTS_REVISION) {
+      if (
+        parsed.defaultsRevision < SPLIT_TUNNEL_DEFAULTS_REVISION ||
+        splitTunnel !== parsed.splitTunnel
+      ) {
         // Stamp the revision (carrying any repair with it) so a deliberate ir+cn selection made
-        // after this launch is never re-derived away on the next one.
+        // after this launch is never re-derived away on the next one, and write back a pair that
+        // exclusivity collapsed so storage stops disagreeing with the state.
         await persistSplitTunnel(splitTunnel);
       }
       // Sync native from RN's persisted truth (e.g. after a reinstall/backup restore where the

@@ -101,8 +101,9 @@ clients**. The prototype IDs are `com.openrung.mobile` on Android and
 - 🔀 **Preset split tunneling** — on by default, bypassing the local network,
   plus Iranian or Chinese sites & apps (bundled sing-box rule sets) on devices
   that are actually in those countries — a preset is never enabled where it
-  would only push ordinary traffic out of the tunnel. Both are one tap away
-  anywhere. On Android, users can also bypass individual apps. Changes apply
+  would only push ordinary traffic out of the tunnel, and the two are mutually
+  exclusive. Either is one tap away anywhere. On Android, users can also bypass
+  individual apps. Changes apply
   live via a quick reconnect, and a bad config or missing rule set degrades to
   full tunnel — it never breaks connect.
 - 🧪 **Demoable without a native build** — a scripted mock engine drives the UI

@@ -295,22 +295,25 @@ slice, debounces changes, and pushes one small snake_case JSON config
 (`version`, `enabled`, `bypass_lan`, `bypass_countries`, `excluded_packages`)
 through `setSplitTunnelConfig`.
 
-A country preset may only ship on inside its own country: `geosite-cn` carries
-hosts the whole world loads on ordinary pages (doubleclick.net,
-fonts.googleapis.com, www.gstatic.com …), so bypassing it elsewhere would put
-those requests on the direct path with the user's real IP while the app reports
-CONNECTED, and inside China the same bypassed hosts are GFW-blocked and simply
-fail. `src/model/splitTunnelDefaults.ts` picks the default from the device's
-IANA time zone (locale region subtag only as a fallback) — offline, no geo-IP
-call and no location permission — so a fresh install starts with Iran + LAN in
-Iran, China + LAN in mainland China, and LAN alone everywhere else. Installs
-that already persisted the old unconditional `["ir","cn"]` default are repaired
-once at hydration, keyed on a `defaultsRevision` stamp in RN's own slice
-(see CONTRACT §3).
 Native persists the raw string (Android SharedPreferences
 `openrung_split_tunnel`, iOS app-group defaults key `split_tunnel_config`)
 and, when the tunnel is up and the string changed, reapplies by reconnecting
 to the same relay target through the existing relay-switch mechanics.
+
+The two country presets are mutually exclusive — a device is in one country, so
+switching one on switches the other off, and hydration collapses any pair left
+by an older install. A preset may also only ship on *inside* its own country:
+`geosite-cn` carries hosts the whole world loads on ordinary pages
+(doubleclick.net, fonts.googleapis.com, www.gstatic.com …), so bypassing it
+elsewhere would put those requests on the direct path with the user's real IP
+while the app reports CONNECTED, and inside China the same bypassed hosts are
+GFW-blocked and simply fail. `src/model/splitTunnelDefaults.ts` picks the
+default from the device's IANA time zone (locale region subtag only as a
+fallback) — offline, no geo-IP call and no location permission — so a fresh
+install starts with Iran + LAN in Iran, China + LAN in mainland China, and LAN
+alone everywhere else. Installs that already persisted the old unconditional
+`["ir","cn"]` default are repaired once at hydration, keyed on a
+`defaultsRevision` stamp in RN's own slice (see CONTRACT §3).
 
 At connect time the native generators translate the stored config into
 sing-box deltas: an `ip_is_private` → direct route rule for LAN bypass;

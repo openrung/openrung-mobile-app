@@ -113,7 +113,7 @@ describe('SplitTunnelingScreen', () => {
     await unmount(tree);
   });
 
-  it('toggling the Iranian preset updates the store (normalized ir,cn order)', async () => {
+  it('switching on one country preset replaces the other', async () => {
     setSplitTunnel({ enabled: true, bypassCountries: ['cn'] });
     const tree = await renderScreen();
     const [, , iran] = switches(tree);
@@ -123,7 +123,25 @@ describe('SplitTunnelingScreen', () => {
       iran.props.onChange(true);
     });
 
-    expect(getSnapshot().splitTunnel.bypassCountries).toEqual(['ir', 'cn']);
+    // Mutually exclusive: a device is in one country, and bypassing both only widens the direct
+    // path. The China row must visibly flip off in the same render.
+    expect(getSnapshot().splitTunnel.bypassCountries).toEqual(['ir']);
+    const [, , iranAfter, chinaAfter] = switches(tree);
+    expect(iranAfter.props.value).toBe(true);
+    expect(chinaAfter.props.value).toBe(false);
+    await unmount(tree);
+  });
+
+  it('switching off the active country preset leaves none', async () => {
+    setSplitTunnel({ enabled: true, bypassCountries: ['ir'] });
+    const tree = await renderScreen();
+    const [, , iran] = switches(tree);
+
+    await ReactTestRenderer.act(async () => {
+      iran.props.onChange(false);
+    });
+
+    expect(getSnapshot().splitTunnel.bypassCountries).toEqual([]);
     await unmount(tree);
   });
 

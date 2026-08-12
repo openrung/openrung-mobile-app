@@ -489,11 +489,23 @@ describe('splitTunnel', () => {
     expect(getSnapshot().splitTunnel.bypassCountries).toEqual(['ir']);
   });
 
-  it('never re-derives an ir+cn selection that was made after the repair', async () => {
+  it('leaves a pre-repair single-country selection alone', async () => {
+    // One country is a deliberate choice, not the leaking default, so it is not re-derived.
+    const saved = { enabled: true, bypassLan: true, bypassCountries: ['cn'], excludedApps: [] };
+    await AsyncStorage.setItem(SPLIT_TUNNEL_STORAGE_KEY, JSON.stringify(saved));
+
+    await hydrateSplitTunnel();
+    expect(getSnapshot().splitTunnel).toEqual(saved);
+  });
+
+  it('collapses a persisted country pair the repair does not claim', async () => {
+    // A disabled config leaks nothing, so the repair leaves it alone — but the presets are still
+    // mutually exclusive, so hydration must not load both. The device's own preset wins.
+    mockDefaultCountries.mockReturnValue(['cn']);
     await AsyncStorage.setItem(
       SPLIT_TUNNEL_STORAGE_KEY,
-      persistedJson({
-        enabled: true,
+      JSON.stringify({
+        enabled: false,
         bypassLan: true,
         bypassCountries: ['ir', 'cn'],
         excludedApps: [],
@@ -501,22 +513,38 @@ describe('splitTunnel', () => {
     );
 
     await hydrateSplitTunnel();
-    expect(getSnapshot().splitTunnel.bypassCountries).toEqual(['ir', 'cn']);
+    expect(getSnapshot().splitTunnel).toEqual({
+      enabled: false,
+      bypassLan: true,
+      bypassCountries: ['cn'],
+      excludedApps: [],
+    });
+    // Storage is rewritten so it stops disagreeing with the state.
+    expect(await AsyncStorage.getItem(SPLIT_TUNNEL_STORAGE_KEY)).toBe(
+      persistedJson({
+        enabled: false,
+        bypassLan: true,
+        bypassCountries: ['cn'],
+        excludedApps: [],
+      }),
+    );
   });
 
-  it('leaves a pre-repair selection that is not the shipped default alone', async () => {
-    // One country is a deliberate choice, and a disabled config bypasses nothing to begin with —
-    // neither is the leaking default, so neither gets re-derived.
-    for (const saved of [
-      { enabled: true, bypassLan: true, bypassCountries: ['cn'], excludedApps: [] },
-      { enabled: false, bypassLan: true, bypassCountries: ['ir', 'cn'], excludedApps: [] },
-    ]) {
-      resetStoreForTests();
-      await AsyncStorage.setItem(SPLIT_TUNNEL_STORAGE_KEY, JSON.stringify(saved));
+  it('collapses a country pair saved under the current revision, keeping the first', async () => {
+    // Nothing writes a pair any more, but a stamped one must not survive either. With no local
+    // preset to prefer, the first listed wins.
+    await AsyncStorage.setItem(
+      SPLIT_TUNNEL_STORAGE_KEY,
+      persistedJson({
+        enabled: true,
+        bypassLan: true,
+        bypassCountries: ['cn', 'ir'],
+        excludedApps: [],
+      }),
+    );
 
-      await hydrateSplitTunnel();
-      expect(getSnapshot().splitTunnel).toEqual(saved);
-    }
+    await hydrateSplitTunnel();
+    expect(getSnapshot().splitTunnel.bypassCountries).toEqual(['cn']);
   });
 
   it('filters unrecognized countries out of a hydrated selection', async () => {

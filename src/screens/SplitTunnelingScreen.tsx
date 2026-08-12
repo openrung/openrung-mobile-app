@@ -1,11 +1,12 @@
 /**
  * Split tunneling screen (presets only, no custom rules editor). Master toggle,
- * BYPASS section (local network + the ir/cn country presets), and — Android
- * only, when the app-list module is linked — an APPS section whose "Bypassed
- * apps" row opens a modal picker of installed launcher apps. Changes
- * auto-apply: the store debounces a config push to native, which reconnects
- * the live tunnel to the same target (the footer hint says so). A bad config
- * never breaks connect — native degrades to full-tunnel behavior (contract §1).
+ * BYPASS section (local network + the mutually exclusive ir/cn country presets,
+ * defaulted from where the device is), and — Android only, when the app-list
+ * module is linked — an APPS section whose "Bypassed apps" row opens a modal
+ * picker of installed launcher apps. Changes auto-apply: the store debounces a
+ * config push to native, which reconnects the live tunnel to the same target
+ * (the footer hint says so). A bad config never breaks connect — native
+ * degrades to full-tunnel behavior (contract §1).
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -35,9 +36,8 @@ export interface SplitTunnelingScreenProps {
   onBack: () => void;
 }
 
-/** The v1 country presets, in the normalized order the native generators expect. */
-const COUNTRY_ORDER = ['ir', 'cn'] as const;
-type CountryCode = (typeof COUNTRY_ORDER)[number];
+/** The v1 country presets. Mutually exclusive — at most one is ever active. */
+type CountryCode = 'ir' | 'cn';
 
 export function SplitTunnelingScreen({ onBack }: SplitTunnelingScreenProps): React.JSX.Element {
   const s = useStrings();
@@ -52,11 +52,15 @@ export function SplitTunnelingScreen({ onBack }: SplitTunnelingScreenProps): Rea
 
   const toggleCountry = useCallback(
     (code: CountryCode, on: boolean) => {
-      // Membership toggles keep the stable ir,cn order regardless of tap order.
-      const bypassCountries = COUNTRY_ORDER.filter(preset =>
-        preset === code ? on : splitTunnel.bypassCountries.includes(preset),
-      );
-      setSplitTunnel({ bypassCountries });
+      // The presets are mutually exclusive (see SplitTunnelState.bypassCountries): a device is in
+      // one country, and adding the other only pushes a whole country's domains onto the direct
+      // path where they cannot help. Switching one on replaces the other rather than joining it,
+      // which the rows show immediately — the other switch flips off in the same render.
+      setSplitTunnel({
+        bypassCountries: on
+          ? [code]
+          : splitTunnel.bypassCountries.filter(preset => preset !== code),
+      });
     },
     [splitTunnel.bypassCountries],
   );
