@@ -26,6 +26,17 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- Required even though OpenRung never uses location. MapLibre links CoreLocation
+	     and references CLLocationManager, and the MapLibre React Native pod is linked
+	     into the app binary too, so the API is *reachable* — which is all Apple's check
+	     looks at ("a purpose string is still required" even when the app never calls it).
+	     Keep this key, and keep it NON-EMPTY: a blank value is rejected as ITMS-90738
+	     (which is why it was deleted in a8f88c1) and a missing one as ITMS-90683, so
+	     deleting it and blanking it are both wrong. Nothing in the app requests
+	     authorization, so no permission prompt is ever shown; this text surfaces only if
+	     something asks, and in Settings > Privacy. -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>OpenRung does not use your location. The relay map is built with a component that can display your position, but the app never requests or collects it.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
