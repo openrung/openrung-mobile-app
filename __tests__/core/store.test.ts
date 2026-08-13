@@ -368,6 +368,36 @@ describe('splitTunnel', () => {
       expect(getSnapshot().splitTunnel.excludedApps).toEqual([]);
     });
 
+    it('never fails a connect when the storage module is broken', async () => {
+      // CONTRACT §1: split tunneling degrades toward the tunnel, never blocks it. connect()
+      // awaits initialization, so a rejection here is a silent no-tunnel failure on the Connect
+      // tap. A missing/stale AsyncStorage throws SYNCHRONOUSLY, which a trailing .catch cannot
+      // see — the same trap the native push already guards against.
+      relaunchApp();
+      const broken = () => {
+        throw new TypeError('AsyncStorage.removeItem is not a function');
+      };
+      mockRemoveItem.mockImplementationOnce(broken);
+      (AsyncStorage.getItem as jest.Mock).mockImplementationOnce(broken);
+
+      await expect(flushSplitTunnelPush()).resolves.toBeUndefined();
+
+      // And the connect still gets this session's config.
+      expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
+      expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(pushedConfig('[]'));
+    });
+
+    it('survives a storage module that breaks while the user toggles an app', () => {
+      // setSplitTunnel runs inside a switch handler, so the same synchronous throw would surface
+      // as a UI crash rather than a lost preference.
+      mockSetItem.mockImplementationOnce(() => {
+        throw new TypeError('AsyncStorage.setItem is not a function');
+      });
+
+      expect(() => setSplitTunnel({ excludedApps: ['com.tencent.mm'] })).not.toThrow();
+      expect(getSnapshot().splitTunnel.excludedApps).toEqual(['com.tencent.mm']);
+    });
+
     it('does not let the launch read overwrite an apps edit made first', async () => {
       await AsyncStorage.setItem(SPLIT_TUNNEL_APPS_STORAGE_KEY, '["com.stale.package"]');
       relaunchApp();
@@ -393,7 +423,9 @@ describe('splitTunnel', () => {
 
       await initializeSplitTunnel();
       expect(getSnapshot().splitTunnel).toEqual(DEFAULT_SPLIT_TUNNEL);
-      expect(await AsyncStorage.getItem(SPLIT_TUNNEL_STORAGE_KEY)).toBeNull();
+      // Deletion is fire-and-forget (it must never delay or fail a connect), so assert the call
+      // rather than racing its completion.
+      expect(mockRemoveItem).toHaveBeenCalledWith(SPLIT_TUNNEL_STORAGE_KEY);
     });
 
     it('coalesces concurrent initialization into one cleanup and one push', async () => {

@@ -36,7 +36,12 @@ export interface AppState {
   availableRegions: ExitNodeRegion[];
   languageTag: string; // '' = system, persisted in AsyncStorage
   homeViewMode: HomeViewMode; // home directory presentation, persisted in AsyncStorage
-  splitTunnel: SplitTunnelState; // persisted in AsyncStorage, mirrored to the native store
+  /**
+   * Session-scoped routing plus the one remembered field: the master switch, LAN bypass and
+   * country presets start from the launch default every time, while `excludedApps` is restored
+   * from AsyncStorage. The whole slice is mirrored to the native store.
+   */
+  splitTunnel: SplitTunnelState;
   /**
    * Epoch ms of the moment the native status last ENTERED 'connected' (stamped
    * shell-side, so after an app restart it counts from the first mirrored
@@ -81,7 +86,8 @@ const INITIAL_NATIVE_STATE: NativeVpnState = {
  * load-bearing: an automatic selection must follow the device, because a phone that auto-selected
  * `['cn']` in Shanghai and is now in Berlin would otherwise keep pushing geosite-cn (gstatic,
  * doubleclick, fonts.googleapis.com …) onto the direct path forever. A deliberate choice must
- * never be second-guessed, however far the user travels. Persisted alongside the slice.
+ * never be second-guessed, however far the user travels. In-memory only, like the selection it
+ * describes; it reaches native as `country_source` on every push.
  */
 let splitTunnelAutoRegion: string | null = null;
 
@@ -508,13 +514,22 @@ export function setSplitTunnel(patch: Partial<SplitTunnelState>): void {
   scheduleSplitTunnelPush();
 }
 
-/** Best-effort persistence of the bypassed-apps list, the only split-tunnel setting we remember. */
-function persistExcludedApps(excludedApps: string[]): Promise<void> {
-  return AsyncStorage.setItem(SPLIT_TUNNEL_APPS_STORAGE_KEY, JSON.stringify(excludedApps)).catch(
-    () => {
+/**
+ * Best-effort persistence of the bypassed-apps list, the only split-tunnel setting we remember.
+ *
+ * Total: `setSplitTunnel` runs inside switch/picker handlers, so a throw here would surface as a
+ * UI crash on toggling an app. As above, a missing or stale AsyncStorage module throws
+ * SYNCHRONOUSLY and the trailing `.catch()` would never see it.
+ */
+function persistExcludedApps(excludedApps: string[]): void {
+  try {
+    // Not awaited, like the language selection; the `.catch` marks the rejection handled.
+    AsyncStorage.setItem(SPLIT_TUNNEL_APPS_STORAGE_KEY, JSON.stringify(excludedApps)).catch(() => {
       // Persistence is best-effort, same as the language selection.
-    },
-  );
+    });
+  } catch {
+    // The selection still applies to this session; only remembering it is lost.
+  }
 }
 
 /** The persisted bypassed-apps list, or null when absent/malformed. */
@@ -575,9 +590,20 @@ export function initializeSplitTunnel(): Promise<void> {
     // Scheduled after the read so native receives ONE config carrying both this launch's routing
     // default and the remembered apps, instead of a bare default followed by a correction.
     scheduleSplitTunnelPush();
-    // Housekeeping, last: nothing reads the old whole-slice key any more, so a failure to delete
-    // it is inert and must never delay the push above.
-    await AsyncStorage.removeItem(SPLIT_TUNNEL_STORAGE_KEY).catch(() => {});
+    // Housekeeping, last and deliberately NOT awaited. Nothing reads the old whole-slice key any
+    // more, so failing to delete it is inert — but `connect` awaits this promise, so anything
+    // here that rejects turns a Connect tap into a silent no-tunnel failure, and anything that
+    // blocks adds a storage round-trip to every first connect. Split tunneling degrades toward
+    // the tunnel and never blocks it (CONTRACT §1).
+    //
+    // The try is load-bearing, not belt-and-braces: a missing or stale AsyncStorage module throws
+    // SYNCHRONOUSLY, and a trailing `.catch()` never sees that — the same trap documented on
+    // pushSplitTunnelToNative.
+    try {
+      AsyncStorage.removeItem(SPLIT_TUNNEL_STORAGE_KEY).catch(() => {});
+    } catch {
+      // Inert: the key is unread either way.
+    }
   })().finally(() => {
     if (splitTunnelInitializationPromise === attempt) {
       splitTunnelInitializationPromise = null;
