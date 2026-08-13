@@ -147,6 +147,9 @@ export const vi: Partial<Strings> = {
   splitTunnelAppPickerClose: 'ĐÓNG',
   splitTunnelApplyHint:
     'thay đổi áp dụng ngay; đường hầm sẽ kết nối lại trong vài giây.',
+  splitTunnelResetHint: 'các thiết lập sẵn cho Iran và Trung Quốc sẽ đặt lại khi bạn mở lại ứng dụng.',
+  splitTunnelResetHintWithApps:
+    'các thiết lập sẵn cho Iran và Trung Quốc sẽ đặt lại khi bạn mở lại ứng dụng; các ứng dụng được bỏ qua vẫn được giữ.',
 
   // --- In-app update check (manifest banner / blocking screen / broadcast notice) ---
   updateRequiredTitle: 'Cần cập nhật',

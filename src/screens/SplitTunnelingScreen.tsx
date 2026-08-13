@@ -1,11 +1,15 @@
 /**
  * Split tunneling screen (presets only, no custom rules editor). Master toggle,
- * BYPASS section (local network + the ir/cn country presets), and — Android
- * only, when the app-list module is linked — an APPS section whose "Bypassed
- * apps" row opens a modal picker of installed launcher apps. Changes
- * auto-apply: the store debounces a config push to native, which reconnects
- * the live tunnel to the same target (the footer hint says so). A bad config
- * never breaks connect — native degrades to full-tunnel behavior (contract §1).
+ * BYPASS section (local network + the mutually exclusive ir/cn country presets,
+ * defaulted from where the device is), and — Android only, when the app-list
+ * module is linked — an APPS section whose "Bypassed apps" row opens a modal
+ * picker of installed launcher apps. Changes auto-apply: the store debounces a
+ * config push to native, which reconnects the live tunnel to the same target
+ * (the footer hint says so). The ROUTING selections here are session-scoped —
+ * the next launch starts from the region-derived default again — while the
+ * bypassed-apps list is remembered; the second footer line tells the user both.
+ * A bad config never breaks connect — native degrades to full-tunnel behavior
+ * (contract §1).
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -28,35 +32,42 @@ import {
   isAppListAvailable,
   type InstalledApp,
 } from '../native/OpenRungAppList';
-import { hydrateSplitTunnel, setSplitTunnel, useAppSelector } from '../state/store';
+import { initializeSplitTunnel, setSplitTunnel, useAppSelector } from '../state/store';
 import { monoFont, palette, tokens } from '../theme';
 
 export interface SplitTunnelingScreenProps {
   onBack: () => void;
 }
 
-/** The v1 country presets, in the normalized order the native generators expect. */
-const COUNTRY_ORDER = ['ir', 'cn'] as const;
-type CountryCode = (typeof COUNTRY_ORDER)[number];
+/** The v1 country presets. Mutually exclusive — at most one is ever active. */
+type CountryCode = 'ir' | 'cn';
 
 export function SplitTunnelingScreen({ onBack }: SplitTunnelingScreenProps): React.JSX.Element {
   const s = useStrings();
   const insets = useSafeAreaInsets();
   const splitTunnel = useAppSelector(current => current.splitTunnel);
+  // Per-app bypass is Android-only (iOS has no OS-level per-app exclusion), and the footer copy
+  // below must only promise what this build can actually show.
+  const showApps = Platform.OS === 'android' && isAppListAvailable;
 
   useEffect(() => {
-    // Ensure hydration has run when this screen is rendered outside the normal App launch flow.
-    // The store coalesces this with the launch call and local edits always remain authoritative.
-    hydrateSplitTunnel();
+    // Ensure this session's default reached native even when the screen is rendered outside the
+    // normal App launch flow. The store coalesces this with the launch call, and a local edit
+    // made first still wins because the push always serializes the latest state.
+    initializeSplitTunnel();
   }, []);
 
   const toggleCountry = useCallback(
     (code: CountryCode, on: boolean) => {
-      // Membership toggles keep the stable ir,cn order regardless of tap order.
-      const bypassCountries = COUNTRY_ORDER.filter(preset =>
-        preset === code ? on : splitTunnel.bypassCountries.includes(preset),
-      );
-      setSplitTunnel({ bypassCountries });
+      // The presets are mutually exclusive (see SplitTunnelState.bypassCountries): a device is in
+      // one country, and adding the other only pushes a whole country's domains onto the direct
+      // path where they cannot help. Switching one on replaces the other rather than joining it,
+      // which the rows show immediately — the other switch flips off in the same render.
+      setSplitTunnel({
+        bypassCountries: on
+          ? [code]
+          : splitTunnel.bypassCountries.filter(preset => preset !== code),
+      });
     },
     [splitTunnel.bypassCountries],
   );
@@ -121,7 +132,7 @@ export function SplitTunnelingScreen({ onBack }: SplitTunnelingScreenProps): Rea
         </View>
       </View>
 
-      {Platform.OS === 'android' && isAppListAvailable ? (
+      {showApps ? (
         <>
           <Text style={styles.sectionHeader}>{s.splitTunnelAppsHeader.toUpperCase()}</Text>
           <AppPickerRow excludedApps={splitTunnel.excludedApps} />
@@ -129,6 +140,12 @@ export function SplitTunnelingScreen({ onBack }: SplitTunnelingScreenProps): Rea
       ) : null}
 
       <Text style={styles.footer}>{s.splitTunnelApplyHint}</Text>
+      {/* The country presets are session-scoped while bypassed apps are remembered, so say so
+          rather than letting a preset silently vanish. Only the Android build mentions apps —
+          elsewhere there is no APPS section to refer to. */}
+      <Text style={styles.footer}>
+        {showApps ? s.splitTunnelResetHintWithApps : s.splitTunnelResetHint}
+      </Text>
     </ScrollView>
   );
 }

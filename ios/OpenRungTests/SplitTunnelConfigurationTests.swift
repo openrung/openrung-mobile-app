@@ -61,19 +61,12 @@ final class SplitTunnelConfigurationTests: XCTestCase {
             )
         ).makeJSONObject()
 
-        let dns = try XCTUnwrap(object["dns"] as? [String: Any])
-        let servers = try XCTUnwrap(dns["servers"] as? [[String: Any]])
-        XCTAssertEqual(servers.count, 3)
-        XCTAssertEqual(try canonicalJSON(servers[2]), try canonicalJSON([
-            "tag": "dns-direct-ir",
-            "type": "udp",
-            "server": "178.22.122.100"
-        ] as [String: Any]))
-        XCTAssertEqual(try canonicalJSON(dns["rules"]), try canonicalJSON(
-            expectedProbeFailoverChain()
-                + [["rule_set": ["geosite-ir"], "server": "dns-direct-ir"] as [String: Any]]
-                + expectedGlobalFailoverChain()
-        ))
+        // Iran has no encrypted public resolver we can currently stand behind, so it contributes
+        // no dns server and no dns rules at all — its ROUTE bypass below is untouched, and its
+        // lookups just reach the proxied global chain. A dead primary would be strictly worse:
+        // every bypassed lookup would burn the full evaluate timeout on a doomed TLS handshake.
+        let baselineDns = SingBoxConfiguration(relay: makeWssTestRelay()).makeJSONObject()["dns"]
+        XCTAssertEqual(try canonicalJSON(object["dns"]), try canonicalJSON(baselineDns))
 
         let route = try XCTUnwrap(object["route"] as? [String: Any])
         XCTAssertEqual(try canonicalJSON(route["rules"]), try canonicalJSON([
@@ -95,15 +88,21 @@ final class SplitTunnelConfigurationTests: XCTestCase {
 
         let dns = try XCTUnwrap(split["dns"] as? [String: Any])
         let servers = try XCTUnwrap(dns["servers"] as? [[String: Any]])
-        XCTAssertEqual(servers.map { $0["tag"] as? String }, ["dns-0", "dns-1", "dns-direct-ir", "dns-direct-cn"])
-        XCTAssertEqual(servers[3]["server"] as? String, "223.5.5.5")
-        XCTAssertTrue(servers.suffix(2).allSatisfy { $0["detour"] == nil })
+        // Only China contributes a resolver today (see SplitTunnelCountry.directResolver), but the
+        // ROUTE rules below still cover both countries.
+        XCTAssertEqual(servers.map { $0["tag"] as? String }, ["dns-0", "dns-1", "dns-direct-cn"])
+        XCTAssertEqual(servers[2]["server"] as? String, "223.5.5.5")
+        XCTAssertEqual(
+            (servers[2]["tls"] as? [String: Any])?["server_name"] as? String,
+            "dns.alidns.com"
+        )
+        // Every resolver encrypted, and the bypass resolver still detour-less (a detour to the
+        // empty direct outbound is rejected at engine start).
+        XCTAssertTrue(servers.allSatisfy { $0["type"] as? String == "https" })
+        XCTAssertNil(servers[2]["detour"])
         XCTAssertEqual(try canonicalJSON(dns["rules"]), try canonicalJSON(
             expectedProbeFailoverChain()
-                + [
-                    ["rule_set": ["geosite-ir"], "server": "dns-direct-ir"] as [String: Any],
-                    ["rule_set": ["geosite-cn"], "server": "dns-direct-cn"] as [String: Any],
-                ]
+                + expectedCountryFailoverChain(geositeTag: "geosite-cn", server: "dns-direct-cn")
                 + expectedGlobalFailoverChain()
         ))
 
@@ -155,11 +154,92 @@ final class SplitTunnelConfigurationTests: XCTestCase {
         XCTAssertEqual(SplitTunnelCountry.supported.map(\.code), ["ir", "cn"])
         XCTAssertEqual(SplitTunnelCountry.forCode("ir")?.geositeTag, "geosite-ir")
         XCTAssertEqual(SplitTunnelCountry.forCode("ir")?.geoipTag, "geoip-ir")
-        XCTAssertEqual(SplitTunnelCountry.forCode("ir")?.directResolver, "178.22.122.100")
+        // Iran ships no resolver while Shecan's certificate is expired; see the type's docs
+        // before restoring one, and verify the live endpoint rather than its documentation.
+        XCTAssertNil(SplitTunnelCountry.forCode("ir")?.directResolver)
         XCTAssertEqual(SplitTunnelCountry.forCode("cn")?.geositeTag, "geosite-cn")
         XCTAssertEqual(SplitTunnelCountry.forCode("cn")?.geoipTag, "geoip-cn")
-        XCTAssertEqual(SplitTunnelCountry.forCode("cn")?.directResolver, "223.5.5.5")
+        XCTAssertEqual(
+            SplitTunnelCountry.forCode("cn")?.directResolver,
+            SplitTunnelDirectResolver(server: "223.5.5.5", tlsServerName: "dns.alidns.com")
+        )
         XCTAssertNil(SplitTunnelCountry.forCode("us"))
+    }
+
+    // MARK: - Region detection and automatic-country resolution
+
+    /// Must stay behaviourally identical to `src/model/splitTunnelDefaults.ts` and the Kotlin port.
+    /// The whole point is that the extension can answer "where is this device now?" itself, without
+    /// the RN process, so a background recovery after a physical-network change rebuilds with the
+    /// right rule set.
+    func testRegionDetectionFromTimeZone() {
+        XCTAssertEqual(SplitTunnelRegion.region(forTimeZone: "Asia/Tehran"), "IR")
+        XCTAssertEqual(SplitTunnelRegion.region(forTimeZone: "Iran"), "IR")
+        XCTAssertEqual(SplitTunnelRegion.region(forTimeZone: "Asia/Shanghai"), "CN")
+        XCTAssertEqual(SplitTunnelRegion.region(forTimeZone: "Asia/Urumqi"), "CN")
+        XCTAssertEqual(SplitTunnelRegion.region(forTimeZone: "PRC"), "CN")
+
+        // Hong Kong and Macau are deliberately not mainland: neither sits behind the GFW.
+        for zone in [
+            "Europe/Berlin", "America/Los_Angeles", "Asia/Hong_Kong", "Asia/Macau",
+            "UTC", "GMT", "Etc/UTC", "Etc/GMT+3", "local", "",
+        ] {
+            XCTAssertEqual(SplitTunnelRegion.region(forTimeZone: zone), "", "no region for \(zone)")
+        }
+
+        XCTAssertEqual(SplitTunnelRegion.bypassCountries(forRegion: "IR"), ["ir"])
+        XCTAssertEqual(SplitTunnelRegion.bypassCountries(forRegion: "CN"), ["cn"])
+        XCTAssertEqual(SplitTunnelRegion.bypassCountries(forRegion: ""), [])
+        XCTAssertEqual(SplitTunnelRegion.bypassCountries(forRegion: "DE"), [])
+    }
+
+    func testAutomaticSelectionIsRederivedWhileHandPickedIsHonored() throws {
+        // The travel case RN alone cannot fix: the app auto-selected cn in Shanghai and has not
+        // been opened since, but the extension is rebuilding its config in Berlin.
+        let auto = try XCTUnwrap(SplitTunnelConfig.parse(
+            #"{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["cn"],"country_source":"auto","excluded_packages":[]}"#
+        ))
+        XCTAssertEqual(auto.resolvedBypassCountries(region: "CN"), ["cn"])
+        XCTAssertEqual(auto.resolvedBypassCountries(region: ""), [])
+        XCTAssertEqual(auto.resolvedBypassCountries(region: "IR"), ["ir"])
+
+        let manual = try XCTUnwrap(SplitTunnelConfig.parse(
+            #"{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["cn"],"country_source":"manual","excluded_packages":[]}"#
+        ))
+        for region in ["CN", "", "IR"] {
+            XCTAssertEqual(manual.resolvedBypassCountries(region: region), ["cn"])
+        }
+
+        // A config from an older RN layer carries no source and is treated as hand-picked.
+        let legacy = try XCTUnwrap(SplitTunnelConfig.parse(
+            #"{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["ir"],"excluded_packages":[]}"#
+        ))
+        XCTAssertEqual(legacy.countrySource, SplitTunnelConfig.countrySourceManual)
+        XCTAssertEqual(legacy.resolvedBypassCountries(region: ""), ["ir"])
+    }
+
+    func testEffectiveSignatureFollowsTheRederivedCountries() {
+        let autoCn =
+            #"{"version":1,"enabled":true,"bypass_lan":false,"bypass_countries":["cn"],"country_source":"auto","excluded_packages":[]}"#
+        let manualCn =
+            #"{"version":1,"enabled":true,"bypass_lan":false,"bypass_countries":["cn"],"country_source":"manual","excluded_packages":[]}"#
+
+        // In China both resolve to cn, so declaring the same list hand-picked changes nothing.
+        XCTAssertEqual(
+            SplitTunnelConfig.effectiveSignature(ofRawJSON: autoCn, region: "CN"),
+            SplitTunnelConfig.effectiveSignature(ofRawJSON: manualCn, region: "CN")
+        )
+        // Outside China the automatic one resolves to no country, so the emitted config differs —
+        // the signature must track that, not the stored snapshot.
+        XCTAssertNotEqual(
+            SplitTunnelConfig.effectiveSignature(ofRawJSON: autoCn, region: ""),
+            SplitTunnelConfig.effectiveSignature(ofRawJSON: manualCn, region: "")
+        )
+        // An automatic selection with nothing else effective is indistinguishable from disabled.
+        XCTAssertEqual(
+            SplitTunnelConfig.effectiveSignature(ofRawJSON: autoCn, region: ""),
+            SplitTunnelConfig.effectiveSignature(ofRawJSON: nil)
+        )
     }
 
     // MARK: - Persisted config parsing (spec §1)
@@ -311,6 +391,32 @@ final class SplitTunnelConfigurationTests: XCTestCase {
                 "timeout": "3s",
                 "disable_cache": true,
                 "disable_optimistic_cache": true,
+            ],
+        ]
+    }
+
+    /// A bypass country's DNS chain: ask its in-country DoH resolver, keep only a real answer,
+    /// and otherwise fall through to the proxied global chain rather than failing the lookup —
+    /// so an unreachable or expired-certificate resolver costs latency, not reachability.
+    private func expectedCountryFailoverChain(geositeTag: String, server: String) -> [[String: Any]] {
+        [
+            [
+                "rule_set": [geositeTag],
+                "action": "evaluate",
+                "server": server,
+                "timeout": "2s",
+            ],
+            [
+                "rule_set": [geositeTag],
+                "match_response": true,
+                "response_rcode": "NOERROR",
+                "action": "respond",
+            ],
+            [
+                "rule_set": [geositeTag],
+                "match_response": true,
+                "response_rcode": "NXDOMAIN",
+                "action": "respond",
             ],
         ]
     }

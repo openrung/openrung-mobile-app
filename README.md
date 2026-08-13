@@ -98,11 +98,17 @@ clients**. The prototype IDs are `com.openrung.mobile` on Android and
   and broker-hosted manifest candidates use the same Go `brokerapi` runtime as
   the VPN services, with single-use cancellation-safe operations and no
   production JavaScript network fallback.
-- 🔀 **Preset split tunneling** — on by default, bypassing the local network
-  plus Iranian and Chinese sites & apps (bundled sing-box rule sets). On Android,
-  users can also bypass individual apps. Changes apply live via a quick reconnect,
-  and a bad config or missing rule set degrades to full tunnel — it never breaks
-  connect.
+- 🔀 **Preset split tunneling** — on by default, bypassing the local network,
+  plus Iranian or Chinese sites & apps (bundled sing-box rule sets) on devices
+  that are actually in those countries — a preset is never enabled where it
+  would only push ordinary traffic out of the tunnel, and the two are mutually
+  exclusive. Either is one tap away anywhere. On Android, users can also bypass
+  individual apps. Changes apply live via a quick reconnect, and the routing
+  choices last for the session: closing the app returns the master switch, LAN
+  bypass and country presets to the default, so a temporary bypass can never
+  quietly outlive the reason for it. Bypassed apps are remembered, since those
+  are a lasting statement about an app rather than a routing tweak. A bad config
+  or missing rule set degrades to full tunnel — it never breaks connect.
 - 🧪 **Demoable without a native build** — a scripted mock engine drives the UI
   through the full connect lifecycle so you can develop and demo with no device.
 
@@ -288,7 +294,10 @@ missing or stale module reports that a native rebuild is required.
 - Per-app split-tunnel bypass is Android-only; iOS parses and ignores
   `excluded_packages`.
 - With a country bypass preset enabled, DNS for bypassed domains resolves via
-  in-country public resolvers (Shecan / AliDNS) over the direct path.
+  that country's in-country public resolver over the direct path, encrypted
+  (DoH/443) and falling back to the proxied chain. China uses AliDNS; Iran has
+  no currently valid encrypted resolver, so it resolves through the proxied
+  chain while its traffic still takes the direct path.
 - Android apps excluded from the VPN at the OS level bypass the TUN entirely
   and are invisible to telemetry/traffic counters; sing-box-routed direct flows
   (LAN/country bypass) remain counted.

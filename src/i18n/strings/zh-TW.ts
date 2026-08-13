@@ -136,6 +136,9 @@ export const zhTW: Partial<Strings> = {
   splitTunnelAppPickerEmpty: '找不到可啟動的應用程式。',
   splitTunnelAppPickerClose: '關閉',
   splitTunnelApplyHint: '變更會立即生效；通道將重新連線幾秒鐘。',
+  splitTunnelResetHint: '重新啟動應用程式後，伊朗和中國預設會重設。',
+  splitTunnelResetHintWithApps:
+    '重新啟動應用程式後，伊朗和中國預設會重設；已略過的應用程式會保留。',
 
   // --- In-app update check (manifest banner / blocking screen / broadcast notice) ---
   updateRequiredTitle: '需要更新',

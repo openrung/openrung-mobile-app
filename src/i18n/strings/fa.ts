@@ -150,6 +150,9 @@ export const fa: Partial<Strings> = {
   splitTunnelAppPickerClose: 'بستن',
   splitTunnelApplyHint:
     'تغییرات بلافاصله اعمال می‌شوند؛ تونل برای چند ثانیه دوباره متصل می‌شود.',
+  splitTunnelResetHint: 'با راه‌اندازی مجدد برنامه، پیش‌تنظیم‌های ایران و چین بازنشانی می‌شوند.',
+  splitTunnelResetHintWithApps:
+    'با راه‌اندازی مجدد برنامه، پیش‌تنظیم‌های ایران و چین بازنشانی می‌شوند؛ برنامه‌های کنارگذاشته‌شده حفظ می‌شوند.',
 
   // --- In-app update check (manifest banner / blocking screen / broadcast notice) ---
   updateRequiredTitle: 'به‌روزرسانی لازم است',

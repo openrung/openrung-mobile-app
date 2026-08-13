@@ -16,10 +16,21 @@ jest.mock('react-native-safe-area-context', () => ({
 }));
 
 // Jest's react-native preset resolves Platform.OS to 'ios', so the APPS section stays hidden
-// unless a test flips this flag (isAppListAvailable is false off-Android anyway).
+// unless a test flips both this flag and the platform. A getter keeps it switchable per test —
+// the screen reads it at render, long after this factory runs.
 jest.mock('../../src/native/OpenRungAppList', () => ({
-  isAppListAvailable: false,
+  get isAppListAvailable() {
+    return mockAppListAvailable;
+  },
   getInstalledApps: jest.fn(async () => []),
+}));
+let mockAppListAvailable = false;
+
+// Which country presets a fresh install starts with depends on where the device is (Intl time
+// zone), so pin it: this suite renders the screen from a device outside Iran and China.
+jest.mock('../../src/model/splitTunnelDefaults', () => ({
+  ...jest.requireActual('../../src/model/splitTunnelDefaults'),
+  deviceRegion: () => '',
 }));
 
 // The store's debounced push goes through the bridge; mocking it keeps the suite off the
@@ -29,6 +40,8 @@ jest.mock('../../src/native/OpenRungVpn', () => ({
     setSplitTunnelConfig: jest.fn(async () => {}),
   },
 }));
+
+import { Platform } from 'react-native';
 
 import { TerminalSwitch } from '../../src/components/TerminalSwitch';
 import { SplitTunnelingScreen } from '../../src/screens/SplitTunnelingScreen';
@@ -57,7 +70,22 @@ async function unmount(tree: ReactTestRenderer.ReactTestRenderer): Promise<void>
 
 beforeEach(() => {
   resetStoreForTests();
+  mockAppListAvailable = false;
 });
+
+/** Renders as the Android build would, where per-app bypass exists. */
+function asAndroid(body: () => Promise<void>): () => Promise<void> {
+  return async () => {
+    const original = Platform.OS;
+    Object.defineProperty(Platform, 'OS', { value: 'android', configurable: true });
+    mockAppListAvailable = true;
+    try {
+      await body();
+    } finally {
+      Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
+    }
+  };
+}
 
 afterEach(() => {
   // Clears the pending debounced native push so no timer outlives the test.
@@ -79,18 +107,28 @@ describe('SplitTunnelingScreen', () => {
     expect(labels).toContain(
       'changes apply immediately; the tunnel reconnects for a few seconds.',
     );
+    // The country presets are session-scoped, so the footer has to say so — a preset that
+    // silently vanishes on the next launch would otherwise look like a bug. This build has no
+    // APPS section (per-app bypass is Android-only), so the copy must not promise one.
+    expect(labels).toContain('the Iran and China presets reset when you restart the app.');
+    expect(labels).not.toContain(
+      'the Iran and China presets reset when you restart the app; bypassed apps are kept.',
+    );
     await unmount(tree);
   });
 
-  it('starts with every preset on and disables the bypass rows when the master is turned off', async () => {
+  it('starts with the local-network preset on and disables the bypass rows when the master is turned off', async () => {
     const tree = await renderScreen();
-    const [master, ...bypassRows] = switches(tree);
+    const [master, lan, ...countryRows] = switches(tree);
 
     expect(master.props.disabled).toBeUndefined();
     expect(master.props.value).toBe(true);
-    expect(bypassRows).toHaveLength(3);
-    expect(bypassRows.every(row => row.props.value === true)).toBe(true);
-    expect(bypassRows.every(row => row.props.disabled === false)).toBe(true);
+    // On a device outside Iran and China the country presets start off: geosite-cn carries
+    // globally common hosts, so bypassing it there would leak ordinary page loads.
+    expect(lan.props.value).toBe(true);
+    expect(countryRows).toHaveLength(2);
+    expect(countryRows.every(row => row.props.value === false)).toBe(true);
+    expect([lan, ...countryRows].every(row => row.props.disabled === false)).toBe(true);
 
     await ReactTestRenderer.act(async () => {
       master.props.onChange(false);
@@ -104,7 +142,7 @@ describe('SplitTunnelingScreen', () => {
     await unmount(tree);
   });
 
-  it('toggling the Iranian preset updates the store (normalized ir,cn order)', async () => {
+  it('switching on one country preset replaces the other', async () => {
     setSplitTunnel({ enabled: true, bypassCountries: ['cn'] });
     const tree = await renderScreen();
     const [, , iran] = switches(tree);
@@ -114,9 +152,45 @@ describe('SplitTunnelingScreen', () => {
       iran.props.onChange(true);
     });
 
-    expect(getSnapshot().splitTunnel.bypassCountries).toEqual(['ir', 'cn']);
+    // Mutually exclusive: a device is in one country, and bypassing both only widens the direct
+    // path. The China row must visibly flip off in the same render.
+    expect(getSnapshot().splitTunnel.bypassCountries).toEqual(['ir']);
+    const [, , iranAfter, chinaAfter] = switches(tree);
+    expect(iranAfter.props.value).toBe(true);
+    expect(chinaAfter.props.value).toBe(false);
     await unmount(tree);
   });
+
+  it('switching off the active country preset leaves none', async () => {
+    setSplitTunnel({ enabled: true, bypassCountries: ['ir'] });
+    const tree = await renderScreen();
+    const [, , iran] = switches(tree);
+
+    await ReactTestRenderer.act(async () => {
+      iran.props.onChange(false);
+    });
+
+    expect(getSnapshot().splitTunnel.bypassCountries).toEqual([]);
+    await unmount(tree);
+  });
+
+  it(
+    'promises kept app bypasses only where per-app bypass exists',
+    asAndroid(async () => {
+      const tree = await renderScreen();
+      const labels = tree.root
+        .findAllByType(Text)
+        .map(text => text.props.children)
+        .filter((label): label is string => typeof label === 'string');
+
+      expect(labels).toContain('APPS');
+      expect(labels).toContain(
+        'the Iran and China presets reset when you restart the app; bypassed apps are kept.',
+      );
+      expect(labels).not.toContain('the Iran and China presets reset when you restart the app.');
+      await unmount(tree);
+    }),
+  );
 
   it('hides the APPS section when the app-list module is unavailable', async () => {
     const tree = await renderScreen();

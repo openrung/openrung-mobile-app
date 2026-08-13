@@ -75,28 +75,19 @@ class SingBoxConfigurationSplitTunnelTest {
         assertEquals(4, routeRules.size)
 
         val dns = config["dns"]!!.jsonObject
-        val directServer = dns["servers"]!!.jsonArray.last().jsonObject
-        assertEquals("dns-direct-ir", directServer["tag"]!!.jsonPrimitive.content)
-        assertEquals("udp", directServer["type"]!!.jsonPrimitive.content)
-        assertEquals("178.22.122.100", directServer["server"]!!.jsonPrimitive.content)
-        assertFalse(
-            "A UDP DNS server is already direct; detouring through an empty direct outbound fails at engine start",
-            directServer.containsKey("detour"),
-        )
-
-        val dnsRules = dns["rules"]!!.jsonArray
-        // 4-rule probe chain, one country rule, 4-rule global failover chain.
-        assertEquals(9, dnsRules.size)
-        // The probe DNS pin outranks every country rule.
+        // Iran has no encrypted public resolver we can currently stand behind, so it contributes
+        // no dns server and no dns rules at all — its ROUTE bypass above is untouched, and its
+        // lookups just reach the proxied global chain. A dead primary would be strictly worse:
+        // every bypassed lookup would burn the full evaluate timeout on a doomed TLS handshake.
         assertEquals(
-            ProbeTargets.RULE_DOMAIN_SUFFIXES,
-            dnsRules[0].jsonObject["domain_suffix"]!!.jsonArray.map { it.jsonPrimitive.content },
+            SingBoxConfiguration(relay()).makeJsonObject()["dns"],
+            config["dns"],
         )
-        assertEquals(
-            listOf("geosite-ir"),
-            dnsRules[4].jsonObject["rule_set"]!!.jsonArray.map { it.jsonPrimitive.content },
+        assertTrue(
+            dns["servers"]!!.jsonArray.none {
+                it.jsonObject["tag"]!!.jsonPrimitive.content.startsWith("dns-direct-")
+            },
         )
-        assertEquals("dns-direct-ir", dnsRules[4].jsonObject["server"]!!.jsonPrimitive.content)
 
         val ruleSets = config["route"]!!.jsonObject["rule_set"]!!.jsonArray.map { it.jsonObject }
         assertEquals(listOf("geosite-ir", "geoip-ir"), ruleSets.map { it["tag"]!!.jsonPrimitive.content })
@@ -131,20 +122,27 @@ class SingBoxConfigurationSplitTunnelTest {
         )
 
         val dns = config["dns"]!!.jsonObject
-        val directServers = dns["servers"]!!.jsonArray.takeLast(2).map { it.jsonObject }
+        // Only China contributes a resolver today (see SplitTunnelRules.directResolver), but the
+        // ROUTE rules above still cover both countries.
+        val directServers = dns["servers"]!!.jsonArray.map { it.jsonObject }
+            .filter { it["tag"]!!.jsonPrimitive.content.startsWith("dns-direct-") }
         assertEquals(
-            listOf("dns-direct-ir", "dns-direct-cn"),
+            listOf("dns-direct-cn"),
             directServers.map { it["tag"]!!.jsonPrimitive.content },
         )
         assertEquals(
-            listOf("178.22.122.100", "223.5.5.5"),
+            listOf("223.5.5.5"),
             directServers.map { it["server"]!!.jsonPrimitive.content },
+        )
+        assertEquals(
+            listOf("dns.alidns.com"),
+            directServers.map { it["tls"]!!.jsonObject["server_name"]!!.jsonPrimitive.content },
         )
         assertTrue(directServers.none { it.containsKey("detour") })
         assertEquals(
-            listOf("dns-direct-ir", "dns-direct-cn"),
+            listOf("dns-direct-cn"),
             dns["rules"]!!.jsonArray.map { it.jsonObject }
-                .filter { it.containsKey("rule_set") }
+                .filter { it.containsKey("rule_set") && it.containsKey("server") }
                 .map { it["server"]!!.jsonPrimitive.content },
         )
         assertEquals(

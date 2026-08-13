@@ -141,12 +141,16 @@ public struct SingBoxConfiguration: Equatable, Sendable {
             return object
         }
         for country in bypassCountries {
-            // Modern UDP DNS servers use a direct dialer when detour is omitted. Detouring to our
-            // otherwise-empty tagged direct outbound is rejected during sing-box's Start stage.
+            // A DNS server with no detour builds its own direct dialer, which is exactly what a
+            // bypass resolver needs. Detouring to our otherwise-empty tagged direct outbound is
+            // rejected during sing-box's Start stage. DoH over 443 keeps the query encrypted on
+            // that direct path, and 443 survives the middleboxes that a bare 853 often does not.
+            guard let resolver = country.directResolver else { continue }
             dnsServerObjects.append([
                 "tag": "dns-direct-\(country.code)",
-                "type": "udp",
-                "server": country.directResolver
+                "type": "https",
+                "server": resolver.server,
+                "tls": ["enabled": true, "server_name": resolver.tlsServerName] as [String: Any]
             ])
         }
         // Highest priority: probe lookups must reach the proxied DoH resolvers even when a
@@ -158,12 +162,7 @@ public struct SingBoxConfiguration: Equatable, Sendable {
             domainSuffixes: ProbeTargets.ruleDomainSuffixes,
             disableCache: true
         )
-        dnsRules.append(contentsOf: bypassCountries.map { country in
-            [
-                "rule_set": [country.geositeTag],
-                "server": "dns-direct-\(country.code)"
-            ] as [String: Any]
-        })
+        dnsRules.append(contentsOf: bypassCountries.flatMap { Self.countryDnsRules(for: $0) })
         // Real failover for everything else: a static `final` would never consult a second
         // resolver. `evaluate` is non-terminal on a transport error, timeout, SERVFAIL or
         // REFUSED in the pinned engine — a usable answer (NOERROR, or an authoritative
@@ -290,6 +289,39 @@ public struct SingBoxConfiguration: Equatable, Sendable {
                 "clash_api": [String: Any]()
             ]
         ]
+    }
+
+    /// Per-country lookup chain for the domains that country bypasses: ask the in-country DoH
+    /// resolver, and return its answer when it is a real one (NOERROR, or an authoritative
+    /// NXDOMAIN). Nothing else is terminal, so a resolver that is unreachable, times out, or has
+    /// let its certificate lapse falls through to the proxied global chain below instead of
+    /// failing the lookup outright — the same fail-open posture as the rest of the feature
+    /// (CONTRACT §1), and the reason moving off plaintext UDP cannot cost anyone reachability.
+    ///
+    /// `rule_set` matches against the queried domain in both the query and the response pass, so
+    /// the response rules stay scoped to this country's domains.
+    ///
+    /// Empty for a country with no usable in-country resolver: with nothing to evaluate, its
+    /// lookups simply reach the global chain, which is where they would end up anyway.
+    private static func countryDnsRules(for country: SplitTunnelCountry) -> [[String: Any]] {
+        guard country.directResolver != nil else { return [] }
+        var rules: [[String: Any]] = [
+            [
+                "rule_set": [country.geositeTag],
+                "action": "evaluate",
+                "server": "dns-direct-\(country.code)",
+                "timeout": dnsPrimaryTimeout
+            ]
+        ]
+        for rcode in ["NOERROR", "NXDOMAIN"] {
+            rules.append([
+                "rule_set": [country.geositeTag],
+                "match_response": true,
+                "response_rcode": rcode,
+                "action": "respond"
+            ])
+        }
+        return rules
     }
 
     /// Emits an ordered primary-to-fallback resolver chain from sing-box 1.14 DNS rule actions:

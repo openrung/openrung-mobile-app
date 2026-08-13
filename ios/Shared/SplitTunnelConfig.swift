@@ -1,14 +1,79 @@
 import Foundation
 
+/// Where the device is, for split-tunnel country defaults — the Swift port of
+/// `src/model/splitTunnelDefaults.ts`, and the reason a background recovery can re-derive an
+/// automatic country selection without any help from the RN process.
+///
+/// The IANA time zone is the only evidence used: offline, permission-free, and read fresh from the
+/// OS on every call, so a device that changed zones while the app was suspended is seen correctly.
+/// There is deliberately no locale fallback — a language preference is not evidence of physical
+/// location, and guessing from it would put the China preset on exactly the diaspora devices this
+/// protects.
+public enum SplitTunnelRegion {
+    public static let iran = "IR"
+    public static let china = "CN"
+
+    /// Zones that place the device inside a country with a bundled preset (canonical names plus
+    /// the legacy aliases a device may still report). Hong Kong and Macau are deliberately absent:
+    /// neither sits behind the GFW, so the mainland preset would cost them the tunnel without
+    /// buying reachability.
+    private static let regionByTimeZone: [String: String] = [
+        "asia/tehran": iran,
+        "iran": iran,
+        "asia/shanghai": china,
+        "asia/chongqing": china,
+        "asia/chungking": china,
+        "asia/harbin": china,
+        "asia/urumqi": china,
+        "asia/kashgar": china,
+        "prc": china,
+    ]
+
+    /// ISO-3166 region for an IANA zone id, or "" when it carries no usable location.
+    public static func region(forTimeZone timeZoneID: String) -> String {
+        let normalized = timeZoneID.trimmingCharacters(in: .whitespaces).lowercased()
+        if normalized == "utc" || normalized == "gmt" || normalized == "local"
+            || normalized.hasPrefix("etc/") {
+            return ""
+        }
+        return regionByTimeZone[normalized] ?? ""
+    }
+
+    /// ISO-3166 region for this device right now, or "" when the zone gives no usable answer.
+    public static var deviceRegion: String {
+        region(forTimeZone: TimeZone.current.identifier)
+    }
+
+    /// Bypass-country presets for a region; empty everywhere without a bundled rule set.
+    public static func bypassCountries(forRegion region: String) -> [String] {
+        switch region.uppercased() {
+        case iran:
+            return ["ir"]
+        case china:
+            return ["cn"]
+        default:
+            return []
+        }
+    }
+}
+
 /// The persisted split-tunnel preferences JSON pushed from React Native via
 /// `setSplitTunnelConfig` (contract §3). Port of Android `SplitTunnelStore`'s config type:
 /// snake_case keys, every field defaulted, unknown keys ignored (forward compat). iOS parses
 /// `excluded_packages` but never acts on it — OS-level per-app exclusion is Android-only.
 public struct SplitTunnelConfig: Codable, Equatable, Sendable {
+    public static let countrySourceAuto = "auto"
+    public static let countrySourceManual = "manual"
+
     public let version: Int
     public let enabled: Bool
     public let bypassLan: Bool
     public let bypassCountries: [String]
+    /// `"auto"` when RN derived `bypassCountries` from the device region rather than the user
+    /// choosing them, in which case `resolvedBypassCountries` re-derives here instead of trusting
+    /// the stored snapshot. Defaults to manual so an older RN layer (which never sends the field)
+    /// behaves exactly as before.
+    public let countrySource: String
     public let excludedPackages: [String]
 
     enum CodingKeys: String, CodingKey {
@@ -16,6 +81,7 @@ public struct SplitTunnelConfig: Codable, Equatable, Sendable {
         case enabled
         case bypassLan = "bypass_lan"
         case bypassCountries = "bypass_countries"
+        case countrySource = "country_source"
         case excludedPackages = "excluded_packages"
     }
 
@@ -24,12 +90,14 @@ public struct SplitTunnelConfig: Codable, Equatable, Sendable {
         enabled: Bool = false,
         bypassLan: Bool = true,
         bypassCountries: [String] = [],
+        countrySource: String = SplitTunnelConfig.countrySourceManual,
         excludedPackages: [String] = []
     ) {
         self.version = version
         self.enabled = enabled
         self.bypassLan = bypassLan
         self.bypassCountries = bypassCountries
+        self.countrySource = countrySource
         self.excludedPackages = excludedPackages
     }
 
@@ -39,7 +107,22 @@ public struct SplitTunnelConfig: Codable, Equatable, Sendable {
         enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
         bypassLan = try container.decodeIfPresent(Bool.self, forKey: .bypassLan) ?? true
         bypassCountries = try container.decodeIfPresent([String].self, forKey: .bypassCountries) ?? []
+        countrySource = try container.decodeIfPresent(String.self, forKey: .countrySource)
+            ?? SplitTunnelConfig.countrySourceManual
         excludedPackages = try container.decodeIfPresent([String].self, forKey: .excludedPackages) ?? []
+    }
+
+    /// The countries this config actually asks for. An automatic selection is re-derived from
+    /// `region` every time, because the stored list is only a snapshot of wherever the device was
+    /// when JS last ran — and the extension rebuilds configs on its own after every physical-network
+    /// change, while the app may not have been opened for weeks. A selection the user made by hand
+    /// is always honored verbatim, however far the device has travelled.
+    public func resolvedBypassCountries(
+        region: String = SplitTunnelRegion.deviceRegion
+    ) -> [String] {
+        countrySource == Self.countrySourceAuto
+            ? SplitTunnelRegion.bypassCountries(forRegion: region)
+            : bypassCountries
     }
 
     /// Invalid or non-object JSON decodes to nil — fail-open (contract §1): a bad payload means
@@ -54,10 +137,19 @@ public struct SplitTunnelConfig: Codable, Equatable, Sendable {
     /// signature, so a no-op push — e.g. the first persistence of a disabled config, or
     /// any change to `excluded_packages` (which iOS never emits) — is not treated as a change.
     public static func effectiveSignature(ofRawJSON json: String?) -> String {
+        effectiveSignature(ofRawJSON: json, region: SplitTunnelRegion.deviceRegion)
+    }
+
+    /// As above, against an explicit region. Callers comparing two payloads should pass ONE region
+    /// read to both, so a zone change landing between them cannot masquerade as a config change.
+    public static func effectiveSignature(ofRawJSON json: String?, region: String) -> String {
         let disabled = "disabled"
         guard let json, let config = parse(json), config.enabled else { return disabled }
         var countries: [String] = []
-        for code in config.bypassCountries.map({ $0.lowercased() }) {
+        // The emission side re-derives an automatic selection, so the signature must too —
+        // otherwise a push that flips country_source without changing bypass_countries would look
+        // like a no-op while the emitted config actually changed.
+        for code in config.resolvedBypassCountries(region: region).map({ $0.lowercased() }) {
             if SplitTunnelCountry.forCode(code) != nil, !countries.contains(code) {
                 countries.append(code)
             }
@@ -116,31 +208,66 @@ public struct SplitTunnelRules: Equatable, Sendable {
     }
 }
 
-/// The v1 bypass-country presets. Each pairs the bundled sing-box rule-set tags with an
-/// in-country public DNS resolver used over the direct path, so bypassed domains resolve to
+/// An in-country public resolver reached over the DIRECT path, so bypassed domains resolve to
 /// in-country CDN nodes instead of the relay exit's view of them.
+///
+/// DoH over 443, never plaintext UDP/53: these queries leave the device on the user's real IP
+/// while the tunnel is up, so the local network, the ISP and anything else on the path must not
+/// get a cleartext list of the domains being bypassed (nor the chance to forge the answers).
+/// `server` stays an IP literal so no bootstrap lookup is needed, and TLS authenticates
+/// `tlsServerName` — the same shape the proxied DoH resolvers use.
+public struct SplitTunnelDirectResolver: Equatable, Sendable {
+    public let server: String
+    public let tlsServerName: String
+
+    public init(server: String, tlsServerName: String) {
+        self.server = server
+        self.tlsServerName = tlsServerName
+    }
+}
+
+/// The v1 bypass-country presets, pairing the bundled sing-box rule-set tags with that country's
+/// direct-path resolver.
 public struct SplitTunnelCountry: Equatable, Sendable {
     public let code: String
     public let geositeTag: String
     public let geoipTag: String
-    public let directResolver: String
+    /// Nil when the country has no encrypted public resolver we can currently stand behind. Its
+    /// bypass then keeps its ROUTE rules — the traffic still takes the direct path — and only its
+    /// lookups fall to the proxied DoH chain, resolving through the relay exit's view. That costs
+    /// in-country CDN affinity and nothing else.
+    ///
+    /// A resolver goes in here only while its certificate actually validates. Anything else is
+    /// worse than omitting it: sing-box would spend the full evaluate timeout failing the TLS
+    /// handshake on EVERY bypassed lookup before the fallback runs, so users would pay latency for
+    /// an in-country answer they can never receive. Never restore one on the strength of its
+    /// documentation — verify the live endpoint first.
+    public let directResolver: SplitTunnelDirectResolver?
 
     /// Recognized countries in the normalized emission order: ir first, then cn. Unknown codes
     /// in a persisted config are ignored (forward compat).
     public static let supported: [SplitTunnelCountry] = [
-        // Shecan (Iranian public resolver).
+        // Shecan is Iran's usual public resolver, but every endpoint it publishes
+        // (178.22.122.100, 185.51.200.2, dns.shecan.ir) served an expired Let's Encrypt
+        // certificate as of 2026-08-12 (notAfter Jul 10 2026), on both 443 and 853. Electro
+        // (78.157.42.100) refuses both ports and Begzar's DoH host no longer resolves, so Iran
+        // has no verifiable encrypted resolver to point at right now.
         SplitTunnelCountry(
             code: "ir",
             geositeTag: "geosite-ir",
             geoipTag: "geoip-ir",
-            directResolver: "178.22.122.100"
+            directResolver: nil
         ),
-        // AliDNS (Chinese public resolver).
+        // AliDNS (Chinese public resolver); https://223.5.5.5/dns-query is a published endpoint
+        // and its certificate covers the IP literal.
         SplitTunnelCountry(
             code: "cn",
             geositeTag: "geosite-cn",
             geoipTag: "geoip-cn",
-            directResolver: "223.5.5.5"
+            directResolver: SplitTunnelDirectResolver(
+                server: "223.5.5.5",
+                tlsServerName: "dns.alidns.com"
+            )
         ),
     ]
 

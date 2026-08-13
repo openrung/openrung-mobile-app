@@ -954,10 +954,17 @@ class OpenRungVpnService : VpnService() {
         val config = SplitTunnelStore.read(applicationContext) ?: return null
         if (!config.enabled) return null
         val ruleSetDirectory = stageRuleSetAssets()
+        // An automatic country selection is re-derived from the device's CURRENT time zone here,
+        // not taken from the stored snapshot. This method runs on every connect attempt including
+        // the recovery reconnects that follow a physical-network change, so a phone that
+        // auto-selected China in Shanghai stops bypassing geosite-cn as soon as it rebuilds in
+        // Berlin — even if the app has not been opened since, and even if the RN foreground
+        // re-check never got the chance to run or lost the race with an in-flight recovery.
+        val requestedCountries = config.resolvedBypassCountries()
         // Normalize to the canonical ir,cn order and keep only countries whose BOTH .srs files
         // made it to disk (the generator's contract).
         val bypassCountries = SplitTunnelRules.SUPPORTED_COUNTRIES.filter { country ->
-            if (country !in config.bypassCountries) return@filter false
+            if (country !in requestedCountries) return@filter false
             val staged = File(ruleSetDirectory, "geosite-$country.srs").isFile &&
                 File(ruleSetDirectory, "geoip-$country.srs").isFile
             if (!staged) {

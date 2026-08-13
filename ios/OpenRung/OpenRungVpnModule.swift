@@ -189,8 +189,13 @@ final class OpenRungVpnModule: RCTEventEmitter {
             // emitted sing-box config, must never bounce a live tunnel (contract §1). iOS ignores
             // excluded_packages entirely (no OS-level per-app exclusion), so a packages-only change
             // is not an effective change here.
-            let effectiveChanged = SplitTunnelConfig.effectiveSignature(ofRawJSON: stored)
-                != SplitTunnelConfig.effectiveSignature(ofRawJSON: configJson)
+            // Both signatures resolve against ONE region read, so a zone change landing between
+            // them can never masquerade as a config change (and vice versa). A region change is
+            // not this comparison's business anyway: it reaches the engine through the next
+            // connect/recovery rebuild, which re-derives from scratch.
+            let region = SplitTunnelRegion.deviceRegion
+            let effectiveChanged = SplitTunnelConfig.effectiveSignature(ofRawJSON: stored, region: region)
+                != SplitTunnelConfig.effectiveSignature(ofRawJSON: configJson, region: region)
             if stored != configJson {
                 defaults.set(configJson, forKey: AppConfig.splitTunnelConfigDefaultsKey)
             }

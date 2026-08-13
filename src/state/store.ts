@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useRef, useSyncExternalStore } from 'react';
 import { AppConfig } from '../config';
 import type { DirectoryStatus, ExitNodeRegion, HomeViewMode } from '../model/exitNode';
+import { bypassCountriesForRegion, deviceRegion } from '../model/splitTunnelDefaults';
 import { INITIAL_UPDATE_UI, type UpdateUiState } from '../model/updateStatus';
 import { firstReachable } from '../net/brokerClient';
 import { loadExitNodeDirectory } from '../net/exitNodeDirectory';
@@ -17,7 +18,14 @@ import type { NativeVpnState, RecentNode } from '../native/types';
 export interface SplitTunnelState {
   enabled: boolean;
   bypassLan: boolean;
-  bypassCountries: string[]; // lowercase ISO codes; v1 recognizes only 'ir' and 'cn'
+  /**
+   * Lowercase ISO codes; v1 recognizes only 'ir' and 'cn', and holds AT MOST ONE of them. The
+   * presets describe where the device is, and no device is in two countries at once: enabling
+   * both only adds a whole country's domains to the direct path where they cannot help — which
+   * is exactly the leak the region-derived default exists to avoid. Stays an array because the
+   * native contract field is a list (§3) and native parsers remain tolerant of several.
+   */
+  bypassCountries: string[];
   excludedApps: string[]; // Android package names (iOS parses and ignores)
 }
 
@@ -28,7 +36,12 @@ export interface AppState {
   availableRegions: ExitNodeRegion[];
   languageTag: string; // '' = system, persisted in AsyncStorage
   homeViewMode: HomeViewMode; // home directory presentation, persisted in AsyncStorage
-  splitTunnel: SplitTunnelState; // persisted in AsyncStorage, mirrored to the native store
+  /**
+   * Session-scoped routing plus the one remembered field: the master switch, LAN bypass and
+   * country presets start from the launch default every time, while `excludedApps` is restored
+   * from AsyncStorage. The whole slice is mirrored to the native store.
+   */
+  splitTunnel: SplitTunnelState;
   /**
    * Epoch ms of the moment the native status last ENTERED 'connected' (stamped
    * shell-side, so after an app restart it counts from the first mirrored
@@ -42,7 +55,18 @@ export interface AppState {
 
 export const LANGUAGE_STORAGE_KEY = 'openrung.language';
 export const HOME_VIEW_MODE_STORAGE_KEY = 'openrung.homeViewMode';
+/**
+ * The whole-slice key older builds wrote. Nothing writes it any more — the routing selections it
+ * held are session-scoped now — and `initializeSplitTunnel` deletes what it left behind.
+ */
 export const SPLIT_TUNNEL_STORAGE_KEY = 'openrung.splitTunnel';
+/**
+ * Bypassed Android packages, the ONE split-tunnel setting that outlives the session. Picking apps
+ * out of a list of everything installed is real work, and an app bypass is a lasting statement
+ * about that app ("my bank refuses the VPN"), not a temporary routing tweak like the country
+ * presets — so it is remembered while they reset.
+ */
+export const SPLIT_TUNNEL_APPS_STORAGE_KEY = 'openrung.splitTunnel.excludedApps';
 
 const INITIAL_NATIVE_STATE: NativeVpnState = {
   status: 'disconnected',
@@ -54,12 +78,36 @@ const INITIAL_NATIVE_STATE: NativeVpnState = {
   recents: [],
 };
 
-const INITIAL_SPLIT_TUNNEL: SplitTunnelState = {
-  enabled: true,
-  bypassLan: true,
-  bypassCountries: ['ir', 'cn'],
-  excludedApps: [],
-};
+/**
+ * The device region the current country selection was derived from, or null once the user has
+ * picked countries by hand.
+ *
+ * This is what separates "we guessed this for you" from "you chose this", and the difference is
+ * load-bearing: an automatic selection must follow the device, because a phone that auto-selected
+ * `['cn']` in Shanghai and is now in Berlin would otherwise keep pushing geosite-cn (gstatic,
+ * doubleclick, fonts.googleapis.com …) onto the direct path forever. A deliberate choice must
+ * never be second-guessed, however far the user travels. In-memory only, like the selection it
+ * describes; it reaches native as `country_source` on every push.
+ */
+let splitTunnelAutoRegion: string | null = null;
+
+/**
+ * Fresh-install split-tunnel defaults: master on, LAN bypassed, and a country preset ONLY on a
+ * device that is actually in that country (see model/splitTunnelDefaults — geosite-cn outside
+ * China would push ordinary Google/CDN hosts onto the direct path).
+ *
+ * Records the region it derived from as it goes: the two must never disagree, and doing it here
+ * means no caller can create a selection without its provenance.
+ */
+function initialSplitTunnel(): SplitTunnelState {
+  splitTunnelAutoRegion = deviceRegion();
+  return {
+    enabled: true,
+    bypassLan: true,
+    bypassCountries: bypassCountriesForRegion(splitTunnelAutoRegion),
+    excludedApps: [],
+  };
+}
 
 function initialState(): AppState {
   return {
@@ -69,7 +117,7 @@ function initialState(): AppState {
     availableRegions: [],
     languageTag: '',
     homeViewMode: 'map',
-    splitTunnel: INITIAL_SPLIT_TUNNEL,
+    splitTunnel: initialSplitTunnel(),
     connectedAtMs: null,
     update: INITIAL_UPDATE_UI,
   };
@@ -334,19 +382,23 @@ const SPLIT_TUNNEL_PUSH_DEBOUNCE_MS = 1200;
 let splitTunnelPushTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
- * Split-tunnel hydration is initialization, not an ongoing two-way merge with AsyncStorage.
- * Once this process has either loaded storage or accepted a local edit, the in-memory slice is
- * authoritative. The generation invalidates a read that was already in flight when a local edit
- * (or a test reset) happened; the shared promise collapses App + screen mount calls into one read.
+ * Split-tunnel ROUTING selections are SESSION-SCOPED: every launch starts from the product default
+ * (`initialSplitTunnel`) and a user's changes to the master switch, LAN bypass and country presets
+ * last only as long as this JS process. The bypassed-apps list is the one exception and is
+ * persisted (see SPLIT_TUNNEL_APPS_STORAGE_KEY).
+ *
+ * The shared promise collapses the App + screen mount calls into one initialization.
+ * `splitTunnelAppsSettled` closes the read/edit race the apps list reintroduces: once a local edit
+ * has happened, the launch read must not overwrite it.
  */
-let splitTunnelGeneration = 0;
-let splitTunnelHydrated = false;
-let splitTunnelHydrationPromise: Promise<void> | null = null;
+let splitTunnelInitialized = false;
+let splitTunnelInitializationPromise: Promise<void> | null = null;
+let splitTunnelAppsSettled = false;
 
 /**
  * Serializes the contract §3 SplitTunnelConfig JSON with the stable key order the native
  * stores rely on for their skip-reapply string comparison:
- * version, enabled, bypass_lan, bypass_countries, excluded_packages.
+ * version, enabled, bypass_lan, bypass_countries, country_source, excluded_packages.
  */
 function splitTunnelConfigJson(split: SplitTunnelState): string {
   return JSON.stringify({
@@ -354,6 +406,13 @@ function splitTunnelConfigJson(split: SplitTunnelState): string {
     enabled: split.enabled,
     bypass_lan: split.bypassLan,
     bypass_countries: split.bypassCountries,
+    // Provenance, not a preference. `bypass_countries` is a snapshot taken whenever JS last ran;
+    // `country_source: "auto"` tells native to re-derive it from the device's OWN time zone every
+    // time it builds a config — including the background recovery rebuilds after a physical
+    // network change, which no JS code participates in. Without this a phone that auto-selected
+    // China in Shanghai could have its tunnel rebuilt with geosite-cn bypassed in Berlin, before
+    // the user ever opens the app.
+    country_source: splitTunnelAutoRegion === null ? 'manual' : 'auto',
     excluded_packages: split.excludedApps,
   });
 }
@@ -386,12 +445,16 @@ function scheduleSplitTunnelPush(): void {
 
 /**
  * Completes split-tunnel initialization, then fires any pending debounced push immediately and
- * resolves once native has persisted it. Called right before a connect so the service reads the
- * latest config in its per-connect snapshot — including the fresh-install default — rather than
- * racing the launch-time AsyncStorage read. A no-op when initialization produces no pending push.
+ * resolves once native has persisted it. Called right before a connect so the service reads this
+ * session's config in its per-connect snapshot — including the launch default, which must land
+ * before the first connect of a session that has replaced the previous session's edits.
  */
 export async function flushSplitTunnelPush(): Promise<void> {
-  await hydrateSplitTunnel();
+  await initializeSplitTunnel();
+  // Also re-check the region here: within one long-lived session the device can move, and this
+  // runs immediately before the connect that would otherwise carry a stale country preset onto
+  // the direct path.
+  refreshSplitTunnelRegion();
   if (splitTunnelPushTimer == null) {
     return;
   }
@@ -401,124 +464,152 @@ export async function flushSplitTunnelPush(): Promise<void> {
 }
 
 /**
+ * Re-checks an AUTOMATIC country selection against where the device is now, re-deriving it (and
+ * pushing) when the device has moved. One Intl read and a no-op in every normal case.
+ *
+ * The launch default already reflects the region, so this only matters within a session that
+ * outlives a move — the JS process routinely survives a flight, suspended in Shanghai and resumed
+ * in Berlin. It runs on every app foreground (App.tsx) and immediately before every connect
+ * (`flushSplitTunnelPush`). Native re-derives independently on every config build (contract §3
+ * `country_source`), so this keeps the displayed toggles honest rather than being the only guard.
+ */
+export function refreshSplitTunnelRegion(): void {
+  if (splitTunnelAutoRegion === null) {
+    return; // The user chose these countries by hand; travelling must never undo that.
+  }
+  const region = deviceRegion();
+  if (region === splitTunnelAutoRegion) {
+    return;
+  }
+  splitTunnelAutoRegion = region;
+  const bypassCountries = bypassCountriesForRegion(region);
+  if (!shallowEqual(bypassCountries, state.splitTunnel.bypassCountries)) {
+    setState({ ...state, splitTunnel: { ...state.splitTunnel, bypassCountries } });
+  }
+  scheduleSplitTunnelPush();
+}
+
+/**
  * Merges a split-tunnel patch into the state, persists it to AsyncStorage, and pushes the
  * contract §3 config JSON to the native store (debounced).
  */
 export function setSplitTunnel(patch: Partial<SplitTunnelState>): void {
-  // A local edit is authoritative even if the initial AsyncStorage read is still in flight.
-  // Mark hydration complete and invalidate that read before changing either state or storage.
-  splitTunnelGeneration++;
-  splitTunnelHydrated = true;
+  if (patch.bypassCountries !== undefined) {
+    // The user set the countries themselves, so they stop tracking the device region — travelling
+    // must never undo a deliberate choice. Only a country edit forfeits automatic tracking;
+    // toggling LAN or apps says nothing about which country's rule set belongs here.
+    splitTunnelAutoRegion = null;
+  }
   const splitTunnel = { ...state.splitTunnel, ...patch };
   setState({ ...state, splitTunnel });
-  AsyncStorage.setItem(SPLIT_TUNNEL_STORAGE_KEY, JSON.stringify(splitTunnel)).catch(() => {
-    // Persistence is best-effort, same as the language selection.
-  });
+  if (patch.excludedApps !== undefined) {
+    // The one setting that outlives the session. Also marks the apps list settled, so a launch
+    // read still in flight cannot overwrite what the user just picked.
+    splitTunnelAppsSettled = true;
+    persistExcludedApps(splitTunnel.excludedApps);
+  }
+  // The routing selections are deliberately NOT persisted: they last for this session only. Native
+  // still receives them, because the VPN service reads its own store at connect time and must
+  // route this session the way the user just asked.
   scheduleSplitTunnelPush();
 }
 
-/** Validates a persisted SplitTunnelState shape; null on anything malformed. */
-function parsePersistedSplitTunnel(raw: string): SplitTunnelState | null {
-  let parsed: unknown;
+/**
+ * Best-effort persistence of the bypassed-apps list, the only split-tunnel setting we remember.
+ *
+ * Total: `setSplitTunnel` runs inside switch/picker handlers, so a throw here would surface as a
+ * UI crash on toggling an app. As above, a missing or stale AsyncStorage module throws
+ * SYNCHRONOUSLY and the trailing `.catch()` would never see it.
+ */
+function persistExcludedApps(excludedApps: string[]): void {
   try {
-    parsed = JSON.parse(raw);
+    // Not awaited, like the language selection; the `.catch` marks the rejection handled.
+    AsyncStorage.setItem(SPLIT_TUNNEL_APPS_STORAGE_KEY, JSON.stringify(excludedApps)).catch(() => {
+      // Persistence is best-effort, same as the language selection.
+    });
+  } catch {
+    // The selection still applies to this session; only remembering it is lost.
+  }
+}
+
+/** The persisted bypassed-apps list, or null when absent/malformed. */
+function parseExcludedApps(raw: string | null): string[] | null {
+  if (raw == null) {
+    return null;
+  }
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.filter((value): value is string => typeof value === 'string')
+      : null;
   } catch {
     return null;
   }
-  if (typeof parsed !== 'object' || parsed == null) {
-    return null;
-  }
-  const candidate = parsed as Record<string, unknown>;
-  const { enabled, bypassLan, bypassCountries, excludedApps } = candidate;
-  if (typeof enabled !== 'boolean' || typeof bypassLan !== 'boolean') {
-    return null;
-  }
-  if (!Array.isArray(bypassCountries) || !Array.isArray(excludedApps)) {
-    return null;
-  }
-  const isString = (value: unknown): value is string => typeof value === 'string';
-  return {
-    enabled,
-    bypassLan,
-    // Only the v1-recognized countries survive hydration (unknown codes are dropped).
-    bypassCountries: bypassCountries
-      .filter(isString)
-      .filter(code => code === 'ir' || code === 'cn'),
-    excludedApps: excludedApps.filter(isString),
-  };
 }
 
 /**
- * Loads the persisted split-tunnel state once, then issues ONE debounced push to native so its
- * store stays in sync after a reinstall or backup restore — the native side's string comparison
- * makes it a no-op otherwise.
+ * Materializes this session's split-tunnel config: restores the remembered bypassed-apps list,
+ * pushes the result to native, and drops the whole-slice key older builds persisted. Idempotent —
+ * App and the split-tunneling screen can mount close together, and they share one initialization.
  *
- * App and the split-tunneling screen can mount close together, so concurrent callers share one
- * read. A local edit always wins over storage: it invalidates an in-flight read and makes later
- * hydration calls no-ops, preventing stale storage from overwriting or being pushed over the
- * user's newer selection.
+ * No routing selection is restored, by design: the master switch, LAN bypass and country presets
+ * start from this launch's default and a user's changes to them last only while the app is open.
+ * Only the bypassed-apps list is read back.
+ *
+ * Telling native is the load-bearing part. Its store still holds whatever the previous session
+ * pushed, and the VPN service reads that store on every connect — including the background
+ * recovery rebuilds it performs on its own. Pushing here is what makes "reopening the app returns
+ * to the default" true for routing and not just for the toggles on screen. A live tunnel whose
+ * config differed from the default therefore reapplies (a brief reconnect) shortly after launch,
+ * which is the intended consequence of session-scoped settings.
  */
-export function hydrateSplitTunnel(): Promise<void> {
-  if (splitTunnelHydrated) {
+export function initializeSplitTunnel(): Promise<void> {
+  // Promise first: `splitTunnelInitialized` is set synchronously below, so checking it first
+  // would make concurrent callers miss the shared attempt and never await it.
+  if (splitTunnelInitializationPromise != null) {
+    return splitTunnelInitializationPromise;
+  }
+  if (splitTunnelInitialized) {
     return Promise.resolve();
   }
-  if (splitTunnelHydrationPromise != null) {
-    return splitTunnelHydrationPromise;
-  }
+  splitTunnelInitialized = true;
 
-  const generation = splitTunnelGeneration;
   let attempt: Promise<void>;
   attempt = (async () => {
     try {
-      const persisted = await AsyncStorage.getItem(SPLIT_TUNNEL_STORAGE_KEY);
-      if (generation !== splitTunnelGeneration) {
-        return; // A local edit or reset superseded this read.
+      const stored = parseExcludedApps(await AsyncStorage.getItem(SPLIT_TUNNEL_APPS_STORAGE_KEY));
+      if (stored != null && !splitTunnelAppsSettled) {
+        splitTunnelAppsSettled = true;
+        if (!shallowEqual(stored, state.splitTunnel.excludedApps)) {
+          setState({ ...state, splitTunnel: { ...state.splitTunnel, excludedApps: stored } });
+        }
       }
-
-      // A successful read completes initialization even when the value is absent or malformed.
-      // Retrying on every screen visit would only reopen the stale-read race.
-      splitTunnelHydrated = true;
-
-      if (persisted == null) {
-        // No explicit preference exists (fresh install, or an upgrade from the old default-off
-        // release where untouched defaults were never persisted). Materialize the new product
-        // default in both stores: split tunneling on, bypassing LAN + Iran + China. Existing users
-        // with any valid saved selection — including enabled:false — take the parsed branch below
-        // and keep that choice.
-        await AsyncStorage.setItem(
-          SPLIT_TUNNEL_STORAGE_KEY,
-          JSON.stringify(state.splitTunnel),
-        ).catch(() => {
-          // Persistence remains best-effort; native still receives this launch's default.
-        });
-        scheduleSplitTunnelPush();
-        return;
-      }
-
-      const parsed = parsePersistedSplitTunnel(persisted);
-      if (parsed == null) {
-        // Garbage is not treated like a fresh install: do not overwrite a potentially valid native
-        // config when the JS-side read is corrupt. Keep the in-memory product default for this
-        // launch, while native continues its fail-open behavior.
-        return;
-      }
-      if (JSON.stringify(parsed) !== JSON.stringify(state.splitTunnel)) {
-        setState({ ...state, splitTunnel: parsed });
-      }
-      // Sync native from RN's persisted truth (e.g. after a reinstall/backup restore where the
-      // native store was cleared); the native effective-config comparison makes this a no-op when
-      // the two already agree, so it never bounces a live tunnel.
-      scheduleSplitTunnelPush();
     } catch {
-      // Best-effort: keep the in-memory product default without overwriting native. A later caller
-      // may retry because a failed read does not complete initialization.
+      // Best-effort: a failed read just leaves the list empty for this session.
+    }
+    // Scheduled after the read so native receives ONE config carrying both this launch's routing
+    // default and the remembered apps, instead of a bare default followed by a correction.
+    scheduleSplitTunnelPush();
+    // Housekeeping, last and deliberately NOT awaited. Nothing reads the old whole-slice key any
+    // more, so failing to delete it is inert — but `connect` awaits this promise, so anything
+    // here that rejects turns a Connect tap into a silent no-tunnel failure, and anything that
+    // blocks adds a storage round-trip to every first connect. Split tunneling degrades toward
+    // the tunnel and never blocks it (CONTRACT §1).
+    //
+    // The try is load-bearing, not belt-and-braces: a missing or stale AsyncStorage module throws
+    // SYNCHRONOUSLY, and a trailing `.catch()` never sees that — the same trap documented on
+    // pushSplitTunnelToNative.
+    try {
+      AsyncStorage.removeItem(SPLIT_TUNNEL_STORAGE_KEY).catch(() => {});
+    } catch {
+      // Inert: the key is unread either way.
     }
   })().finally(() => {
-    if (splitTunnelHydrationPromise === attempt) {
-      splitTunnelHydrationPromise = null;
+    if (splitTunnelInitializationPromise === attempt) {
+      splitTunnelInitializationPromise = null;
     }
   });
-  splitTunnelHydrationPromise = attempt;
+  splitTunnelInitializationPromise = attempt;
   return attempt;
 }
 
@@ -530,11 +621,10 @@ export function applyUpdateUiState(update: UpdateUiState): void {
 /** Test-only: resets the store to its initial state (and cancels any pending native push). */
 export function resetStoreForTests(): void {
   directoryGeneration++;
-  splitTunnelGeneration++;
-  splitTunnelHydrated = false;
-  // An old attempt cannot be cancelled, but its captured generation prevents it from applying.
-  // Clear the shared slot so the reset store can start its own independent hydration.
-  splitTunnelHydrationPromise = null;
+  splitTunnelInitialized = false;
+  splitTunnelAppsSettled = false;
+  // An old attempt cannot be cancelled; clearing the slot lets the reset store initialize again.
+  splitTunnelInitializationPromise = null;
   if (splitTunnelPushTimer != null) {
     clearTimeout(splitTunnelPushTimer);
     splitTunnelPushTimer = null;

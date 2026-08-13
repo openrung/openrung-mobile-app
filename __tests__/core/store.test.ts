@@ -26,6 +26,13 @@ jest.mock('../../src/net/brokerClient', () => ({
   firstReachable: (...args: unknown[]) => mockFirstReachable(...args),
 }));
 
+// Where the device is comes from host state (Intl time zone). Pin the region so the defaults are
+// deterministic and tests can move the device; the region → countries mapping stays real.
+jest.mock('../../src/model/splitTunnelDefaults', () => ({
+  ...jest.requireActual('../../src/model/splitTunnelDefaults'),
+  deviceRegion: jest.fn(() => ''),
+}));
+
 // The store reads its paired native identity before directory selection and pushes split-tunnel
 // configs through the OpenRungVpn bridge. Keep both operations deterministic and hostless.
 jest.mock('../../src/native/OpenRungVpn', () => ({
@@ -41,16 +48,19 @@ jest.mock('../../src/native/OpenRungVpn', () => ({
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { AppConfig } from '../../src/config';
+import { deviceRegion } from '../../src/model/splitTunnelDefaults';
 import { OpenRungVpn } from '../../src/native/OpenRungVpn';
 import {
   HOME_VIEW_MODE_STORAGE_KEY,
+  SPLIT_TUNNEL_APPS_STORAGE_KEY,
   SPLIT_TUNNEL_STORAGE_KEY,
   applyNativeState,
   getSnapshot,
   hydrateHomeViewMode,
-  hydrateSplitTunnel,
+  initializeSplitTunnel,
   flushSplitTunnelPush,
   refreshDirectory,
+  refreshSplitTunnelRegion,
   resetStoreForTests,
   setHomeViewMode,
   setSplitTunnel,
@@ -202,19 +212,40 @@ describe('homeViewMode', () => {
 
 describe('splitTunnel', () => {
   const mockSetSplitTunnelConfig = OpenRungVpn.setSplitTunnelConfig as jest.Mock;
-  const mockGetItem = AsyncStorage.getItem as jest.Mock;
+  const mockSetItem = AsyncStorage.setItem as jest.Mock;
+  const mockRemoveItem = AsyncStorage.removeItem as jest.Mock;
+  const mockRegion = deviceRegion as jest.Mock;
 
+  /** The launch default on a device that is neither in Iran nor in China: LAN bypass only. */
   const DEFAULT_SPLIT_TUNNEL = {
     enabled: true,
     bypassLan: true,
-    bypassCountries: ['ir', 'cn'],
+    bypassCountries: [],
     excludedApps: [],
   };
 
+  const pushedConfig = (
+    countries: string,
+    { enabled = 'true', lan = 'true', source = 'auto', packages = '[]' } = {},
+  ): string =>
+    `{"version":1,"enabled":${enabled},"bypass_lan":${lan},"bypass_countries":${countries},` +
+    `"country_source":"${source}","excluded_packages":${packages}}`;
+
+  /** A new launch of the app: a fresh JS process over whatever storage already holds. */
+  function relaunchApp(): void {
+    resetStoreForTests();
+    mockSetSplitTunnelConfig.mockClear();
+    mockSetItem.mockClear();
+    mockRemoveItem.mockClear();
+  }
+
   beforeEach(async () => {
     await AsyncStorage.removeItem(SPLIT_TUNNEL_STORAGE_KEY);
-    mockGetItem.mockClear();
-    mockSetSplitTunnelConfig.mockClear();
+    await AsyncStorage.removeItem(SPLIT_TUNNEL_APPS_STORAGE_KEY);
+    // Outside Iran and China unless a test places the device somewhere else; re-derive the
+    // launch slice so the change takes effect.
+    mockRegion.mockReturnValue('');
+    relaunchApp();
     jest.useFakeTimers();
   });
 
@@ -223,11 +254,21 @@ describe('splitTunnel', () => {
     jest.useRealTimers();
   });
 
-  it('defaults to enabled with LAN, Iran, and China bypass on', () => {
+  it('defaults to enabled with LAN bypass and no country preset outside Iran and China', () => {
     expect(getSnapshot().splitTunnel).toEqual(DEFAULT_SPLIT_TUNNEL);
   });
 
-  it('setSplitTunnel merges, persists, and pushes the contract JSON after the debounce', async () => {
+  it('defaults to the local country preset on a device inside Iran or China', () => {
+    mockRegion.mockReturnValue('IR');
+    relaunchApp();
+    expect(getSnapshot().splitTunnel).toEqual({ ...DEFAULT_SPLIT_TUNNEL, bypassCountries: ['ir'] });
+
+    mockRegion.mockReturnValue('CN');
+    relaunchApp();
+    expect(getSnapshot().splitTunnel).toEqual({ ...DEFAULT_SPLIT_TUNNEL, bypassCountries: ['cn'] });
+  });
+
+  it('setSplitTunnel merges and pushes the contract JSON after the debounce', () => {
     setSplitTunnel({ enabled: true, bypassCountries: ['ir'] });
     expect(getSnapshot().splitTunnel).toEqual({
       enabled: true,
@@ -235,22 +276,19 @@ describe('splitTunnel', () => {
       bypassCountries: ['ir'],
       excludedApps: [],
     });
-    expect(await AsyncStorage.getItem(SPLIT_TUNNEL_STORAGE_KEY)).toBe(
-      JSON.stringify(getSnapshot().splitTunnel),
-    );
 
-    // The native push waits out the debounce, then sends the §1 JSON with the stable
+    // The native push waits out the debounce, then sends the §3 JSON with the stable
     // key order the native stores compare against verbatim.
     expect(mockSetSplitTunnelConfig).not.toHaveBeenCalled();
     jest.advanceTimersByTime(1200);
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
-      '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["ir"],"excluded_packages":[]}',
+      pushedConfig('["ir"]', { source: 'manual' }),
     );
   });
 
   it('collapses rapid changes into a single debounced push of the final state', () => {
-    setSplitTunnel({ enabled: true });
+    setSplitTunnel({ enabled: true, bypassCountries: ['cn'] });
     jest.advanceTimersByTime(600);
     setSplitTunnel({ bypassLan: false });
     jest.advanceTimersByTime(1199);
@@ -259,196 +297,262 @@ describe('splitTunnel', () => {
     jest.advanceTimersByTime(1);
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
-      '{"version":1,"enabled":true,"bypass_lan":false,"bypass_countries":["ir","cn"],"excluded_packages":[]}',
+      pushedConfig('["cn"]', { lan: 'false', source: 'manual' }),
     );
   });
 
-  it('hydrates a persisted state and re-syncs native with one debounced push', async () => {
-    await AsyncStorage.setItem(
-      SPLIT_TUNNEL_STORAGE_KEY,
-      JSON.stringify({
-        enabled: true,
-        bypassLan: false,
+  describe('session-scoped selections', () => {
+    it('never writes a routing selection to storage', async () => {
+      setSplitTunnel({ enabled: false, bypassLan: false, bypassCountries: ['cn'] });
+      jest.advanceTimersByTime(1200);
+
+      // The push reached native (the service needs it for THIS session) but nothing was saved.
+      expect(mockSetSplitTunnelConfig).toHaveBeenCalled();
+      expect(mockSetItem).not.toHaveBeenCalledWith(SPLIT_TUNNEL_STORAGE_KEY, expect.anything());
+      expect(await AsyncStorage.getItem(SPLIT_TUNNEL_STORAGE_KEY)).toBeNull();
+    });
+
+    it('starts the next launch from the routing default, discarding those edits', async () => {
+      mockRegion.mockReturnValue('CN');
+      relaunchApp();
+      setSplitTunnel({ enabled: false, bypassLan: false, bypassCountries: ['ir'] });
+      jest.advanceTimersByTime(1200);
+
+      relaunchApp();
+      expect(getSnapshot().splitTunnel).toEqual({
+        ...DEFAULT_SPLIT_TUNNEL,
         bypassCountries: ['cn'],
-        excludedApps: ['com.tencent.mm'],
-      }),
-    );
-    await hydrateSplitTunnel();
-    expect(getSnapshot().splitTunnel).toEqual({
-      enabled: true,
-      bypassLan: false,
-      bypassCountries: ['cn'],
-      excludedApps: ['com.tencent.mm'],
+      });
+
+      // And native is told, so the routing returns to the default too — not just the toggles.
+      await initializeSplitTunnel();
+      jest.advanceTimersByTime(1200);
+      expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(pushedConfig('["cn"]'));
     });
 
-    jest.advanceTimersByTime(1200);
-    expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
-    expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
-      '{"version":1,"enabled":true,"bypass_lan":false,"bypass_countries":["cn"],"excluded_packages":["com.tencent.mm"]}',
-    );
+    it('remembers the bypassed-apps list across launches', async () => {
+      // Picking apps out of everything installed is real work, and "my bank refuses the VPN" is a
+      // lasting statement — unlike a temporary routing tweak. So apps are exempt from the reset.
+      setSplitTunnel({ excludedApps: ['com.tencent.mm', 'org.telegram.messenger'] });
+      jest.advanceTimersByTime(1200);
+      expect(await AsyncStorage.getItem(SPLIT_TUNNEL_APPS_STORAGE_KEY)).toBe(
+        '["com.tencent.mm","org.telegram.messenger"]',
+      );
+
+      relaunchApp();
+      // Before the read lands the list is empty; initialization restores it.
+      await initializeSplitTunnel();
+      expect(getSnapshot().splitTunnel.excludedApps).toEqual([
+        'com.tencent.mm',
+        'org.telegram.messenger',
+      ]);
+
+      // Native gets ONE config carrying both the launch routing default and the remembered apps.
+      jest.advanceTimersByTime(1200);
+      expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
+      expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
+        pushedConfig('[]', { packages: '["com.tencent.mm","org.telegram.messenger"]' }),
+      );
+    });
+
+    it('lets a cleared apps list survive too, and ignores a malformed one', async () => {
+      setSplitTunnel({ excludedApps: ['com.tencent.mm'] });
+      setSplitTunnel({ excludedApps: [] });
+      relaunchApp();
+      await initializeSplitTunnel();
+      expect(getSnapshot().splitTunnel.excludedApps).toEqual([]);
+
+      await AsyncStorage.setItem(SPLIT_TUNNEL_APPS_STORAGE_KEY, 'not json');
+      relaunchApp();
+      await initializeSplitTunnel();
+      expect(getSnapshot().splitTunnel.excludedApps).toEqual([]);
+    });
+
+    it('never fails a connect when the storage module is broken', async () => {
+      // CONTRACT §1: split tunneling degrades toward the tunnel, never blocks it. connect()
+      // awaits initialization, so a rejection here is a silent no-tunnel failure on the Connect
+      // tap. A missing/stale AsyncStorage throws SYNCHRONOUSLY, which a trailing .catch cannot
+      // see — the same trap the native push already guards against.
+      relaunchApp();
+      const broken = () => {
+        throw new TypeError('AsyncStorage.removeItem is not a function');
+      };
+      mockRemoveItem.mockImplementationOnce(broken);
+      (AsyncStorage.getItem as jest.Mock).mockImplementationOnce(broken);
+
+      await expect(flushSplitTunnelPush()).resolves.toBeUndefined();
+
+      // And the connect still gets this session's config.
+      expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
+      expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(pushedConfig('[]'));
+    });
+
+    it('survives a storage module that breaks while the user toggles an app', () => {
+      // setSplitTunnel runs inside a switch handler, so the same synchronous throw would surface
+      // as a UI crash rather than a lost preference.
+      mockSetItem.mockImplementationOnce(() => {
+        throw new TypeError('AsyncStorage.setItem is not a function');
+      });
+
+      expect(() => setSplitTunnel({ excludedApps: ['com.tencent.mm'] })).not.toThrow();
+      expect(getSnapshot().splitTunnel.excludedApps).toEqual(['com.tencent.mm']);
+    });
+
+    it('does not let the launch read overwrite an apps edit made first', async () => {
+      await AsyncStorage.setItem(SPLIT_TUNNEL_APPS_STORAGE_KEY, '["com.stale.package"]');
+      relaunchApp();
+
+      const initializing = initializeSplitTunnel();
+      setSplitTunnel({ excludedApps: ['com.chosen.now'] });
+      await initializing;
+
+      expect(getSnapshot().splitTunnel.excludedApps).toEqual(['com.chosen.now']);
+    });
+
+    it('ignores the whole-slice preference persisted by an older build, and deletes it', async () => {
+      await AsyncStorage.setItem(
+        SPLIT_TUNNEL_STORAGE_KEY,
+        JSON.stringify({
+          enabled: false,
+          bypassLan: false,
+          bypassCountries: ['ir', 'cn'],
+          excludedApps: ['com.tencent.mm'],
+        }),
+      );
+      relaunchApp();
+
+      await initializeSplitTunnel();
+      expect(getSnapshot().splitTunnel).toEqual(DEFAULT_SPLIT_TUNNEL);
+      // Deletion is fire-and-forget (it must never delay or fail a connect), so assert the call
+      // rather than racing its completion.
+      expect(mockRemoveItem).toHaveBeenCalledWith(SPLIT_TUNNEL_STORAGE_KEY);
+    });
+
+    it('coalesces concurrent initialization into one cleanup and one push', async () => {
+      relaunchApp();
+      const first = initializeSplitTunnel();
+      const second = initializeSplitTunnel();
+      expect(second).toBe(first);
+      await Promise.all([first, second]);
+
+      expect(mockRemoveItem).toHaveBeenCalledTimes(1);
+      jest.advanceTimersByTime(1200);
+      expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps an edit made before initialization finished', async () => {
+      relaunchApp();
+      const initializing = initializeSplitTunnel();
+      setSplitTunnel({ bypassLan: false });
+      await initializing;
+
+      jest.advanceTimersByTime(1200);
+      expect(getSnapshot().splitTunnel.bypassLan).toBe(false);
+      expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
+      expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(pushedConfig('[]', { lan: 'false' }));
+    });
   });
 
-  it('preserves an explicitly saved disabled selection', async () => {
-    await AsyncStorage.setItem(
-      SPLIT_TUNNEL_STORAGE_KEY,
-      JSON.stringify({
-        enabled: false,
-        bypassLan: false,
-        bypassCountries: ['cn'],
-        excludedApps: [],
-      }),
-    );
+  it('pushes this launch default before the first connect can read it', async () => {
+    mockRegion.mockReturnValue('CN');
+    relaunchApp();
 
-    await hydrateSplitTunnel();
-    expect(getSnapshot().splitTunnel).toEqual({
-      enabled: false,
-      bypassLan: false,
-      bypassCountries: ['cn'],
-      excludedApps: [],
-    });
-
-    jest.advanceTimersByTime(1200);
-    expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
-      '{"version":1,"enabled":false,"bypass_lan":false,"bypass_countries":["cn"],"excluded_packages":[]}',
-    );
-  });
-
-  it('does not let a delayed hydration overwrite or push over a newer user edit', async () => {
-    let resolveRead: ((value: string | null) => void) | undefined;
-    const delayedRead = new Promise<string | null>(resolve => {
-      resolveRead = resolve;
-    });
-    mockGetItem.mockImplementationOnce(() => delayedRead);
-
-    const hydration = hydrateSplitTunnel();
-    expect(mockGetItem).toHaveBeenCalledTimes(1);
-
-    // The user changes the config while AsyncStorage still holds/returns the old selection.
-    setSplitTunnel({ enabled: true, bypassCountries: ['cn'] });
-    jest.advanceTimersByTime(1200);
-    expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
-    expect(mockSetSplitTunnelConfig).toHaveBeenLastCalledWith(
-      '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["cn"],"excluded_packages":[]}',
-    );
-
-    resolveRead?.(
-      JSON.stringify({
-        enabled: false,
-        bypassLan: false,
-        bypassCountries: ['ir'],
-        excludedApps: ['stale.package'],
-      }),
-    );
-    await hydration;
-    jest.advanceTimersByTime(1200);
-
-    expect(getSnapshot().splitTunnel).toEqual({
-      enabled: true,
-      bypassLan: true,
-      bypassCountries: ['cn'],
-      excludedApps: [],
-    });
-    // Completing the stale read neither schedules a second push nor replaces the latest payload.
-    expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
-  });
-
-  it('coalesces concurrent hydration calls into one read and one native sync', async () => {
-    let resolveRead: ((value: string | null) => void) | undefined;
-    const delayedRead = new Promise<string | null>(resolve => {
-      resolveRead = resolve;
-    });
-    mockGetItem.mockImplementationOnce(() => delayedRead);
-
-    const first = hydrateSplitTunnel();
-    const second = hydrateSplitTunnel();
-    expect(second).toBe(first);
-    expect(mockGetItem).toHaveBeenCalledTimes(1);
-
-    resolveRead?.(
-      JSON.stringify({
-        enabled: true,
-        bypassLan: false,
-        bypassCountries: ['ir'],
-        excludedApps: [],
-      }),
-    );
-    await Promise.all([first, second]);
-    expect(getSnapshot().splitTunnel).toEqual({
-      enabled: true,
-      bypassLan: false,
-      bypassCountries: ['ir'],
-      excludedApps: [],
-    });
-
-    jest.advanceTimersByTime(1200);
-    expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
-  });
-
-  it('treats a local edit made before hydration as authoritative', async () => {
-    setSplitTunnel({ enabled: true, bypassCountries: ['ir'] });
-
-    await hydrateSplitTunnel();
-    expect(mockGetItem).not.toHaveBeenCalled();
-    expect(getSnapshot().splitTunnel).toEqual({
-      enabled: true,
-      bypassLan: true,
-      bypassCountries: ['ir'],
-      excludedApps: [],
-    });
-
-    jest.advanceTimersByTime(1200);
-    expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
-    expect(mockSetSplitTunnelConfig).toHaveBeenLastCalledWith(
-      '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["ir"],"excluded_packages":[]}',
-    );
-  });
-
-  it('persists and pushes the enabled bypass defaults when no preference exists', async () => {
-    await hydrateSplitTunnel();
-    expect(await AsyncStorage.getItem(SPLIT_TUNNEL_STORAGE_KEY)).toBe(
-      JSON.stringify(DEFAULT_SPLIT_TUNNEL),
-    );
-
-    jest.advanceTimersByTime(1200);
-    expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
-      '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["ir","cn"],"excluded_packages":[]}',
-    );
-  });
-
-  it('flushes fresh-install initialization before the first native connect can start', async () => {
     await flushSplitTunnelPush();
 
     expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
-    expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(
-      '{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["ir","cn"],"excluded_packages":[]}',
+    expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(pushedConfig('["cn"]'));
+  });
+
+  it('tells native whether the country selection is automatic', async () => {
+    // The native generators re-derive an automatic selection from the device's own time zone on
+    // every config build, including the background recovery rebuilds no JS code takes part in.
+    // They can only do that if this flag reaches them.
+    mockRegion.mockReturnValue('CN');
+    relaunchApp();
+
+    await flushSplitTunnelPush();
+    expect(mockSetSplitTunnelConfig).toHaveBeenLastCalledWith(
+      expect.stringContaining('"country_source":"auto"'),
+    );
+
+    setSplitTunnel({ bypassCountries: ['ir'] });
+    jest.advanceTimersByTime(1200);
+    expect(mockSetSplitTunnelConfig).toHaveBeenLastCalledWith(
+      expect.stringContaining('"country_source":"manual"'),
     );
   });
 
-  it('filters unrecognized countries out of a hydrated selection', async () => {
-    await AsyncStorage.setItem(
-      SPLIT_TUNNEL_STORAGE_KEY,
-      JSON.stringify({
-        enabled: true,
-        bypassLan: true,
-        bypassCountries: ['us', 'ir', 7],
-        excludedApps: [],
-      }),
+  it('stops tracking the region once the user picks countries, but not for other edits', () => {
+    mockRegion.mockReturnValue('CN');
+    relaunchApp();
+
+    // A LAN edit says nothing about which country's rule set belongs here, so the selection stays
+    // automatic and keeps following the device.
+    setSplitTunnel({ bypassLan: false });
+    jest.advanceTimersByTime(1200);
+    expect(mockSetSplitTunnelConfig).toHaveBeenLastCalledWith(
+      pushedConfig('["cn"]', { lan: 'false' }),
     );
-    await hydrateSplitTunnel();
-    expect(getSnapshot().splitTunnel.bypassCountries).toEqual(['ir']);
+
+    // Choosing a country freezes it for the rest of the session.
+    setSplitTunnel({ bypassCountries: ['ir'] });
+    jest.advanceTimersByTime(1200);
+    expect(mockSetSplitTunnelConfig).toHaveBeenLastCalledWith(
+      pushedConfig('["ir"]', { lan: 'false', source: 'manual' }),
+    );
   });
 
-  it('ignores garbage persisted values (fail-open: defaults stay in place)', async () => {
-    await AsyncStorage.setItem(SPLIT_TUNNEL_STORAGE_KEY, 'not json');
-    await hydrateSplitTunnel();
-    expect(getSnapshot().splitTunnel).toEqual(DEFAULT_SPLIT_TUNNEL);
+  describe('mid-session travel (the JS process outlives the flight)', () => {
+    /** Auto-selects ['cn'] in China, then moves the device without restarting the process. */
+    function landInBerlinAfterAutoSelectingChina(): void {
+      mockRegion.mockReturnValue('CN');
+      relaunchApp();
+      expect(getSnapshot().splitTunnel.bypassCountries).toEqual(['cn']);
+      // The flight. Same JS process, same module state.
+      mockRegion.mockReturnValue('');
+    }
 
-    await AsyncStorage.setItem(
-      SPLIT_TUNNEL_STORAGE_KEY,
-      JSON.stringify({ enabled: 'yes', bypassLan: true }),
-    );
-    await hydrateSplitTunnel();
-    expect(getSnapshot().splitTunnel).toEqual(DEFAULT_SPLIT_TUNNEL);
+    it('re-derives on foreground', () => {
+      landInBerlinAfterAutoSelectingChina();
+
+      refreshSplitTunnelRegion();
+      expect(getSnapshot().splitTunnel.bypassCountries).toEqual([]);
+
+      jest.advanceTimersByTime(1200);
+      expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(pushedConfig('[]'));
+    });
+
+    it('corrects the config before a connect can read it', async () => {
+      landInBerlinAfterAutoSelectingChina();
+
+      // The connect path's own pre-flight. It must not hand the service ['cn'] in Berlin.
+      await flushSplitTunnelPush();
+
+      expect(getSnapshot().splitTunnel.bypassCountries).toEqual([]);
+      expect(mockSetSplitTunnelConfig).toHaveBeenCalledTimes(1);
+      expect(mockSetSplitTunnelConfig).toHaveBeenCalledWith(pushedConfig('[]'));
+    });
+
+    it('leaves a hand-picked selection alone across the same move', async () => {
+      mockRegion.mockReturnValue('CN');
+      relaunchApp();
+      setSplitTunnel({ bypassCountries: ['cn'] });
+      mockRegion.mockReturnValue('');
+
+      refreshSplitTunnelRegion();
+      await flushSplitTunnelPush();
+      expect(getSnapshot().splitTunnel.bypassCountries).toEqual(['cn']);
+    });
+
+    it('is a no-op while the device stays put', () => {
+      mockRegion.mockReturnValue('CN');
+      relaunchApp();
+
+      refreshSplitTunnelRegion();
+      jest.advanceTimersByTime(1200);
+      expect(getSnapshot().splitTunnel.bypassCountries).toEqual(['cn']);
+      expect(mockSetSplitTunnelConfig).not.toHaveBeenCalled();
+    });
   });
 });
 

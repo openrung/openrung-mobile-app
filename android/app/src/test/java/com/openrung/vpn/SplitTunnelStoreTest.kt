@@ -12,6 +12,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import java.util.TimeZone
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], application = Application::class)
@@ -113,6 +114,33 @@ class SplitTunnelStoreTest {
         val enabledIrUninstalledPackage =
             """{"version":1,"enabled":true,"bypass_lan":false,"bypass_countries":["ir"],"excluded_packages":["com.example.absent"]}"""
         assertFalse(SplitTunnelStore.writeAndReportEffectiveChange(context, enabledIrUninstalledPackage))
+    }
+
+    @Test
+    fun `effective signature follows the re-derived countries of an automatic selection`() {
+        val original = TimeZone.getDefault()
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone("Asia/Shanghai"))
+            val autoInChina =
+                """{"version":1,"enabled":true,"bypass_lan":false,"bypass_countries":["cn"],""" +
+                    """"country_source":"auto","excluded_packages":[]}"""
+            assertTrue(SplitTunnelStore.writeAndReportEffectiveChange(context, autoInChina))
+
+            // Same stored countries, but declaring them hand-picked changes nothing here: in China
+            // the automatic derivation lands on cn too.
+            val manualInChina =
+                """{"version":1,"enabled":true,"bypass_lan":false,"bypass_countries":["cn"],""" +
+                    """"country_source":"manual","excluded_packages":[]}"""
+            assertFalse(SplitTunnelStore.writeAndReportEffectiveChange(context, manualInChina))
+
+            // Outside China the same auto payload resolves to no country, so flipping the source
+            // IS an effective change — the signature must track the emitted config, not the
+            // stored snapshot.
+            TimeZone.setDefault(TimeZone.getTimeZone("Europe/Berlin"))
+            assertTrue(SplitTunnelStore.writeAndReportEffectiveChange(context, autoInChina))
+        } finally {
+            TimeZone.setDefault(original)
+        }
     }
 
     private fun readBackRaw(context: Context): String? =

@@ -288,23 +288,74 @@ shape (the RN 0.86 bridgeless interop layer handles it):
 ### Split tunneling (presets)
 
 Settings → Split tunneling is presets-only: a master toggle (default on), with
-"bypass local network" plus the Iranian and Chinese sites & apps presets also
-on by default, and — Android only — a bypassed-apps picker (no individual apps
-are preselected). RN persists its own slice, debounces changes, and pushes one
-small snake_case JSON config (`version`, `enabled`, `bypass_lan`,
-`bypass_countries`, `excluded_packages`) through `setSplitTunnelConfig`.
-Native persists the raw string (Android SharedPreferences
+"bypass local network" also on by default, the Iranian and Chinese sites & apps
+presets defaulted from where the device actually is, and — Android only — a
+bypassed-apps picker (no individual apps are preselected). RN debounces changes
+and pushes one small snake_case JSON config (`version`, `enabled`, `bypass_lan`,
+`bypass_countries`, `country_source`, `excluded_packages`) through
+`setSplitTunnelConfig`.
+
+**Routing selections are session-scoped.** The master switch, LAN bypass and
+country presets are not persisted: every launch starts from the default above,
+and a change to them lasts only while the app is open. The Android
+bypassed-apps list is the one exception and is remembered across launches, under
+its own key — picking apps out of everything installed is real work, and an app
+bypass is a lasting statement about that app rather than a temporary routing
+tweak. The screen's footer states both halves. Native still persists the raw
+string (Android SharedPreferences
 `openrung_split_tunnel`, iOS app-group defaults key `split_tunnel_config`)
-and, when the tunnel is up and the string changed, reapplies by reconnecting
-to the same relay target through the existing relay-switch mechanics.
+because the VPN service reads its own store on every connect, including the
+background recovery rebuilds it performs after a physical-network change; that
+store holds the current session's config and each launch overwrites it. When the
+tunnel is up and the string changed, native reapplies by reconnecting to the same
+relay target through the existing relay-switch mechanics — so a live tunnel that
+was carrying customized routing bounces briefly shortly after the app is
+reopened. That is the intended consequence of session-scoped settings: what the
+screen shows and what the engine routes never disagree.
+
+The two country presets are mutually exclusive — a device is in one country, so
+switching one on switches the other off. A preset may also only ship on *inside*
+its own country: `geosite-cn` carries hosts the whole world loads on ordinary
+pages (doubleclick.net, fonts.googleapis.com, www.gstatic.com …), so bypassing it
+elsewhere would put those requests on the direct path with the user's real IP
+while the app reports CONNECTED, and inside China the same bypassed hosts are
+GFW-blocked and simply fail. `src/model/splitTunnelDefaults.ts` picks the
+default from the device's IANA time zone and nothing else — offline, no geo-IP
+call, no location permission, and no locale fallback, since a language
+preference is not evidence of location and guessing from it would hand the
+China preset to exactly the diaspora phones this protects.
+
+Within a session an automatic selection keeps following the device: RN records
+the region it was derived from and re-derives whenever the device has moved, on
+every app foreground and immediately before every connect — the JS process
+routinely survives a flight. A selection the user made by hand is frozen for the
+rest of that session.
+
+RN is not the last line of defence, because it is not always running. The pushed
+config carries `country_source`, and on an automatic selection each native
+generator ignores the stored country list and re-derives from its own `TimeZone`
+whenever it builds a config — which includes the recovery reconnects both
+services perform on their own after a physical-network change, with the app
+possibly unopened for weeks. That is what stops a tunnel from being rebuilt with
+`geosite-cn` bypassed in Berlin, and it removes the race where a foreground
+re-check arrives while a recovery is already connecting (reapply is deliberately
+skipped in that window). `SplitTunnelRegion` is ported into Kotlin and Swift
+alongside `src/model/splitTunnelDefaults.ts`; all three must agree.
 
 At connect time the native generators translate the stored config into
 sing-box deltas: an `ip_is_private` → direct route rule for LAN bypass;
 per-country local rule sets (`geosite-<cc>.srs` / `geoip-<cc>.srs`, bundled
 from `rulesets/dist/` — Android stages them into `<filesDir>/libbox/rulesets/`,
 iOS reads them from the PacketTunnel bundle) routed direct, with a sniff rule
-and per-country DNS over the direct path (Shecan `178.22.122.100` for Iran,
-AliDNS `223.5.5.5` for China); and on Android an OS-level `exclude_package`
+and per-country DNS over the direct path where a trustworthy in-country
+resolver exists (AliDNS `223.5.5.5` for China — as DoH over 443, since those
+queries leave the device on the user's real IP and must not be readable or
+forgeable on the way; a failing resolver falls through to the proxied chain
+rather than failing the lookup). Iran currently ships none: every endpoint
+Shecan publishes served an expired certificate as of 2026-08-12, and a primary
+that must fail a TLS handshake on every lookup is worse than none at all, so
+Iranian bypass traffic takes the direct path while resolving through the proxied
+chain. And on Android an OS-level `exclude_package`
 list on the TUN inbound. The Android app picker is fed by the separate
 `OpenRungAppList` module (launcher apps, background-resolved). Everything
 fails open (CONTRACT §1): a bad/missing config or a missing rule-set file
@@ -447,8 +498,11 @@ LICENSE_TEXT) with hardware-back mapping — no navigation library.
   keeps full production telemetry.
 - Per-app split-tunnel bypass is Android-only; iOS parses and ignores
   `excluded_packages`.
-- With a country bypass preset on, DNS for bypassed domains resolves via
-  in-country public resolvers (Shecan / AliDNS) over the direct path.
+- With a country bypass preset on, DNS for bypassed domains resolves via that
+  country's in-country public resolver over the direct path, encrypted (DoH/443)
+  and falling back to the proxied chain. China uses AliDNS; Iran has no
+  currently valid encrypted resolver, so it resolves through the proxied chain
+  while its traffic still takes the direct path.
 - Android apps excluded at the OS level are invisible to telemetry/traffic
   counters; sing-box-routed direct flows (LAN/country bypass) remain counted.
 - License: GPL-3.0-or-later (statically links sing-box), same as production.

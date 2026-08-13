@@ -173,29 +173,94 @@ unverified snapshot with kind `verification` rather than decoding it. Relay
 verification moving into Go must not leave the shell indifferent to it.
 
 `setSplitTunnelConfig` payload — the shared split-tunnel config JSON. TS
-serializes with exactly this key order (snake_case):
+serializes with exactly this key order (snake_case): `version`, `enabled`,
+`bypass_lan`, `bypass_countries`, `country_source`, `excluded_packages`.
 
 ```json
-{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["ir","cn"],"excluded_packages":["com.tencent.mm"]}
+{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["cn"],"country_source":"auto","excluded_packages":["com.tencent.mm"]}
 ```
 
 - `version` is currently 1; parsers accept any object with `version >= 1` and
   ignore unknown fields.
 - `bypass_countries`: lowercase ISO codes. v1 recognizes only `"ir"` and
-  `"cn"`; unknown codes are ignored (forward compatibility).
+  `"cn"`; unknown codes are ignored (forward compatibility). The two are
+  **mutually exclusive** and RN sends at most one: the presets say where the
+  device is, and no device is in two countries at once, so enabling both only
+  adds a country's worth of domains to the direct path where they cannot help.
+  The split-tunneling screen enforces it (switching one on switches the other
+  off) and hydration collapses any pair it finds. The field stays a list and
+  native parsers stay tolerant of several, so this is a product invariant, not
+  a wire-format change.
+- `country_source`: `"auto"` when RN derived `bypass_countries` from the device
+  region, `"manual"` when the user chose them. Absent means `"manual"`, so an
+  older RN layer behaves exactly as before. This is **provenance, not a
+  preference**, and it is load-bearing: on an `"auto"` config each native
+  generator IGNORES the stored `bypass_countries` and re-derives from its own
+  `TimeZone` at the moment it builds a config. `bypass_countries` remains a
+  snapshot of wherever the device was when JS last ran, kept for older native
+  binaries and as a fallback.
+
+  The reason is that both services rebuild sing-box configs on their own —
+  every connect attempt AND every recovery reconnect after a physical-network
+  change — while the app may not have been opened for weeks. Trusting the
+  snapshot would let a phone that auto-selected China in Shanghai have its
+  tunnel rebuilt with `geosite-cn` bypassed in Berlin, before the user ever
+  opens OpenRung, and would leave the RN foreground re-check racing an
+  already-started recovery (which deliberately skips reapply while connecting).
+  Native re-deriving at construction time removes both.
 - `excluded_packages`: Android package names excluded from the VPN at the OS
   level. iOS parses and ignores the field.
-- With no saved user preference, RN initializes and persists
-  `enabled:true`, `bypass_lan:true`, and `bypass_countries:["ir","cn"]`;
-  `excluded_packages` starts empty. A valid saved preference, including an
-  explicit `enabled:false`, always wins over these fresh-install defaults.
+- **Split-tunnel routing selections are session-scoped.** The master switch, LAN
+  bypass and country presets are never persisted: every launch starts from the
+  product default — `enabled:true`, `bypass_lan:true`, and the country preset for
+  the region the device is actually in (`["ir"]` in Iran, `["cn"]` in mainland
+  China, `[]` everywhere else) — and a user's changes to them last only as long
+  as the JS process. `initializeSplitTunnel` deletes the `openrung.splitTunnel`
+  key older builds wrote, which held the whole slice.
+- **`excluded_packages` is the exception and IS remembered**, under its own RN key
+  `openrung.splitTunnel.excludedApps` (a JSON string array). Picking apps out of
+  everything installed is real work, and an app bypass is a lasting statement
+  about that app ("my bank refuses the VPN") rather than a temporary routing
+  tweak. Initialization reads it back before the launch push, so native receives
+  ONE config carrying both this launch's routing default and the remembered
+  packages. A local edit that lands while that read is in flight wins.
+  The split-tunneling screen states both halves of this in its footer, and says
+  so only on builds that have an APPS section (Android).
+- Native still persists the raw JSON (§6/§7) because the VPN service reads its
+  own store on every connect, including background recovery rebuilds. That store
+  therefore holds the CURRENT session's config, and each app launch overwrites it
+  with that launch's routing default plus the remembered packages. A live tunnel whose config differed from the
+  default reapplies (a brief reconnect) shortly after launch — the intended
+  consequence of session-scoped settings, not a bug.
+- The region comes from the device's IANA time zone ONLY — offline, no geo-IP
+  call, no location permission, and deliberately no locale fallback: a language
+  preference is not evidence of physical location, so a zone that carries none
+  yields no preset rather than a guess. A country preset must never ship on
+  outside its country: `geosite-cn` carries hosts the whole world loads
+  (doubleclick.net, fonts.googleapis.com, www.gstatic.com …), so bypassing it
+  elsewhere hands the user's real IP to those on ordinary page loads while the
+  app reports CONNECTED.
+- Within a session, an automatic selection keeps following the device: RN
+  re-derives it on every app foreground and immediately before every connect
+  (`refreshSplitTunnelRegion`) when the region it was derived from no longer
+  matches, because the JS process routinely outlives a flight. A selection the
+  user made by hand is never re-derived for the rest of that session; only a
+  `bypass_countries` edit forfeits tracking, since toggling LAN or apps says
+  nothing about which country's rule set belongs there. RN is not the last line
+  of defence either — `country_source` (above) lets each native generator
+  re-derive independently, which is what covers a background recovery rebuild
+  that no JS code takes part in.
 - Parse failure, an absent config, or `enabled:false` ⇒ "no split tunneling":
   the generated sing-box config is byte-identical to the no-split output
   (fail-open, §1).
 - Both platforms persist the raw JSON string on every push, but reapply only
   when the *effective* config changes — the signature that determines the
   emitted sing-box config (Android: `enabled`, `bypass_lan`, recognized
-  countries, excluded packages; iOS ignores `excluded_packages`). Two payloads
+  countries — RESOLVED through `country_source`, so an automatic selection is
+  compared as the countries it currently derives to — and excluded packages; iOS
+  ignores `excluded_packages`). Both sides of a comparison resolve against one
+  region read, so a zone change landing mid-comparison cannot masquerade as a
+  config change. Two payloads
   that both resolve to disabled, or to the same rule set, do not reconnect. So
   a redundant push (RN rehydration after a restore), the first persistence of
   any disabled config, or a change that nets to the same routing is a
@@ -413,6 +478,14 @@ used as evidence that Reality or WSS carried end-to-end traffic.
   Collects `OpenRungStatusStore.uiState`, maps to a WritableMap, emits events.
   `prepare()` uses VpnService.prepare + ActivityEventListener (request code 7001)
   and POST_NOTIFICATIONS via PermissionAwareActivity on API 33+.
+- `vpn/SplitTunnelStore.kt` also holds `SplitTunnelRegion` (the Kotlin port of
+  `src/model/splitTunnelDefaults.ts`: IANA zone → ISO region → preset, read fresh
+  from `TimeZone.getDefault()` on every call) and
+  `SplitTunnelConfig.resolvedBypassCountries(region)`, which re-derives the
+  countries of a `country_source:"auto"` config and returns a manual one
+  verbatim. `OpenRungVpnService.currentSplitTunnelRules()` calls it, so every
+  connect attempt AND every recovery reconnect resolves against where the device
+  is at that moment — no RN participation required.
 - Split-tunnel emission (`net/SingBoxConfiguration.kt`): optional constructor
   input `splitTunnel: SplitTunnelRules? = null` (bypassLan, bypassCountries —
   pre-validated by the caller and normalized to `ir`,`cn` order,
@@ -422,12 +495,25 @@ used as evidence that Reality or WSS carried end-to-end traffic.
   the tun inbound (after `endpoint_independent_nat`; only when excludedPackages
   is non-empty; `include_package` is NEVER emitted); per enabled country, `ir`
   first, an appended dns server
-  `{"tag":"dns-direct-<cc>","type":"udp","server":<resolver>}` (no `detour`:
-  modern UDP DNS servers already dial directly, while detouring through the
-  otherwise-empty tagged direct outbound fails during the sing-box Start stage)
-  (`ir` → `178.22.122.100` Shecan, `cn` → `223.5.5.5` AliDNS) and a `dns.rules`
-  entry `{"rule_set":["geosite-<cc>"],"server":"dns-direct-<cc>"}` appended
-  after the always-present probe pin (below), before `final`; `route.rule_set`
+  `{"tag":"dns-direct-<cc>","type":"https","server":<resolver ip>,"tls":{"enabled":true,"server_name":<provider host>}}`
+  (no `detour`: a detour-less DNS server already builds its own direct dialer,
+  while detouring through the otherwise-empty tagged direct outbound fails
+  during the sing-box Start stage) — DoH over 443, never plaintext UDP/53, since
+  these queries ride the direct path on the user's real IP while the tunnel is
+  up. Currently only `cn` has one (`223.5.5.5` / `dns.alidns.com`, AliDNS);
+  `ir` has none, because every endpoint Shecan publishes served an expired
+  certificate as of 2026-08-12 and no other Iranian provider exposes a reachable
+  encrypted resolver. A country without a resolver emits NO dns server and NO
+  dns rules — its route bypass is unchanged and its lookups fall to the proxied
+  chain, which is strictly better than a primary that must fail a TLS handshake
+  on every lookup before the fallback runs. A country WITH one also emits a
+  three-rule `dns.rules` chain
+  `{"rule_set":["geosite-<cc>"],"action":"evaluate","server":"dns-direct-<cc>","timeout":"2s"}`
+  followed by the two NOERROR/NXDOMAIN `match_response` `respond` rules scoped
+  to the same rule set, so a resolver that is unreachable, times out or has let
+  its certificate lapse falls through to the global chain instead of failing
+  the lookup; appended after the always-present probe pin (below), before
+  `final`; `route.rule_set`
   local/binary entries for `geosite-<cc>.srs` and `geoip-<cc>.srs` under
   `ruleSetDirectory`, before `rules`; and `route.rules` ordered [hijack-dns
   (existing, first), `{"action":"sniff"}` (only when countries non-empty),
@@ -615,7 +701,12 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   not load React or Libbox.
 - Split tunneling: the raw config JSON is stored in app-group UserDefaults
   under `AppConfig.splitTunnelConfigDefaultsKey` (`"split_tunnel_config"`).
-  `ios/Shared/SplitTunnelConfig.swift` (compiled into both targets) decodes it
+  `ios/Shared/SplitTunnelConfig.swift` (compiled into both targets) also holds
+  `SplitTunnelRegion` — the Swift port of `src/model/splitTunnelDefaults.ts`,
+  reading `TimeZone.current` fresh on every call — and
+  `resolvedBypassCountries(region:)`, which `resolveSplitTunnelRules()` uses so
+  every connect attempt and recovery reconnect re-derives an automatic selection
+  itself. The same file decodes it
   — `load(from:)` returns nil on absence, parse failure, or `enabled == false`
   — and defines `SplitTunnelRules` (bypassLan, bypassCountries,
   ruleSetDirectory; no package field) plus the §6 country constants.
@@ -682,8 +773,13 @@ hidden legacy transport switch.
 - Per-app split-tunnel bypass is Android-only: `excluded_packages` is parsed
   and ignored on iOS (no iOS per-app tunnel exclusion).
 - With a country bypass preset enabled, DNS for bypassed domains resolves via
-  in-country public resolvers over the direct path (Shecan `178.22.122.100`
-  for `ir`, AliDNS `223.5.5.5` for `cn`).
+  that country's in-country public resolver over the direct path, as DoH over
+  443 (AliDNS `223.5.5.5` / `dns.alidns.com` for `cn`), so the query is
+  encrypted even though it leaves the device on the user's real IP. A failing
+  in-country resolver falls back to the proxied chain rather than failing the
+  lookup. `ir` currently has no such resolver (Shecan's certificate is expired),
+  so Iranian bypass traffic still takes the direct path but resolves through the
+  proxied chain.
 - Apps excluded at the OS level (Android `exclude_package`) bypass the TUN
   entirely and are invisible to telemetry/traffic counters; sing-box-routed
   direct flows (LAN/country bypass) remain counted.

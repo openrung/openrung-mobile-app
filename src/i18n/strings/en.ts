@@ -135,6 +135,11 @@ export const en = {
   splitTunnelAppPickerClose: 'CLOSE',
   splitTunnelApplyHint:
     'changes apply immediately; the tunnel reconnects for a few seconds.',
+  // Two variants because the APPS section is Android-only: on iOS the footer must not mention a
+  // bypassed-apps list the user cannot see.
+  splitTunnelResetHint: 'the Iran and China presets reset when you restart the app.',
+  splitTunnelResetHintWithApps:
+    'the Iran and China presets reset when you restart the app; bypassed apps are kept.',
 
   // --- In-app update check (manifest banner / blocking screen / broadcast notice) ---
   updateRequiredTitle: 'Update required',

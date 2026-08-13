@@ -144,6 +144,9 @@ export const zhCN: Partial<Strings> = {
   splitTunnelAppPickerEmpty: '未找到可启动的应用。',
   splitTunnelAppPickerClose: '关闭',
   splitTunnelApplyHint: '更改会立即生效；隧道将重连几秒钟。',
+  splitTunnelResetHint: '重启应用后，伊朗和中国预设会重置。',
+  splitTunnelResetHintWithApps:
+    '重启应用后，伊朗和中国预设会重置；已绕过的应用会保留。',
 
   // --- In-app update check (manifest banner / blocking screen / broadcast notice) ---
   updateRequiredTitle: '需要更新',

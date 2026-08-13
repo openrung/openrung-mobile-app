@@ -7,31 +7,31 @@
   "ios_latest": "0.3.6",
   "promote": "notify",
   "notice": {
-    "id": "2026-08-release-0.3.6",
+    "id": "2026-08-release-0.3.7",
     "level": "info",
     "title": {
-      "en": "What's new in 0.3.6",
-      "zh-CN": "0.3.6 新功能",
-      "zh-TW": "0.3.6 新功能",
-      "fa": "تازه‌های نسخه ۰.۳.۶",
-      "ru": "Что нового в 0.3.6",
-      "ar": "الجديد في 0.3.6",
-      "tr": "0.3.6'daki yenilikler",
-      "vi": "Có gì mới trong 0.3.6",
-      "my": "0.3.6 အသစ်များ"
+      "en": "What's new in 0.3.7",
+      "zh-CN": "0.3.7 新功能",
+      "zh-TW": "0.3.7 新功能",
+      "fa": "تازه‌های نسخه ۰.۳.۷",
+      "ru": "Что нового в 0.3.7",
+      "ar": "الجديد في 0.3.7",
+      "tr": "0.3.7'deki yenilikler",
+      "vi": "Có gì mới trong 0.3.7",
+      "my": "0.3.7 အသစ်များ"
     },
     "body": {
-      "en": "Version 0.3.6 improves connectivity and reliability, particularly for users in regions where WSS sessions are required. It also fixes an issue where the app could incorrectly appear connected when the VPN connection was not working, along with other performance and stability improvements.",
-      "zh-CN": "0.3.6 版提升了连接能力与稳定性，尤其是在需要使用 WSS 会话的地区。此版本还修复了 VPN 实际未连通时应用可能错误显示为已连接的问题，并包含其他性能与稳定性改进。",
-      "zh-TW": "0.3.6 版提升了連線能力與穩定性，尤其是在需要使用 WSS 工作階段的地區。此版本也修正了 VPN 實際未連通時應用程式可能錯誤顯示為已連線的問題，並包含其他效能與穩定性改進。",
-      "fa": "نسخهٔ ۰.۳.۶ اتصال و پایداری را بهبود می‌دهد، به‌ویژه برای کاربران مناطقی که به نشست‌های WSS نیاز دارند. همچنین مشکلی برطرف شده که در آن برنامه با وجود برقرار نبودن اتصال VPN، به‌اشتباه «متصل» نشان داده می‌شد؛ به‌همراه بهبودهای دیگر در کارایی و پایداری.",
-      "ru": "Версия 0.3.6 улучшает подключение и стабильность, особенно для пользователей в регионах, где требуются сессии WSS. Также исправлена ошибка, из-за которой приложение могло ошибочно показывать подключение, когда VPN на самом деле не работал. Плюс другие улучшения производительности и стабильности.",
-      "ar": "يُحسّن الإصدار 0.3.6 الاتصال والموثوقية، خاصةً للمستخدمين في المناطق التي تتطلب جلسات WSS. كما يعالج مشكلة قد يظهر فيها التطبيق متصلاً بينما اتصال VPN لا يعمل، إضافةً إلى تحسينات أخرى في الأداء والاستقرار.",
-      "tr": "0.3.6 sürümü, özellikle WSS oturumlarının gerekli olduğu bölgelerdeki kullanıcılar için bağlantıyı ve kararlılığı iyileştirir. Ayrıca VPN bağlantısı çalışmazken uygulamanın yanlışlıkla bağlı görünmesine yol açan bir sorunu giderir; performans ve kararlılıkla ilgili başka iyileştirmeler de içerir.",
-      "vi": "Phiên bản 0.3.6 cải thiện khả năng kết nối và độ ổn định, đặc biệt cho người dùng ở những khu vực cần dùng phiên WSS. Bản này cũng khắc phục lỗi khiến ứng dụng có thể hiển thị sai là đã kết nối trong khi VPN không hoạt động, cùng các cải tiến khác về hiệu năng và độ ổn định.",
-      "my": "၀.၃.၆ ဗားရှင်းသည် ချိတ်ဆက်မှုနှင့် တည်ငြိမ်မှုကို တိုးတက်စေပြီး အထူးသဖြင့် WSS ချိတ်ဆက်မှုများ လိုအပ်သည့် ဒေသများရှိ အသုံးပြုသူများအတွက် ဖြစ်သည်။ VPN ချိတ်ဆက်မှု အလုပ်မလုပ်သည့်အခါ အက်ပ်က ချိတ်ဆက်ပြီးဟု မှားယွင်းပြသနိုင်သည့် ပြဿနာကိုလည်း ပြင်ဆင်ထားပြီး အခြားသော စွမ်းဆောင်ရည်နှင့် တည်ငြိမ်မှု တိုးတက်မှုများလည်း ပါဝင်သည်။"
+      "en": "Version 0.3.7 fixes a privacy issue where some traffic could leave the VPN outside Iran and China, encrypts the address lookups split tunneling makes, and now resets split-tunnel options each time you reopen the app.",
+      "zh-CN": "0.3.7 版修复了在伊朗和中国以外部分流量可能绕过 VPN 的隐私问题，加密了分流所做的域名解析，并会在每次重新打开应用时重置分流选项。",
+      "zh-TW": "0.3.7 版修正了在伊朗和中國以外部分流量可能繞過 VPN 的隱私問題，加密了分流所做的網域解析，並會在每次重新開啟應用程式時重設分流選項。",
+      "fa": "نسخهٔ ۰.۳.۷ مشکلی را برطرف می‌کند که در آن بخشی از ترافیک خارج از ایران و چین می‌توانست از VPN بیرون برود، جست‌وجوی نشانی‌های تونل تقسیم‌شده را رمزگذاری می‌کند و اکنون گزینه‌های تونل تقسیم‌شده را با هر بار باز کردن دوبارهٔ برنامه بازنشانی می‌کند.",
+      "ru": "Версия 0.3.7 устраняет проблему приватности, из-за которой часть трафика за пределами Ирана и Китая могла идти в обход VPN, шифрует DNS-запросы раздельного туннелирования и теперь сбрасывает его настройки при каждом запуске приложения.",
+      "ar": "يعالج الإصدار 0.3.7 مشكلة خصوصية كان يمكن معها لبعض البيانات أن تخرج من VPN خارج إيران والصين، ويشفّر طلبات أسماء النطاقات الخاصة بالتقسيم النفقي، ويعيد الآن ضبط خيارات التقسيم النفقي عند كل فتح جديد للتطبيق.",
+      "tr": "0.3.7 sürümü, İran ve Çin dışında bazı trafiğin VPN'in dışına çıkabilmesine yol açan bir gizlilik sorununu giderir, bölünmüş tünelin adres sorgularını şifreler ve bölünmüş tünel seçeneklerini artık uygulamayı her yeniden açtığınızda sıfırlar.",
+      "vi": "Phiên bản 0.3.7 khắc phục vấn đề riêng tư khiến một phần lưu lượng có thể đi ra ngoài VPN khi bạn ở ngoài Iran và Trung Quốc, mã hóa các truy vấn tên miền của chia đường hầm, và nay đặt lại các tùy chọn chia đường hầm mỗi khi bạn mở lại ứng dụng.",
+      "my": "၀.၃.၇ ဗားရှင်းသည် အီရန်နှင့် တရုတ်ပြင်ပတွင် အချို့ဒေတာများ VPN မှ ထွက်သွားနိုင်သည့် ကိုယ်ရေးကိုယ်တာ ပြဿနာကို ပြင်ဆင်ပြီး၊ ခွဲထွက်လမ်းကြောင်း၏ လိပ်စာရှာဖွေမှုများကို စာဝှက်ကာ၊ အက်ပ်ကို ပြန်ဖွင့်တိုင်း ခွဲထွက်လမ်းကြောင်း ရွေးချယ်မှုများကို ပြန်လည်သတ်မှတ်ပေးပါသည်။"
     },
     "url": null,
-    "expires": "2026-10-15T00:00:00Z"
+    "expires": "2026-11-01T00:00:00Z"
   }
 }

@@ -151,6 +151,9 @@ export const tr: Partial<Strings> = {
   splitTunnelAppPickerClose: 'KAPAT',
   splitTunnelApplyHint:
     'değişiklikler hemen uygulanır; tünel birkaç saniyeliğine yeniden bağlanır.',
+  splitTunnelResetHint: 'uygulamayı yeniden başlattığınızda İran ve Çin ön ayarları sıfırlanır.',
+  splitTunnelResetHintWithApps:
+    'uygulamayı yeniden başlattığınızda İran ve Çin ön ayarları sıfırlanır; hariç tutulan uygulamalar korunur.',
 
   // --- In-app update check (manifest banner / blocking screen / broadcast notice) ---
   updateRequiredTitle: 'Güncelleme gerekli',

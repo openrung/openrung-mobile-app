@@ -8,6 +8,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.net.URI
@@ -41,16 +42,26 @@ class SingBoxConfigurationDnsTest {
     }
 
     @Test
-    fun `no dns server speaks tcp or udp port 53 through the proxy`() {
+    fun `no dns server anywhere speaks plaintext dns`() {
         val config = SingBoxConfiguration(
             relay(),
             splitTunnel = rules(bypassCountries = listOf("ir", "cn")),
         ).makeJsonObject()
         config.dnsServers().forEach { server ->
-            val type = server["type"]!!.jsonPrimitive.content
-            if (server["detour"]?.jsonPrimitive?.content == "proxy") {
-                assertEquals("proxied resolvers must use DoH over 443", "https", type)
-            }
+            // Proxied resolvers need DoH because relays answer 443 on every transport while
+            // TCP/53 gets no replies under WSS. The bypass-country resolvers need it for a
+            // different reason: they are dialed DIRECTLY, so an unencrypted query would leave
+            // the device on the user's real IP — in cleartext, and forgeable — while the tunnel
+            // is up. Neither may ever regress to udp/tcp.
+            assertEquals(
+                "every dns server must be encrypted: ${server["tag"]!!.jsonPrimitive.content}",
+                "https",
+                server["type"]!!.jsonPrimitive.content,
+            )
+            assertNotNull(
+                "an encrypted resolver must authenticate a provider hostname",
+                server["tls"]?.jsonObject?.get("server_name"),
+            )
         }
     }
 
