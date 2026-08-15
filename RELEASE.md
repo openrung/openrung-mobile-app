@@ -150,6 +150,17 @@ those literals fails the build and forces the tag set to be re-reviewed. The tag
 set now materially defines the shipped binary, so it is part of the GPL
 corresponding-source recipe and must stay recorded here.
 
+The tag trim alone does not unlink `tailscale.com`: libbox's
+`native_shell_session.go` is gated only by OS and imports
+`protocol/tailscale/tailssh`, whose files build under `with_gvisor` (not
+`with_tailscale`), so the kept `with_gvisor` tag re-links the entire Tailscale
+module (~12 MB per binary). Both build scripts therefore also swap the build
+tags on `experimental/libbox/native_shell_session{,_stub}.go` so the stub
+(which reports "not supported") always compiles and the `tailssh` importer
+never does. OpenRung has no `NativeShellSession` callers. Same
+assert-then-replace tripwire; this swap is likewise part of the recorded
+corresponding-source recipe.
+
 The Android build targets all four ABIs at the **AAR** layer but ships an
 **arm64-only release APK** — two artifacts, two distinct checks:
 
