@@ -10,6 +10,7 @@
 		006F36ED698121FA8DA045C3 /* ConnectionStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 584A04475F28B3CAC39B501E /* ConnectionStatus.swift */; };
 		01C5EA0362C5AAB18ED81859 /* PacketTunnelError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C3C1158F41CEF59BEB36FEB /* PacketTunnelError.swift */; };
 		01FB4615E4C3105E861CBAA4 /* DeviceAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4E77D10C22E8939116D44BD /* DeviceAttributes.swift */; };
+		02421CE533C162FF7D211D9A /* LibboxKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = AB8C9F2F42E47E0E9E9AA47E /* LibboxKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		024B9A8C62881E530EB591B4 /* RelaySelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD9B5CA88D770C6F0A9597FE /* RelaySelector.swift */; };
 		02A118A7025D0906AAA606E1 /* NetworkPathMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C127CAD14278743A1BD298 /* NetworkPathMonitor.swift */; };
 		02E9AD5F4252406BE29B4B5D /* BrokerClientError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 683F07997A392045B7540E47 /* BrokerClientError.swift */; };
@@ -25,6 +26,7 @@
 		1688E26406D6F8E93575AFCA /* CountryGeo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2570C01745DA49558877810 /* CountryGeo.swift */; };
 		1E94BFE81511EAABC9E46ABA /* PunchRecoveryCircuitBreaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2A2060BBC10DA73835172CD /* PunchRecoveryCircuitBreaker.swift */; };
 		204FDB07D7F8B62605E2D8EE /* WssTicketClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46D3FA76F350A6A10D55AC1 /* WssTicketClientTests.swift */; };
+		21FE1A3D627446ABB0D038FA /* LibboxKit.m in Sources */ = {isa = PBXBuildFile; fileRef = 950A6D203D0D99231E812DF9 /* LibboxKit.m */; };
 		2226FA02DA3CF06280AA3D27 /* CountryGeo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2570C01745DA49558877810 /* CountryGeo.swift */; };
 		2367D4EBC8213B6D57E65A0E /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A07146C137269D283F062DB /* AppDelegate.swift */; };
 		27BE72CA10A4E0EC9A5643FB /* BrokerClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0CE1F672D5FAD1FBB511D5B /* BrokerClient.swift */; };
@@ -51,7 +53,6 @@
 		3CF707854EB1FBBCFC3E354F /* ConnectionStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 584A04475F28B3CAC39B501E /* ConnectionStatus.swift */; };
 		3D8CFD33EED8FE7AE1FB3299 /* TelemetryEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49C9C9695B7E93F7A4F5460B /* TelemetryEvent.swift */; };
 		3E600B1A4A0F6A075AB8D6E7 /* FailureClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E89C58EA730C659109459911 /* FailureClassifierTests.swift */; };
-		3FBFCCB4EB72518BEA1C770E /* libPods-OpenRung.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 38C6D152E84D0B9DD25ED2F1 /* libPods-OpenRung.a */; };
 		401088D78629F49BDF35BF3D /* SplitTunnelConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88FBD70740FE33FC9CC6564B /* SplitTunnelConfig.swift */; };
 		40CA497FDECDFAE03EA534AF /* WssLifecycleAndConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31A10C67D3636F8903463D9E /* WssLifecycleAndConfigurationTests.swift */; };
 		4363B566B4DCDF04E2E7455C /* PacketTunnelDnsProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F02C36295E0BF915B4B9736 /* PacketTunnelDnsProbe.swift */; };
@@ -78,8 +79,10 @@
 		6F79A2D91A14A48D88AB7A99 /* PacketTunnelDnsProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F02C36295E0BF915B4B9736 /* PacketTunnelDnsProbe.swift */; };
 		709A9385BBD22960A6922F77 /* PacketTunnelInternetProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BEE51EC45A891A7FD184DFB /* PacketTunnelInternetProbe.swift */; };
 		73D8BDE378B63443C918F178 /* TelemetrySession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A5299A99DA8ED8C75B1E25B /* TelemetrySession.swift */; };
+		767680B070BBDB21811EA1F0 /* LibboxKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AB8C9F2F42E47E0E9E9AA47E /* LibboxKit.framework */; };
 		794747220E38522FACAC57B2 /* TelemetryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA18FA5754E54F0ADC5189F0 /* TelemetryManager.swift */; };
 		7AD3CF8197D457CDDC3CCBCE /* RelayDescriptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC6AEF8D510DD407C368119F /* RelayDescriptor.swift */; };
+		7B4D3DC05BA1AE1A2F069C94 /* LibboxKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AB8C9F2F42E47E0E9E9AA47E /* LibboxKit.framework */; };
 		7BA2BB158A3143887B1DE5BC /* LibboxBrokerTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 274F2564F2D6019FBBD3B92A /* LibboxBrokerTransport.swift */; };
 		7CB2622B1AF9054F3A3CC5EA /* OpenRungBrokerModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 9AA34278398F5C3F677BC7A6 /* OpenRungBrokerModule.m */; };
 		80B8F60910ABD0CFBC85D6E4 /* TelemetryOutbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BFFA22BC1A97C70EF5F275D /* TelemetryOutbox.swift */; };
@@ -88,11 +91,11 @@
 		83EE6EF005FCAA047976FF9D /* TunnelDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B9BA54065E95B7262DA7A95 /* TunnelDiagnostics.swift */; };
 		84468A6D600DC1F02F4A0E08 /* SplitTunnelConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88FBD70740FE33FC9CC6564B /* SplitTunnelConfig.swift */; };
 		89009F889ABE5BCFA7F125B2 /* TelemetrySessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42FBF71585756F18035DA71D /* TelemetrySessionStore.swift */; };
-		8A68FA7ADF47B0316EF6A3AE /* Libbox.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = F19AE6300C331CB6C7B2B9E8 /* Libbox.xcframework */; };
 		8B1D40AA78408CC3BF775618 /* OpenRungBrokerCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B04CC982440EBB0C449CA5A /* OpenRungBrokerCoordinator.swift */; };
 		8D1616AEAACF90DD9E955B23 /* PacketTunnelInternetProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BEE51EC45A891A7FD184DFB /* PacketTunnelInternetProbe.swift */; };
 		8F139A6318A8DFB7DD1F9E1B /* EngineStopSignal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 007F9F5B484B9408D05F255E /* EngineStopSignal.swift */; };
 		91DF94A8B176C8B90DCFF6A5 /* EngineDirectories.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25CB8E64CF645C0DD1375294 /* EngineDirectories.swift */; };
+		930BA1FF73C751F1D80AF335 /* Network.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 091BB47D3F7E77446C73342D /* Network.framework */; };
 		94D05989D726F0125FC4CBDA /* WssFallbackPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6778C7AC035DF5A9549A7A2D /* WssFallbackPolicy.swift */; };
 		952EFF368D06083B89F5EE8D /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4783169BE46FEE9B0472504 /* AppConfig.swift */; };
 		95BF75EED69904C3B224E0BF /* NativeBrokerTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66C3AC37AF7128A85A7F7CC7 /* NativeBrokerTransport.swift */; };
@@ -106,7 +109,6 @@
 		9B19065CFCC93684ADE3C707 /* WssTestFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3DFA10EE6C65833EE32289D /* WssTestFixtures.swift */; };
 		9B3097DAD33017F59D7B0774 /* SplitTunnelConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 293D5236C6FC627E5993262E /* SplitTunnelConfigurationTests.swift */; };
 		9E3FE5CDA11DD5EEC1F54942 /* SharedConnectionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11601E153A60E8B30351E20 /* SharedConnectionState.swift */; };
-		9F4E17D447CE88FABF0CC011 /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = EC15DA1827B19848080D3452 /* libresolv.tbd */; };
 		A2BD7C4271FDE1F796CA7E77 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4783169BE46FEE9B0472504 /* AppConfig.swift */; };
 		A456EFF327FBA312F10D2DDA /* ActivityLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C27022D3D9D7FEEC839F406 /* ActivityLog.swift */; };
 		A47671E4D8F1625738EA3742 /* RelayReachability.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5AFE2F1F1556F9E70F0AC99 /* RelayReachability.swift */; };
@@ -121,7 +123,6 @@
 		B483D0418D53CDA277FC58A0 /* PhysicalNetworkEpochMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28019235E34D443A26534186 /* PhysicalNetworkEpochMonitor.swift */; };
 		B6964681672D4F326B16F976 /* TunnelDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B9BA54065E95B7262DA7A95 /* TunnelDiagnostics.swift */; };
 		BB0CE4474A9BF517F57AA4E8 /* BrokerClientError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 683F07997A392045B7540E47 /* BrokerClientError.swift */; };
-		BB4F499FD2BC0AAC963D515B /* Libbox.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = F19AE6300C331CB6C7B2B9E8 /* Libbox.xcframework */; };
 		BEF1E21F2635010264AFB26A /* PunchFallbackPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814744A51A1FB277327DD215 /* PunchFallbackPolicy.swift */; };
 		BF18951369CEC4EA7C3627F7 /* WssNativeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EC4D45896D45D90A17A3E83 /* WssNativeClient.swift */; };
 		BF55D9C9334181B84F1D36EC /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 83209B5DF847F742A280CD21 /* LaunchScreen.storyboard */; };
@@ -136,10 +137,13 @@
 		CA3379CA0C7E8B6506A3861C /* RelayRankerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE70163A0AFAFED70BA816C7 /* RelayRankerTests.swift */; };
 		CCB2C474FEDC465EA9762C71 /* TelemetryClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4254868EF5882AD951E8D23B /* TelemetryClient.swift */; };
 		CDEAE1A5C571C1C12B15F55C /* RelayRanker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69D27334571CA6F3A5CEB1BD /* RelayRanker.swift */; };
+		CE26B8D6344D51017EAD7EC8 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 81CC00C2F7324111F25D07A0 /* UIKit.framework */; };
 		CE5FF08F60EA9B59A3FAD581 /* RelayReachabilityError.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8FF4517B34B4819F6DCD4D1 /* RelayReachabilityError.swift */; };
 		D095482C735B4750F9AC99BB /* RelayDescriptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC6AEF8D510DD407C368119F /* RelayDescriptor.swift */; };
+		D0EC8BC0E4FEC43CA1316B2D /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = EC15DA1827B19848080D3452 /* libresolv.tbd */; };
 		D2021049A4947FDF31F8DB88 /* ConnectionStateSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC60C417C2C56A9F45E90C8D /* ConnectionStateSnapshotTests.swift */; };
 		D222D8CD2611D57559062B89 /* NetworkPathMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C127CAD14278743A1BD298 /* NetworkPathMonitor.swift */; };
+		D3F68267EBF9F65D35224383 /* Libbox.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = F19AE6300C331CB6C7B2B9E8 /* Libbox.xcframework */; };
 		D420784479B66EB7456E650F /* LibboxBrokerTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 274F2564F2D6019FBBD3B92A /* LibboxBrokerTransport.swift */; };
 		D868A91B4331D74B2D35D5CF /* PunchFallbackPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814744A51A1FB277327DD215 /* PunchFallbackPolicy.swift */; };
 		D960E08274E0601026BCA275 /* PunchNativeClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0C2DC3997620B7904DF0937 /* PunchNativeClientTests.swift */; };
@@ -153,8 +157,8 @@
 		E934E6591F0F72952629EE42 /* StartupPathVerification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23D668BED08950120483C704 /* StartupPathVerification.swift */; };
 		EAD1DFA9AB52E6A93CB60890 /* FailureClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9F3B6378B98E464A9F306E7 /* FailureClassifier.swift */; };
 		EB4BB9C6B76C65809224DF35 /* RelayDescriptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC6AEF8D510DD407C368119F /* RelayDescriptor.swift */; };
+		ECF478EF0EEC0C64EC7E7844 /* libPods-OpenRung.a in Frameworks */ = {isa = PBXBuildFile; fileRef = F071030BB72CA2FAD8CA9201 /* libPods-OpenRung.a */; };
 		ED0AA86BCFC9211195B7081E /* ClientIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD4088394FB9EBCF808F81C2 /* ClientIdentity.swift */; };
-		EE4F9A809147703D746C60EB /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = EC15DA1827B19848080D3452 /* libresolv.tbd */; };
 		F394E6F8661ECC0CFB89B18F /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 81CC00C2F7324111F25D07A0 /* UIKit.framework */; };
 		F6D4EDF154A64B658BBAA677 /* TelemetrySession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A5299A99DA8ED8C75B1E25B /* TelemetrySession.swift */; };
 		F7CB06F189A040EFBFCC13B0 /* WssFallbackPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6778C7AC035DF5A9549A7A2D /* WssFallbackPolicy.swift */; };
@@ -168,12 +172,26 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		0D59CD3F90981FB3D76686CA /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 146F6B38E4A347A28C649EC1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 918ED55B0C2DB461BD7DBE0E;
+			remoteInfo = LibboxKit;
+		};
 		AB68B74D0A2AF7F55BDEAFB4 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 146F6B38E4A347A28C649EC1 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 008A07C80B8C5B8E7AC13818;
 			remoteInfo = PacketTunnel;
+		};
+		E6D5811F919DB235C009799B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 146F6B38E4A347A28C649EC1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 918ED55B0C2DB461BD7DBE0E;
+			remoteInfo = LibboxKit;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -189,6 +207,17 @@
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E5A73D1935A290882F2E847C /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				02421CE533C162FF7D211D9A /* LibboxKit.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -196,20 +225,22 @@
 		007F9F5B484B9408D05F255E /* EngineStopSignal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineStopSignal.swift; sourceTree = "<group>"; };
 		03703C68A02344020716751A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		069A5BBA8E1C40AC3EABFD68 /* OpenRungBrokerCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRungBrokerCoordinatorTests.swift; sourceTree = "<group>"; };
+		091BB47D3F7E77446C73342D /* Network.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Network.framework; path = System/Library/Frameworks/Network.framework; sourceTree = SDKROOT; };
 		11E1EF79FDA717F2ED5A32F0 /* NativeBrokerTransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeBrokerTransportTests.swift; sourceTree = "<group>"; };
 		135777353E0B842A0E8E1A49 /* GeoIpClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoIpClient.swift; sourceTree = "<group>"; };
 		174E944F053F54F691E59C74 /* OpenRungTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = OpenRungTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1997F12E9E5BEAC8521C7D78 /* PunchFallbackPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PunchFallbackPolicyTests.swift; sourceTree = "<group>"; };
 		1EAA8B2F5746A87534F0C87B /* PacketTunnel.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = PacketTunnel.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		1FE575C8C524F31D6CD8423C /* PunchRecoveryCircuitBreakerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PunchRecoveryCircuitBreakerTests.swift; sourceTree = "<group>"; };
+		213128529885E52353BB956E /* Pods-OpenRung.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OpenRung.release.xcconfig"; path = "Target Support Files/Pods-OpenRung/Pods-OpenRung.release.xcconfig"; sourceTree = "<group>"; };
 		23D668BED08950120483C704 /* StartupPathVerification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupPathVerification.swift; sourceTree = "<group>"; };
 		25CB8E64CF645C0DD1375294 /* EngineDirectories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineDirectories.swift; sourceTree = "<group>"; };
 		274F2564F2D6019FBBD3B92A /* LibboxBrokerTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibboxBrokerTransport.swift; sourceTree = "<group>"; };
 		28019235E34D443A26534186 /* PhysicalNetworkEpochMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicalNetworkEpochMonitor.swift; sourceTree = "<group>"; };
+		28F504AF83FD862F959E73DD /* Pods-OpenRung.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OpenRung.debug.xcconfig"; path = "Target Support Files/Pods-OpenRung/Pods-OpenRung.debug.xcconfig"; sourceTree = "<group>"; };
 		293D5236C6FC627E5993262E /* SplitTunnelConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitTunnelConfigurationTests.swift; sourceTree = "<group>"; };
 		2D55BA84C5D35B80DFF05F1A /* DnsProbeMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DnsProbeMessage.swift; sourceTree = "<group>"; };
 		31A10C67D3636F8903463D9E /* WssLifecycleAndConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WssLifecycleAndConfigurationTests.swift; sourceTree = "<group>"; };
-		38C6D152E84D0B9DD25ED2F1 /* libPods-OpenRung.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-OpenRung.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		3B04CC982440EBB0C449CA5A /* OpenRungBrokerCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRungBrokerCoordinator.swift; sourceTree = "<group>"; };
 		3BEE51EC45A891A7FD184DFB /* PacketTunnelInternetProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelInternetProbe.swift; sourceTree = "<group>"; };
 		3BFFA22BC1A97C70EF5F275D /* TelemetryOutbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryOutbox.swift; sourceTree = "<group>"; };
@@ -239,6 +270,7 @@
 		88FBD70740FE33FC9CC6564B /* SplitTunnelConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitTunnelConfig.swift; sourceTree = "<group>"; };
 		8E7518B2A5F26BA00BA159E1 /* geosite-ir.srs */ = {isa = PBXFileReference; path = "geosite-ir.srs"; sourceTree = "<group>"; };
 		921594E8D4D0BD552D35698C /* geoip-ir.srs */ = {isa = PBXFileReference; path = "geoip-ir.srs"; sourceTree = "<group>"; };
+		950A6D203D0D99231E812DF9 /* LibboxKit.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LibboxKit.m; sourceTree = "<group>"; };
 		9771BD2BC7057921FF185C4C /* BrokerClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrokerClientTests.swift; sourceTree = "<group>"; };
 		97D23B885595CDD6DD259A85 /* LibboxPacketTunnelPlatformInterface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibboxPacketTunnelPlatformInterface.swift; sourceTree = "<group>"; };
 		9AA34278398F5C3F677BC7A6 /* OpenRungBrokerModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = OpenRungBrokerModule.m; sourceTree = "<group>"; };
@@ -247,10 +279,10 @@
 		9F02C36295E0BF915B4B9736 /* PacketTunnelDnsProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelDnsProbe.swift; sourceTree = "<group>"; };
 		A025739761D97ABD7227B8DA /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		A67786D43A1A748C219A1C39 /* StartupPathVerificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupPathVerificationTests.swift; sourceTree = "<group>"; };
-		A6B6CD0DDE9C4B796B7B44A6 /* Pods-OpenRung.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OpenRung.release.xcconfig"; path = "Target Support Files/Pods-OpenRung/Pods-OpenRung.release.xcconfig"; sourceTree = "<group>"; };
 		A9B3E3F0BA7E28C5D05A1731 /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Images.xcassets; sourceTree = "<group>"; };
 		AAC6D89892DE900192CBBBA5 /* PacketTunnelInternetProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelInternetProbeTests.swift; sourceTree = "<group>"; };
 		AB117725DF8A60D9A23412CC /* PacketTunnel.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PacketTunnel.entitlements; sourceTree = "<group>"; };
+		AB8C9F2F42E47E0E9E9AA47E /* LibboxKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = LibboxKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		AE70163A0AFAFED70BA816C7 /* RelayRankerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayRankerTests.swift; sourceTree = "<group>"; };
 		B0C127CAD14278743A1BD298 /* NetworkPathMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkPathMonitor.swift; sourceTree = "<group>"; };
 		B3A0014BD8DAE8D1AB0AA819 /* PacketTunnelProxyEngineError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProxyEngineError.swift; sourceTree = "<group>"; };
@@ -283,21 +315,31 @@
 		ECC225DFB311B748621B135B /* PacketTunnelDnsProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelDnsProbeTests.swift; sourceTree = "<group>"; };
 		ED28831CA960E8B89D5D7D04 /* OpenRungVpnModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = OpenRungVpnModule.m; sourceTree = "<group>"; };
 		EFA54F7B4B2DCC1F8706FD7C /* TelemetryOutboxState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryOutboxState.swift; sourceTree = "<group>"; };
+		F071030BB72CA2FAD8CA9201 /* libPods-OpenRung.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-OpenRung.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		F19AE6300C331CB6C7B2B9E8 /* Libbox.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libbox.xcframework; path = ThirdParty/Libbox.xcframework; sourceTree = "<group>"; };
 		F68B4299B0EAD00601A47FF2 /* geosite-cn.srs */ = {isa = PBXFileReference; path = "geosite-cn.srs"; sourceTree = "<group>"; };
 		F9C369738D2565177A979FAC /* ProbeTargets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProbeTargets.swift; sourceTree = "<group>"; };
-		FB073897F7EC0425BC29EF96 /* Pods-OpenRung.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OpenRung.debug.xcconfig"; path = "Target Support Files/Pods-OpenRung/Pods-OpenRung.debug.xcconfig"; sourceTree = "<group>"; };
 		FD9B5CA88D770C6F0A9597FE /* RelaySelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelaySelector.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		2E14E9AE6372EFFDA8ED5C75 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D3F68267EBF9F65D35224383 /* Libbox.xcframework in Frameworks */,
+				CE26B8D6344D51017EAD7EC8 /* UIKit.framework in Frameworks */,
+				930BA1FF73C751F1D80AF335 /* Network.framework in Frameworks */,
+				D0EC8BC0E4FEC43CA1316B2D /* libresolv.tbd in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		668432D2A04B5D12772FB7F2 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				BB4F499FD2BC0AAC963D515B /* Libbox.xcframework in Frameworks */,
+				7B4D3DC05BA1AE1A2F069C94 /* LibboxKit.framework in Frameworks */,
 				F394E6F8661ECC0CFB89B18F /* UIKit.framework in Frameworks */,
-				EE4F9A809147703D746C60EB /* libresolv.tbd in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -305,9 +347,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				8A68FA7ADF47B0316EF6A3AE /* Libbox.xcframework in Frameworks */,
-				9F4E17D447CE88FABF0CC011 /* libresolv.tbd in Frameworks */,
-				3FBFCCB4EB72518BEA1C770E /* libPods-OpenRung.a in Frameworks */,
+				767680B070BBDB21811EA1F0 /* LibboxKit.framework in Frameworks */,
+				ECF478EF0EEC0C64EC7E7844 /* libPods-OpenRung.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -373,6 +414,14 @@
 			path = Shared;
 			sourceTree = "<group>";
 		};
+		41B28D7DB0BD943259F87364 /* LibboxKit */ = {
+			isa = PBXGroup;
+			children = (
+				950A6D203D0D99231E812DF9 /* LibboxKit.m */,
+			);
+			path = LibboxKit;
+			sourceTree = "<group>";
+		};
 		837FBBD5687C0AB326CC593E /* OpenRungTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -401,16 +450,6 @@
 			path = OpenRungTests;
 			sourceTree = "<group>";
 		};
-		872D2A9C7A5C79DA61D6EB54 /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				FB073897F7EC0425BC29EF96 /* Pods-OpenRung.debug.xcconfig */,
-				A6B6CD0DDE9C4B796B7B44A6 /* Pods-OpenRung.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
-			sourceTree = "<group>";
-		};
 		9494D959B10039E32D9B5B6A /* dist */ = {
 			isa = PBXGroup;
 			children = (
@@ -428,10 +467,21 @@
 			children = (
 				F19AE6300C331CB6C7B2B9E8 /* Libbox.xcframework */,
 				EC15DA1827B19848080D3452 /* libresolv.tbd */,
+				091BB47D3F7E77446C73342D /* Network.framework */,
 				81CC00C2F7324111F25D07A0 /* UIKit.framework */,
-				38C6D152E84D0B9DD25ED2F1 /* libPods-OpenRung.a */,
+				F071030BB72CA2FAD8CA9201 /* libPods-OpenRung.a */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		A69125F8D6C9E58412A729FB /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				28F504AF83FD862F959E73DD /* Pods-OpenRung.debug.xcconfig */,
+				213128529885E52353BB956E /* Pods-OpenRung.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
 			sourceTree = "<group>";
 		};
 		AFDFC1D16B3A792D974E4A5D /* PacketTunnel */ = {
@@ -461,6 +511,7 @@
 		E73A5155909F9EFE9F13A6A1 /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				AB8C9F2F42E47E0E9E9AA47E /* LibboxKit.framework */,
 				81B10868A3F7FA99A84696A4 /* OpenRung.app */,
 				174E944F053F54F691E59C74 /* OpenRungTests.xctest */,
 				1EAA8B2F5746A87534F0C87B /* PacketTunnel.appex */,
@@ -472,13 +523,14 @@
 			isa = PBXGroup;
 			children = (
 				9494D959B10039E32D9B5B6A /* dist */,
+				41B28D7DB0BD943259F87364 /* LibboxKit */,
 				2407F79AC36C68D7F2761D5C /* OpenRung */,
 				837FBBD5687C0AB326CC593E /* OpenRungTests */,
 				AFDFC1D16B3A792D974E4A5D /* PacketTunnel */,
 				3F24A472F75132572E2891A1 /* Shared */,
 				A1C815B9A63C637692C1C541 /* Frameworks */,
 				E73A5155909F9EFE9F13A6A1 /* Products */,
-				872D2A9C7A5C79DA61D6EB54 /* Pods */,
+				A69125F8D6C9E58412A729FB /* Pods */,
 			);
 			sourceTree = "<group>";
 		};
@@ -496,34 +548,53 @@
 			buildRules = (
 			);
 			dependencies = (
+				DADEA172F9B2D064D31BE8E6 /* PBXTargetDependency */,
 			);
 			name = PacketTunnel;
 			productName = PacketTunnel;
 			productReference = 1EAA8B2F5746A87534F0C87B /* PacketTunnel.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		918ED55B0C2DB461BD7DBE0E /* LibboxKit */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DB71EFA3EAC3AE11A6E1DBA2 /* Build configuration list for PBXNativeTarget "LibboxKit" */;
+			buildPhases = (
+				792BB445A975A1445C7855D8 /* Sources */,
+				2E14E9AE6372EFFDA8ED5C75 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LibboxKit;
+			productName = LibboxKit;
+			productReference = AB8C9F2F42E47E0E9E9AA47E /* LibboxKit.framework */;
+			productType = "com.apple.product-type.framework";
+		};
 		ADBDEA07895981C3C202875A /* OpenRung */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = F19D0D1C8CB7FB1B6B178E82 /* Build configuration list for PBXNativeTarget "OpenRung" */;
 			buildPhases = (
-				894298BBAA1882888DB52D14 /* [CP] Check Pods Manifest.lock */,
+				C0E9A186E25E9069B7D74612 /* [CP] Check Pods Manifest.lock */,
 				BC3282E3662088C7CF8F8BC7 /* Sources */,
 				7272F5C7D4F2765DAB69942D /* Resources */,
 				6E9C330AAB907426FF017F77 /* Frameworks */,
 				141D130B421160859A220937 /* Embed Foundation Extensions */,
+				E5A73D1935A290882F2E847C /* Embed Frameworks */,
 				7645E65DA025354651549041 /* Bundle React Native code and images */,
-				51F2299FD4C6286F5E6326D3 /* [MapLibre React Native] Remove MapLibre.xcframework-ios.signature */,
-				D8CFBD33C21A0FD4AC7E3AFA /* [CP] Embed Pods Frameworks */,
-				AA094CE7EF531EFBC5EC2588 /* [CP] Copy Pods Resources */,
+				8B411FD72E120A902598712F /* [MapLibre React Native] Remove MapLibre.xcframework-ios.signature */,
+				99F36AD960D83B15B6928462 /* [CP] Embed Pods Frameworks */,
+				69F71ADAB77D5909548CAF0A /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				159865C9091D7EFA5E759C4D /* PBXTargetDependency */,
+				D384349DAD2D4DBB30CDC13E /* PBXTargetDependency */,
 			);
 			name = OpenRung;
 			packageProductDependencies = (
-				80AA613F32BF517CA3AA3D40 /* MapLibre */,
+				8B6EB88A67F938EB01353AE3 /* MapLibre */,
 			);
 			productName = OpenRung;
 			productReference = 81B10868A3F7FA99A84696A4 /* OpenRung.app */;
@@ -557,6 +628,10 @@
 						DevelopmentTeam = 9VLV9A7KS9;
 						ProvisioningStyle = Automatic;
 					};
+					918ED55B0C2DB461BD7DBE0E = {
+						DevelopmentTeam = 9VLV9A7KS9;
+						ProvisioningStyle = Automatic;
+					};
 					ADBDEA07895981C3C202875A = {
 						DevelopmentTeam = 9VLV9A7KS9;
 						ProvisioningStyle = Automatic;
@@ -577,13 +652,14 @@
 			mainGroup = F4646C7E57CBAA9E0DF5661F;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				5EEFE223F8FE3BCBC28330A5 /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */,
+				F8FDD7F60E40A1B51A20E6EE /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E73A5155909F9EFE9F13A6A1 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
+				918ED55B0C2DB461BD7DBE0E /* LibboxKit */,
 				ADBDEA07895981C3C202875A /* OpenRung */,
 				F015EA6D6BDCBE1C4CAF2180 /* OpenRungTests */,
 				008A07C80B8C5B8E7AC13818 /* PacketTunnel */,
@@ -616,24 +692,22 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		51F2299FD4C6286F5E6326D3 /* [MapLibre React Native] Remove MapLibre.xcframework-ios.signature */ = {
+		69F71ADAB77D5909548CAF0A /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
-			name = "[MapLibre React Native] Remove MapLibre.xcframework-ios.signature";
+			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
-			);
-			outputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-resources-${CONFIGURATION}-output-files.xcfilelist",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "rm -rf \"$CONFIGURATION_BUILD_DIR/MapLibre.xcframework-ios.signature\"";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-resources.sh\"\n";
+			showEnvVarsInLog = 0;
 		};
 		7645E65DA025354651549041 /* Bundle React Native code and images */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -655,7 +729,43 @@
 			shellPath = /bin/sh;
 			shellScript = "set -e\n\nWITH_ENVIRONMENT=\"$REACT_NATIVE_PATH/scripts/xcode/with-environment.sh\"\nREACT_NATIVE_XCODE=\"$REACT_NATIVE_PATH/scripts/react-native-xcode.sh\"\n\n/bin/sh -c \"\\\"$WITH_ENVIRONMENT\\\" \\\"$REACT_NATIVE_XCODE\\\"\"\n";
 		};
-		894298BBAA1882888DB52D14 /* [CP] Check Pods Manifest.lock */ = {
+		8B411FD72E120A902598712F /* [MapLibre React Native] Remove MapLibre.xcframework-ios.signature */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "[MapLibre React Native] Remove MapLibre.xcframework-ios.signature";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "rm -rf \"$CONFIGURATION_BUILD_DIR/MapLibre.xcframework-ios.signature\"";
+		};
+		99F36AD960D83B15B6928462 /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-frameworks-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		C0E9A186E25E9069B7D74612 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -675,40 +785,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
-			showEnvVarsInLog = 0;
-		};
-		AA094CE7EF531EFBC5EC2588 /* [CP] Copy Pods Resources */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-resources-${CONFIGURATION}-input-files.xcfilelist",
-			);
-			name = "[CP] Copy Pods Resources";
-			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-resources-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-resources.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		D8CFBD33C21A0FD4AC7E3AFA /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-frameworks-${CONFIGURATION}-input-files.xcfilelist",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
@@ -767,6 +843,14 @@
 				94D05989D726F0125FC4CBDA /* WssFallbackPolicy.swift in Sources */,
 				AD065EDAA7E707087D40585B /* WssNativeClient.swift in Sources */,
 				BF67256F0E4E976654DB9E4D /* WssTicketClient.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		792BB445A975A1445C7855D8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				21FE1A3D627446ABB0D038FA /* LibboxKit.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -887,12 +971,22 @@
 			target = 008A07C80B8C5B8E7AC13818 /* PacketTunnel */;
 			targetProxy = AB68B74D0A2AF7F55BDEAFB4 /* PBXContainerItemProxy */;
 		};
+		D384349DAD2D4DBB30CDC13E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 918ED55B0C2DB461BD7DBE0E /* LibboxKit */;
+			targetProxy = 0D59CD3F90981FB3D76686CA /* PBXContainerItemProxy */;
+		};
+		DADEA172F9B2D064D31BE8E6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 918ED55B0C2DB461BD7DBE0E /* LibboxKit */;
+			targetProxy = E6D5811F919DB235C009799B /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		0D953B3D127C0BB08E644293 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = A6B6CD0DDE9C4B796B7B44A6 /* Pods-OpenRung.release.xcconfig */;
+			baseConfigurationReference = 213128529885E52353BB956E /* Pods-OpenRung.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = OpenRung/OpenRung.entitlements;
@@ -920,6 +1014,40 @@
 			};
 			name = Release;
 		};
+		0FD556CC1E9E678A62B8A496 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_IDENTITY = "";
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"ThirdParty\"",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+					"-Wl,-all_load",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.openrung.app.LibboxKit;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Debug;
+		};
 		1739C10E668DF0A6946A2474 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -936,6 +1064,40 @@
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
+		};
+		2152BB1BA3762AF069D70536 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_IDENTITY = "";
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"\"ThirdParty\"",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+					"-Wl,-all_load",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.openrung.app.LibboxKit;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Release;
 		};
 		4C35976FB891B137DBD5BFBC /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -1034,7 +1196,7 @@
 		};
 		73BE8C16CB91640112F4357A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = FB073897F7EC0425BC29EF96 /* Pods-OpenRung.debug.xcconfig */;
+			baseConfigurationReference = 28F504AF83FD862F959E73DD /* Pods-OpenRung.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = OpenRung/OpenRung.entitlements;
@@ -1239,6 +1401,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		DB71EFA3EAC3AE11A6E1DBA2 /* Build configuration list for PBXNativeTarget "LibboxKit" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0FD556CC1E9E678A62B8A496 /* Debug */,
+				2152BB1BA3762AF069D70536 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		F19D0D1C8CB7FB1B6B178E82 /* Build configuration list for PBXNativeTarget "OpenRung" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -1251,7 +1422,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		5EEFE223F8FE3BCBC28330A5 /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */ = {
+		F8FDD7F60E40A1B51A20E6EE /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/maplibre/maplibre-gl-native-distribution";
 			requirement = {
@@ -1262,9 +1433,9 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		80AA613F32BF517CA3AA3D40 /* MapLibre */ = {
+		8B6EB88A67F938EB01353AE3 /* MapLibre */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 5EEFE223F8FE3BCBC28330A5 /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */;
+			package = F8FDD7F60E40A1B51A20E6EE /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */;
 			productName = MapLibre;
 		};
 /* End XCSwiftPackageProductDependency section */

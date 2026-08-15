@@ -383,29 +383,55 @@ for slice in ios-arm64 ios-arm64_x86_64-simulator; do
   done
 done
 
-# The app and extension are separate executables, so project.yml must give the
-# OpenRung host its own resolver linkage. A normal host build can otherwise pass
-# until a native call site first pulls Libbox's static Go archive into the link.
+# The Go engine ships ONCE: the LibboxKit dynamic framework force-loads the
+# static archive and both executables (app + PacketTunnel appex) link it. This
+# guard pins that layout in project.yml: LibboxKit must carry the archive, the
+# resolver linkage (Libbox's Go DNS resolver references libresolv), the
+# Network.framework linkage (the native Apple TLS client), and -all_load (a
+# shell target references no archive symbols, so without it the dylib would be
+# empty); the app and appex must reference LibboxKit and keep the xcframework
+# dependency for compile-time headers.
 python3 - "$script_dir/project.yml" <<'CHECK_HOST_LINKAGE'
 from pathlib import Path
 import re
 import sys
 
 project = Path(sys.argv[1]).read_text(encoding="utf-8")
-match = re.search(
-    r"(?ms)^  OpenRung:\n(?P<body>.*?)(?=^  [A-Za-z0-9_]+:\n|\Z)",
-    project,
-)
-if match is None:
-    sys.exit("error: ios/project.yml has no OpenRung target")
 
-target = match.group("body")
-for dependency in (
-    "- framework: ThirdParty/Libbox.xcframework",
-    "- sdk: libresolv.tbd",
-):
-    if dependency not in target:
-        sys.exit("error: the OpenRung target must link " + dependency[2:])
+
+def target_body(name):
+    match = re.search(
+        r"(?ms)^  " + name + r":\n(?P<body>.*?)(?=^  [A-Za-z0-9_]+:\n|\Z)",
+        project,
+    )
+    if match is None:
+        sys.exit("error: ios/project.yml has no " + name + " target")
+    return match.group("body")
+
+
+requirements = {
+    "LibboxKit": (
+        "- framework: ThirdParty/Libbox.xcframework",
+        "- sdk: libresolv.tbd",
+        "- sdk: Network.framework",
+        '"-Wl,-all_load"',
+    ),
+    "OpenRung": (
+        "- framework: ThirdParty/Libbox.xcframework",
+        "- target: LibboxKit",
+    ),
+    "PacketTunnel": (
+        "- framework: ThirdParty/Libbox.xcframework",
+        "- target: LibboxKit",
+    ),
+}
+for name, dependencies in requirements.items():
+    body = target_body(name)
+    for dependency in dependencies:
+        if dependency not in body:
+            sys.exit(
+                "error: the " + name + " target must declare " + dependency
+            )
 CHECK_HOST_LINKAGE
 
 # Exercise native constructors in both generated slices. This deliberately

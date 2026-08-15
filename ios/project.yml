@@ -60,13 +60,17 @@ targets:
     dependencies:
       # Embeds the PacketTunnel appex into PlugIns/.
       - target: PacketTunnel
-      # Static archive (ar) → linked, never embedded. The app and extension are
-      # separate executables and each links the same unified XCFramework.
+      # Compile-time only: FRAMEWORK_SEARCH_PATHS entry so `import Libbox`
+      # resolves against the gomobile headers/modulemap. The static archive is
+      # NOT linked here — the symbols come from LibboxKit at link time, so the
+      # ~40 MB Go engine ships once instead of once per executable.
       - framework: ThirdParty/Libbox.xcframework
         embed: false
-      # Libbox's Go DNS resolver references libresolv once a broker symbol pulls
-      # the static archive into the host executable.
-      - sdk: libresolv.tbd
+        link: false
+      # The dynamic wrapper that actually carries the Go engine. Embedded in
+      # Frameworks/ and shared with the PacketTunnel appex via its runpath.
+      - target: LibboxKit
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.openrung.app
@@ -118,17 +122,70 @@ targets:
       - path: ../rulesets/dist/geoip-cn.srs
         buildPhase: resources
     dependencies:
-      # Static archive (ar) → linked, never embedded. Present locally at ios/ThirdParty/.
+      # Compile-time only (see the app target's comment): headers/modulemap for
+      # `import Libbox`; the symbols come from LibboxKit.
       - framework: ThirdParty/Libbox.xcframework
         embed: false
+        link: false
+      # Linked but NOT embedded: the appex loads the single copy embedded in
+      # the host app's Frameworks/ through the ../../Frameworks runpath below.
+      # (PlugIns/PacketTunnel.appex/PacketTunnel → ../../Frameworks resolves to
+      # OpenRung.app/Frameworks; sharing a host app's framework this way is the
+      # supported App Store layout for app extensions.)
+      - target: LibboxKit
+        embed: false
       - sdk: UIKit.framework
-      - sdk: libresolv.tbd
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.openrung.app.PacketTunnel
         INFOPLIST_FILE: PacketTunnel/Info.plist
         CODE_SIGN_ENTITLEMENTS: PacketTunnel/PacketTunnel.entitlements
         APPLICATION_EXTENSION_API_ONLY: "YES"
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@executable_path/Frameworks"
+          - "@executable_path/../../Frameworks"
+
+  # Thin DYNAMIC framework that carries the gomobile Go engine exactly once.
+  # gomobile only emits Libbox as a static archive (ar) inside an XCFramework;
+  # linking that archive into both the app (LibboxBrokerTransport) and the
+  # PacketTunnel appex duplicated the ~40 MB Go blob per executable. LibboxKit
+  # force-loads the whole archive (-Wl,-all_load) into one dylib that re-exports
+  # every Libbox symbol; the app embeds it once and the appex resolves it from
+  # the host app's Frameworks/ at load time. LibboxKit.m is an empty shell —
+  # the target exists only to relink the archive dynamically.
+  LibboxKit:
+    type: framework
+    platform: iOS
+    sources:
+      - path: LibboxKit
+    dependencies:
+      - framework: ThirdParty/Libbox.xcframework
+        embed: false
+      # gomobile's iOS runtime touches UIKit (device/app state hooks).
+      - sdk: UIKit.framework
+      # Libbox's native Apple TLS client (box_apple_tls_client_*) is written
+      # against Network.framework's nw_connection C API.
+      - sdk: Network.framework
+      # Libbox's Go DNS resolver references libresolv; the undefined symbols now
+      # live in this dylib rather than in the app/appex executables.
+      - sdk: libresolv.tbd
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.openrung.app.LibboxKit
+        GENERATE_INFOPLIST_FILE: "YES"
+        # Loaded by the PacketTunnel appex, so extension-safe API only.
+        APPLICATION_EXTENSION_API_ONLY: "YES"
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+        SKIP_INSTALL: "YES"
+        OTHER_LDFLAGS:
+          - "$(inherited)"
+          # -all_load pulls EVERY object out of the static Libbox archive (a
+          # dummy source references none of them); -ObjC keeps ObjC
+          # classes/categories registered. Libbox is the only static archive on
+          # this target's link line, so -all_load reaches nothing else.
+          - "-ObjC"
+          - "-Wl,-all_load"
 
   # Hostless logic-test bundle. It compiles the units under test and their source closure directly
   # into the test module (rather than @testable-importing the app/extension), so the suites build and

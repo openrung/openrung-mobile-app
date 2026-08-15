@@ -1,9 +1,10 @@
 # Third-party iOS engine artifacts
 
 > **License / GPL corresponding source.** sing-box is **GPL-3.0-or-later** and
-> `Libbox.xcframework` is statically linked into the app and the PacketTunnel
-> extension, so the whole iOS app is GPL-3.0-or-later (see the repo `LICENSE`
-> and `THIRD_PARTY_NOTICES.md`). The build below pins the **exact sing-box
+> `Libbox.xcframework` is statically linked (force-loaded whole) into the
+> `LibboxKit.framework` dylib, which ships once in the app bundle and is loaded
+> by both the app and the PacketTunnel extension, so the whole iOS app is
+> GPL-3.0-or-later (see the repo `LICENSE` and `THIRD_PARTY_NOTICES.md`). The build below pins the **exact sing-box
 > revision** recorded in [`../../SINGBOX_VERSION`](../../SINGBOX_VERSION). The
 > OpenRung's broker, punch, and WSS wrappers also resolve the exact `brokerapi`,
 > `punchcore`, and `wsscore` tags pinned in
@@ -42,8 +43,10 @@ to `LibboxBrokerTransport`, copies value snapshots before close, and supplies
 separate iOS and React Native factories from this one framework/runtime.
 Before installation, the build script links a small constructor smoke
 executable against both Apple slices, checks punch, WSS, React Native broker,
-speed, and manifest symbols, and verifies that the OpenRung host target declares
-its own `libresolv.tbd` dependency.
+speed, and manifest symbols, and verifies project.yml's single-copy engine
+layout: the LibboxKit target must force-load the archive (`-Wl,-all_load`) and
+declare `libresolv.tbd` + `Network.framework`, and the app and PacketTunnel
+targets must reference LibboxKit.
 
 For development against unpublished local checkouts, use any of:
 
