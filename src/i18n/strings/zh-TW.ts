@@ -75,7 +75,8 @@ export const zhTW: Partial<Strings> = {
   viewToggleMap: '地圖',
   viewToggleList: '清單',
   listContentDescription: '可用出口節點的清單',
-  listRelayCount: (count: number) => (count === 1 ? '1 個中繼' : `${count} 個中繼`),
+  listRelayCount: (count: number) =>
+    count === 1 ? '1 個中繼' : `${count} 個中繼`,
 
   // Debug console.
   debugSettingTitle: '除錯',
@@ -111,6 +112,9 @@ export const zhTW: Partial<Strings> = {
   aboutMissionLead: '我們相信，網際網路存取是一項權利，而不是特權',
   aboutMissionBody:
     '更不應成為掌權者用來交易的籌碼。取得資訊的權利根植於我們身而為人的本質之中，任何防火牆都不應抹去它。然而今天，數十億人生活在高牆之後；這些牆把資訊擋在外面，把沉默困在裡面。在那裡，Google 搜尋只回傳 404，提出問題可能帶來危險，好奇心止步於遭封鎖的頁面。\n\nOpenRung 的存在就是為了改變這一切。\n\n我們正在搭建一架越過高牆的梯子。世界各地的普通人分享自己的網路連線，讓防火牆另一邊的人能夠存取開放的網際網路。\n\n資訊就是力量，這份力量屬於我們，而不屬於那些企圖從我們手中奪走它的人。',
+  aboutSupportHeader: '支持我們',
+  donateTitle: '捐款',
+  donateSubtitle: '幫助這座梯子繼續屹立。捐款將用於 OpenRung 基金會。',
   aboutLegalHeader: '法律資訊',
   aboutFollowHeader: '關注我們',
 
@@ -144,7 +148,8 @@ export const zhTW: Partial<Strings> = {
   updateRequiredTitle: '需要更新',
   updateRequiredBody:
     '此版本的 OpenRung 已無法連線至中繼網路。請安裝最新版本以繼續使用。',
-  updateVersionTransition: (current: string, latest: string) => `v${current} -> v${latest}`,
+  updateVersionTransition: (current: string, latest: string) =>
+    `v${current} -> v${latest}`,
   updateActionNow: '更新',
   updateActionLater: '稍後',
   updateContinueAnyway: '仍要繼續',

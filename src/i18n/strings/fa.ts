@@ -16,7 +16,8 @@ export const fa: Partial<Strings> = {
   settingsTitle: 'تنظیمات',
   backContentDescription: 'بازگشت',
   languageSettingTitle: 'زبان',
-  languageSettingSubtitle: 'از زبان سیستم استفاده کنید یا زبانی برای OpenRung انتخاب کنید.',
+  languageSettingSubtitle:
+    'از زبان سیستم استفاده کنید یا زبانی برای OpenRung انتخاب کنید.',
   versionSettingTitle: 'نسخه',
   languageSystem: 'پیش‌فرض سیستم',
   languageEnglish: 'English',
@@ -59,7 +60,8 @@ export const fa: Partial<Strings> = {
 
   // Relay speed test.
   speedTestSettingTitle: 'تست سرعت رله',
-  speedTestReady: 'از طریق رله فعال، 10 MB دانلود می‌کند و نتیجه را گزارش می‌دهد.',
+  speedTestReady:
+    'از طریق رله فعال، 10 MB دانلود می‌کند و نتیجه را گزارش می‌دهد.',
   speedTestRequiresConnection: 'پیش از اجرای تست سرعت، به یک رله متصل شوید.',
   speedTestRunning: 'در حال تست سرعت دانلود از طریق رله…',
   speedTestResult: (mbps: number) => `سرعت دانلود: ${mbps.toFixed(1)} Mbps`,
@@ -67,7 +69,8 @@ export const fa: Partial<Strings> = {
   speedTestAction: 'اجرا',
 
   // Map view (exit nodes).
-  mapContentDescription: 'نقشهٔ گره‌های خروجی موجود در سراسر منطقهٔ آسیا-اقیانوسیه',
+  mapContentDescription:
+    'نقشهٔ گره‌های خروجی موجود در سراسر منطقهٔ آسیا-اقیانوسیه',
   mapLoading: 'در حال یافتن گره‌های خروجی موجود…',
   mapFailed: 'بارگذاری گره‌های خروجی ناموفق بود — برای تلاش دوباره ضربه بزنید',
   mapNodesAvailable: (count: number) => `${count} مکان موجود`,
@@ -122,6 +125,10 @@ export const fa: Partial<Strings> = {
   aboutMissionLead: 'ما باور داریم دسترسی به اینترنت یک حق است، نه یک امتیاز',
   aboutMissionBody:
     'و نه ابزار چانه‌زنی در دست صاحبان قدرت. حق دسترسی به اطلاعات در سرشت انسانی ما ریشه دارد و هیچ دیوار آتشی نباید اجازه داشته باشد آن را از بین ببرد. با این حال، امروز میلیاردها نفر پشت دیوارهایی زندگی می‌کنند که برای بیرون نگه داشتن اطلاعات و درون نگه داشتن سکوت ساخته شده‌اند؛ جایی که جست‌وجوی Google خطای 404 برمی‌گرداند، پرسیدن یک سؤال می‌تواند خطرناک باشد و کنجکاوی به یک صفحهٔ مسدودشده ختم می‌شود.\n\nOpenRung برای تغییر این وضعیت به وجود آمده است.\n\nما در حال ساختن نردبانی بر فراز این دیوارها هستیم. مردم عادی در سراسر جهان اتصال خود را به اشتراک می‌گذارند تا کسی در سوی دیگر یک دیوار آتش بتواند به اینترنت آزاد دسترسی پیدا کند.\n\nاطلاعات قدرت است و این قدرت به ما تعلق دارد، نه به کسانی که می‌خواهند آن را از ما بگیرند.',
+  aboutSupportHeader: 'از ما حمایت کنید',
+  donateTitle: 'کمک مالی',
+  donateSubtitle:
+    'کمک کنید نردبان برپا بماند. کمک‌ها به بنیاد OpenRung می‌رسد.',
   aboutLegalHeader: 'حقوقی',
   aboutFollowHeader: 'ما را دنبال کنید',
 
@@ -137,20 +144,25 @@ export const fa: Partial<Strings> = {
   splitTunnelLanSubtitle:
     'به چاپگرها، تلویزیون‌ها و دیگر دستگاه‌های شبکهٔ محلی مستقیم دسترسی داشته باشید.',
   splitTunnelIranTitle: 'سایت‌ها و برنامه‌های ایرانی',
-  splitTunnelIranSubtitle: 'سرویس‌های ایرانی را مستقیم و با سرعت کامل هدایت کنید.',
+  splitTunnelIranSubtitle:
+    'سرویس‌های ایرانی را مستقیم و با سرعت کامل هدایت کنید.',
   splitTunnelChinaTitle: 'سایت‌ها و برنامه‌های چینی',
-  splitTunnelChinaSubtitle: 'سرویس‌های چینی را مستقیم و با سرعت کامل هدایت کنید.',
+  splitTunnelChinaSubtitle:
+    'سرویس‌های چینی را مستقیم و با سرعت کامل هدایت کنید.',
   splitTunnelAppsHeader: 'برنامه‌ها',
   splitTunnelAppsTitle: 'برنامه‌های خارج از VPN',
   splitTunnelAppsSubtitle: (count: number) =>
-    count === 1 ? '1 برنامه VPN را دور می‌زند.' : `${count} برنامه VPN را دور می‌زنند.`,
+    count === 1
+      ? '1 برنامه VPN را دور می‌زند.'
+      : `${count} برنامه VPN را دور می‌زنند.`,
   splitTunnelAppPickerTitle: 'برنامه‌های خارج از VPN',
   splitTunnelAppPickerLoading: 'در حال بارگذاری برنامه‌های نصب‌شده…',
   splitTunnelAppPickerEmpty: 'برنامهٔ قابل اجرا پیدا نشد.',
   splitTunnelAppPickerClose: 'بستن',
   splitTunnelApplyHint:
     'تغییرات بلافاصله اعمال می‌شوند؛ تونل برای چند ثانیه دوباره متصل می‌شود.',
-  splitTunnelResetHint: 'با راه‌اندازی مجدد برنامه، پیش‌تنظیم‌های ایران و چین بازنشانی می‌شوند.',
+  splitTunnelResetHint:
+    'با راه‌اندازی مجدد برنامه، پیش‌تنظیم‌های ایران و چین بازنشانی می‌شوند.',
   splitTunnelResetHintWithApps:
     'با راه‌اندازی مجدد برنامه، پیش‌تنظیم‌های ایران و چین بازنشانی می‌شوند؛ برنامه‌های کنارگذاشته‌شده حفظ می‌شوند.',
 
@@ -158,7 +170,8 @@ export const fa: Partial<Strings> = {
   updateRequiredTitle: 'به‌روزرسانی لازم است',
   updateRequiredBody:
     'این نسخه از OpenRung دیگر نمی‌تواند به شبکهٔ رله‌ها متصل شود. برای ادامه، آخرین نسخه را نصب کنید.',
-  updateVersionTransition: (current: string, latest: string) => `v${current} -> v${latest}`,
+  updateVersionTransition: (current: string, latest: string) =>
+    `v${current} -> v${latest}`,
   updateActionNow: 'به‌روزرسانی',
   updateActionLater: 'بعداً',
   updateContinueAnyway: 'به هر حال ادامه دهید',

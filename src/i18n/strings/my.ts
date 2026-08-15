@@ -65,10 +65,11 @@ export const my: Partial<Strings> = {
     'လက်ရှိ ရီလေးမှတစ်ဆင့် 10 MB ကို ဒေါင်းလုဒ်လုပ်ပြီး ရလဒ်ကို ဖော်ပြပါ။',
   speedTestRequiresConnection:
     'အမြန်နှုန်း စမ်းသပ်မှု မလုပ်မီ ရီလေးတစ်ခုသို့ ချိတ်ဆက်ပါ။',
-  speedTestRunning:
-    'ရီလေးမှတစ်ဆင့် ဒေါင်းလုဒ် အမြန်နှုန်းကို စမ်းသပ်နေသည်…',
-  speedTestResult: (mbps: number) => `ဒေါင်းလုဒ် အမြန်နှုန်း: ${mbps.toFixed(1)} Mbps`,
-  speedTestError: (error: string) => `အမြန်နှုန်း စမ်းသပ်မှု မအောင်မြင်ပါ: ${error}`,
+  speedTestRunning: 'ရီလေးမှတစ်ဆင့် ဒေါင်းလုဒ် အမြန်နှုန်းကို စမ်းသပ်နေသည်…',
+  speedTestResult: (mbps: number) =>
+    `ဒေါင်းလုဒ် အမြန်နှုန်း: ${mbps.toFixed(1)} Mbps`,
+  speedTestError: (error: string) =>
+    `အမြန်နှုန်း စမ်းသပ်မှု မအောင်မြင်ပါ: ${error}`,
   speedTestAction: 'စမ်းသပ်မည်',
 
   // Map view (exit nodes).
@@ -88,9 +89,9 @@ export const my: Partial<Strings> = {
   viewToggleList: 'စာရင်း',
 
   // List view (exit nodes).
-  listContentDescription:
-    'ရနိုင်သော ထွက်ပေါက်ဆုံမှတ်များ၏ စာရင်း',
-  listRelayCount: (count: number) => (count === 1 ? 'ရီလေး 1 ခု' : `ရီလေး ${count} ခု`),
+  listContentDescription: 'ရနိုင်သော ထွက်ပေါက်ဆုံမှတ်များ၏ စာရင်း',
+  listRelayCount: (count: number) =>
+    count === 1 ? 'ရီလေး 1 ခု' : `ရီလေး ${count} ခု`,
 
   // Debug console.
   debugSettingTitle: 'အမှားရှာဖွေခြင်း',
@@ -124,8 +125,7 @@ export const my: Partial<Strings> = {
     'iOS beta ကို ထည့်သွင်းနိုင်ရန် TestFlight လင့်ခ်ကို ပေးပို့ပါ။',
   shareTestFlightMessage: 'TestFlight တွင် OpenRung beta သို့ ပါဝင်ပါ –',
   shareTestFlightErrorTitle: 'OpenRung ကို မျှဝေ၍မရပါ',
-  shareTestFlightErrorBody:
-    'TestFlight လင့်ခ်ကို မျှဝေ၍မရပါ။ ထပ်မံကြိုးစားပါ။',
+  shareTestFlightErrorBody: 'TestFlight လင့်ခ်ကို မျှဝေ၍မရပါ။ ထပ်မံကြိုးစားပါ။',
 
   // Home overlay and about screen.
   homeTagline: 'ရီလေး ကွန်ရက်',
@@ -133,9 +133,12 @@ export const my: Partial<Strings> = {
     'အင်တာနက် အသုံးပြုခွင့်သည် အခွင့်ထူးမဟုတ်ဘဲ အခွင့်အရေးဖြစ်သည်ဟု ကျွန်ုပ်တို့ ယုံကြည်သည်',
   aboutMissionBody:
     'အာဏာရှိသူများ အလဲအလှယ်လုပ်နိုင်သည့် အရာတစ်ခုလည်း မဟုတ်ပါ။ သတင်းအချက်အလက် သိရှိပိုင်ခွင့်သည် လူသားဖြစ်ခြင်း၏ အခြေခံအစိတ်အပိုင်းတစ်ခုဖြစ်ပြီး မည်သည့် firewall ကမျှ ထိုအခွင့်အရေးကို ဖျောက်ဖျက်ခွင့်မရှိပါ။ သို့သော် ယနေ့တွင် လူဘီလီယံပေါင်းများစွာသည် သတင်းအချက်အလက်ကို အပြင်တွင်ထားပြီး တိတ်ဆိတ်မှုကို အတွင်းတွင်ပိတ်ထားသော နံရံများနောက်၌ နေထိုင်နေကြရသည်။ ထိုနေရာများတွင် Google ရှာဖွေမှုက 404 ကိုသာ ပြသသည်၊ မေးခွန်းတစ်ခုမေးခြင်းသည် အန္တရာယ်ရှိနိုင်ပြီး စူးစမ်းလိုစိတ်သည် ပိတ်ဆို့ထားသော စာမျက်နှာတစ်ခုတွင် အဆုံးသတ်သွားသည်။\n\nOpenRung သည် ထိုအခြေအနေကို ပြောင်းလဲရန် တည်ရှိသည်။\n\nကျွန်ုပ်တို့သည် ထိုနံရံများကို ကျော်နိုင်မည့် လှေကားတစ်စင်း တည်ဆောက်နေသည်။ ကမ္ဘာတစ်ဝှမ်းရှိ သာမန်လူများက မိမိတို့၏ အင်တာနက်ချိတ်ဆက်မှုကို မျှဝေကြပြီး firewall ၏ အခြားတစ်ဖက်ရှိ တစ်စုံတစ်ယောက်ကို ပွင့်လင်းသော အင်တာနက်သို့ ရောက်ရှိနိုင်စေသည်။\n\nသတင်းအချက်အလက်သည် စွမ်းအားဖြစ်သည်။ ထိုစွမ်းအားသည် ကျွန်ုပ်တို့ပိုင်ဖြစ်ပြီး ကျွန်ုပ်တို့ထံမှ လုယူလိုသူများပိုင် မဟုတ်ပါ။',
+  aboutSupportHeader: 'ကျွန်ုပ်တို့ကို ထောက်ပံ့ပါ',
+  donateTitle: 'လှူဒါန်းရန်',
+  donateSubtitle:
+    'လှေကား ဆက်လက်ရပ်တည်နိုင်အောင် ကူညီပါ။ လှူဒါန်းငွေများသည် OpenRung Foundation သို့ ရောက်ရှိပါသည်။',
   aboutLegalHeader: 'ဥပဒေဆိုင်ရာ',
   aboutFollowHeader: 'ကျွန်ုပ်တို့ကို လိုက်နာပါ',
-
 
   // --- Split tunneling (settings row + screen + Android app picker) ---
   splitTunnelSettingTitle: 'ဥမင် ခွဲထုတ်ခြင်း',
@@ -167,7 +170,8 @@ export const my: Partial<Strings> = {
   splitTunnelAppPickerClose: 'ပိတ်မည်',
   splitTunnelApplyHint:
     'ပြောင်းလဲမှုများ ချက်ချင်း သက်ရောက်သည်။ ဥမင်သည် စက္ကန့်အနည်းငယ် ပြန်လည်ချိတ်ဆက်မည်။',
-  splitTunnelResetHint: 'အက်ပ်ကို ပြန်စတင်သည့်အခါ အီရန်နှင့် တရုတ် သတ်မှတ်ချက်များ ပြန်လည်သတ်မှတ်မည်။',
+  splitTunnelResetHint:
+    'အက်ပ်ကို ပြန်စတင်သည့်အခါ အီရန်နှင့် တရုတ် သတ်မှတ်ချက်များ ပြန်လည်သတ်မှတ်မည်။',
   splitTunnelResetHintWithApps:
     'အက်ပ်ကို ပြန်စတင်သည့်အခါ အီရန်နှင့် တရုတ် သတ်မှတ်ချက်များ ပြန်လည်သတ်မှတ်မည်။ ချွင်းချက်ပြုထားသော အက်ပ်များကို ထိန်းသိမ်းထားမည်။',
 
@@ -175,7 +179,8 @@ export const my: Partial<Strings> = {
   updateRequiredTitle: 'အပ်ဒိတ် လုပ်ရန် လိုအပ်သည်',
   updateRequiredBody:
     'ဤ OpenRung ဗားရှင်းသည် ရီလေး ကွန်ရက်သို့ ချိတ်ဆက်၍ မရတော့ပါ။ ဆက်လက်အသုံးပြုနိုင်ရန် နောက်ဆုံးထွက် ဗားရှင်းကို ထည့်သွင်းပါ။',
-  updateVersionTransition: (current: string, latest: string) => `v${current} -> v${latest}`,
+  updateVersionTransition: (current: string, latest: string) =>
+    `v${current} -> v${latest}`,
   updateActionNow: 'အပ်ဒိတ်လုပ်မည်',
   updateActionLater: 'နောက်မှ',
   updateContinueAnyway: 'မည်သို့ပင်ဖြစ်စေ ဆက်လုပ်မည်',

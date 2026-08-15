@@ -43,6 +43,12 @@ export const AppConfig = {
   /** Public policy covering app and network data handling. */
   PRIVACY_URL: 'https://www.openrung.org/privacy',
 
+  /**
+   * Every.org donation page for the OpenRung Foundation, opened in the system browser from the
+   * About screen's donate button. The `code` query param attributes donations to the mobile app.
+   */
+  DONATE_URL: 'https://www.every.org/openrung-foundation?code=af922628#/donate',
+
   /** Public website and official social profiles shown on the About screen. */
   WEBSITE_URL: 'https://openrung.org/',
   GITHUB_URL: 'https://github.com/openrung',
@@ -92,7 +98,8 @@ export const AppConfig = {
    * destinations NEVER come from the manifest, so even a validly-signed (let alone forged)
    * manifest cannot redirect users to a hostile download. iOS uses TESTFLIGHT_URL.
    */
-  UPDATE_URL_ANDROID: 'https://github.com/openrung/openrung-mobile-app/releases/latest',
+  UPDATE_URL_ANDROID:
+    'https://github.com/openrung/openrung-mobile-app/releases/latest',
 
   /** Minimum interval between successful update-manifest checks (cold start + app foreground). */
   UPDATE_CHECK_INTERVAL_MS: 6 * 3_600_000,
@@ -113,7 +120,8 @@ export const AppConfig = {
   MANIFEST_SIGNING_KEYS: [
     {
       keyId: 'a71d7615b7af163b', // active (seed in GitHub secret OPENRUNG_MANIFEST_SIGNING_SEED_B64)
-      publicKeyHex: '3443068d4cb27dd474dee11155c365a44df6a24c560b8ae2cb019487b555bfc7',
+      publicKeyHex:
+        '3443068d4cb27dd474dee11155c365a44df6a24c560b8ae2cb019487b555bfc7',
     },
   ],
 } as const;
