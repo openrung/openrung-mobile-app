@@ -5,7 +5,14 @@
  * stays purely operational.
  */
 import React, { useCallback } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SettingPanel } from '../components/SettingPanel';
@@ -39,7 +46,12 @@ const SOCIAL_LINKS = [
     color: palette.bodyText,
     Icon: GitHubIcon,
   },
-  { label: 'OpenRung on X', url: AppConfig.X_URL, color: palette.bodyText, Icon: XIcon },
+  {
+    label: 'OpenRung on X',
+    url: AppConfig.X_URL,
+    color: palette.bodyText,
+    Icon: XIcon,
+  },
   {
     label: 'OpenRung on Threads',
     url: AppConfig.THREADS_URL,
@@ -66,9 +78,17 @@ const SOCIAL_LINKS = [
   },
 ] as const;
 
-export function AboutScreen({ onOpenLicenses }: AboutScreenProps): React.JSX.Element {
+export function AboutScreen({
+  onOpenLicenses,
+}: AboutScreenProps): React.JSX.Element {
   const s = useStrings();
   const insets = useSafeAreaInsets();
+
+  const onOpenDonate = useCallback(() => {
+    Linking.openURL(AppConfig.DONATE_URL).catch(() => {
+      // Ignore: no browser available.
+    });
+  }, []);
 
   const onOpenPrivacy = useCallback(() => {
     Linking.openURL(AppConfig.PRIVACY_URL).catch(() => {
@@ -107,7 +127,29 @@ export function AboutScreen({ onOpenLicenses }: AboutScreenProps): React.JSX.Ele
         <Text style={styles.mission}>{s.aboutMissionBody}</Text>
       </View>
 
-      <Text style={styles.sectionHeader}>{s.aboutLegalHeader.toUpperCase()}</Text>
+      <Text style={styles.sectionHeader}>
+        {s.aboutSupportHeader.toUpperCase()}
+      </Text>
+      <Pressable
+        accessibilityRole="link"
+        accessibilityLabel={s.donateTitle}
+        onPress={onOpenDonate}
+        style={({ pressed }) => [
+          styles.donateButton,
+          pressed && styles.donateButtonPressed,
+        ]}
+      >
+        <Text style={styles.donateHeart}>♥</Text>
+        <View style={styles.donateTextColumn}>
+          <Text style={styles.donateTitle}>{s.donateTitle}</Text>
+          <Text style={styles.donateSubtitle}>{s.donateSubtitle}</Text>
+        </View>
+        <Text style={styles.donateChevron}>›</Text>
+      </Pressable>
+
+      <Text style={styles.sectionHeader}>
+        {s.aboutLegalHeader.toUpperCase()}
+      </Text>
       <SettingPanel
         title={s.privacyPolicyTitle}
         subtitle={s.privacyPolicySubtitle}
@@ -119,7 +161,9 @@ export function AboutScreen({ onOpenLicenses }: AboutScreenProps): React.JSX.Ele
         onPress={onOpenLicenses}
       />
 
-      <Text style={styles.sectionHeader}>{s.aboutFollowHeader.toUpperCase()}</Text>
+      <Text style={styles.sectionHeader}>
+        {s.aboutFollowHeader.toUpperCase()}
+      </Text>
       <View style={styles.socialRow}>
         {SOCIAL_LINKS.map(({ label, url, color, Icon }) => (
           <Pressable
@@ -128,7 +172,10 @@ export function AboutScreen({ onOpenLicenses }: AboutScreenProps): React.JSX.Ele
             accessibilityLabel={label}
             hitSlop={6}
             onPress={() => onOpenSocial(url)}
-            style={({ pressed }) => [styles.socialButton, pressed && styles.socialButtonPressed]}
+            style={({ pressed }) => [
+              styles.socialButton,
+              pressed && styles.socialButtonPressed,
+            ]}
           >
             <Icon color={color} size={20} />
           </Pressable>
@@ -208,6 +255,56 @@ const styles = StyleSheet.create({
     fontFamily: monoFont,
     fontSize: 12,
     lineHeight: 18,
+  },
+  // Deliberately louder than SettingPanel rows: terminal-green border + glow
+  // and a tinted fill so the donate call-to-action stands out from Legal.
+  donateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: 8,
+    backgroundColor: palette.fabBackground,
+    borderWidth: 1,
+    borderColor: palette.terminalGreen,
+    padding: 14,
+    shadowColor: tokens.glow,
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 6,
+  },
+  donateButtonPressed: {
+    opacity: 0.7,
+  },
+  donateHeart: {
+    color: palette.terminalGreen,
+    fontSize: 20,
+    textShadowColor: tokens.glow,
+    textShadowRadius: 10,
+  },
+  donateTextColumn: {
+    flex: 1,
+    gap: 2,
+  },
+  donateTitle: {
+    color: palette.terminalGreen,
+    fontFamily: monoFont,
+    fontWeight: 'bold',
+    fontSize: 15,
+    textShadowColor: tokens.glowSoft,
+    textShadowRadius: 8,
+  },
+  donateSubtitle: {
+    color: palette.bodyText,
+    fontFamily: monoFont,
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  donateChevron: {
+    color: palette.terminalGreen,
+    fontFamily: monoFont,
+    fontSize: 20,
+    fontWeight: 'bold',
   },
   sectionHeader: {
     color: palette.dimText,

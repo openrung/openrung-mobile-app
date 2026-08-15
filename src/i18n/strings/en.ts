@@ -25,8 +25,10 @@ export const en = {
   languageSettingSubtitle: 'Use system language or choose one for OpenRung.',
   versionSettingTitle: 'Version',
   speedTestSettingTitle: 'Relay speed test',
-  speedTestReady: 'Download 10 MB through the active relay and report the result.',
-  speedTestRequiresConnection: 'Connect to a relay before running the speed test.',
+  speedTestReady:
+    'Download 10 MB through the active relay and report the result.',
+  speedTestRequiresConnection:
+    'Connect to a relay before running the speed test.',
   speedTestRunning: 'Testing download speed through the relay…',
   speedTestResult: (mbps: number) => `Download speed: ${mbps.toFixed(1)} Mbps`,
   speedTestError: (error: string) => `Speed test failed: ${error}`,
@@ -47,7 +49,8 @@ export const en = {
   statusConnected: 'Connected',
   statusDisconnecting: 'Disconnecting',
   statusFailed: 'Failed',
-  mapContentDescription: 'Map of available exit nodes across the Asia-Pacific region',
+  mapContentDescription:
+    'Map of available exit nodes across the Asia-Pacific region',
   mapLoading: 'locating available exit nodes…',
   mapFailed: "couldn't load exit nodes — tap to retry",
   mapNodesAvailable: (count: number) => `${count} locations available`,
@@ -57,7 +60,8 @@ export const en = {
   viewToggleMap: 'Map',
   viewToggleList: 'List',
   listContentDescription: 'List of available exit nodes',
-  listRelayCount: (count: number) => (count === 1 ? '1 relay' : `${count} relays`),
+  listRelayCount: (count: number) =>
+    count === 1 ? '1 relay' : `${count} relays`,
   debugSettingTitle: 'Debug',
   debugSettingSubtitle: 'Connection console and diagnostics.',
   debugTitle: 'Debug console',
@@ -68,7 +72,8 @@ export const en = {
     'OpenRung is free software licensed under GPL-3.0-or-later because it links sing-box. The complete corresponding source for this build is available at the link below.',
   licensesSourceTitle: 'Source code',
   privacyPolicyTitle: 'Privacy policy',
-  privacyPolicySubtitle: 'How OpenRung handles beta diagnostics and personal information.',
+  privacyPolicySubtitle:
+    'How OpenRung handles beta diagnostics and personal information.',
   licensesFullTextTitle: 'Full license texts',
   licensesFullTextSubtitle: 'GNU GPL-3.0 and third-party notices.',
   licensesComponentsHeader: 'Components',
@@ -83,7 +88,8 @@ export const en = {
   shareTestFlightSubtitle: 'Send a TestFlight link that installs the iOS beta.',
   shareTestFlightMessage: 'Join the OpenRung beta on TestFlight:',
   shareTestFlightErrorTitle: 'Unable to share OpenRung',
-  shareTestFlightErrorBody: 'The TestFlight link could not be shared. Try again.',
+  shareTestFlightErrorBody:
+    'The TestFlight link could not be shared. Try again.',
 
   // --- Redesigned shell (tabs, home overlay, about) ---
   tabHome: 'Home',
@@ -100,6 +106,10 @@ export const en = {
   aboutMissionLead: 'We believe internet access is a right, not a privilege',
   aboutMissionBody:
     'and not a bargaining chip to be traded away by those in power. The right to information is written into who we are as human beings - and no firewall should be allowed to erase it. Yet today billions of people live behind walls built to keep information out and keep silence in, where a Google search returns 404, a question can be dangerous and curiosity ends at a blocked page.\n\nOpenRung exists to change that.\n\nWe are building a ladder over those walls. Ordinary people around the world share their connections so that someone on the other side of a firewall can reach the open internet.\n\nInformation is power - and that power belongs to us, and not to those who would take it from us.',
+  aboutSupportHeader: 'Support us',
+  donateTitle: 'Donate',
+  donateSubtitle:
+    'Help keep the ladder standing. Donations go to the OpenRung Foundation.',
   aboutLegalHeader: 'Legal',
   aboutFollowHeader: 'Follow us',
 
@@ -137,7 +147,8 @@ export const en = {
     'changes apply immediately; the tunnel reconnects for a few seconds.',
   // Two variants because the APPS section is Android-only: on iOS the footer must not mention a
   // bypassed-apps list the user cannot see.
-  splitTunnelResetHint: 'the Iran and China presets reset when you restart the app.',
+  splitTunnelResetHint:
+    'the Iran and China presets reset when you restart the app.',
   splitTunnelResetHintWithApps:
     'the Iran and China presets reset when you restart the app; bypassed apps are kept.',
 
@@ -145,7 +156,8 @@ export const en = {
   updateRequiredTitle: 'Update required',
   updateRequiredBody:
     'This version of OpenRung can no longer connect to the relay network. Install the latest release to keep going.',
-  updateVersionTransition: (current: string, latest: string) => `v${current} -> v${latest}`,
+  updateVersionTransition: (current: string, latest: string) =>
+    `v${current} -> v${latest}`,
   updateActionNow: 'UPDATE',
   updateActionLater: 'Later',
   updateContinueAnyway: 'Continue anyway',

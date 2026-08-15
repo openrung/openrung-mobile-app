@@ -16,7 +16,8 @@ export const tr: Partial<Strings> = {
   settingsTitle: 'Ayarlar',
   backContentDescription: 'Geri',
   languageSettingTitle: 'Dil',
-  languageSettingSubtitle: 'Sistem dilini kullanın veya OpenRung için bir dil seçin.',
+  languageSettingSubtitle:
+    'Sistem dilini kullanın veya OpenRung için bir dil seçin.',
   versionSettingTitle: 'Sürüm',
   languageSystem: 'Sistem varsayılanı',
   languageEnglish: 'English',
@@ -60,14 +61,16 @@ export const tr: Partial<Strings> = {
   // Relay speed test (diagnostics).
   speedTestSettingTitle: 'Röle hız testi',
   speedTestReady: 'Aktif röle üzerinden 10 MB indirin ve sonucu bildirin.',
-  speedTestRequiresConnection: 'Hız testini çalıştırmadan önce bir röleye bağlanın.',
+  speedTestRequiresConnection:
+    'Hız testini çalıştırmadan önce bir röleye bağlanın.',
   speedTestRunning: 'Röle üzerinden indirme hızı test ediliyor…',
   speedTestResult: (mbps: number) => `İndirme hızı: ${mbps.toFixed(1)} Mbps`,
   speedTestError: (error: string) => `Hız testi başarısız: ${error}`,
   speedTestAction: 'ÇALIŞTIR',
 
   // Exit node map view.
-  mapContentDescription: 'Asya-Pasifik bölgesindeki mevcut çıkış düğümlerinin haritası',
+  mapContentDescription:
+    'Asya-Pasifik bölgesindeki mevcut çıkış düğümlerinin haritası',
   mapLoading: 'mevcut çıkış düğümleri bulunuyor…',
   mapFailed: 'çıkış düğümleri yüklenemedi — yeniden denemek için dokunun',
   mapNodesAvailable: (count: number) => `${count} konum mevcut`,
@@ -112,7 +115,7 @@ export const tr: Partial<Strings> = {
     "Bu kopya birden fazla APK dosyasıyla yüklendiği için güvenle paylaşılamaz. Çevrimdışı paylaşım için bağımsız OpenRung APK'sını yükleyin.",
   shareTestFlightTitle: "OpenRung'u paylaş",
   shareTestFlightSubtitle:
-    "Başkalarının iOS betasını kurabilmesi için TestFlight bağlantısı gönderin.",
+    'Başkalarının iOS betasını kurabilmesi için TestFlight bağlantısı gönderin.',
   shareTestFlightMessage: "TestFlight'ta OpenRung betasına katılın:",
   shareTestFlightErrorTitle: 'OpenRung paylaşılamıyor',
   shareTestFlightErrorBody:
@@ -120,12 +123,16 @@ export const tr: Partial<Strings> = {
 
   // Home overlay and about screen.
   homeTagline: 'röle ağı',
-  aboutMissionLead: 'İnternete erişimin bir ayrıcalık değil, hak olduğuna inanıyoruz',
+  aboutMissionLead:
+    'İnternete erişimin bir ayrıcalık değil, hak olduğuna inanıyoruz',
   aboutMissionBody:
     'Bu hak, iktidardakilerin pazarlık konusu yapabileceği bir koz değildir. Bilgi edinme hakkı insan oluşumuzun özünde vardır ve hiçbir güvenlik duvarının bunu silmesine izin verilmemelidir. Yine de bugün milyarlarca insan, bilgiyi dışarıda ve sessizliği içeride tutmak için örülmüş duvarların arkasında yaşıyor; Google aramasının 404 döndürdüğü, soru sormanın tehlikeli olabildiği ve merakın engellenmiş bir sayfada sona erdiği yerlerde.\n\nOpenRung bunu değiştirmek için var.\n\nBu duvarların üzerinden bir merdiven inşa ediyoruz. Dünyanın dört bir yanındaki sıradan insanlar bağlantılarını paylaşıyor; böylece bir güvenlik duvarının diğer tarafındaki biri açık internete ulaşabiliyor.\n\nBilgi güçtür ve bu güç, onu bizden almak isteyenlere değil, bize aittir.',
+  aboutSupportHeader: 'Bize destek olun',
+  donateTitle: 'Bağış yap',
+  donateSubtitle:
+    'Merdivenin ayakta kalmasına yardım edin. Bağışlar OpenRung Vakfı’na gider.',
   aboutLegalHeader: 'Yasal',
   aboutFollowHeader: 'Bizi takip edin',
-
 
   // --- Split tunneling (settings row + screen + Android app picker) ---
   splitTunnelSettingTitle: 'Bölünmüş tünel',
@@ -144,14 +151,16 @@ export const tr: Partial<Strings> = {
   splitTunnelChinaSubtitle: 'Çin servislerini doğrudan, tam hızda yönlendirin.',
   splitTunnelAppsHeader: 'Uygulamalar',
   splitTunnelAppsTitle: 'Baypas edilen uygulamalar',
-  splitTunnelAppsSubtitle: (count: number) => `${count} uygulama VPN'i atlıyor.`,
+  splitTunnelAppsSubtitle: (count: number) =>
+    `${count} uygulama VPN'i atlıyor.`,
   splitTunnelAppPickerTitle: 'Baypas edilen uygulamalar',
   splitTunnelAppPickerLoading: 'yüklü uygulamalar getiriliyor…',
   splitTunnelAppPickerEmpty: 'başlatılabilir uygulama bulunamadı.',
   splitTunnelAppPickerClose: 'KAPAT',
   splitTunnelApplyHint:
     'değişiklikler hemen uygulanır; tünel birkaç saniyeliğine yeniden bağlanır.',
-  splitTunnelResetHint: 'uygulamayı yeniden başlattığınızda İran ve Çin ön ayarları sıfırlanır.',
+  splitTunnelResetHint:
+    'uygulamayı yeniden başlattığınızda İran ve Çin ön ayarları sıfırlanır.',
   splitTunnelResetHintWithApps:
     'uygulamayı yeniden başlattığınızda İran ve Çin ön ayarları sıfırlanır; hariç tutulan uygulamalar korunur.',
 
@@ -159,7 +168,8 @@ export const tr: Partial<Strings> = {
   updateRequiredTitle: 'Güncelleme gerekli',
   updateRequiredBody:
     "OpenRung'un bu sürümü artık röle ağına bağlanamıyor. Devam edebilmek için en son sürümü yükleyin.",
-  updateVersionTransition: (current: string, latest: string) => `v${current} -> v${latest}`,
+  updateVersionTransition: (current: string, latest: string) =>
+    `v${current} -> v${latest}`,
   updateActionNow: 'GÜNCELLE',
   updateActionLater: 'Daha sonra',
   updateContinueAnyway: 'Yine de devam et',

@@ -16,7 +16,8 @@ export const vi: Partial<Strings> = {
   settingsTitle: 'Cài đặt',
   backContentDescription: 'Quay lại',
   languageSettingTitle: 'Ngôn ngữ',
-  languageSettingSubtitle: 'Dùng ngôn ngữ hệ thống hoặc chọn ngôn ngữ cho OpenRung.',
+  languageSettingSubtitle:
+    'Dùng ngôn ngữ hệ thống hoặc chọn ngôn ngữ cho OpenRung.',
   versionSettingTitle: 'Phiên bản',
   languageSystem: 'Mặc định hệ thống',
   languageEnglish: 'English',
@@ -59,10 +60,13 @@ export const vi: Partial<Strings> = {
 
   // Relay speed test (diagnostics).
   speedTestSettingTitle: 'Kiểm tra tốc độ relay',
-  speedTestReady: 'Tải xuống 10 MB qua relay đang hoạt động và báo cáo kết quả.',
-  speedTestRequiresConnection: 'Kết nối với relay trước khi chạy kiểm tra tốc độ.',
+  speedTestReady:
+    'Tải xuống 10 MB qua relay đang hoạt động và báo cáo kết quả.',
+  speedTestRequiresConnection:
+    'Kết nối với relay trước khi chạy kiểm tra tốc độ.',
   speedTestRunning: 'Đang kiểm tra tốc độ tải xuống qua relay…',
-  speedTestResult: (mbps: number) => `Tốc độ tải xuống: ${mbps.toFixed(1)} Mbps`,
+  speedTestResult: (mbps: number) =>
+    `Tốc độ tải xuống: ${mbps.toFixed(1)} Mbps`,
   speedTestError: (error: string) => `Kiểm tra tốc độ thất bại: ${error}`,
   speedTestAction: 'CHẠY',
 
@@ -78,7 +82,8 @@ export const vi: Partial<Strings> = {
   viewToggleMap: 'Bản đồ',
   viewToggleList: 'Danh sách',
   listContentDescription: 'Danh sách các nút thoát khả dụng',
-  listRelayCount: (count: number) => (count === 1 ? '1 relay' : `${count} relay`),
+  listRelayCount: (count: number) =>
+    count === 1 ? '1 relay' : `${count} relay`,
 
   // Debug console (diagnostics).
   debugSettingTitle: 'Gỡ lỗi',
@@ -116,9 +121,14 @@ export const vi: Partial<Strings> = {
 
   // Home overlay and about screen.
   homeTagline: 'mạng lưới relay',
-  aboutMissionLead: 'Chúng tôi tin rằng truy cập internet là một quyền, không phải đặc ân',
+  aboutMissionLead:
+    'Chúng tôi tin rằng truy cập internet là một quyền, không phải đặc ân',
   aboutMissionBody:
     'và không phải quân bài mặc cả để những người nắm quyền đem ra trao đổi. Quyền tiếp cận thông tin nằm trong chính bản chất con người, và không tường lửa nào được phép xóa bỏ quyền đó. Thế nhưng ngày nay, hàng tỷ người sống sau những bức tường được dựng lên để ngăn thông tin đi vào và giữ sự im lặng ở lại; nơi một tìm kiếm Google trả về lỗi 404, một câu hỏi có thể trở nên nguy hiểm và sự tò mò kết thúc tại một trang bị chặn.\n\nOpenRung tồn tại để thay đổi điều đó.\n\nChúng tôi đang dựng một chiếc thang vượt qua những bức tường ấy. Những người bình thường trên khắp thế giới chia sẻ kết nối của họ để ai đó ở phía bên kia tường lửa có thể tiếp cận internet mở.\n\nThông tin là sức mạnh, và sức mạnh đó thuộc về chúng ta, không thuộc về những kẻ muốn lấy nó khỏi tay chúng ta.',
+  aboutSupportHeader: 'Ủng hộ chúng tôi',
+  donateTitle: 'Quyên góp',
+  donateSubtitle:
+    'Giúp chiếc thang luôn đứng vững. Các khoản quyên góp được chuyển đến OpenRung Foundation.',
   aboutLegalHeader: 'Pháp lý',
   aboutFollowHeader: 'Theo dõi chúng tôi',
 
@@ -128,26 +138,30 @@ export const vi: Partial<Strings> = {
   splitTunnelSettingSubtitleOff: 'Tắt — toàn bộ lưu lượng đi qua relay.',
   splitTunnelHeader: 'Chia đường hầm',
   splitTunnelMasterTitle: 'Chia đường hầm',
-  splitTunnelMasterSubtitle: 'Gửi lưu lượng được chọn ra ngoài đường hầm relay.',
+  splitTunnelMasterSubtitle:
+    'Gửi lưu lượng được chọn ra ngoài đường hầm relay.',
   splitTunnelBypassHeader: 'Đi vòng',
   splitTunnelLanTitle: 'Mạng cục bộ',
   splitTunnelLanSubtitle:
     'Truy cập trực tiếp máy in, TV và các thiết bị mạng cục bộ khác.',
   splitTunnelIranTitle: 'Trang web & ứng dụng Iran',
-  splitTunnelIranSubtitle: 'Định tuyến trực tiếp các dịch vụ Iran với tốc độ tối đa.',
+  splitTunnelIranSubtitle:
+    'Định tuyến trực tiếp các dịch vụ Iran với tốc độ tối đa.',
   splitTunnelChinaTitle: 'Trang web & ứng dụng Trung Quốc',
   splitTunnelChinaSubtitle:
     'Định tuyến trực tiếp các dịch vụ Trung Quốc với tốc độ tối đa.',
   splitTunnelAppsHeader: 'Ứng dụng',
   splitTunnelAppsTitle: 'Ứng dụng đi vòng',
-  splitTunnelAppsSubtitle: (count: number) => `${count} ứng dụng không đi qua VPN.`,
+  splitTunnelAppsSubtitle: (count: number) =>
+    `${count} ứng dụng không đi qua VPN.`,
   splitTunnelAppPickerTitle: 'Ứng dụng đi vòng',
   splitTunnelAppPickerLoading: 'đang tải các ứng dụng đã cài…',
   splitTunnelAppPickerEmpty: 'không tìm thấy ứng dụng khởi chạy được.',
   splitTunnelAppPickerClose: 'ĐÓNG',
   splitTunnelApplyHint:
     'thay đổi áp dụng ngay; đường hầm sẽ kết nối lại trong vài giây.',
-  splitTunnelResetHint: 'các thiết lập sẵn cho Iran và Trung Quốc sẽ đặt lại khi bạn mở lại ứng dụng.',
+  splitTunnelResetHint:
+    'các thiết lập sẵn cho Iran và Trung Quốc sẽ đặt lại khi bạn mở lại ứng dụng.',
   splitTunnelResetHintWithApps:
     'các thiết lập sẵn cho Iran và Trung Quốc sẽ đặt lại khi bạn mở lại ứng dụng; các ứng dụng được bỏ qua vẫn được giữ.',
 
@@ -155,7 +169,8 @@ export const vi: Partial<Strings> = {
   updateRequiredTitle: 'Cần cập nhật',
   updateRequiredBody:
     'Phiên bản OpenRung này không còn kết nối được với mạng lưới relay. Hãy cài bản mới nhất để tiếp tục sử dụng.',
-  updateVersionTransition: (current: string, latest: string) => `v${current} -> v${latest}`,
+  updateVersionTransition: (current: string, latest: string) =>
+    `v${current} -> v${latest}`,
   updateActionNow: 'CẬP NHẬT',
   updateActionLater: 'Để sau',
   updateContinueAnyway: 'Vẫn tiếp tục',

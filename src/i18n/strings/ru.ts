@@ -16,7 +16,8 @@ export const ru: Partial<Strings> = {
   settingsTitle: 'Настройки',
   backContentDescription: 'Назад',
   languageSettingTitle: 'Язык',
-  languageSettingSubtitle: 'Используйте системный язык или выберите язык для OpenRung.',
+  languageSettingSubtitle:
+    'Используйте системный язык или выберите язык для OpenRung.',
   versionSettingTitle: 'Версия',
   languageSystem: 'Как в системе',
   languageEnglish: 'English',
@@ -59,15 +60,19 @@ export const ru: Partial<Strings> = {
 
   // Relay speed test (diagnostics).
   speedTestSettingTitle: 'Тест скорости ретранслятора',
-  speedTestReady: 'Загрузить 10 MB через активный ретранслятор и показать результат.',
-  speedTestRequiresConnection: 'Перед запуском теста скорости подключитесь к ретранслятору.',
+  speedTestReady:
+    'Загрузить 10 MB через активный ретранслятор и показать результат.',
+  speedTestRequiresConnection:
+    'Перед запуском теста скорости подключитесь к ретранслятору.',
   speedTestRunning: 'Проверка скорости загрузки через ретранслятор…',
-  speedTestResult: (mbps: number) => `Скорость загрузки: ${mbps.toFixed(1)} Mbps`,
+  speedTestResult: (mbps: number) =>
+    `Скорость загрузки: ${mbps.toFixed(1)} Mbps`,
   speedTestError: (error: string) => `Ошибка теста скорости: ${error}`,
   speedTestAction: 'ЗАПУСК',
 
   // Map view (exit-node overview).
-  mapContentDescription: 'Карта доступных выходных узлов в Азиатско-Тихоокеанском регионе',
+  mapContentDescription:
+    'Карта доступных выходных узлов в Азиатско-Тихоокеанском регионе',
   mapLoading: 'поиск доступных выходных узлов…',
   mapFailed: 'не удалось загрузить выходные узлы — нажмите, чтобы повторить',
   mapNodesAvailable: (count: number) => `доступно локаций: ${count}`,
@@ -117,37 +122,49 @@ export const ru: Partial<Strings> = {
 
   // Home overlay / about screen.
   homeTagline: 'сеть ретрансляторов',
-  aboutMissionLead: 'Мы верим, что доступ в интернет — это право, а не привилегия',
+  aboutMissionLead:
+    'Мы верим, что доступ в интернет — это право, а не привилегия',
   aboutMissionBody:
     'и не разменная монета в руках власть имущих. Право на информацию заложено в самой человеческой природе, и никакой файрвол не должен стирать его. Но сегодня миллиарды людей живут за стенами, возведёнными, чтобы не впускать информацию и не выпускать молчание; там поиск Google возвращает ошибку 404, вопрос может быть опасным, а любопытство заканчивается на заблокированной странице.\n\nOpenRung существует, чтобы изменить это.\n\nМы строим лестницу через эти стены. Обычные люди по всему миру делятся своим подключением, чтобы человек по другую сторону файрвола мог выйти в открытый интернет.\n\nИнформация — это сила, и эта сила принадлежит нам, а не тем, кто хочет её у нас отнять.',
+  aboutSupportHeader: 'Поддержите нас',
+  donateTitle: 'Пожертвовать',
+  donateSubtitle:
+    'Помогите лестнице устоять. Пожертвования идут в фонд OpenRung Foundation.',
   aboutLegalHeader: 'Правовая информация',
   aboutFollowHeader: 'Подписывайтесь',
 
   // --- Split tunneling (settings row + screen + Android app picker) ---
   splitTunnelSettingTitle: 'Раздельное туннелирование',
-  splitTunnelSettingSubtitleOn: 'Включено — выбранный трафик идёт мимо ретранслятора.',
-  splitTunnelSettingSubtitleOff: 'Выключено — весь трафик идёт через ретранслятор.',
+  splitTunnelSettingSubtitleOn:
+    'Включено — выбранный трафик идёт мимо ретранслятора.',
+  splitTunnelSettingSubtitleOff:
+    'Выключено — весь трафик идёт через ретранслятор.',
   splitTunnelHeader: 'Раздельное туннелирование',
   splitTunnelMasterTitle: 'Раздельное туннелирование',
-  splitTunnelMasterSubtitle: 'Отправлять выбранный трафик мимо туннеля ретранслятора.',
+  splitTunnelMasterSubtitle:
+    'Отправлять выбранный трафик мимо туннеля ретранслятора.',
   splitTunnelBypassHeader: 'Обход',
   splitTunnelLanTitle: 'Локальная сеть',
   splitTunnelLanSubtitle:
     'Прямой доступ к принтерам, телевизорам и другим устройствам локальной сети.',
   splitTunnelIranTitle: 'Иранские сайты и приложения',
-  splitTunnelIranSubtitle: 'Направлять иранские сервисы напрямую, на полной скорости.',
+  splitTunnelIranSubtitle:
+    'Направлять иранские сервисы напрямую, на полной скорости.',
   splitTunnelChinaTitle: 'Китайские сайты и приложения',
-  splitTunnelChinaSubtitle: 'Направлять китайские сервисы напрямую, на полной скорости.',
+  splitTunnelChinaSubtitle:
+    'Направлять китайские сервисы напрямую, на полной скорости.',
   splitTunnelAppsHeader: 'Приложения',
   splitTunnelAppsTitle: 'Приложения в обход',
-  splitTunnelAppsSubtitle: (count: number) => `приложений в обход VPN: ${count}`,
+  splitTunnelAppsSubtitle: (count: number) =>
+    `приложений в обход VPN: ${count}`,
   splitTunnelAppPickerTitle: 'Приложения в обход',
   splitTunnelAppPickerLoading: 'загрузка установленных приложений…',
   splitTunnelAppPickerEmpty: 'запускаемых приложений не найдено.',
   splitTunnelAppPickerClose: 'ЗАКРЫТЬ',
   splitTunnelApplyHint:
     'изменения применяются сразу; туннель переподключается на несколько секунд.',
-  splitTunnelResetHint: 'после перезапуска приложения наборы для Ирана и Китая сбрасываются.',
+  splitTunnelResetHint:
+    'после перезапуска приложения наборы для Ирана и Китая сбрасываются.',
   splitTunnelResetHintWithApps:
     'после перезапуска приложения наборы для Ирана и Китая сбрасываются; исключённые приложения сохраняются.',
 
@@ -155,7 +172,8 @@ export const ru: Partial<Strings> = {
   updateRequiredTitle: 'Требуется обновление',
   updateRequiredBody:
     'Эта версия OpenRung больше не может подключаться к сети ретрансляторов. Установите последний выпуск, чтобы продолжить пользоваться приложением.',
-  updateVersionTransition: (current: string, latest: string) => `v${current} -> v${latest}`,
+  updateVersionTransition: (current: string, latest: string) =>
+    `v${current} -> v${latest}`,
   updateActionNow: 'ОБНОВИТЬ',
   updateActionLater: 'Позже',
   updateContinueAnyway: 'Всё равно продолжить',

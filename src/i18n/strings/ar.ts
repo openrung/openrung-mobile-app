@@ -59,8 +59,7 @@ export const ar: Partial<Strings> = {
 
   // Relay speed test (settings + diagnostics).
   speedTestSettingTitle: 'اختبار سرعة المُرحّل',
-  speedTestReady:
-    'تنزيل 10 MB عبر المُرحّل النشط والإبلاغ عن النتيجة.',
+  speedTestReady: 'تنزيل 10 MB عبر المُرحّل النشط والإبلاغ عن النتيجة.',
   speedTestRequiresConnection: 'اتصل بمُرحّل قبل إجراء اختبار السرعة.',
   speedTestRunning: 'جار اختبار سرعة التنزيل عبر المُرحّل…',
   speedTestResult: (mbps: number) => `سرعة التنزيل: ${mbps.toFixed(1)} Mbps`,
@@ -114,14 +113,17 @@ export const ar: Partial<Strings> = {
     'أرسل رابط TestFlight ليتمكّن الآخرون من تثبيت نسخة iOS التجريبية.',
   shareTestFlightMessage: 'انضم إلى نسخة OpenRung التجريبية عبر TestFlight:',
   shareTestFlightErrorTitle: 'تعذّرت مشاركة OpenRung',
-  shareTestFlightErrorBody:
-    'تعذّرت مشاركة رابط TestFlight. حاول مرة أخرى.',
+  shareTestFlightErrorBody: 'تعذّرت مشاركة رابط TestFlight. حاول مرة أخرى.',
 
   // Home overlay and about screen.
   homeTagline: 'شبكة المُرحّلات',
   aboutMissionLead: 'نؤمن بأن الوصول إلى الإنترنت حق، وليس امتيازًا',
   aboutMissionBody:
     'وليس ورقة مساومة يتداولها أصحاب السلطة. إن الحق في المعلومات متأصل في إنسانيتنا، ولا ينبغي السماح لأي جدار ناري بمَحوه. ومع ذلك، يعيش اليوم مليارات البشر خلف جدران بُنيت لإبقاء المعلومات خارجًا والصمت داخلًا؛ حيث يُرجع بحث Google خطأ 404، وقد يكون طرح سؤال أمرًا خطيرًا، وينتهي الفضول عند صفحة محجوبة.\n\nوُجد OpenRung ليغيّر ذلك.\n\nنحن نبني سُلّمًا يتجاوز تلك الجدران. يشارك أشخاص عاديون حول العالم اتصالاتهم كي يتمكن شخص على الجانب الآخر من جدار ناري من الوصول إلى الإنترنت المفتوح.\n\nالمعلومات قوة، وهذه القوة ملك لنا، لا لمن يريدون انتزاعها منا.',
+  aboutSupportHeader: 'ادعمونا',
+  donateTitle: 'تبرّع',
+  donateSubtitle:
+    'ساعدنا على إبقاء السلّم قائمًا. تذهب التبرعات إلى مؤسسة OpenRung.',
   aboutLegalHeader: 'الشؤون القانونية',
   aboutFollowHeader: 'تابعنا',
 
@@ -150,7 +152,8 @@ export const ar: Partial<Strings> = {
   splitTunnelAppPickerClose: 'إغلاق',
   splitTunnelApplyHint:
     'تُطبَّق التغييرات فورًا؛ يعيد النفق الاتصال لبضع ثوانٍ.',
-  splitTunnelResetHint: 'تُعاد إعدادات إيران والصين إلى الوضع الافتراضي عند إعادة تشغيل التطبيق.',
+  splitTunnelResetHint:
+    'تُعاد إعدادات إيران والصين إلى الوضع الافتراضي عند إعادة تشغيل التطبيق.',
   splitTunnelResetHintWithApps:
     'تُعاد إعدادات إيران والصين إلى الوضع الافتراضي عند إعادة تشغيل التطبيق؛ أما التطبيقات المستثناة فتُحفظ.',
 
@@ -158,7 +161,8 @@ export const ar: Partial<Strings> = {
   updateRequiredTitle: 'التحديث مطلوب',
   updateRequiredBody:
     'لم يعد بإمكان هذا الإصدار من OpenRung الاتصال بشبكة المُرحّلات. ثبّت أحدث إصدار للمتابعة.',
-  updateVersionTransition: (current: string, latest: string) => `v${current} -> v${latest}`,
+  updateVersionTransition: (current: string, latest: string) =>
+    `v${current} -> v${latest}`,
   updateActionNow: 'تحديث',
   updateActionLater: 'لاحقًا',
   updateContinueAnyway: 'المتابعة على أي حال',
