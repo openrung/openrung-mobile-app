@@ -179,6 +179,55 @@ print(
 PATCH_TAGS
 # ---------------------------------------------------------------------------
 
+# --- OpenRung app-size trim (part 2): unlink the Tailscale closure -----------
+# The tag trim above is not enough to drop tailscale.com from the binary:
+# libbox's native_shell_session.go is gated only by OS (linux||android||darwin
+# ||ios) and imports protocol/tailscale/tailssh, whose files build under
+# with_gvisor — NOT with_tailscale. Keeping with_gvisor therefore re-links the
+# entire Tailscale module (magicsock, DERP, gliderssh, embedded wireguard-go),
+# measured ~12 MB per binary. OpenRung never exposes NativeShellSession (no
+# Kotlin/Swift callers), and sing-box already ships a stub
+# (native_shell_session_stub.go) whose methods report "not supported". Swap the
+# two files' build tags so the stub always compiles and the tailssh importer
+# never does — the datapath tags (with_gvisor, with_quic) stay untouched.
+# Assert-then-replace, same tripwire contract as the tag patch above.
+python3 - "$work_dir/source/experimental/libbox" <<'PATCH_SHELL_SESSION'
+import os
+import sys
+
+root = sys.argv[1]
+swaps = [
+    (
+        "native_shell_session.go",
+        "//go:build linux || android || darwin || ios",
+        "//go:build openrung_never",
+    ),
+    (
+        "native_shell_session_stub.go",
+        "//go:build !linux && !android && !darwin && !ios",
+        "//go:build !openrung_never",
+    ),
+]
+for name, old, new in swaps:
+    path = os.path.join(root, name)
+    with open(path, "r", encoding="utf-8") as handle:
+        text = handle.read()
+    if old + "\n" not in text:
+        sys.exit(
+            "error: %s build tag changed for this SINGBOX_VERSION; re-review "
+            "OpenRung's Tailscale shell-session stub swap.\nexpected: %s"
+            % (name, old)
+        )
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write(text.replace(old + "\n", new + "\n", 1))
+
+print(
+    "openrung: stubbed libbox native shell session "
+    "(unlinks tailscale.com/tailssh from the with_gvisor build)"
+)
+PATCH_SHELL_SESSION
+# ---------------------------------------------------------------------------
+
 # gomobile applications must use a single generated Go runtime. A standalone
 # punchbridge.aar would duplicate go.Seq/go.Universe and its native runtime next
 # to libbox.aar, so merge the bindings (and the sagernet-QUIC session layer)
