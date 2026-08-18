@@ -1,6 +1,6 @@
 import { displayName } from '../model/countryGeo';
 import type { ExitNodeRegion } from '../model/exitNode';
-import { orderedCandidates, serverTimeMs } from '../model/relay';
+import { effectiveNodeClass, orderedCandidates, serverTimeMs } from '../model/relay';
 import type { RelayDescriptor, RelayListResponse } from '../model/relay';
 
 /**
@@ -54,8 +54,7 @@ export async function loadExitNodeDirectory(
       id: relay.id,
       label: (relay.label ?? '').trim() || null,
       // Absent/unknown node_class collapses to 'volunteer', matching the native decoders.
-      nodeClass:
-        relay.node_class === 'foundation' ? ('foundation' as const) : ('volunteer' as const),
+      nodeClass: effectiveNodeClass(relay.node_class),
     };
     const existing = regionsByKey.get(key);
     if (existing) {

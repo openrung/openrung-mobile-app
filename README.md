@@ -155,8 +155,36 @@ android/             RN Android app + ported VPN service and bridge.
   punchbridge/       Go gomobile adapters over pinned brokerapi, punchcore, and
                      wsscore modules, injected into the generated libbox AAR.
 ios/                 RN iOS app + PacketTunnel extension (xcodegen).
+testdata/contract/   Contract vectors vendored from openrung/openrung, with the
+                     pinned ref in pin.json. See "Contract vectors" below.
 docs/                CONTRACT.md (binding), ARCHITECTURE.md (overview).
 ```
+
+### Contract vectors
+
+`testdata/contract/` holds golden vectors that four suites across two repos run
+against the same expectations: the failure-classification token set, the
+relay-directory decode, and the broker-front list. They are **copies** —
+`contract/vectors/` in `openrung/openrung` is the only source of truth, and
+`pin.json` records the ref they came from plus a digest per file.
+
+```bash
+npm run contract:check   # local digests + byte-identical to the pinned ref
+npm run contract:sync    # re-vendor from the pinned ref after moving it
+```
+
+Fix a vector upstream, then move the ref and re-sync here; editing a vendored
+copy in place makes `contract:check` fail. The check runs in CI and needs
+network on purpose: a copy that has quietly drifted from upstream is exactly
+what it exists to catch, so an unreachable upstream fails rather than passing.
+
+The suites that consume them are `__tests__/contract/` (Jest),
+`ContractClassificationVectorsTest` / `ContractBrokerFrontsTest` (Android unit
+tests, run by `android-unit-test.yml`), and `ContractClassificationVectorsTests`
+/ `ContractBrokerFrontsTests` (XCTest, run locally — there is no iOS CI job).
+Each file's `suites` field says which suites the contract expects; `pin.json`
+records which of those this repo runs today and, for any it does not yet, the
+reason. `contract:check` fails on a declared consumer that is neither.
 
 ## Building
 

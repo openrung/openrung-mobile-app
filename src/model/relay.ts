@@ -63,6 +63,21 @@ export interface ErrorResponse {
   error?: string;
 }
 
+/**
+ * The relay class a client should act on. Only the exact literal 'foundation' is the foundation
+ * class; an absent, unrecognized, or differently-cased value is 'volunteer'. The strictness is
+ * load-bearing rather than incidental — the foundation class gates the WSS transport, so a value
+ * that merely resembles 'foundation' must never be read as it, and a future class name must
+ * degrade to the less-privileged side instead of being rejected.
+ *
+ * Keep in sync with the Kotlin `RelayDescriptor.normalizedNodeClass()`, the Swift
+ * `RelayDescriptor.normalizedNodeClass()`, and Go's `relay.EffectiveNodeClass`. The shared
+ * contract vectors in testdata/contract/relay_decode.json pin all four against the same rows.
+ */
+export function effectiveNodeClass(nodeClass: string | undefined): 'foundation' | 'volunteer' {
+  return nodeClass === 'foundation' ? 'foundation' : 'volunteer';
+}
+
 function isNotBlank(value: string): boolean {
   return value.trim().length > 0;
 }

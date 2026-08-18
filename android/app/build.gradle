@@ -153,6 +153,12 @@ android {
             // FailureClassifierErrnoTest runs under Robolectric, which needs the merged
             // Android resources available to the JVM unit-test classpath.
             includeAndroidResources = true
+            // The cross-repo contract vectors live at the repo root, outside this module.
+            // Passing the directory explicitly keeps the suites off a relative path that
+            // depends on whichever working directory Gradle happens to use.
+            all {
+                it.systemProperty 'openrung.contractVectors', "${rootDir}/../testdata/contract"
+            }
         }
     }
 
