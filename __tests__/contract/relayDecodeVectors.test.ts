@@ -82,9 +82,12 @@ describe('relay decode contract vectors', () => {
               expect(effectiveNodeClass(relay.node_class as string | undefined)).toBe(value);
               continue;
             }
-            // Fields this model does not carry are another suite's to assert; `relay_version` is
-            // the canonical name, and the TypeScript model exposes only the legacy wire name.
-            if (field === 'relay_version') {
+            // Fields this model does not carry are another suite's to assert: `relay_version` is
+            // the canonical name and the TypeScript model exposes only the legacy wire name, and
+            // `wss_fronts` is consumed by the native tunnel layer, never declared on
+            // RelayDescriptor. Asserting them here would only pass through the untyped cast and
+            // fake coverage the TypeScript decoder does not have.
+            if (field === 'relay_version' || field === 'wss_fronts') {
               continue;
             }
             if (value === null) {

@@ -50,7 +50,8 @@ function rawURL(pin, file) {
 
 async function fetchUpstream(pin, file) {
   const url = rawURL(pin, file);
-  const response = await fetch(url);
+  // Fail fast on a hung connection rather than riding out the CI job timeout.
+  const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
   if (!response.ok) {
     throw new Error(`GET ${url} -> HTTP ${response.status}`);
   }
@@ -60,19 +61,46 @@ async function fetchUpstream(pin, file) {
 const pin = JSON.parse(fs.readFileSync(pinPath, 'utf8'));
 const pinned = Object.keys(pin.files);
 
+// Bytes already downloaded this run (by --sync), so the remote half below never fetches twice.
+const upstreamCache = new Map();
+
 // --sync refreshes the copies before anything is checked, so a sync run ends green only if the
-// result also satisfies every check below.
+// result also satisfies every check below. It fetches and validates everything before writing
+// anything: a partial sync — some files rewritten, pin.json still holding the old digests — would
+// point the next contract:check's remediation text back at the sync that broke the tree.
 if (sync) {
   if (offline) {
     console.error('--sync needs the network; drop --offline.');
     process.exit(2);
   }
+  try {
+    await Promise.all(
+      pinned.map(async file => {
+        const upstream = await fetchUpstream(pin, file);
+        let parsed;
+        try {
+          parsed = JSON.parse(upstream.toString('utf8'));
+        } catch (error) {
+          throw new Error(`${file}: upstream copy is not valid JSON (${error.message})`);
+        }
+        if (typeof parsed.version !== 'number' || !Array.isArray(parsed.suites)) {
+          throw new Error(
+            `${file}: upstream copy lacks the version/suites fields the pin records`,
+          );
+        }
+        upstreamCache.set(file, { upstream, parsed });
+      }),
+    );
+  } catch (error) {
+    console.error(`contract:sync failed, leaving the tree untouched: ${error.message}`);
+    process.exit(2);
+  }
   for (const file of pinned) {
-    const upstream = await fetchUpstream(pin, file);
+    const { upstream, parsed } = upstreamCache.get(file);
     fs.writeFileSync(path.join(vectorDir, file), upstream);
     pin.files[file].sha256 = digest(upstream);
-    pin.files[file].version = JSON.parse(upstream.toString('utf8')).version;
-    pin.files[file].suites = JSON.parse(upstream.toString('utf8')).suites;
+    pin.files[file].version = parsed.version;
+    pin.files[file].suites = parsed.suites;
     notes.push(`synced ${file} from ${pin.ref.slice(0, 12)}`);
   }
   fs.writeFileSync(pinPath, `${JSON.stringify(pin, null, 2)}\n`);
@@ -115,7 +143,10 @@ for (const [file, expected] of Object.entries(pin.files)) {
   if (parsed.version !== expected.version) {
     fail(`${file}: carries version ${parsed.version} but pin.json records ${expected.version}`);
   }
-  if (parsed.suites.join() !== expected.suites.join()) {
+  const declaredSuites = Array.isArray(parsed.suites) ? parsed.suites : [];
+  if (!Array.isArray(parsed.suites)) {
+    fail(`${file}: declares no suites array, so its consumers cannot be accounted for`);
+  } else if (parsed.suites.join() !== (expected.suites ?? []).join()) {
     fail(`${file}: declares suites [${parsed.suites}] but pin.json records [${expected.suites}]`);
   }
 
@@ -123,7 +154,7 @@ for (const [file, expected] of Object.entries(pin.files)) {
   // for here — wired up, or pending with a reason. Silence is what lets a declared consumer look
   // like coverage it is not.
   const pendingSuites = Object.keys(expected.pending_suites ?? {});
-  for (const suite of parsed.suites.filter(name => name !== 'go')) {
+  for (const suite of declaredSuites.filter(name => name !== 'go')) {
     const wired = (expected.local_suites ?? []).includes(suite);
     const pending = pendingSuites.includes(suite);
     if (!wired && !pending) {
@@ -137,7 +168,7 @@ for (const [file, expected] of Object.entries(pin.files)) {
     }
   }
   for (const [suite, reason] of Object.entries(expected.pending_suites ?? {})) {
-    if (!parsed.suites.includes(suite)) {
+    if (!declaredSuites.includes(suite)) {
       fail(`${file}: pending suite "${suite}" is not one the file declares`);
     }
     if (typeof reason !== 'string' || reason.trim() === '') {
@@ -145,7 +176,7 @@ for (const [file, expected] of Object.entries(pin.files)) {
     }
   }
   for (const suite of expected.local_suites ?? []) {
-    if (!parsed.suites.includes(suite)) {
+    if (!declaredSuites.includes(suite)) {
       fail(`${file}: local suite "${suite}" is not one the file declares`);
     }
   }
@@ -156,12 +187,23 @@ if (offline) {
     'contract:check --offline: skipped the comparison against ' +
       `${pin.repo}@${pin.ref.slice(0, 12)}. Local digests only; run without --offline before merging.`,
   );
-} else if (failures.length === 0) {
-  for (const file of pinned) {
-    let upstream;
-    try {
-      upstream = await fetchUpstream(pin, file);
-    } catch (error) {
+} else {
+  // Upstream drift is independent of the local bookkeeping checks above, so it is reported even
+  // when they failed — one red run should carry the whole story, not ration it across two.
+  const fetched = await Promise.all(
+    pinned.map(async file => {
+      if (upstreamCache.has(file)) {
+        return { file, upstream: upstreamCache.get(file).upstream };
+      }
+      try {
+        return { file, upstream: await fetchUpstream(pin, file) };
+      } catch (error) {
+        return { file, error };
+      }
+    }),
+  );
+  for (const { file, upstream, error } of fetched) {
+    if (error) {
       // Never downgrade an unreachable upstream to a pass: an unchecked copy is the whole failure
       // mode this script exists for.
       fail(
@@ -170,7 +212,11 @@ if (offline) {
       );
       continue;
     }
-    if (!upstream.equals(fs.readFileSync(path.join(vectorDir, file)))) {
+    const localPath = path.join(vectorDir, file);
+    if (!fs.existsSync(localPath)) {
+      continue; // already reported as "pinned but not vendored" above
+    }
+    if (!upstream.equals(fs.readFileSync(localPath))) {
       fail(
         `${file}: differs from ${pin.repo}@${pin.ref.slice(0, 12)}:${pin.source_dir}/${file}. ` +
           'Re-vendor with `npm run contract:sync`, or move the pin if upstream moved on purpose.',
