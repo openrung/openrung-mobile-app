@@ -8,6 +8,7 @@ on:
       - 'package-lock.json'
       - 'react-native.config.js'
       - 'SINGBOX_VERSION'
+      - 'testdata/contract/**'
       - '.github/workflows/android-unit-test.yml'
   push:
     branches: [main]
@@ -17,6 +18,7 @@ on:
       - 'package-lock.json'
       - 'react-native.config.js'
       - 'SINGBOX_VERSION'
+      - 'testdata/contract/**'
       - '.github/workflows/android-unit-test.yml'
   workflow_dispatch:
 

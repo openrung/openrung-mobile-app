@@ -22,6 +22,11 @@ jobs:
       - run: npm ci
       - name: Guard native broker transports
         run: npm run transport:check
+      # Compares the vendored contract vectors against the pinned openrung ref. Needs network:
+      # a copy that has silently drifted from upstream is the failure this guards, so an
+      # unreachable upstream fails rather than passing.
+      - name: Check vendored contract vectors
+        run: npm run contract:check
       - name: Run ESLint
         run: npm run lint
 
