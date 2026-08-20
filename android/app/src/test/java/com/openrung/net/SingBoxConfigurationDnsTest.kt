@@ -9,6 +9,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.net.URI
@@ -200,8 +201,26 @@ class SingBoxConfigurationDnsTest {
             ),
         )
         // Octet carry, so a future tunnel address change cannot silently derive a wrong hijack
-        // address.
-        assertEquals("10.0.1.0", SingBoxConfiguration.tunnelDnsAddress("10.0.0.255/30"))
+        // address. The /23 keeps the successor inside the prefix.
+        assertEquals("10.0.1.0", SingBoxConfiguration.tunnelDnsAddress("10.0.0.255/23"))
+    }
+
+    @Test
+    fun `tunnel addresses whose dns successor escapes the prefix are rejected`() {
+        // sing-tun refuses to derive a hijack address whose successor escapes the TUN prefix
+        // (HasNextAddress), so returning one here would fail every probe on a healthy tunnel:
+        // the last address of a prefix must be rejected, exactly like a non-IPv4 input.
+        listOf(
+            "10.0.0.255/30",
+            "172.19.0.3/30",
+            "172.19.0.1",
+            "fdfe:dcba:9876::1/126",
+            "bogus/30",
+        ).forEach { invalid ->
+            assertThrows(IllegalArgumentException::class.java) {
+                SingBoxConfiguration.tunnelDnsAddress(invalid)
+            }
+        }
     }
 
     @Test

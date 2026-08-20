@@ -450,18 +450,36 @@ data class SingBoxConfiguration(
          */
         val DEFAULT_TUNNEL_DNS_ADDRESS = tunnelDnsAddress(DEFAULT_TUNNEL_IPV4_ADDRESS)
 
-        /** Next IPv4 address after [tunnelIPv4Address], mirroring sing-tun's derivation. */
+        /**
+         * Next IPv4 address after [tunnelIPv4Address], mirroring sing-tun's derivation.
+         *
+         * sing-tun only performs that derivation when the successor stays inside the TUN
+         * prefix (HasNextAddress: prefix.Contains(addr.Next())); otherwise it hijacks no IPv4
+         * address at all. A tunnel address whose successor escapes the prefix is therefore
+         * rejected here — returning it would hand probes an address sing-box never hijacks
+         * and fail them on a healthy tunnel.
+         */
         fun tunnelDnsAddress(tunnelIPv4Address: String): String {
+            val prefixLength = tunnelIPv4Address
+                .substringAfter("/", missingDelimiterValue = "")
+                .toIntOrNull()
+            require(prefixLength != null && prefixLength in 0..32) {
+                "tunnel address is not an IPv4 prefix: $tunnelIPv4Address"
+            }
             val octets = tunnelIPv4Address.substringBefore("/").split(".")
-            require(octets.size == 4) { "tunnel address is not IPv4: $tunnelIPv4Address" }
+            require(octets.size == 4) { "tunnel address is not an IPv4 prefix: $tunnelIPv4Address" }
             val value = octets.fold(0L) { acc, octet ->
                 val part = requireNotNull(octet.toIntOrNull()) {
-                    "tunnel address is not IPv4: $tunnelIPv4Address"
+                    "tunnel address is not an IPv4 prefix: $tunnelIPv4Address"
                 }
-                require(part in 0..255) { "tunnel address is not IPv4: $tunnelIPv4Address" }
+                require(part in 0..255) { "tunnel address is not an IPv4 prefix: $tunnelIPv4Address" }
                 (acc shl 8) or part.toLong()
             }
             val next = value + 1
+            val networkShift = 32 - prefixLength
+            require(value shr networkShift == next shr networkShift) {
+                "tunnel address $tunnelIPv4Address has no successor inside its prefix for sing-tun to hijack"
+            }
             return (24 downTo 0 step 8).joinToString(".") { shift -> ((next shr shift) and 0xFF).toString() }
         }
 

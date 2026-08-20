@@ -36,20 +36,39 @@ public struct SingBoxConfiguration: Equatable, Sendable {
     /// resolver (1.1.1.1) is NOT tagged, matches no rule, and dies on the TCP-only proxy
     /// outbound, so the fresh-DNS probe must target this address. It is also what libbox reports
     /// to `NEDNSSettings`, so it is exactly where system lookups already go.
-    public static let defaultTunnelDnsAddress = tunnelDnsAddress(for: defaultTunnelIPv4Address)
-
-    /// Next IPv4 address after `tunnelIPv4Address`, mirroring sing-tun's derivation.
-    public static func tunnelDnsAddress(for tunnelIPv4Address: String) -> String {
-        let octets = tunnelIPv4Address.split(separator: "/")[0].split(separator: ".")
-        precondition(octets.count == 4, "tunnel address is not IPv4: \(tunnelIPv4Address)")
-        let value = octets.reduce(UInt32(0)) { accumulated, octet in
-            guard let part = UInt32(octet), part <= 255 else {
-                preconditionFailure("tunnel address is not IPv4: \(tunnelIPv4Address)")
-            }
-            return accumulated << 8 | part
+    public static let defaultTunnelDnsAddress: String = {
+        guard let address = tunnelDnsAddress(for: defaultTunnelIPv4Address) else {
+            preconditionFailure(
+                "default tunnel address has no derivable DNS address: \(defaultTunnelIPv4Address)"
+            )
         }
-        let next = value &+ 1
-        return [24, 16, 8, 0].map { String((next >> UInt32($0)) & 0xFF) }.joined(separator: ".")
+        return address
+    }()
+
+    /// Next IPv4 address after `tunnelIPv4Address`, mirroring sing-tun's derivation, or nil for
+    /// input that is not an IPv4 prefix.
+    ///
+    /// sing-tun only performs that derivation when the successor stays inside the TUN prefix
+    /// (HasNextAddress: prefix.Contains(addr.Next())); otherwise it hijacks no IPv4 address at
+    /// all. A tunnel address whose successor escapes the prefix therefore also yields nil —
+    /// returning it would hand probes an address sing-box never hijacks and fail them on a
+    /// healthy tunnel.
+    public static func tunnelDnsAddress(for tunnelIPv4Address: String) -> String? {
+        let parts = tunnelIPv4Address.split(separator: "/")
+        guard parts.count == 2, let prefixLength = Int(parts[1]), (0...32).contains(prefixLength) else {
+            return nil
+        }
+        let octets = parts[0].split(separator: ".")
+        guard octets.count == 4 else { return nil }
+        var value: UInt64 = 0
+        for octet in octets {
+            guard let part = UInt64(octet), part <= 255 else { return nil }
+            value = value << 8 | part
+        }
+        let next = value + 1
+        let networkShift = UInt64(32 - prefixLength)
+        guard value >> networkShift == next >> networkShift else { return nil }
+        return [24, 16, 8, 0].map { String((next >> UInt64($0)) & 0xFF) }.joined(separator: ".")
     }
 
     public let relay: RelayDescriptor

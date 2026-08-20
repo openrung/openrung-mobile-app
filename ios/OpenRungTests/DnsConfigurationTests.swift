@@ -145,7 +145,15 @@ final class DnsConfigurationTests: XCTestCase {
             SingBoxConfiguration.defaultTunnelDnsAddress
         )
         // Octet carry, so a future tunnel address change cannot silently derive a wrong address.
-        XCTAssertEqual(SingBoxConfiguration.tunnelDnsAddress(for: "10.0.0.255/30"), "10.0.1.0")
+        // The /23 keeps the successor inside the prefix.
+        XCTAssertEqual(SingBoxConfiguration.tunnelDnsAddress(for: "10.0.0.255/23"), "10.0.1.0")
+
+        // sing-tun refuses to derive a hijack address whose successor escapes the TUN prefix
+        // (HasNextAddress), so returning one here would fail every probe on a healthy tunnel:
+        // the last address of a prefix must be rejected, exactly like a non-IPv4 input.
+        for invalid in ["10.0.0.255/30", "172.19.0.3/30", "172.19.0.1", "fdfe:dcba:9876::1/126", "bogus/30"] {
+            XCTAssertNil(SingBoxConfiguration.tunnelDnsAddress(for: invalid), invalid)
+        }
 
         // An explicit dns_address on the tun inbound would replace the derived hijack address
         // and silently invalidate the probe target above.
