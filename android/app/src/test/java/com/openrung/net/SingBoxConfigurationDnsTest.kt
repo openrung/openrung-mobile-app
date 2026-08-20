@@ -216,6 +216,10 @@ class SingBoxConfigurationDnsTest {
             "172.19.0.1",
             "fdfe:dcba:9876::1/126",
             "bogus/30",
+            // Kotlin's split keeps empty components, so these malformed shapes never
+            // collapsed into a valid-looking address; pinned for parity with the iOS suite.
+            "1..2.3.4/24",
+            "1.2.3.4//24",
         ).forEach { invalid ->
             assertThrows(IllegalArgumentException::class.java) {
                 SingBoxConfiguration.tunnelDnsAddress(invalid)

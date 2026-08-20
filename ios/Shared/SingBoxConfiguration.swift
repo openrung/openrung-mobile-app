@@ -54,11 +54,13 @@ public struct SingBoxConfiguration: Equatable, Sendable {
     /// returning it would hand probes an address sing-box never hijacks and fail them on a
     /// healthy tunnel.
     public static func tunnelDnsAddress(for tunnelIPv4Address: String) -> String? {
-        let parts = tunnelIPv4Address.split(separator: "/")
+        // omittingEmptySubsequences: false, or malformed input like "1..2.3.4/24" and
+        // "1.2.3.4//24" collapses to a valid-looking shape.
+        let parts = tunnelIPv4Address.split(separator: "/", omittingEmptySubsequences: false)
         guard parts.count == 2, let prefixLength = Int(parts[1]), (0...32).contains(prefixLength) else {
             return nil
         }
-        let octets = parts[0].split(separator: ".")
+        let octets = parts[0].split(separator: ".", omittingEmptySubsequences: false)
         guard octets.count == 4 else { return nil }
         var value: UInt64 = 0
         for octet in octets {

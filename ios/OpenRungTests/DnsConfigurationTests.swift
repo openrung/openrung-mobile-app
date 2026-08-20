@@ -151,7 +151,12 @@ final class DnsConfigurationTests: XCTestCase {
         // sing-tun refuses to derive a hijack address whose successor escapes the TUN prefix
         // (HasNextAddress), so returning one here would fail every probe on a healthy tunnel:
         // the last address of a prefix must be rejected, exactly like a non-IPv4 input.
-        for invalid in ["10.0.0.255/30", "172.19.0.3/30", "172.19.0.1", "fdfe:dcba:9876::1/126", "bogus/30"] {
+        // The last two guard the split behavior: omitting empty subsequences would collapse
+        // them into a valid-looking address.
+        for invalid in [
+            "10.0.0.255/30", "172.19.0.3/30", "172.19.0.1", "fdfe:dcba:9876::1/126", "bogus/30",
+            "1..2.3.4/24", "1.2.3.4//24",
+        ] {
             XCTAssertNil(SingBoxConfiguration.tunnelDnsAddress(for: invalid), invalid)
         }
 
