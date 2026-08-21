@@ -1,117 +1,165 @@
 import Foundation
 import Network
 import NetworkExtension
+#if canImport(Libbox)
+import Libbox
+#endif
 
-/// Classifies a connection failure into a stable, lowercase snake_case reason token shared with the
-/// OpenRung Go clients (desktop/CLI) and honored by the broker's "Failure reasons" dashboard.
-///
-/// The token set and precedence mirror the Go classifier (`internal/clienttelemetry/classify.go` in
-/// the sibling `openrung` repo): cancellation → relay-selection sentinels → broker HTTP status →
-/// socket errno → DNS (before generic timeout, the more actionable signal) → TLS → permission →
-/// engine-exit → generic timeout → `unknown`.
+/// Platform adapter for the shared failure classifier: translates an iOS error into the input
+/// facts of the libbox binding's `OpenRungClassifyFailure`, whose token comes from the one Go
+/// classifier every OpenRung client runs (`connectcore/clienttelemetry` in the sibling `openrung`
+/// repo — the ladder this file used to hand-copy). This file no longer chooses tokens or orders
+/// rungs; it only says which platform error types express which facts, and unwraps the wrappers
+/// that carry the real cause.
 ///
 /// `PacketTunnelError.allRelaysFailed` / `.relayUnreachable` carry the underlying `Error`, so the
-/// real root cause is unwrapped and classified on its merits instead of being reported as the
+/// real root cause is unwrapped and described on its merits instead of being reported as the
 /// generic wrapper type (which is why the dashboard used to show generic Swift type names).
+///
+/// Two error families short-circuit before the binding: `WssNativeClientError` and
+/// `PunchNativeClientError` already carry their own bounded, mobile-owned telemetry taxonomy
+/// (`failureReason`), assigned where the native reason string still existed — re-deriving them
+/// from facts would lose that specificity.
+///
+/// The extraction (`bindingInput(for:)`, `detailDescription`) is engine-free so the pod-free test
+/// bundle can pin it; the facts→token half runs in `android/punchbridge`'s Go tests against the
+/// same checked-in inputs (`testdata/classification-binding-inputs.json`).
 enum FailureClassifier {
-    private static let maxDetailBytes = 256
 
     /// The reason token for `error`.
     static func classify(_ error: Error) -> String {
-        // (1) cancellation (user stop / task cancellation)
-        if error is CancellationError { return "cancelled" }
+        switch resolve(error) {
+        case .token(let token):
+            return token
+        case .facts(let facts):
+            return nativeClassify(serialize(facts))
+        }
+    }
 
-        if let direct = error as? DirectPathError { return classify(direct.underlying) }
-        if let local = error as? LocalTunnelError { return classify(local.underlying) }
-        if let wss = error as? WssTransportError { return classify(wss.underlying) }
-        if let dnsPath = error as? DnsPathUnverifiedError { return classify(dnsPath.underlying) }
+    /// The binding input `classify` sends for `error`, or nil when `error` resolves to a
+    /// pre-classified native token instead. Exposed for the contract-vector and unit suites.
+    static func bindingInput(for error: Error) -> [String: Any]? {
+        if case .facts(let facts) = resolve(error) { return facts }
+        return nil
+    }
+
+    /// The pre-classified token `classify` returns for `error` without calling the binding, or
+    /// nil when `error` describes binding facts instead. Exposed for the unit suite.
+    static func preClassifiedToken(for error: Error) -> String? {
+        if case .token(let token) = resolve(error) { return token }
+        return nil
+    }
+
+    /// One resolved error: either a token a native transport already classified, or the facts the
+    /// shared classifier decides on.
+    private enum Resolution {
+        case token(String)
+        case facts([String: Any])
+    }
+
+    private static func resolve(_ error: Error) -> Resolution {
+        // Local intent: the enclosing task was cancelled.
+        if error is CancellationError { return .facts(["cancelled": true]) }
+
+        // Wrappers that exist to carry the real cause are transparent.
+        if let direct = error as? DirectPathError { return resolve(direct.underlying) }
+        if let local = error as? LocalTunnelError { return resolve(local.underlying) }
+        if let wss = error as? WssTransportError { return resolve(wss.underlying) }
+        if let dnsPath = error as? DnsPathUnverifiedError { return resolve(dnsPath.underlying) }
         if let probe = error as? InternetProbeError {
-            return probe.underlyingError.map(classify) ?? "network_unreachable"
+            if let underlying = probe.underlyingError { return resolve(underlying) }
+            // The probe reports an unreachable network without an errno; the platform's own errno
+            // vocabulary expresses that condition for the shared ladder.
+            return .facts(["errno": Int(POSIXErrorCode.ENETUNREACH.rawValue)])
         }
         if let ticketStatus = error as? WssTicketStatusError {
-            return ticketStatus.status == 429 ? "rate_limited" : "http_\(ticketStatus.status)"
+            return .facts(["http_status": ticketStatus.status])
         }
         if let brokerNative = error as? BrokerNativeFailure {
-            return brokerNative.failureReason
+            // The bounded binding kind passes through verbatim; the shared classifier owns the
+            // kind→token projection that BrokerNativeFailure.failureReason used to hand-copy.
+            var facts: [String: Any] = ["broker_kind": brokerNative.kind.rawValue]
+            if let status = brokerNative.httpStatus { facts["http_status"] = status }
+            return .facts(facts)
         }
         if let recorded = error as? RelayFailureAlreadyRecordedError {
             if let lastWssFailure = recorded.wssFailures.last {
-                return classify(lastWssFailure)
+                return resolve(lastWssFailure)
             }
-            return classify(recorded.directFailure)
+            return resolve(recorded.directFailure)
         }
         if let nativeWssError = error as? WssNativeClientError {
-            return nativeWssError.failureReason
+            return .token(nativeWssError.failureReason)
         }
         if let nativePunchError = error as? PunchNativeClientError {
-            return nativePunchError.failureReason
+            return .token(nativePunchError.failureReason)
         }
 
-        // (2) app relay-selection sentinels; unwrap the wrappers that carry the real cause.
+        // Relay-selection sentinels; unwrap the wrappers that carry the real cause.
         if let tunnelError = error as? PacketTunnelError {
             switch tunnelError {
             case .noUsableRelay:
-                return "no_usable_relay"
+                return .facts(["selection": "no_usable_relay"])
             case .noRelayInCountry:
-                return "no_relay_in_country"
+                return .facts(["selection": "no_relay_in_country"])
             case .relayNotAvailable:
-                return "relay_not_in_list"
+                return .facts(["selection": "relay_not_in_list"])
             case .relayUnreachable(_, _, let underlying):
-                if let underlying { return classify(underlying) }
-                return "network_unreachable"
+                if let underlying { return resolve(underlying) }
+                return .facts(["errno": Int(POSIXErrorCode.ENETUNREACH.rawValue)])
             case .allRelaysFailed(let underlying):
-                if let underlying { return classify(underlying) }
-                return "no_usable_relay"
+                if let underlying { return resolve(underlying) }
+                return .facts(["selection": "no_usable_relay"])
             }
         }
 
-        // (3) broker HTTP status (429 → rate_limited, else http_<code>)
+        // Broker HTTP status; the shared ladder folds 429 into rate_limited.
         if let brokerError = error as? BrokerClientError {
             switch brokerError {
             case .httpStatus(let code):
-                return code == 429 ? "rate_limited" : "http_\(code)"
+                return .facts(["http_status": code])
             case .invalidResponse:
-                return "unknown"
+                return .facts([:])
             }
         }
 
         // App reachability timeout (raised by the NWConnection probe's own deadline).
         if let reachabilityError = error as? RelayReachabilityError {
             switch reachabilityError {
-            case .timeout: return "timeout"
-            case .invalidPort: return "unknown"
+            case .timeout: return .facts(["timeout": true])
+            case .invalidPort: return .facts([:])
             }
         }
 
-        // (4)–(9) system errors: socket errno → DNS → TLS → permission → timeout. A single
-        // URLError/NWError/POSIXError maps to exactly one of these, so DNS-before-timeout holds
-        // naturally (distinct codes) without a chain walk.
-        if let token = classifySystemError(error) { return token }
+        // System errors: a single URLError/NWError/POSIXError expresses exactly one fact.
+        if let facts = systemErrorFacts(error) { return .facts(facts) }
 
-        // (8) embedded proxy engine failed to start / stopped unexpectedly. It carries no nested
-        // Error, so it never coexists with a higher-precedence system error above.
-        if error is PacketTunnelProxyEngineError { return "process_exited" }
+        // Embedded proxy engine failed to start / stopped unexpectedly. It carries no nested
+        // Error, so it never coexists with a system error above.
+        if error is PacketTunnelProxyEngineError { return .facts(["process_exited": true]) }
 
-        return "unknown"
+        // No facts: the shared classifier keeps the residual in its bounded "unknown" bucket.
+        return .facts([:])
     }
 
-    private static func classifySystemError(_ error: Error) -> String? {
+    private static func systemErrorFacts(_ error: Error) -> [String: Any]? {
         if let urlError = error as? URLError {
             switch urlError.code {
             case .cancelled:
-                return "cancelled"
+                return ["cancelled": true]
             case .cannotFindHost, .dnsLookupFailed:
-                return "dns_failure"
+                return ["dns": true]
             case .secureConnectionFailed, .serverCertificateUntrusted, .serverCertificateHasBadDate,
                  .serverCertificateHasUnknownRoot, .serverCertificateNotYetValid,
                  .clientCertificateRejected, .clientCertificateRequired:
-                return "tls_handshake"
+                return ["tls": true]
             case .cannotConnectToHost:
-                return "connection_refused"
+                // URLSession abstracts the refused connect; the errno is its honest fact form.
+                return ["errno": Int(POSIXErrorCode.ECONNREFUSED.rawValue)]
             case .notConnectedToInternet, .networkConnectionLost:
-                return "network_unreachable"
+                return ["errno": Int(POSIXErrorCode.ENETUNREACH.rawValue)]
             case .timedOut:
-                return "timeout"
+                return ["timeout": true]
             default:
                 break
             }
@@ -120,43 +168,54 @@ enum FailureClassifier {
         if let nwError = error as? NWError {
             switch nwError {
             case .posix(let code):
-                if let token = classifyPOSIX(code) { return token }
+                return ["errno": Int(code.rawValue)]
             case .dns:
-                return "dns_failure"
+                return ["dns": true]
             case .tls:
-                return "tls_handshake"
+                return ["tls": true]
             default:
                 break
             }
         }
 
-        if let posixError = error as? POSIXError, let token = classifyPOSIX(posixError.code) {
-            return token
-        }
-
-        // Fallbacks for errors bridged as NSError (raw POSIX-domain errno, NEVPN/permission errors).
+        // POSIXError and raw POSIX-domain NSErrors take the same validated path: casting an
+        // arbitrary NSPOSIXErrorDomain error to POSIXError first would trap inside Foundation's
+        // bridged `.code` getter when the code is no POSIXErrorCode, and the round-trip keeps
+        // such codes from being presented to the shared ladder as errnos at all. NEVPN errors are
+        // the OS refusing the tunnel (revoked consent).
         let nsError = error as NSError
         if nsError.domain == NSPOSIXErrorDomain,
-           let code = POSIXErrorCode(rawValue: Int32(nsError.code)),
-           let token = classifyPOSIX(code) {
-            return token
+           let rawValue = Int32(exactly: nsError.code),
+           let code = POSIXErrorCode(rawValue: rawValue) {
+            return ["errno": Int(code.rawValue)]
         }
         if nsError.domain == NEVPNErrorDomain {
-            return "permission_denied"
+            return ["permission_denied": true]
         }
 
         return nil
     }
 
-    private static func classifyPOSIX(_ code: POSIXErrorCode) -> String? {
-        switch code {
-        case .ECONNREFUSED: return "connection_refused"
-        case .ECONNRESET: return "connection_reset"
-        case .ENETUNREACH, .EHOSTUNREACH: return "network_unreachable"
-        case .ETIMEDOUT: return "timeout"
-        case .EACCES, .EPERM: return "permission_denied"
-        default: return nil
+    private static func serialize(_ facts: [String: Any]) -> String {
+        guard
+            let data = try? JSONSerialization.data(withJSONObject: facts),
+            let json = String(data: data, encoding: .utf8)
+        else {
+            // Unrepresentable input degrades to the classifier's bounded residual.
+            return "{}"
         }
+        return json
+    }
+
+    private static func nativeClassify(_ inputJSON: String) -> String {
+        #if canImport(Libbox)
+        return LibboxOpenRungClassifyFailure(inputJSON)
+        #else
+        // Only the engine-free test bundle compiles this branch (see project.yml). The suites pin
+        // the facts this file extracts and the Go suite pins facts→token, so no token may be
+        // decided here; the bounded residual keeps an accidental call harmless.
+        return "unknown"
+        #endif
     }
 
     /// The human-readable message for `error` — the source for `failure_detail`.
@@ -169,9 +228,10 @@ enum FailureClassifier {
         String(describing: type(of: error))
     }
 
-    /// The underlying/root error's description, truncated to fit the broker's 256-UTF-8-byte
-    /// attribute limit. This keeps `failure_detail` aligned with `failure_reason`: wrapper errors
-    /// like `allRelaysFailed` classify on their underlying cause, so their detail should too.
+    /// The underlying/root error's description, bounded by the binding to the broker's
+    /// 256-UTF-8-byte attribute limit. This keeps `failure_detail` aligned with `failure_reason`:
+    /// wrapper errors like `allRelaysFailed` classify on their underlying cause, so their detail
+    /// should too.
     static func detail(_ error: Error) -> String {
         truncate(detailDescription(error))
     }
@@ -218,14 +278,15 @@ enum FailureClassifier {
         return (error as NSError).userInfo[NSUnderlyingErrorKey] as? Error
     }
 
-    /// Truncates `value` to at most `maxBytes` UTF-8 bytes without splitting a multi-byte character:
-    /// the boundary is backed off past any UTF-8 continuation byte (`0b10xxxxxx`). The broker rejects
-    /// attribute values whose UTF-8 encoding exceeds 256 bytes.
-    static func truncate(_ value: String, maxBytes: Int = maxDetailBytes) -> String {
-        let bytes = Array(value.utf8)
-        if bytes.count <= maxBytes { return value }
-        var end = maxBytes
-        while end > 0 && (bytes[end] & 0xC0) == 0x80 { end -= 1 }
-        return String(decoding: bytes[0..<end], as: UTF8.self)
+    /// Bounds `value` to the broker's per-attribute limit (256 UTF-8 bytes, cut on a rune
+    /// boundary) through the binding, whose policy it is (`connectcore`'s ErrorDetail).
+    static func truncate(_ value: String) -> String {
+        #if canImport(Libbox)
+        return LibboxOpenRungFailureDetail(value)
+        #else
+        // Only the engine-free test bundle compiles this branch; it exercises message selection,
+        // never the bound. Every shipping build routes through the binding.
+        return value
+        #endif
     }
 }

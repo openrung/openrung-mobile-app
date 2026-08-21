@@ -2,10 +2,10 @@
 # Builds the Android sing-box/libbox AAR (android/app/libs/libbox.aar) from the
 # exact sing-box revision pinned in ../SINGBOX_VERSION, with OpenRung's committed
 # native bindings (android/punchbridge) injected into the same gomobile
-# package/runtime on top of the pinned brokerapi, punchcore, and wsscore
-# modules. libbox is GPL-3.0, so the sing-box pin, android/punchbridge, and all
-# three OpenRung module pins together are the GPL §6 corresponding source for
-# the native Go portion of any released APK (see ../RELEASE.md).
+# package/runtime on top of the pinned brokerapi, connectcore, punchcore, and
+# wsscore modules. libbox is GPL-3.0, so the sing-box pin, android/punchbridge,
+# and all four OpenRung module pins together are the GPL §6 corresponding source
+# for the native Go portion of any released APK (see ../RELEASE.md).
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"
@@ -62,8 +62,21 @@ if [ -z "$brokerapi_version" ]; then
   exit 1
 fi
 
+connectcore_version="$(go mod edit -json "$punch_source/go.mod" | python3 -c '
+import json, sys
+data = json.load(sys.stdin)
+for require in data.get("Require") or []:
+    if require["Path"] == "github.com/openrung/openrung/connectcore":
+        print(require["Version"])
+        break
+')"
+if [ -z "$connectcore_version" ]; then
+  echo "error: $punch_source/go.mod has no require for github.com/openrung/openrung/connectcore" >&2
+  exit 1
+fi
+
 dev_workspace=""
-if [ -n "${PUNCHCORE_SRC:-}" ] || [ -n "${WSSCORE_SRC:-}" ] || [ -n "${BROKERAPI_SRC:-}" ]; then
+if [ -n "${PUNCHCORE_SRC:-}" ] || [ -n "${WSSCORE_SRC:-}" ] || [ -n "${BROKERAPI_SRC:-}" ] || [ -n "${CONNECTCORE_SRC:-}" ]; then
   # Dev mode resolves any shared module from a local checkout. Tests and
   # the graft use this explicit workspace so an ambient go.work can never make
   # the tested trees differ from the trees shipped in the AAR.
@@ -75,6 +88,9 @@ if [ -n "${PUNCHCORE_SRC:-}" ] || [ -n "${WSSCORE_SRC:-}" ] || [ -n "${BROKERAPI
   fi
   if [ -n "${BROKERAPI_SRC:-}" ]; then
     BROKERAPI_SRC="$(cd "$BROKERAPI_SRC" && pwd)"
+  fi
+  if [ -n "${CONNECTCORE_SRC:-}" ]; then
+    CONNECTCORE_SRC="$(cd "$CONNECTCORE_SRC" && pwd)"
   fi
   dev_workspace="$work_dir/openrung-core-dev.work"
   {
@@ -92,6 +108,10 @@ if [ -n "${PUNCHCORE_SRC:-}" ] || [ -n "${WSSCORE_SRC:-}" ] || [ -n "${BROKERAPI
     if [ -n "${BROKERAPI_SRC:-}" ]; then
       echo
       echo "replace github.com/openrung/openrung/brokerapi => $BROKERAPI_SRC"
+    fi
+    if [ -n "${CONNECTCORE_SRC:-}" ]; then
+      echo
+      echo "replace github.com/openrung/openrung/connectcore => $CONNECTCORE_SRC"
     fi
   } > "$dev_workspace"
 fi
@@ -232,12 +252,13 @@ PATCH_SHELL_SESSION
 # punchbridge.aar would duplicate go.Seq/go.Universe and its native runtime next
 # to libbox.aar, so merge the bindings (and the sagernet-QUIC session layer)
 # into sing-box's existing experimental/libbox package before its normal build
-# command runs. Shared transport implementations are NOT copied: brokerapi,
-# punchcore, and wsscore resolve from their pinned modules. Tests are excluded
-# from the graft.
+# command runs. Shared transport and policy implementations are NOT copied:
+# brokerapi, connectcore, punchcore, and wsscore resolve from their pinned
+# modules. Tests are excluded from the graft.
 cp "$punch_source/binding.go" "$work_dir/source/experimental/libbox/openrung_punch.go"
 cp "$punch_source/wss_binding.go" "$work_dir/source/experimental/libbox/openrung_wss.go"
 cp "$punch_source/broker_binding.go" "$work_dir/source/experimental/libbox/openrung_broker.go"
+cp "$punch_source/failure_binding.go" "$work_dir/source/experimental/libbox/openrung_failure.go"
 mkdir -p "$work_dir/source/experimental/libbox/internal/openrungpunch"
 for source_file in "$punch_source/internal/openrungpunch/"*.go; do
   case "$source_file" in
@@ -250,12 +271,18 @@ done
   cd "$work_dir/source"
   go_mod_edits=(
     -require "github.com/openrung/openrung/brokerapi@$brokerapi_version"
+    -require "github.com/openrung/openrung/connectcore@$connectcore_version"
     -require "github.com/openrung/openrung/punchcore@$punchcore_version"
     -require "github.com/openrung/openrung/wsscore@$wsscore_version"
   )
   if [ -n "${BROKERAPI_SRC:-}" ]; then
     go_mod_edits+=(
       -replace "github.com/openrung/openrung/brokerapi=$BROKERAPI_SRC"
+    )
+  fi
+  if [ -n "${CONNECTCORE_SRC:-}" ]; then
+    go_mod_edits+=(
+      -replace "github.com/openrung/openrung/connectcore=$CONNECTCORE_SRC"
     )
   fi
   if [ -n "${PUNCHCORE_SRC:-}" ]; then
@@ -281,6 +308,9 @@ done
     if [ -n "${BROKERAPI_SRC:-}" ]; then
       echo "BROKERAPI_SRC: $BROKERAPI_SRC" >&2
     fi
+    if [ -n "${CONNECTCORE_SRC:-}" ]; then
+      echo "CONNECTCORE_SRC: $CONNECTCORE_SRC" >&2
+    fi
     echo "This is for development only. Release AARs must resolve" >&2
     echo "all versions pinned in android/punchbridge/go.mod." >&2
     echo "==============================================================" >&2
@@ -294,6 +324,7 @@ done
   GOFLAGS=-mod=mod GOMODCACHE="$module_cache" GOWORK=off \
     go get \
       "github.com/openrung/openrung/brokerapi@$brokerapi_version" \
+      "github.com/openrung/openrung/connectcore@$connectcore_version" \
       "github.com/openrung/openrung/punchcore@$punchcore_version" \
       "github.com/openrung/openrung/wsscore@$wsscore_version"
   # GOWORK=off so a developer go.work can never leak into the graft build.
@@ -379,7 +410,9 @@ for generated_symbol in \
   'expiresAtMillis();' \
   'errorKind();' \
   'httpStatus();' \
-  'retryAfterMillis();'; do
+  'retryAfterMillis();' \
+  'openRungClassifyFailure(java.lang.String);' \
+  'openRungFailureDetail(java.lang.String);'; do
   if ! grep -Fq "$generated_symbol" <<< "$javap_output"; then
     echo "error: libbox AAR is missing generated broker symbol: $generated_symbol" >&2
     exit 1

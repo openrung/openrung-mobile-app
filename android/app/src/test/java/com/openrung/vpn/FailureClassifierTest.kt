@@ -3,9 +3,13 @@ package com.openrung.vpn
 import com.openrung.net.BrokerNativeFailure
 import com.openrung.net.BrokerNativeFailureKind
 import com.openrung.net.WssTicketStatusException
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNull
 import org.junit.Test
 import java.io.IOException
 import java.net.SocketTimeoutException
@@ -15,181 +19,179 @@ import javax.net.ssl.SSLException
 import javax.net.ssl.SSLHandshakeException
 
 /**
- * Classifier cases that rely only on JVM exception types (no `android.system.*`), so they run under
+ * Adapter cases that rely only on JVM exception types (no `android.system.*`), so they run under
  * plain JUnit without Robolectric. The errno-based cases live in [FailureClassifierErrnoTest].
+ *
+ * These tests pin the extraction half of the classifier — platform exception chain → binding
+ * input facts. The facts→token half (the ladder, its precedence, and the broker-kind projection)
+ * lives in Go and is pinned by `android/punchbridge/failure_binding_test.go`, which runs the same
+ * input shapes through the real binding.
  */
 class FailureClassifierTest {
 
+    private fun facts(error: Throwable): JsonObject =
+        Json.parseToJsonElement(FailureClassifier.describeFailure(error)).jsonObject
+
     @Test
-    fun `null error yields empty token`() {
+    fun `null error yields empty token without touching the binding`() {
         assertEquals("", FailureClassifier.classify(null))
     }
 
     @Test
-    fun `socket timeout wrapped in IllegalStateException classifies as timeout`() {
+    fun `socket timeout wrapped in IllegalStateException is described on its merits`() {
         // Mirrors the real bug: the connect pipeline wraps the root cause in an IllegalStateException,
         // which used to surface on the dashboard as `relay_connect · IllegalStateException`.
         val error = IllegalStateException("Relay 1.2.3.4:443 is not reachable", SocketTimeoutException("connect timed out"))
-        assertEquals("timeout", FailureClassifier.classify(error))
+        assertEquals(buildJsonObject { put("timeout", true) }, facts(error))
     }
 
     @Test
-    fun `unknown host classifies as dns_failure`() {
-        assertEquals("dns_failure", FailureClassifier.classify(UnknownHostException("Unable to resolve host")))
+    fun `unknown host describes a DNS failure`() {
+        assertEquals(
+            buildJsonObject { put("dns", true) },
+            facts(UnknownHostException("Unable to resolve host")),
+        )
     }
 
     @Test
-    fun `dns failure wins over timeout when both are in the chain`() {
-        // DNS is the more actionable signal, so a name-lookup that also timed out reports dns_failure.
+    fun `a chain carrying DNS and timeout reports both facts`() {
+        // The shared ladder keeps DNS ahead of timeout (the more actionable signal); the adapter's
+        // job is only to report both. The winner is pinned by the Go binding tests.
         val error = SocketTimeoutException("timed out").apply { initCause(UnknownHostException("no address")) }
-        assertEquals("dns_failure", FailureClassifier.classify(error))
-    }
-
-    @Test
-    fun `ssl handshake failure classifies as tls_handshake`() {
-        assertEquals("tls_handshake", FailureClassifier.classify(SSLHandshakeException("cert untrusted")))
-        assertEquals("tls_handshake", FailureClassifier.classify(SSLException("record header error")))
-    }
-
-    @Test
-    fun `security exception classifies as permission_denied`() {
-        assertEquals("permission_denied", FailureClassifier.classify(SecurityException("VPN permission revoked")))
-    }
-
-    // Broker HTTP status now reaches the classifier only as WssTicketStatusException (next test)
-    // or BrokerNativeFailure(HTTP_STATUS) (the native-failure cases further down), so there is no
-    // longer a discovery-side HTTP exception type to assert here.
-
-    @Test
-    fun `WSS ticket status keeps HTTP classification transport scoped`() {
-        assertEquals("rate_limited", FailureClassifier.classify(WssTicketStatusException(429, 5_000)))
-        assertEquals("http_503", FailureClassifier.classify(WssTicketStatusException(503, null)))
-    }
-
-    @Test
-    fun `every native binding kind maps to the bounded mobile taxonomy`() {
-        val cases = listOf(
-            BrokerNativeFailureKind.CANCELLED to "cancelled",
-            BrokerNativeFailureKind.TIMEOUT to "timeout",
-            BrokerNativeFailureKind.RATE_LIMITED to "rate_limited",
-            BrokerNativeFailureKind.HTTP_STATUS to "http_503",
-            BrokerNativeFailureKind.DNS to "dns_failure",
-            BrokerNativeFailureKind.TLS to "tls_handshake",
-            BrokerNativeFailureKind.NETWORK to "network_unreachable",
-            BrokerNativeFailureKind.VERIFICATION to "unknown",
-            BrokerNativeFailureKind.VALIDATION to "unknown",
-            BrokerNativeFailureKind.UNKNOWN to "unknown",
-        )
-
-        cases.forEach { (kind, expected) ->
-            val error = BrokerNativeFailure(
-                kind = kind,
-                httpStatus = if (kind == BrokerNativeFailureKind.HTTP_STATUS) 503 else null,
-                message = "bounded native failure",
-            )
-            assertEquals("$kind", expected, FailureClassifier.classify(error))
-        }
-    }
-
-    @Test
-    fun `native HTTP 429 remains rate limited and absent status stays unknown`() {
         assertEquals(
-            "rate_limited",
-            FailureClassifier.classify(
-                BrokerNativeFailure(
-                    kind = BrokerNativeFailureKind.HTTP_STATUS,
-                    httpStatus = 429,
-                    message = "too many requests",
-                ),
-            ),
+            buildJsonObject {
+                put("dns", true)
+                put("timeout", true)
+            },
+            facts(error),
+        )
+    }
+
+    @Test
+    fun `ssl failures describe a TLS failure`() {
+        val expected = buildJsonObject { put("tls", true) }
+        assertEquals(expected, facts(SSLHandshakeException("cert untrusted")))
+        assertEquals(expected, facts(SSLException("record header error")))
+    }
+
+    @Test
+    fun `security exception describes an OS permission denial`() {
+        assertEquals(
+            buildJsonObject { put("permission_denied", true) },
+            facts(SecurityException("VPN permission revoked")),
+        )
+    }
+
+    @Test
+    fun `WSS ticket status carries its HTTP status`() {
+        assertEquals(
+            buildJsonObject { put("http_status", 429) },
+            facts(WssTicketStatusException(429, 5_000)),
         )
         assertEquals(
-            "unknown",
-            FailureClassifier.classify(
-                BrokerNativeFailure(
-                    kind = BrokerNativeFailureKind.HTTP_STATUS,
-                    message = "missing status",
-                ),
-            ),
+            buildJsonObject { put("http_status", 503) },
+            facts(WssTicketStatusException(503, null)),
         )
     }
 
     @Test
-    fun `platform native failures remain bounded unknown`() {
-        listOf(BrokerNativeFailureKind.UNAVAILABLE, BrokerNativeFailureKind.DECODE).forEach { kind ->
+    fun `every native binding kind passes through with its status`() {
+        // The kind→token projection that classifyNativeFailure used to own is now the shared
+        // classifier's; the adapter forwards the bounded kind string verbatim.
+        BrokerNativeFailureKind.entries.forEach { kind ->
+            val status = if (kind == BrokerNativeFailureKind.HTTP_STATUS) 503 else null
+            val error = BrokerNativeFailure(kind = kind, httpStatus = status, message = "bounded native failure")
             assertEquals(
-                "unknown",
-                FailureClassifier.classify(BrokerNativeFailure(kind = kind, message = "local")),
+                "$kind",
+                buildJsonObject {
+                    put("broker_kind", kind.value)
+                    status?.let { put("http_status", it) }
+                },
+                facts(error),
             )
         }
     }
 
     @Test
-    fun `cancellation classifies as cancelled`() {
-        assertEquals("cancelled", FailureClassifier.classify(CancellationException("stopped")))
+    fun `a broker failure's status outranks a ticket status deeper in the chain`() {
+        // One http_status field cannot report two statuses; the adapter keeps the old ladder's
+        // broker-before-ticket order by deferring to the broker failure's own status.
+        val error = BrokerNativeFailure(
+            kind = BrokerNativeFailureKind.HTTP_STATUS,
+            httpStatus = 502,
+            message = "broker failure",
+            cause = WssTicketStatusException(503, null),
+        )
+        assertEquals(
+            buildJsonObject {
+                put("broker_kind", "http_status")
+                put("http_status", 502)
+            },
+            facts(error),
+        )
     }
 
     @Test
-    fun `engine start failure classifies as process_exited`() {
+    fun `cancellation describes local intent`() {
+        assertEquals(
+            buildJsonObject { put("cancelled", true) },
+            facts(CancellationException("stopped")),
+        )
+    }
+
+    @Test
+    fun `engine start failure describes an engine exit`() {
         val error = EngineStartException("libbox failed to start", RuntimeException("bad config"))
-        assertEquals("process_exited", FailureClassifier.classify(error))
+        assertEquals(buildJsonObject { put("process_exited", true) }, facts(error))
     }
 
     @Test
-    fun `permission wins over engine-exit when a security exception is the engine failure cause`() {
+    fun `a security exception inside an engine failure reports both facts`() {
         // A revoked VPN permission surfacing during engine start must classify as permission_denied,
-        // not process_exited (permission has higher precedence than engine-exit).
+        // not process_exited; the adapter reports both facts and the shared ladder keeps permission
+        // ahead of engine-exit (pinned by the Go binding tests).
         val error = EngineStartException("engine failed", SecurityException("permission denied"))
-        assertEquals("permission_denied", FailureClassifier.classify(error))
+        assertEquals(
+            buildJsonObject {
+                put("permission_denied", true)
+                put("process_exited", true)
+            },
+            facts(error),
+        )
     }
 
     @Test
-    fun `each relay-selection sentinel maps to its token`() {
-        assertEquals("no_relays_available", FailureClassifier.classify(RelaySelectionException.NoRelaysAvailable("none")))
-        assertEquals("relay_not_in_list", FailureClassifier.classify(RelaySelectionException.RelayNotInList("gone")))
-        assertEquals("no_relay_in_country", FailureClassifier.classify(RelaySelectionException.NoRelayInCountry("no relay in Peru")))
-        assertEquals("no_usable_relay", FailureClassifier.classify(RelaySelectionException.NoUsableRelay("none usable")))
+    fun `each relay-selection sentinel maps to its input token`() {
+        fun selection(token: String): JsonObject = buildJsonObject { put("selection", token) }
+        assertEquals(selection("no_relays_available"), facts(RelaySelectionException.NoRelaysAvailable("none")))
+        assertEquals(selection("relay_not_in_list"), facts(RelaySelectionException.RelayNotInList("gone")))
+        assertEquals(selection("no_relay_in_country"), facts(RelaySelectionException.NoRelayInCountry("no relay in Peru")))
+        assertEquals(selection("no_usable_relay"), facts(RelaySelectionException.NoUsableRelay("none usable")))
     }
 
     @Test
-    fun `unrecognized error classifies as unknown`() {
-        assertEquals("unknown", FailureClassifier.classify(RuntimeException("boom")))
-        // A generic IOException (e.g. the "no broker endpoints reachable" fallback) is honestly unknown.
-        assertEquals("unknown", FailureClassifier.classify(IOException("no broker endpoints reachable")))
+    fun `unrecognized errors describe no facts`() {
+        // The binding classifies an empty description as the bounded "unknown" residual.
+        assertEquals(buildJsonObject {}, facts(RuntimeException("boom")))
+        // A generic IOException (e.g. the "no broker endpoints reachable" fallback) is honestly fact-free.
+        assertEquals(buildJsonObject {}, facts(IOException("no broker endpoints reachable")))
     }
 
     @Test
-    fun `detail reports the root cause message`() {
+    fun `detail message is the root cause's`() {
         val error = IllegalStateException("all relay attempts failed", SocketTimeoutException("connect timed out"))
-        assertEquals("connect timed out", FailureClassifier.detail(error))
+        assertEquals("connect timed out", FailureClassifier.detailMessage(error))
     }
 
     @Test
-    fun `detail is empty for a null error`() {
+    fun `detail message falls back to the outermost message when the root's is blank`() {
+        val error = IllegalStateException("all relay attempts failed", RuntimeException())
+        assertEquals("all relay attempts failed", FailureClassifier.detailMessage(error))
+    }
+
+    @Test
+    fun `detail is empty for a null error without touching the binding`() {
         assertEquals("", FailureClassifier.detail(null))
-    }
-
-    @Test
-    fun `detail truncates on a UTF-8 character boundary`() {
-        // 254 ASCII bytes + a 4-byte emoji = 258 bytes; a naive 256-byte cut would split the emoji.
-        val base = "a".repeat(254)
-        val message = base + "😀" // U+1F600 😀, F0 9F 98 80
-        val truncated = FailureClassifier.truncateToBytes(message)
-
-        assertEquals(base, truncated)
-        assertTrue("must not exceed 256 UTF-8 bytes", truncated.toByteArray(Charsets.UTF_8).size <= 256)
-        assertFalse("must not contain a replacement char from a split sequence", truncated.contains('�'))
-    }
-
-    @Test
-    fun `truncate leaves values within the limit untouched`() {
-        val short = "connect timed out"
-        assertEquals(short, FailureClassifier.truncateToBytes(short))
-
-        val exactly256 = "a".repeat(256)
-        assertEquals(exactly256, FailureClassifier.truncateToBytes(exactly256))
-
-        val over = "a".repeat(300)
-        assertEquals(256, FailureClassifier.truncateToBytes(over).toByteArray(Charsets.UTF_8).size)
+        assertNull(FailureClassifier.detailMessage(null))
     }
 }

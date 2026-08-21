@@ -1,0 +1,45 @@
+{
+  "comment": "The binding-input half of the failure-classification contract chain. Each entry is the exact OpenRungClassifyFailure input JSON the Kotlin and Swift adapters must extract for the same-id row of testdata/contract/classification.json, with one indirection: errno rows carry 'errno_symbol' instead of a number, because POSIX errno numbers differ per kernel and each suite resolves the symbol locally (OsConstants on Android, POSIXErrorCode on iOS, syscall in Go) — exactly how production behaves, where the adapter and the Go runtime it calls are compiled for the same platform. The Kotlin and Swift suites assert their adapters produce these inputs from platform exceptions; android/punchbridge's Go suite asserts these inputs classify to each row's expected token through the real binding. Together the two halves compose into the vendored rows running end-to-end against the shared Go classifier, without the JVM or a pod-free XCTest bundle having to load the native engine. This file is owned by this repo (the wire format is the binding's), unlike the digest-pinned testdata/contract/ copies. The 'none' row has no entry: a null error never reaches the binding — the Kotlin adapter's classify(null) returns \"\" before extraction, which the Kotlin suite pins directly.",
+  "contract": "openrung-failure-classification-v1",
+  "contract_version": 1,
+  "inputs": {
+    "cancelled": {"cancelled": true},
+    "cancelled_wrapped": {"cancelled": true},
+
+    "selection_no_relays_available": {"selection": "no_relays_available"},
+    "selection_relay_not_in_list": {"selection": "relay_not_in_list"},
+    "selection_no_relay_in_country": {"selection": "no_relay_in_country"},
+    "selection_no_usable_relay": {"selection": "no_usable_relay"},
+
+    "http_429": {"http_status": 429},
+    "http_403": {"http_status": 403},
+    "http_451": {"http_status": 451},
+    "http_500": {"http_status": 500},
+    "http_503": {"http_status": 503},
+
+    "errno_econnrefused": {"errno_symbol": "ECONNREFUSED"},
+    "errno_econnrefused_wrapped": {"errno_symbol": "ECONNREFUSED"},
+    "errno_econnreset": {"errno_symbol": "ECONNRESET"},
+    "errno_enetunreach": {"errno_symbol": "ENETUNREACH"},
+    "errno_ehostunreach": {"errno_symbol": "EHOSTUNREACH"},
+    "errno_etimedout": {"errno_symbol": "ETIMEDOUT"},
+    "errno_eacces": {"errno_symbol": "EACCES"},
+    "errno_eperm": {"errno_symbol": "EPERM"},
+    "errno_epipe": {"errno_symbol": "EPIPE"},
+
+    "dns_not_found": {"dns": true},
+
+    "tls_not_tls": {"tls": true},
+    "tls_unknown_authority": {"tls": true},
+    "tls_hostname_mismatch": {"tls": true},
+    "tls_cert_expired": {"tls": true},
+
+    "permission_os_denied": {"permission_denied": true},
+
+    "process_exited": {"process_exited": true},
+
+    "timeout_io": {"timeout": true},
+
+    "unrecognized": {}
+  }
+}

@@ -109,6 +109,25 @@ cross-repository development only, both build scripts accept
 `BROKERAPI_SRC=/absolute/path/to/openrung/brokerapi`; artifacts built with that
 override are not releasable.
 
+### Bumping the connectcore pin
+
+Both artifacts also consume the shared client-policy layer (the failure
+classifier behind `OpenRungClassifyFailure`) as the tagged Go module
+`github.com/openrung/openrung/connectcore`. Use only a released
+`connectcore/vX.Y.Z` tag from `openrung/openrung`; never add a committed local
+`replace`. Manual fallback, from `android/punchbridge`:
+
+```sh
+GOWORK=off go get github.com/openrung/openrung/connectcore@vX.Y.Z
+```
+
+Rebuild and validate both Libbox artifacts in the same change. connectcore
+requires specific brokerapi and wsscore versions of its own, so a connectcore
+bump can raise those pins with it — review the full `go.mod` diff, not just the
+one line. For coordinated cross-repository development only, both build scripts
+accept `CONNECTCORE_SRC=/absolute/path/to/openrung/connectcore`; artifacts
+built with that override are not releasable.
+
 ## 2. Rebuild both engine artifacts from their corresponding source
 
 Both are git-ignored (large, generated). Rebuild from the pinned revision:
@@ -120,17 +139,17 @@ go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.12
 go install github.com/sagernet/gomobile/cmd/gobind@v0.1.12
 
 # Android → android/app/libs/libbox.aar
-#   (all four Android ABIs; bindings + pinned brokerapi/punchcore/wsscore)
+#   (all four Android ABIs; bindings + pinned brokerapi/connectcore/punchcore/wsscore)
 ./android/build-libbox-release.sh
 
 # iOS → ios/ThirdParty/Libbox.xcframework
-#   (device+simulator framework: bindings + pinned brokerapi/punchcore/wsscore)
+#   (device+simulator framework: bindings + pinned brokerapi/connectcore/punchcore/wsscore)
 ./ios/build-libbox-release.sh
 ```
 
 Both artifact inputs are the sing-box pin, the tagged
-`android/punchbridge` binding/session source, and the brokerapi, punchcore, and
-wsscore module versions in `android/punchbridge/go.mod`. A stale cached AAR or
+`android/punchbridge` binding/session source, and the brokerapi, connectcore,
+punchcore, and wsscore module versions in `android/punchbridge/go.mod`. A stale cached AAR or
 XCFramework is a release blocker; release
 CI must hash all inputs and the corresponding build script. For the shared
 modules, CI hashes the *pins*
@@ -380,6 +399,9 @@ after distribution. Keep the tagged commit (including `android/punchbridge`) +
 the matching `SINGBOX_VERSION` + the pinned
 `github.com/openrung/openrung/brokerapi` version (the
 `brokerapi/vX.Y.Z` tag) +
+the pinned
+`github.com/openrung/openrung/connectcore` version (the `connectcore/vX.Y.Z`
+tag) +
 the pinned
 `github.com/openrung/openrung/punchcore` version (the `punchcore/vX.Y.Z` tag in
 the `openrung/openrung` repository recorded in `android/punchbridge/go.mod`) +

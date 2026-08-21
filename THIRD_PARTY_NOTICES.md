@@ -69,6 +69,19 @@ but it is called out because its tagged source and transitive dependencies are
 separate native release inputs. The complete GPL-3.0 text is bundled as
 `LICENSE`.
 
+### OpenRung connectcore — GPL-3.0-or-later
+
+- **Component:** `github.com/openrung/openrung/connectcore` at the exact
+  version pinned in `android/punchbridge/go.mod` (linked into both Libbox
+  artifacts).
+- **License:** GNU General Public License v3.0 or later.
+- **Upstream/source:** https://github.com/openrung/openrung/tree/main/connectcore
+
+This is first-party shared client-policy code (the failure classifier every
+OpenRung client runs) rather than a third-party project, but its tagged source
+is a separate native release input. The complete GPL-3.0 text is bundled as
+`LICENSE`.
+
 #### sing-box transitive components (compiled into the apps)
 
 The `libbox` build statically links additional libraries that are therefore
@@ -257,19 +270,22 @@ scripts — is available from the app's source repository:
 The apps statically link a specific sing-box commit. That commit is pinned in
 this repository at [`SINGBOX_VERSION`](SINGBOX_VERSION). Android's same-runtime
 AAR also includes the first-party native bindings under `android/punchbridge`
-and the shared OpenRung broker, punch, and WSS modules, consumed as
-`github.com/openrung/openrung/brokerapi`,
+and the shared OpenRung broker, connect-policy, punch, and WSS modules,
+consumed as `github.com/openrung/openrung/brokerapi`,
+`github.com/openrung/openrung/connectcore`,
 `github.com/openrung/openrung/punchcore`, and
 `github.com/openrung/openrung/wsscore` at the versions pinned in
-`android/punchbridge/go.mod`. The Apple framework includes the broker, punch,
-and WSS bindings with the same brokerapi, punchcore, and wsscore pins. All
-three modules are
+`android/punchbridge/go.mod`. The Apple framework includes the broker,
+classifier, punch, and WSS bindings with the same brokerapi, connectcore,
+punchcore, and wsscore pins. All
+four modules are
 first-party GPL-3.0-or-later code; their complete tagged source is available
 from **https://github.com/openrung/openrung**, which this offer also covers. The
 build paths
 (`android/build-libbox-release.sh` and `ios/build-libbox-release.sh`) and the
 per-release procedure in [`RELEASE.md`](RELEASE.md) make both artifacts
-reproducible. Record and verify the sing-box, brokerapi, punchcore, and wsscore
+reproducible. Record and verify the sing-box, brokerapi, connectcore,
+punchcore, and wsscore
 pins against every shipped binary. OpenRung will provide the corresponding
 source for at least three (3) years on request.
 

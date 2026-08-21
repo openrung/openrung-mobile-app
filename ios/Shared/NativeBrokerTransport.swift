@@ -98,29 +98,6 @@ public struct BrokerNativeFailure: LocalizedError, Equatable, Sendable {
         }
     }
 
-    /// Existing bounded mobile dashboard taxonomy. Binding strings never become telemetry values.
-    public var failureReason: String {
-        switch kind {
-        case .cancelled:
-            return "cancelled"
-        case .timeout:
-            return "timeout"
-        case .rateLimited:
-            return "rate_limited"
-        case .httpStatus:
-            if httpStatus == 429 { return "rate_limited" }
-            return httpStatus.map { "http_\($0)" } ?? "unknown"
-        case .dns:
-            return "dns_failure"
-        case .tls:
-            return "tls_handshake"
-        case .network:
-            return "network_unreachable"
-        case .verification, .validation, .unknown, .unavailable, .decode:
-            return "unknown"
-        }
-    }
-
     static func sanitize(_ value: String, maxBytes: Int = 256) -> String {
         let scalars = value.unicodeScalars.map { scalar -> Character in
             CharacterSet.controlCharacters.contains(scalar) ? " " : Character(scalar)
