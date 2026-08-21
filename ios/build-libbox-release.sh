@@ -5,10 +5,11 @@
 # XCFramework and one Go runtime: do not ship any binding as a second
 # gomobile framework.
 #
-# The transports resolve from the exact brokerapi, punchcore, and wsscore module
-# versions in android/punchbridge/go.mod. BROKERAPI_SRC, PUNCHCORE_SRC, and
-# WSSCORE_SRC are absolute local-development overrides only; release artifacts
-# must use the pinned tags.
+# The transports and shared policies resolve from the exact brokerapi,
+# connectcore, punchcore, and wsscore module versions in
+# android/punchbridge/go.mod. BROKERAPI_SRC, CONNECTCORE_SRC, PUNCHCORE_SRC,
+# and WSSCORE_SRC are absolute local-development overrides only; release
+# artifacts must use the pinned tags.
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"
@@ -80,8 +81,21 @@ if [ -z "$brokerapi_version" ]; then
   exit 1
 fi
 
+connectcore_version="$(go mod edit -json "$binding_source/go.mod" | python3 -c '
+import json, sys
+data = json.load(sys.stdin)
+for require in data.get("Require") or []:
+    if require["Path"] == "github.com/openrung/openrung/connectcore":
+        print(require["Version"])
+        break
+')"
+if [ -z "$connectcore_version" ]; then
+  echo "error: $binding_source/go.mod has no connectcore module pin" >&2
+  exit 1
+fi
+
 dev_workspace=""
-if [ -n "${PUNCHCORE_SRC:-}" ] || [ -n "${WSSCORE_SRC:-}" ] || [ -n "${BROKERAPI_SRC:-}" ]; then
+if [ -n "${PUNCHCORE_SRC:-}" ] || [ -n "${WSSCORE_SRC:-}" ] || [ -n "${BROKERAPI_SRC:-}" ] || [ -n "${CONNECTCORE_SRC:-}" ]; then
   if [ -n "${PUNCHCORE_SRC:-}" ]; then
     PUNCHCORE_SRC="$(cd "$PUNCHCORE_SRC" && pwd)"
   fi
@@ -90,6 +104,9 @@ if [ -n "${PUNCHCORE_SRC:-}" ] || [ -n "${WSSCORE_SRC:-}" ] || [ -n "${BROKERAPI
   fi
   if [ -n "${BROKERAPI_SRC:-}" ]; then
     BROKERAPI_SRC="$(cd "$BROKERAPI_SRC" && pwd)"
+  fi
+  if [ -n "${CONNECTCORE_SRC:-}" ]; then
+    CONNECTCORE_SRC="$(cd "$CONNECTCORE_SRC" && pwd)"
   fi
   dev_workspace="$work_dir/openrung-core-dev.work"
   {
@@ -108,6 +125,10 @@ if [ -n "${PUNCHCORE_SRC:-}" ] || [ -n "${WSSCORE_SRC:-}" ] || [ -n "${BROKERAPI
       echo
       echo "replace github.com/openrung/openrung/brokerapi => $BROKERAPI_SRC"
     fi
+    if [ -n "${CONNECTCORE_SRC:-}" ]; then
+      echo
+      echo "replace github.com/openrung/openrung/connectcore => $CONNECTCORE_SRC"
+    fi
   } > "$dev_workspace"
 fi
 
@@ -121,7 +142,7 @@ echo "Testing the OpenRung native bindings"
   fi
 )
 
-echo "Building Libbox.xcframework from sing-box $sing_box_version with brokerapi $brokerapi_version, punchcore $punchcore_version, and wsscore $wsscore_version"
+echo "Building Libbox.xcframework from sing-box $sing_box_version with brokerapi $brokerapi_version, connectcore $connectcore_version, punchcore $punchcore_version, and wsscore $wsscore_version"
 
 module_cache="${GOMODCACHE:-$(go env GOMODCACHE)}"
 module_source="$module_cache/github.com/sagernet/sing-box@$sing_box_version"
@@ -248,6 +269,8 @@ cp "$binding_source/wss_binding.go" \
   "$work_dir/source/experimental/libbox/openrung_wss.go"
 cp "$binding_source/broker_binding.go" \
   "$work_dir/source/experimental/libbox/openrung_broker.go"
+cp "$binding_source/failure_binding.go" \
+  "$work_dir/source/experimental/libbox/openrung_failure.go"
 mkdir -p "$work_dir/source/experimental/libbox/internal/openrungpunch"
 for source_file in "$binding_source/internal/openrungpunch/"*.go; do
   case "$source_file" in
@@ -260,12 +283,18 @@ done
   cd "$work_dir/source"
   go_mod_edits=(
     -require "github.com/openrung/openrung/brokerapi@$brokerapi_version"
+    -require "github.com/openrung/openrung/connectcore@$connectcore_version"
     -require "github.com/openrung/openrung/punchcore@$punchcore_version"
     -require "github.com/openrung/openrung/wsscore@$wsscore_version"
   )
   if [ -n "${BROKERAPI_SRC:-}" ]; then
     go_mod_edits+=(
       -replace "github.com/openrung/openrung/brokerapi=$BROKERAPI_SRC"
+    )
+  fi
+  if [ -n "${CONNECTCORE_SRC:-}" ]; then
+    go_mod_edits+=(
+      -replace "github.com/openrung/openrung/connectcore=$CONNECTCORE_SRC"
     )
   fi
   if [ -n "${PUNCHCORE_SRC:-}" ]; then
@@ -284,6 +313,9 @@ done
     if [ -n "${BROKERAPI_SRC:-}" ]; then
       echo "BROKERAPI_SRC: $BROKERAPI_SRC" >&2
     fi
+    if [ -n "${CONNECTCORE_SRC:-}" ]; then
+      echo "CONNECTCORE_SRC: $CONNECTCORE_SRC" >&2
+    fi
     if [ -n "${PUNCHCORE_SRC:-}" ]; then
       echo "PUNCHCORE_SRC: $PUNCHCORE_SRC" >&2
     fi
@@ -299,6 +331,7 @@ done
   GOFLAGS=-mod=mod GOMODCACHE="$module_cache" GOWORK=off \
     go get \
       "github.com/openrung/openrung/brokerapi@$brokerapi_version" \
+      "github.com/openrung/openrung/connectcore@$connectcore_version" \
       "github.com/openrung/openrung/punchcore@$punchcore_version" \
       "github.com/openrung/openrung/wsscore@$wsscore_version"
   GOMODCACHE="$module_cache" GOWORK=off \
@@ -347,6 +380,14 @@ for slice in ios-arm64 ios-arm64_x86_64-simulator; do
     echo "error: Apple build is missing the OpenRung iOS broker constructor in $slice" >&2
     exit 1
   fi
+  for classifier_symbol in \
+    'LibboxOpenRungClassifyFailure' \
+    'LibboxOpenRungFailureDetail'; do
+    if ! grep -Fq "$classifier_symbol" "$header"; then
+      echo "error: Apple build is missing the OpenRung failure classifier API in $slice: $classifier_symbol" >&2
+      exit 1
+    fi
+  done
   if ! grep -Fq 'LibboxNewOpenRungBrokerOperationForReactNative' "$header"; then
     echo "error: Apple build is missing the OpenRung React Native broker constructor in $slice" >&2
     exit 1

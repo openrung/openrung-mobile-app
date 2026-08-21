@@ -2,55 +2,73 @@ import Foundation
 import NetworkExtension
 import XCTest
 
-/// Unit tests for `FailureClassifier`. The classifier and the error types it maps
+/// Unit tests for `FailureClassifier`. The adapter and the error types it maps
 /// (`PacketTunnelError`, `BrokerClientError`, `RelayReachabilityError`,
 /// `PacketTunnelProxyEngineError`) are compiled directly into this test target — see the
 /// `OpenRungTests` target in `project.yml` — so no import of the app/extension is needed.
+///
+/// These tests pin the extraction half of the classifier — platform error → binding input facts,
+/// plus the wrapper unwrapping and the two pre-classified native taxonomies. The facts→token half
+/// (the ladder, its precedence, and the broker-kind projection) lives in Go and is pinned by
+/// `android/punchbridge/failure_binding_test.go`, which runs the same input shapes through the
+/// real binding.
 final class FailureClassifierTests: XCTestCase {
+
+    private func facts(_ error: Error) -> NSDictionary? {
+        FailureClassifier.bindingInput(for: error) as NSDictionary?
+    }
+
+    private func errnoFacts(_ code: POSIXErrorCode) -> NSDictionary {
+        ["errno": Int(code.rawValue)]
+    }
 
     // MARK: - PacketTunnelError sentinels
 
     func testRelaySelectionSentinels() {
-        XCTAssertEqual(FailureClassifier.classify(PacketTunnelError.noUsableRelay), "no_usable_relay")
-        XCTAssertEqual(FailureClassifier.classify(PacketTunnelError.noRelayInCountry("Peru")), "no_relay_in_country")
-        XCTAssertEqual(FailureClassifier.classify(PacketTunnelError.relayNotAvailable), "relay_not_in_list")
+        XCTAssertEqual(facts(PacketTunnelError.noUsableRelay), ["selection": "no_usable_relay"])
+        XCTAssertEqual(facts(PacketTunnelError.noRelayInCountry("Peru")), ["selection": "no_relay_in_country"])
+        XCTAssertEqual(facts(PacketTunnelError.relayNotAvailable), ["selection": "relay_not_in_list"])
     }
 
-    // MARK: - Wrappers unwrap and classify the real cause
+    // MARK: - Wrappers unwrap and describe the real cause
 
     func testAllRelaysFailedUnwrapsUnderlyingError() {
         XCTAssertEqual(
-            FailureClassifier.classify(PacketTunnelError.allRelaysFailed(URLError(.timedOut))),
-            "timeout"
+            facts(PacketTunnelError.allRelaysFailed(URLError(.timedOut))),
+            ["timeout": true]
         )
         XCTAssertEqual(
-            FailureClassifier.classify(PacketTunnelError.allRelaysFailed(BrokerClientError.httpStatus(429))),
-            "rate_limited"
+            facts(PacketTunnelError.allRelaysFailed(BrokerClientError.httpStatus(429))),
+            ["http_status": 429]
         )
-        // No last error captured → generic.
-        XCTAssertEqual(FailureClassifier.classify(PacketTunnelError.allRelaysFailed(nil)), "no_usable_relay")
+        // No last error captured → the generic sentinel.
+        XCTAssertEqual(
+            facts(PacketTunnelError.allRelaysFailed(nil)),
+            ["selection": "no_usable_relay"]
+        )
     }
 
     func testAllRelaysFailedUnwrapsEngineFailure() {
         XCTAssertEqual(
-            FailureClassifier.classify(PacketTunnelError.allRelaysFailed(PacketTunnelProxyEngineError.engineStartFailed("boom"))),
-            "process_exited"
+            facts(PacketTunnelError.allRelaysFailed(PacketTunnelProxyEngineError.engineStartFailed("boom"))),
+            ["process_exited": true]
         )
     }
 
     func testRelayUnreachableUnwrapsUnderlyingError() {
+        // URLSession abstracts the refused connect; the platform's errno vocabulary is its fact form.
         XCTAssertEqual(
-            FailureClassifier.classify(PacketTunnelError.relayUnreachable(host: "1.2.3.4", port: 443, underlying: URLError(.cannotConnectToHost))),
-            "connection_refused"
+            facts(PacketTunnelError.relayUnreachable(host: "1.2.3.4", port: 443, underlying: URLError(.cannotConnectToHost))),
+            errnoFacts(.ECONNREFUSED)
         )
         XCTAssertEqual(
-            FailureClassifier.classify(PacketTunnelError.relayUnreachable(host: "1.2.3.4", port: 443, underlying: RelayReachabilityError.timeout)),
-            "timeout"
+            facts(PacketTunnelError.relayUnreachable(host: "1.2.3.4", port: 443, underlying: RelayReachabilityError.timeout)),
+            ["timeout": true]
         )
-        // No underlying cause → reachability fallback token.
+        // No underlying cause → the reachability fallback condition.
         XCTAssertEqual(
-            FailureClassifier.classify(PacketTunnelError.relayUnreachable(host: "1.2.3.4", port: 443, underlying: nil)),
-            "network_unreachable"
+            facts(PacketTunnelError.relayUnreachable(host: "1.2.3.4", port: 443, underlying: nil)),
+            errnoFacts(.ENETUNREACH)
         )
     }
 
@@ -60,26 +78,26 @@ final class FailureClassifierTests: XCTestCase {
         // contract. Both the bare wrapper and the shape verifyStartupTunnelPath actually
         // produces (DirectPathError wrapping it) are covered.
         XCTAssertEqual(
-            FailureClassifier.classify(DnsPathUnverifiedError(underlying: URLError(.timedOut))),
-            "timeout"
+            facts(DnsPathUnverifiedError(underlying: URLError(.timedOut))),
+            ["timeout": true]
         )
         XCTAssertEqual(
-            FailureClassifier.classify(
+            facts(
                 DirectPathError(
                     stage: startupStageDnsProbe,
                     underlying: DnsPathUnverifiedError(underlying: URLError(.cannotParseResponse))
                 )
             ),
-            "unknown"
+            [:]
         )
         XCTAssertEqual(
-            FailureClassifier.classify(
+            facts(
                 DirectPathError(
                     stage: startupStageDnsProbe,
                     underlying: DnsPathUnverifiedError(underlying: URLError(.dnsLookupFailed))
                 )
             ),
-            "dns_failure"
+            ["dns": true]
         )
         // detail() unwraps through the same branch.
         XCTAssertEqual(
@@ -91,45 +109,36 @@ final class FailureClassifierTests: XCTestCase {
     // MARK: - Cancellation
 
     func testCancellation() {
-        XCTAssertEqual(FailureClassifier.classify(CancellationError()), "cancelled")
-        XCTAssertEqual(FailureClassifier.classify(URLError(.cancelled)), "cancelled")
+        XCTAssertEqual(facts(CancellationError()), ["cancelled": true])
+        XCTAssertEqual(facts(URLError(.cancelled)), ["cancelled": true])
     }
 
     // MARK: - Broker HTTP status
 
     func testBrokerHTTPStatus() {
-        XCTAssertEqual(FailureClassifier.classify(BrokerClientError.httpStatus(429)), "rate_limited")
-        XCTAssertEqual(FailureClassifier.classify(BrokerClientError.httpStatus(503)), "http_503")
-        XCTAssertEqual(FailureClassifier.classify(BrokerClientError.httpStatus(500)), "http_500")
-        XCTAssertEqual(FailureClassifier.classify(BrokerClientError.invalidResponse), "unknown")
+        // The shared ladder folds 429 into rate_limited; the adapter only carries the status.
+        XCTAssertEqual(facts(BrokerClientError.httpStatus(429)), ["http_status": 429])
+        XCTAssertEqual(facts(BrokerClientError.httpStatus(503)), ["http_status": 503])
+        XCTAssertEqual(facts(BrokerClientError.httpStatus(500)), ["http_status": 500])
+        XCTAssertEqual(facts(BrokerClientError.invalidResponse), [:])
     }
 
-    func testEveryNativeBrokerKindUsesTheBoundedMobileTaxonomy() {
-        let cases: [(BrokerNativeFailure, String)] = [
-            (.init(kind: .cancelled), "cancelled"),
-            (.init(kind: .timeout), "timeout"),
-            (.init(kind: .rateLimited), "rate_limited"),
-            (.init(kind: .httpStatus, httpStatus: 429), "rate_limited"),
-            (.init(kind: .httpStatus, httpStatus: 503), "http_503"),
-            (.init(kind: .httpStatus), "unknown"),
-            (.init(kind: .dns), "dns_failure"),
-            (.init(kind: .tls), "tls_handshake"),
-            (.init(kind: .network), "network_unreachable"),
-            (.init(kind: .verification), "unknown"),
-            (.init(kind: .validation), "unknown"),
-            (.init(kind: .unknown), "unknown"),
-            (.init(kind: .unavailable), "unknown"),
-            (.init(kind: .decode), "unknown"),
-        ]
-        for (failure, expected) in cases {
+    func testEveryNativeBrokerKindPassesThroughWithItsStatus() {
+        // The kind→token projection that BrokerNativeFailure.failureReason used to own is now the
+        // shared classifier's; the adapter forwards the bounded kind string verbatim.
+        for kind in BrokerNativeFailureKind.allCases {
+            let status: Int? = kind == .httpStatus ? 503 : nil
+            var expected: [String: Any] = ["broker_kind": kind.rawValue]
+            if let status { expected["http_status"] = status }
             XCTAssertEqual(
-                FailureClassifier.classify(failure),
-                expected,
-                "kind \(failure.kind.rawValue)"
+                facts(BrokerNativeFailure(kind: kind, httpStatus: status)),
+                expected as NSDictionary,
+                "kind \(kind.rawValue)"
             )
         }
+        // A future binding value normalizes into the bounded unknown kind before extraction.
         XCTAssertEqual(
-            FailureClassifier.classify(
+            facts(
                 BrokerNativeFailure(
                     bindingKind: "future_kind",
                     httpStatus: 0,
@@ -137,21 +146,21 @@ final class FailureClassifierTests: XCTestCase {
                     message: ""
                 )
             ),
-            "unknown"
+            ["broker_kind": "unknown"]
         )
     }
 
     // MARK: - URLError codes
 
     func testURLErrorCodes() {
-        XCTAssertEqual(FailureClassifier.classify(URLError(.timedOut)), "timeout")
-        XCTAssertEqual(FailureClassifier.classify(URLError(.cannotFindHost)), "dns_failure")
-        XCTAssertEqual(FailureClassifier.classify(URLError(.dnsLookupFailed)), "dns_failure")
-        XCTAssertEqual(FailureClassifier.classify(URLError(.secureConnectionFailed)), "tls_handshake")
-        XCTAssertEqual(FailureClassifier.classify(URLError(.serverCertificateUntrusted)), "tls_handshake")
-        XCTAssertEqual(FailureClassifier.classify(URLError(.cannotConnectToHost)), "connection_refused")
-        XCTAssertEqual(FailureClassifier.classify(URLError(.notConnectedToInternet)), "network_unreachable")
-        XCTAssertEqual(FailureClassifier.classify(URLError(.networkConnectionLost)), "network_unreachable")
+        XCTAssertEqual(facts(URLError(.timedOut)), ["timeout": true])
+        XCTAssertEqual(facts(URLError(.cannotFindHost)), ["dns": true])
+        XCTAssertEqual(facts(URLError(.dnsLookupFailed)), ["dns": true])
+        XCTAssertEqual(facts(URLError(.secureConnectionFailed)), ["tls": true])
+        XCTAssertEqual(facts(URLError(.serverCertificateUntrusted)), ["tls": true])
+        XCTAssertEqual(facts(URLError(.cannotConnectToHost)), errnoFacts(.ECONNREFUSED))
+        XCTAssertEqual(facts(URLError(.notConnectedToInternet)), errnoFacts(.ENETUNREACH))
+        XCTAssertEqual(facts(URLError(.networkConnectionLost)), errnoFacts(.ENETUNREACH))
     }
 
     // MARK: - POSIX errno (bridged as NSError, as NWError/POSIXError would surface)
@@ -161,76 +170,71 @@ final class FailureClassifierTests: XCTestCase {
     }
 
     func testPOSIXErrno() {
-        XCTAssertEqual(FailureClassifier.classify(posix(.ECONNREFUSED)), "connection_refused")
-        XCTAssertEqual(FailureClassifier.classify(posix(.ECONNRESET)), "connection_reset")
-        XCTAssertEqual(FailureClassifier.classify(posix(.ENETUNREACH)), "network_unreachable")
-        XCTAssertEqual(FailureClassifier.classify(posix(.EHOSTUNREACH)), "network_unreachable")
-        XCTAssertEqual(FailureClassifier.classify(posix(.ETIMEDOUT)), "timeout")
-        XCTAssertEqual(FailureClassifier.classify(posix(.EACCES)), "permission_denied")
-        XCTAssertEqual(FailureClassifier.classify(posix(.EPERM)), "permission_denied")
+        // The raw darwin number is the honest wire value: the binding is compiled for the same
+        // platform, and the errno→token mapping is the shared ladder's.
+        for code: POSIXErrorCode in [
+            .ECONNREFUSED, .ECONNRESET, .ENETUNREACH, .EHOSTUNREACH, .ETIMEDOUT, .EACCES, .EPERM, .EPIPE,
+        ] {
+            XCTAssertEqual(facts(posix(code)), errnoFacts(code), "errno \(code.rawValue)")
+        }
+        // A POSIX-domain code that is no POSIXErrorCode must not be presented as an errno.
+        XCTAssertEqual(facts(NSError(domain: NSPOSIXErrorDomain, code: 999_999)), [:])
     }
 
     func testErrnoRootCauseWinsOverWrapper() {
-        // A refused connection surfacing as the last relay error must classify as connection_refused,
-        // unwrapped from the allRelaysFailed wrapper (socket errno before engine-exit / unknown).
+        // A refused connection surfacing as the last relay error must be described unwrapped from
+        // the allRelaysFailed wrapper; the shared ladder keeps the errno ahead of the residual.
         XCTAssertEqual(
-            FailureClassifier.classify(PacketTunnelError.allRelaysFailed(posix(.ECONNREFUSED))),
-            "connection_refused"
+            facts(PacketTunnelError.allRelaysFailed(posix(.ECONNREFUSED))),
+            errnoFacts(.ECONNREFUSED)
         )
     }
 
     // MARK: - Permission / engine / unknown
 
     func testPermissionAndEngineAndUnknown() {
-        XCTAssertEqual(FailureClassifier.classify(NSError(domain: NEVPNErrorDomain, code: 1)), "permission_denied")
-        XCTAssertEqual(FailureClassifier.classify(PacketTunnelProxyEngineError.engineStartFailed("died")), "process_exited")
-        XCTAssertEqual(FailureClassifier.classify(PacketTunnelProxyEngineError.engineNotLinked), "process_exited")
-        XCTAssertEqual(FailureClassifier.classify(NSError(domain: "com.example.other", code: 7)), "unknown")
+        XCTAssertEqual(facts(NSError(domain: NEVPNErrorDomain, code: 1)), ["permission_denied": true])
+        XCTAssertEqual(facts(PacketTunnelProxyEngineError.engineStartFailed("died")), ["process_exited": true])
+        XCTAssertEqual(facts(PacketTunnelProxyEngineError.engineNotLinked), ["process_exited": true])
+        // No facts: the shared classifier keeps the residual in its bounded "unknown" bucket.
+        XCTAssertEqual(facts(NSError(domain: "com.example.other", code: 7)), [:])
     }
 
-    func testWssWrappersKeepLocalAndTransportClassificationSeparate() {
+    func testWssWrappersKeepLocalAndTransportDescriptionsSeparate() {
         XCTAssertEqual(
-            FailureClassifier.classify(
-                DirectPathError(stage: "tcp", underlying: URLError(.timedOut))
-            ),
-            "timeout"
+            facts(DirectPathError(stage: "tcp", underlying: URLError(.timedOut))),
+            ["timeout": true]
         )
         XCTAssertEqual(
-            FailureClassifier.classify(
-                LocalTunnelError(stage: "permission", underlying: NSError(domain: NEVPNErrorDomain, code: 1))
-            ),
-            "permission_denied"
+            facts(LocalTunnelError(stage: "permission", underlying: NSError(domain: NEVPNErrorDomain, code: 1))),
+            ["permission_denied": true]
         )
         XCTAssertEqual(
-            FailureClassifier.classify(
-                WssTransportError(stage: "ticket", frontID: "front-a", underlying: BrokerClientError.httpStatus(503))
-            ),
-            "http_503"
+            facts(WssTransportError(stage: "ticket", frontID: "front-a", underlying: BrokerClientError.httpStatus(503))),
+            ["http_status": 503]
         )
         XCTAssertEqual(
-            FailureClassifier.classify(
+            facts(
                 DirectPathError(
                     stage: "internet_probe",
                     underlying: InternetProbeError.unreachable(URLError(.dnsLookupFailed))
                 )
             ),
-            "dns_failure"
+            ["dns": true]
         )
         XCTAssertEqual(
-            FailureClassifier.classify(
+            facts(
                 WssTransportError(
                     stage: "ticket",
                     frontID: "front-a",
                     underlying: WssTicketStatusError(status: 429, retryAfterMilliseconds: 1_000)
                 )
             ),
-            "rate_limited"
+            ["http_status": 429]
         )
         XCTAssertEqual(
-            FailureClassifier.classify(
-                WssTicketStatusError(status: 503, retryAfterMilliseconds: nil)
-            ),
-            "http_503"
+            facts(WssTicketStatusError(status: 503, retryAfterMilliseconds: nil)),
+            ["http_status": 503]
         )
         XCTAssertEqual(
             FailureClassifier.detail(
@@ -243,6 +247,8 @@ final class FailureClassifierTests: XCTestCase {
             "WSS ticket HTTP status 503"
         )
     }
+
+    // MARK: - Pre-classified native taxonomies (classified without the binding)
 
     func testNativeWssErrorsUseBoundedSpecificReasons() {
         XCTAssertEqual(FailureClassifier.classify(WssNativeClientError.unavailable), "wss_client_unavailable")
@@ -281,6 +287,12 @@ final class FailureClassifierTests: XCTestCase {
             ),
             "wss_transport_failed"
         )
+        // Pre-classified errors never produce binding facts.
+        XCTAssertNil(FailureClassifier.bindingInput(for: WssNativeClientError.unavailable))
+        XCTAssertEqual(
+            FailureClassifier.preClassifiedToken(for: WssNativeClientError.unavailable),
+            "wss_client_unavailable"
+        )
     }
 
     func testNativePunchErrorsUseBoundedSpecificReasonsAndDetail() {
@@ -306,31 +318,10 @@ final class FailureClassifierTests: XCTestCase {
             FailureClassifier.detail(declined),
             "relay temporarily declined the session"
         )
+        XCTAssertNil(FailureClassifier.bindingInput(for: declined))
     }
 
-    // MARK: - failure_detail truncation
-
-    func testDetailTruncatesOnUTF8Boundary() {
-        // 254 ASCII bytes + a 4-byte emoji = 258 bytes; a naive 256-byte cut would split the emoji.
-        let base = String(repeating: "a", count: 254)
-        let message = base + "😀" // U+1F600, F0 9F 98 80
-        let truncated = FailureClassifier.truncate(message)
-
-        XCTAssertEqual(truncated, base)
-        XCTAssertLessThanOrEqual(truncated.utf8.count, 256)
-        XCTAssertFalse(truncated.contains("\u{FFFD}"))
-    }
-
-    func testTruncateLeavesValuesWithinLimitUntouched() {
-        let short = "connect timed out"
-        XCTAssertEqual(FailureClassifier.truncate(short), short)
-
-        let exactly256 = String(repeating: "a", count: 256)
-        XCTAssertEqual(FailureClassifier.truncate(exactly256), exactly256)
-
-        let over = String(repeating: "a", count: 300)
-        XCTAssertEqual(FailureClassifier.truncate(over).utf8.count, 256)
-    }
+    // MARK: - failure_detail message selection (the bound lives in the binding, tested in Go)
 
     func testDetailUsesUnderlyingDescription() {
         struct RootCause: LocalizedError {

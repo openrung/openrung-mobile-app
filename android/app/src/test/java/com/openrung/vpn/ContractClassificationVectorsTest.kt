@@ -7,11 +7,13 @@ import com.openrung.net.WssTicketStatusException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -29,9 +31,14 @@ import javax.net.ssl.SSLHandshakeException
  * The Kotlin half of the shared failure-classification contract.
  *
  * The rows come from testdata/contract/classification.json, vendored from openrung/openrung and
- * checked against the pinned ref by `npm run contract:check`. The same rows run against Go's
- * classifier in that repo and against Swift's in [ios/OpenRungTests], so a divergence here means
- * two clients would file the same failure under different tokens on one dashboard.
+ * checked against the pinned ref by `npm run contract:check`. Since the classifier policy moved
+ * into the shared Go implementation behind the libbox binding, this suite pins the adapter half:
+ * the platform exception built for each row must extract to the exact binding input recorded in
+ * testdata/classification-binding-inputs.json. The other half — those same inputs classifying to
+ * each row's expected token through the real binding — runs in android/punchbridge's Go tests
+ * (failure_binding_test.go), so the two suites compose into the rows running end-to-end against
+ * the one classifier every OpenRung client shares. A JVM test cannot load the gomobile engine,
+ * which is why the chain is split exactly at the binding's wire format.
  *
  * Runs under Robolectric for the same reason [FailureClassifierErrnoTest] does: a stubbed
  * `android.jar` reports every `OsConstants` value as 0 and has no working [ErrnoException].
@@ -56,10 +63,16 @@ class ContractClassificationVectorsTest {
                 "openrung.contractVectors is unset; the Gradle unit-test task should supply it"
             },
         )
+
+        /** The repo-owned binding-input fixture lives beside the vendored contract directory. */
+        val bindingInputFile: File = File(vectorDir.parentFile, "classification-binding-inputs.json")
     }
 
     private val vectors: JsonObject =
         Json.parseToJsonElement(File(vectorDir, "classification.json").readText()).jsonObject
+
+    private val bindingInputs: JsonObject =
+        Json.parseToJsonElement(bindingInputFile.readText()).jsonObject
 
     private fun string(owner: JsonObject, key: String): String? =
         owner[key]?.jsonPrimitive?.contentOrNull
@@ -76,6 +89,7 @@ class ContractClassificationVectorsTest {
     @Test
     fun `runs the version and the suite it was written for`() {
         assertEquals(EXPECTED_VERSION, vectors["version"]!!.jsonPrimitive.int)
+        assertEquals(EXPECTED_VERSION, bindingInputs["contract_version"]!!.jsonPrimitive.int)
         assertTrue(
             "the file must declare this suite as a consumer",
             vectors["suites"]!!.jsonArray.map { it.jsonPrimitive.content }.contains(SUITE),
@@ -83,7 +97,7 @@ class ContractClassificationVectorsTest {
     }
 
     @Test
-    fun `every row this suite claims classifies to the shared token`() {
+    fun `every row this suite claims extracts to the shared binding input`() {
         var ran = 0
         vectors["cases"]!!.jsonArray.forEach { element ->
             val row = element.jsonObject
@@ -94,10 +108,38 @@ class ContractClassificationVectorsTest {
 
             val error = errorFor(row) ?: return@forEach
             ran++
-            assertEquals(id, string(row, "expect"), FailureClassifier.classify(error.value))
+            if (error.value == null) {
+                // The one adapter-owned rule: a null error never reaches the binding.
+                assertEquals(id, "", FailureClassifier.classify(null))
+                return@forEach
+            }
+            assertEquals(
+                id,
+                expectedBindingInput(id),
+                Json.parseToJsonElement(FailureClassifier.describeFailure(error.value)).jsonObject,
+            )
         }
         // A suite that silently matched no row would pass while asserting nothing.
         assertTrue("no rows ran; the vectors or the kind mapping changed shape", ran >= 20)
+    }
+
+    /**
+     * The fixture entry for [id], with `errno_symbol` resolved to this platform's number via
+     * [OsConstants] — the same transform the Go and Swift suites apply on their platforms.
+     */
+    private fun expectedBindingInput(id: String): JsonObject {
+        val entry = requireNotNull(bindingInputs["inputs"]!!.jsonObject[id]) {
+            "$id: no binding-input fixture entry; add it to ${bindingInputFile.name}"
+        }.jsonObject
+        return buildJsonObject {
+            entry.forEach { (key, value) ->
+                if (key == "errno_symbol") {
+                    put("errno", osConstant(value.jsonPrimitive.content))
+                } else {
+                    put(key, value)
+                }
+            }
+        }
     }
 
     /**

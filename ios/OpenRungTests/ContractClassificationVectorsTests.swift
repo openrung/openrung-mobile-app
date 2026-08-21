@@ -5,10 +5,15 @@ import XCTest
 /// The Swift half of the shared failure-classification contract.
 ///
 /// The rows come from testdata/contract/classification.json, vendored from openrung/openrung and
-/// checked against the pinned ref by `npm run contract:check`. The same rows run against Go's
-/// classifier in that repo and against Kotlin's in `ContractClassificationVectorsTest`, so a
-/// divergence here means two clients would file the same failure under different tokens on one
-/// dashboard.
+/// checked against the pinned ref by `npm run contract:check`. Since the classifier policy moved
+/// into the shared Go implementation behind the libbox binding, this suite pins the adapter half:
+/// the platform error built for each row must extract to the exact binding input recorded in
+/// testdata/classification-binding-inputs.json. The other half — those same inputs classifying to
+/// each row's expected token through the real binding — runs in android/punchbridge's Go tests
+/// (failure_binding_test.go), so the two suites compose into the rows running end-to-end against
+/// the one classifier every OpenRung client shares. This test bundle deliberately compiles without
+/// the engine (see project.yml), which is why the chain is split exactly at the binding's wire
+/// format.
 final class ContractClassificationVectorsTests: XCTestCase {
 
     /// The version this suite was written against; a bump upstream means revisiting it.
@@ -20,30 +25,38 @@ final class ContractClassificationVectorsTests: XCTestCase {
     /// Resolved from this file's own path rather than a bundle resource, so the vectors stay a
     /// plain checked-in file that every suite reads the same way and the Xcode target needs no
     /// resource wiring.
-    private static let vectorDirectory = URL(fileURLWithPath: #filePath)
+    private static let testdataDirectory = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()  // OpenRungTests
         .deletingLastPathComponent()  // ios
         .deletingLastPathComponent()  // repository root
-        .appendingPathComponent("testdata/contract", isDirectory: true)
+        .appendingPathComponent("testdata", isDirectory: true)
 
     private var vectors: [String: Any] = [:]
+    private var bindingInputs: [String: Any] = [:]
 
     override func setUpWithError() throws {
-        let url = Self.vectorDirectory.appendingPathComponent("classification.json")
+        vectors = try Self.jsonObject(at: Self.testdataDirectory
+            .appendingPathComponent("contract/classification.json"))
+        bindingInputs = try Self.jsonObject(at: Self.testdataDirectory
+            .appendingPathComponent("classification-binding-inputs.json"))
+    }
+
+    private static func jsonObject(at url: URL) throws -> [String: Any] {
         let data = try Data(contentsOf: url)
-        vectors = try XCTUnwrap(
+        return try XCTUnwrap(
             try JSONSerialization.jsonObject(with: data) as? [String: Any],
-            "classification.json is not a JSON object"
+            "\(url.lastPathComponent) is not a JSON object"
         )
     }
 
     func testRunsTheVersionAndSuiteItWasWrittenFor() throws {
         XCTAssertEqual(vectors["version"] as? Int, Self.expectedVersion)
+        XCTAssertEqual(bindingInputs["contract_version"] as? Int, Self.expectedVersion)
         let declared = try XCTUnwrap(vectors["suites"] as? [String])
         XCTAssertTrue(declared.contains(Self.suite), "the file must declare this suite as a consumer")
     }
 
-    func testEveryClaimedRowClassifiesToTheSharedToken() throws {
+    func testEveryClaimedRowExtractsToTheSharedBindingInput() throws {
         let cases = try XCTUnwrap(vectors["cases"] as? [[String: Any]])
         var ran = 0
 
@@ -55,9 +68,13 @@ final class ContractClassificationVectorsTests: XCTestCase {
             guard let error = error(for: row) else { continue }
 
             ran += 1
+            let facts = try XCTUnwrap(
+                FailureClassifier.bindingInput(for: error),
+                "vector \(id): the built error resolved to a pre-classified token, not binding facts"
+            )
             XCTAssertEqual(
-                FailureClassifier.classify(error),
-                row["expect"] as? String,
+                facts as NSDictionary,
+                try expectedBindingInput(for: id) as NSDictionary,
                 "vector \(id)"
             )
         }
@@ -72,6 +89,27 @@ final class ContractClassificationVectorsTests: XCTestCase {
         let kinds = vectors["kinds"] as? [String: Any] ?? [:]
         let kind = kinds[row["kind"] as? String ?? ""] as? [String: Any] ?? [:]
         return kind["suites"] as? [String] ?? []
+    }
+
+    /// The fixture entry for `id`, with `errno_symbol` resolved to this platform's number via
+    /// `POSIXErrorCode` — the same transform the Go and Kotlin suites apply on their platforms.
+    private func expectedBindingInput(for id: String) throws -> [String: Any] {
+        let inputs = try XCTUnwrap(bindingInputs["inputs"] as? [String: Any])
+        let entry = try XCTUnwrap(
+            inputs[id] as? [String: Any],
+            "\(id): no binding-input fixture entry; add it to classification-binding-inputs.json"
+        )
+        var expected: [String: Any] = [:]
+        for (key, value) in entry {
+            if key == "errno_symbol" {
+                let symbol = try XCTUnwrap(value as? String)
+                let code = try XCTUnwrap(posixCode(symbol), "\(id): unknown errno symbol \(symbol)")
+                expected["errno"] = Int(code.rawValue)
+            } else {
+                expected[key] = value
+            }
+        }
+        return expected
     }
 
     private func error(for row: [String: Any]) -> Error? {

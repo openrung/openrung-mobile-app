@@ -1,12 +1,12 @@
 package com.openrung.vpn
 
 import android.system.ErrnoException
-import android.system.OsConstants
 import com.openrung.net.BrokerNativeFailure
-import com.openrung.net.BrokerNativeFailureKind
 import com.openrung.net.WssTicketStatusException
+import io.nekohasekai.libbox.Libbox
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.io.InterruptedIOException
-import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.util.Collections
 import java.util.IdentityHashMap
@@ -14,137 +14,94 @@ import java.util.concurrent.CancellationException
 import javax.net.ssl.SSLException
 
 /**
- * Classifies a connection failure into a stable, lowercase snake_case reason token shared with the
- * OpenRung Go clients (desktop/CLI) and honored by the broker's "Failure reasons" dashboard.
+ * Platform adapter for the shared failure classifier: translates an Android exception chain into
+ * the input facts of the libbox binding's `OpenRungClassifyFailure`, whose token comes from the
+ * one Go classifier every OpenRung client runs (`connectcore/clienttelemetry` in the sibling
+ * `openrung` repo — the ladder this file used to hand-copy). This file no longer chooses tokens
+ * or orders rungs; it only says which platform exception types express which facts.
  *
- * The token set and the classification precedence mirror the Go classifier
- * (`internal/clienttelemetry/classify.go` in the sibling `openrung` repo):
- * cancellation → relay-selection sentinels → broker HTTP status → socket errno →
- * DNS (before generic timeout, the more actionable signal) → TLS → permission →
- * engine-exit → generic timeout → `unknown`.
- *
- * The entire `cause` chain is inspected, so a real root cause (e.g. a [SocketTimeoutException]
- * wrapped in an `IllegalStateException` by the connect pipeline) is classified on its merits rather
+ * The entire `cause` chain is inspected, so a real root cause (e.g. a `SocketTimeoutException`
+ * wrapped in an `IllegalStateException` by the connect pipeline) is described on its merits rather
  * than reported as the generic wrapper class — which is why the dashboard used to show
- * `relay_connect · IllegalStateException`.
+ * `relay_connect · IllegalStateException`. A chain can express several facts at once (a
+ * revoked-permission [SecurityException] inside an [EngineStartException]); the shared ladder,
+ * not this adapter, decides which one wins.
+ *
+ * The extraction ([describeFailure], [detailMessage]) is pure JVM so the contract-vector suite can
+ * pin it without the native library; the facts→token half runs in `android/punchbridge`'s Go tests
+ * against the same checked-in inputs (`testdata/classification-binding-inputs.json`).
  */
 object FailureClassifier {
-    private const val MAX_DETAIL_BYTES = 256
 
     /** Returns the reason token for [error], or `""` when [error] is null. */
     fun classify(error: Throwable?): String {
         if (error == null) return ""
-        val chain = causeChain(error)
-
-        // (1) cancellation (user stop / coroutine cancellation)
-        if (chain.any { it is CancellationException }) return "cancelled"
-
-        // (2) app relay-selection sentinels
-        chain.firstNotNullOfOrNull { it as? RelaySelectionException }?.let {
-            return when (it) {
-                is RelaySelectionException.NoRelaysAvailable -> "no_relays_available"
-                is RelaySelectionException.RelayNotInList -> "relay_not_in_list"
-                is RelaySelectionException.NoRelayInCountry -> "no_relay_in_country"
-                is RelaySelectionException.NoUsableRelay -> "no_usable_relay"
-            }
-        }
-
-        // (3) brokerapi's bounded native failure contract. Never emit raw Go kind strings:
-        // project them into the existing mobile dashboard taxonomy.
-        chain.firstNotNullOfOrNull { it as? BrokerNativeFailure }?.let {
-            return classifyNativeFailure(it)
-        }
-
-        // (4) WSS ticket status projection (429 → rate_limited, else http_<code>). Discovery no
-        // longer has a typed HTTP exception of its own: brokerapi reports status through
-        // BrokerNativeFailure, handled at (3) above.
-        chain.firstNotNullOfOrNull { it as? WssTicketStatusException }?.let {
-            return if (it.status == 429) "rate_limited" else "http_${it.status}"
-        }
-
-        // (5) socket errno — refused / reset / unreachable. EACCES/EPERM and ETIMEDOUT are handled
-        // later (permission / timeout) to match the Go errno switch, which only maps these three.
-        val errno = chain.firstNotNullOfOrNull { it as? ErrnoException }
-        errno?.let {
-            when (it.errno) {
-                OsConstants.ECONNREFUSED -> return "connection_refused"
-                OsConstants.ECONNRESET -> return "connection_reset"
-                OsConstants.ENETUNREACH, OsConstants.EHOSTUNREACH -> return "network_unreachable"
-            }
-        }
-
-        // (6) DNS — before generic timeout, so a name-lookup timeout reports as dns_failure.
-        if (chain.any { it is UnknownHostException }) return "dns_failure"
-
-        // (7) TLS / SSL handshake or certificate failure (SSLHandshakeException is an SSLException).
-        if (chain.any { it is SSLException }) return "tls_handshake"
-
-        // (8) OS-denied permission (revoked VPN consent, EACCES/EPERM).
-        if (chain.any { it is SecurityException }) return "permission_denied"
-        errno?.let {
-            if (it.errno == OsConstants.EACCES || it.errno == OsConstants.EPERM) {
-                return "permission_denied"
-            }
-        }
-
-        // (9) embedded proxy engine failed to start / stopped unexpectedly.
-        if (chain.any { it is EngineStartException }) return "process_exited"
-
-        // (10) generic timeout — only after the typed checks above.
-        errno?.let { if (it.errno == OsConstants.ETIMEDOUT) return "timeout" }
-        // SocketTimeoutException is an InterruptedIOException; the base type also covers a bare
-        // connect/read timeout raised without the more specific subclass.
-        if (chain.any { it is InterruptedIOException }) return "timeout"
-
-        return "unknown"
-    }
-
-    internal fun classifyNativeFailure(error: BrokerNativeFailure): String = when (error.kind) {
-        BrokerNativeFailureKind.CANCELLED -> "cancelled"
-        BrokerNativeFailureKind.TIMEOUT -> "timeout"
-        BrokerNativeFailureKind.RATE_LIMITED -> "rate_limited"
-        BrokerNativeFailureKind.HTTP_STATUS ->
-            when (error.httpStatus) {
-                429 -> "rate_limited"
-                null -> "unknown"
-                else -> "http_${error.httpStatus}"
-            }
-        BrokerNativeFailureKind.DNS -> "dns_failure"
-        BrokerNativeFailureKind.TLS -> "tls_handshake"
-        BrokerNativeFailureKind.NETWORK -> "network_unreachable"
-        BrokerNativeFailureKind.VERIFICATION,
-        BrokerNativeFailureKind.VALIDATION,
-        BrokerNativeFailureKind.UNAVAILABLE,
-        BrokerNativeFailureKind.DECODE,
-        BrokerNativeFailureKind.UNKNOWN,
-        -> "unknown"
+        return Libbox.openRungClassifyFailure(describeFailure(error))
     }
 
     /**
-     * The root cause's message (falling back to the outermost error's), truncated to fit the
-     * broker's 256-UTF-8-byte attribute limit. Returns `""` when there is no usable message.
+     * The binding input for [error]: one JSON object of extracted facts. Values that need a chain
+     * position take the first match (an errno, a broker failure); presence facts take any match.
+     * The WSS-ticket status defers to a native broker failure's, preserving the old ladder's
+     * broker-before-ticket rung order — a chain never carries both in practice, but one
+     * `http_status` field cannot report two statuses.
+     */
+    internal fun describeFailure(error: Throwable): String {
+        val chain = causeChain(error)
+        val brokerFailure = chain.firstNotNullOfOrNull { it as? BrokerNativeFailure }
+        return buildJsonObject {
+            if (chain.any { it is CancellationException }) put("cancelled", true)
+            chain.firstNotNullOfOrNull { it as? RelaySelectionException }?.let {
+                put(
+                    "selection",
+                    when (it) {
+                        is RelaySelectionException.NoRelaysAvailable -> "no_relays_available"
+                        is RelaySelectionException.RelayNotInList -> "relay_not_in_list"
+                        is RelaySelectionException.NoRelayInCountry -> "no_relay_in_country"
+                        is RelaySelectionException.NoUsableRelay -> "no_usable_relay"
+                    },
+                )
+            }
+            brokerFailure?.let {
+                // The bounded binding kind passes through verbatim; the shared classifier owns
+                // the kind→token projection that classifyNativeFailure used to hand-copy here.
+                put("broker_kind", it.kind.value)
+                it.httpStatus?.let { status -> put("http_status", status) }
+            }
+            if (brokerFailure == null) {
+                chain.firstNotNullOfOrNull { it as? WssTicketStatusException }?.let {
+                    put("http_status", it.status)
+                }
+            }
+            chain.firstNotNullOfOrNull { it as? ErrnoException }?.let { put("errno", it.errno) }
+            if (chain.any { it is UnknownHostException }) put("dns", true)
+            // SSLHandshakeException is an SSLException, so both handshake and certificate
+            // failures match.
+            if (chain.any { it is SSLException }) put("tls", true)
+            // OS-denied permission (revoked VPN consent). EACCES/EPERM arrive as the errno above.
+            if (chain.any { it is SecurityException }) put("permission_denied", true)
+            if (chain.any { it is EngineStartException }) put("process_exited", true)
+            // SocketTimeoutException is an InterruptedIOException; the base type also covers a
+            // bare connect/read timeout raised without the more specific subclass.
+            if (chain.any { it is InterruptedIOException }) put("timeout", true)
+        }.toString()
+    }
+
+    /**
+     * The root cause's message (falling back to the outermost error's), bounded by the binding to
+     * the broker's 256-UTF-8-byte attribute limit. Returns `""` when there is no usable message.
      */
     fun detail(error: Throwable?): String {
-        if (error == null) return ""
-        val chain = causeChain(error)
-        val message = chain.last().message?.takeIf { it.isNotBlank() }
-            ?: error.message?.takeIf { it.isNotBlank() }
-            ?: return ""
-        return truncateToBytes(message, MAX_DETAIL_BYTES)
+        val message = detailMessage(error) ?: return ""
+        return Libbox.openRungFailureDetail(message)
     }
 
-    /**
-     * Truncates [value] to at most [maxBytes] UTF-8 bytes without splitting a multi-byte character:
-     * the boundary is backed off past any UTF-8 continuation byte (`0b10xxxxxx`) so the result is
-     * always decodable. The broker rejects attribute values whose UTF-8 encoding exceeds 256 bytes.
-     */
-    internal fun truncateToBytes(value: String, maxBytes: Int = MAX_DETAIL_BYTES): String {
-        if (value.isEmpty()) return value
-        val bytes = value.toByteArray(Charsets.UTF_8)
-        if (bytes.size <= maxBytes) return value
-        var end = maxBytes
-        while (end > 0 && (bytes[end].toInt() and 0xC0) == 0x80) end--
-        return String(bytes, 0, end, Charsets.UTF_8)
+    /** The message [detail] reports, before the binding bounds it; null when there is none. */
+    internal fun detailMessage(error: Throwable?): String? {
+        if (error == null) return null
+        val chain = causeChain(error)
+        return chain.last().message?.takeIf { it.isNotBlank() }
+            ?: error.message?.takeIf { it.isNotBlank() }
     }
 
     /** Self (plus every distinct `cause`) from the outermost error down to the root, cycle-safe. */

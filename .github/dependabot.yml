@@ -1,5 +1,6 @@
 # Auto-opens pin-bump PRs when the openrung repository tags a new brokerapi,
-# punchcore, or wsscore module version. Scoped to those three shared modules:
+# connectcore, punchcore, or wsscore module version. Scoped to those four
+# shared modules:
 # sing-box pins its own dependency set (SINGBOX_VERSION is the source of truth
 # for the native engine), so generic bumps here would fight the graft. Changes
 # to go.mod/go.sum invalidate the AAR cache and exercise the Android tests.
@@ -11,6 +12,7 @@ updates:
       interval: daily
     allow:
       - dependency-name: github.com/openrung/openrung/brokerapi
+      - dependency-name: github.com/openrung/openrung/connectcore
       - dependency-name: github.com/openrung/openrung/punchcore
       - dependency-name: github.com/openrung/openrung/wsscore
     commit-message:
