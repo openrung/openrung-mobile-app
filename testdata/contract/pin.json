@@ -1,14 +1,14 @@
 {
-  "comment": "Pin for the contract vectors vendored beside this file. They are copies of contract/vectors/ in openrung/openrung, which is their only source of truth: edit them THERE, then re-vendor here with `npm run contract:sync`. `npm run contract:check` verifies both halves — that the local bytes still hash to the digests recorded here, and that they are byte-identical to the pinned openrung ref — so a copy that drifts from upstream fails instead of quietly testing this repo against stale expectations.",
+  "comment": "Pin for the contract vectors vendored beside this file. They are copies of connectcore/contract/vectors/ in openrung/openrung, which is their only source of truth: edit them THERE, then re-vendor here with `npm run contract:sync`. `npm run contract:check` verifies both halves — that the local bytes still hash to the digests recorded here, and that they are byte-identical to the pinned openrung ref — so a copy that drifts from upstream fails instead of quietly testing this repo against stale expectations.",
   "repo": "openrung/openrung",
-  "source_dir": "contract/vectors",
-  "ref": "653e3b6294ede95ad64a4c9f0d3be17a5d5a308d",
-  "ref_note": "The merge commit on openrung/openrung's main that carries contract/vectors (PR #138 introduced the directory, PR #139 reworked the relay-decode rejection codes). Move this to a newer main commit only together with `npm run contract:sync`, which re-vendors the files and rewrites the digests below to match.",
+  "source_dir": "connectcore/contract/vectors",
+  "ref": "4aa3dad54b1be451c2413a24d7e88dfe0f583dea",
+  "ref_note": "The merge commit on openrung/openrung's main that carries connectcore/contract/vectors (PR #138 introduced the directory as contract/vectors, PR #139 reworked the relay-decode rejection codes, PR #145 moved it into the connectcore module and bumped every file's version for the move). Move this to a newer main commit only together with `npm run contract:sync`, which re-vendors the files and rewrites the digests below to match.",
   "suites_note": "'suites' is copied from each vector file and says which suites the contract expects to consume it. 'local_suites' is what THIS repo actually runs today, and 'pending_suites' is the difference, with a reason. contract:check fails when local_suites plus pending_suites does not account for every non-go suite the file declares, so an unwired consumer stays visible instead of reading as coverage.",
   "files": {
     "classification.json": {
-      "sha256": "4df7f767c4f3e47c090a7d7f074758faf6ca6fa31f87ee9e3cc1da1b6ca0118f",
-      "version": 1,
+      "sha256": "9951d2dc2a363cf350d86c31d0d77f271859ab51aea3327b81501458417cbe48",
+      "version": 2,
       "suites": [
         "go",
         "kotlin",
@@ -21,8 +21,8 @@
       "pending_suites": {}
     },
     "relay_decode.json": {
-      "sha256": "7ba978939f90c6b99937b72aa95da8556e00d6b35f39d130eaec8edabcee3c46",
-      "version": 2,
+      "sha256": "d945aff59156eb3e2458e8547074fd5ed3d586f3e8282117f4cb1f445747cfd9",
+      "version": 3,
       "suites": [
         "go",
         "kotlin",
@@ -38,8 +38,8 @@
       }
     },
     "broker_fronts.json": {
-      "sha256": "76644cb2bfdd7e25e1debe623f058c79b35dd15376f5d538ee42f026055235dc",
-      "version": 1,
+      "sha256": "e45020110b646cb359d409758d25565f7ad1ded40969fe4e730dbb59852e0cb2",
+      "version": 2,
       "suites": [
         "go",
         "kotlin",

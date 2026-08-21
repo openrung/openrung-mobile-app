@@ -17,7 +17,7 @@ import {
 import type { RelayDescriptor, RelayListResponse } from '../../src/model/relay';
 
 /** The version this suite was written against; bumping the file means revisiting these tests. */
-const EXPECTED_VERSION = 2;
+const EXPECTED_VERSION = 3;
 
 /** This suite's identifier in the file's `suites` declaration. */
 const SUITE = 'ts';

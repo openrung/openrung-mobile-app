@@ -49,7 +49,7 @@ class ContractClassificationVectorsTest {
 
     private companion object {
         /** The version this suite was written against; a bump upstream means revisiting it. */
-        const val EXPECTED_VERSION = 1
+        const val EXPECTED_VERSION = 2
 
         /** This suite's identifier in the file's `suites` declaration. */
         const val SUITE = "kotlin"

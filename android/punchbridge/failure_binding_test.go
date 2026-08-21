@@ -16,7 +16,7 @@ import (
 const (
 	classificationVectorsPath      = "../../testdata/contract/classification.json"
 	classificationBindingInputPath = "../../testdata/classification-binding-inputs.json"
-	classificationVectorsVersion   = 1
+	classificationVectorsVersion   = 2
 )
 
 type classificationVectorFile struct {

@@ -1,7 +1,7 @@
 {
   "comment": "The binding-input half of the failure-classification contract chain. Each entry is the exact OpenRungClassifyFailure input JSON the Kotlin and Swift adapters must extract for the same-id row of testdata/contract/classification.json, with one indirection: errno rows carry 'errno_symbol' instead of a number, because POSIX errno numbers differ per kernel and each suite resolves the symbol locally (OsConstants on Android, POSIXErrorCode on iOS, syscall in Go) — exactly how production behaves, where the adapter and the Go runtime it calls are compiled for the same platform. The Kotlin and Swift suites assert their adapters produce these inputs from platform exceptions; android/punchbridge's Go suite asserts these inputs classify to each row's expected token through the real binding. Together the two halves compose into the vendored rows running end-to-end against the shared Go classifier, without the JVM or a pod-free XCTest bundle having to load the native engine. This file is owned by this repo (the wire format is the binding's), unlike the digest-pinned testdata/contract/ copies. The 'none' row has no entry: a null error never reaches the binding — the Kotlin adapter's classify(null) returns \"\" before extraction, which the Kotlin suite pins directly.",
   "contract": "openrung-failure-classification-v1",
-  "contract_version": 1,
+  "contract_version": 2,
   "inputs": {
     "cancelled": {"cancelled": true},
     "cancelled_wrapped": {"cancelled": true},
