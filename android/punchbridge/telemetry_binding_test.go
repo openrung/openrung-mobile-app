@@ -823,3 +823,83 @@ func TestOpenRungTelemetryOutboxSecondHandleCannotClobberTheOwner(t *testing.T) 
 		t.Fatalf("after the owner closed, the second handle sees %d events, want 1", got)
 	}
 }
+
+// TestOpenRungTelemetryOutboxStaysUnloadedWhenTheRepairCannotLand: when the
+// load-time migration/repair rewrite fails (disk full, unwritable directory),
+// the outbox must not stay loaded — appending NDJSON after a legacy array's
+// closing bracket would corrupt the whole backlog. Operations degrade, the
+// file stays untouched, and the next operation retries the migration.
+func TestOpenRungTelemetryOutboxStaysUnloadedWhenTheRepairCannotLand(t *testing.T) {
+	directory := t.TempDir()
+	legacy := `[` +
+		testTelemetryEventJSON(t, "a-1", "connection_failed", "c", "s", nil) + `,` +
+		testTelemetryEventJSON(t, "a-2", "connection_ended", "c", "s", nil) +
+		`]`
+	path := filepath.Join(directory, "outbox.json")
+	if err := os.WriteFile(path, []byte(legacy), 0o600); err != nil {
+		t.Fatalf("writing legacy outbox: %v", err)
+	}
+	// Pre-create the lock file so ownership can still be taken, then make the
+	// directory read-only so the migration's temp-file rewrite cannot land.
+	if err := os.WriteFile(path+".lock", nil, 0o600); err != nil {
+		t.Fatalf("pre-creating lock file: %v", err)
+	}
+	if err := os.Chmod(directory, 0o500); err != nil {
+		t.Fatalf("making directory read-only: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(directory, 0o700) })
+
+	outbox := NewOpenRungTelemetryOutboxForIOS(directory, "outbox.json", "1.2.3", "26.0")
+	if outbox == nil {
+		t.Fatal("outbox constructor rejected valid inputs")
+	}
+	t.Cleanup(outbox.Close)
+	if got := outbox.PendingCount(); got != 0 {
+		t.Fatalf("an unrepairable outbox reported %d pending, want 0", got)
+	}
+	if outbox.Enqueue(testTelemetryEventJSON(t, "a-3", "x", "c", "s", nil)) {
+		t.Fatal("enqueue must not append to a file the repair could not land on")
+	}
+	if raw, err := os.ReadFile(path); err != nil || string(raw) != legacy {
+		t.Fatalf("the legacy file changed while unrepairable: %v", err)
+	}
+
+	if err := os.Chmod(directory, 0o700); err != nil {
+		t.Fatalf("restoring directory permissions: %v", err)
+	}
+	if got := outbox.PendingCount(); got != 2 {
+		t.Fatalf("retried load holds %d events, want 2", got)
+	}
+	if raw, err := os.ReadFile(path); err != nil || len(raw) == 0 || raw[0] == '[' {
+		t.Fatal("the retried load did not land the NDJSON migration")
+	}
+}
+
+// TestOpenRungTelemetryOutboxRemoveSentRefusesAfterClose: the send runs
+// outside the mutex, so it can succeed while racing Close — and Close released
+// the cross-process lock, so another process may own the file by then. The
+// commit must refuse to rewrite; re-delivering the accepted batch later is the
+// safe side.
+func TestOpenRungTelemetryOutboxRemoveSentRefusesAfterClose(t *testing.T) {
+	directory := t.TempDir()
+	handle := testTelemetryOutbox(t, directory)
+	if !handle.Enqueue(testTelemetryEventJSON(t, "r-1", "connection_failed", "c", "s", nil)) {
+		t.Fatal("enqueue rejected a valid event")
+	}
+	outbox := handle.(*openRungTelemetryOutbox)
+	outbox.mu.Lock()
+	batch := openRungTelemetryUploadBatch(outbox.events, openRungTelemetryBatchSize)
+	outbox.mu.Unlock()
+	path := filepath.Join(directory, testOutboxFileName)
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading outbox: %v", err)
+	}
+
+	handle.Close()
+	outbox.removeSent(batch)
+	after, err := os.ReadFile(path)
+	if err != nil || string(after) != string(before) {
+		t.Fatal("a closed outbox rewrote the file it no longer owns")
+	}
+}

@@ -543,6 +543,14 @@ func (o *openRungTelemetryOutbox) removeSent(sent []brokerapi.TelemetryEvent) in
 	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	if o.closed {
+		// The send runs outside the mutex, so it can complete while racing
+		// Close — and Close released the cross-process lock, meaning another
+		// process may own the file by now. A rewrite from this cache could
+		// overwrite that owner's queue, so refuse to mutate: the accepted
+		// batch stays queued, and re-delivering it later is the safe side.
+		return int32(len(o.events))
+	}
 	kept := o.events[:0]
 	removed := false
 	for _, event := range o.events {
@@ -693,7 +701,17 @@ func (o *openRungTelemetryOutbox) loadLocked() bool {
 	o.events = events
 	o.fileLines = len(events)
 	if dirty || sourceLines != len(events) {
-		o.rewriteLocked()
+		if !o.rewriteLocked() {
+			// The file still holds what could not be repaired or migrated:
+			// appending to it would corrupt it (an NDJSON line after a legacy
+			// array's closing bracket, an event fused onto an unterminated
+			// tail), and the scrub would exist only in memory. Stay unloaded
+			// so mutating operations degrade and the next one retries.
+			o.loaded = false
+			o.events = nil
+			o.fileLines = 0
+			return false
+		}
 	}
 	return true
 }

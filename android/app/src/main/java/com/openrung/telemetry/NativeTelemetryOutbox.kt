@@ -79,6 +79,22 @@ data class NativeTelemetryFlushResult(
     val pendingCount: Int = 0,
 ) : NativeBrokerResult
 
+/**
+ * Boundary for every generated call, not only construction: a partially stale
+ * native artifact can expose the constructor yet lack a newer method, so each
+ * interaction with the gomobile engine degrades to the unavailable path
+ * instead of throwing a LinkageError out of a telemetry call site — which is
+ * often a failure handler. Mirrors NativeBrokerTransport.generatedCall.
+ */
+private inline fun <T> generatedTelemetryCall(fallback: T, call: () -> T): T = try {
+    call()
+} catch (error: LinkageError) {
+    fallback
+}
+
+private val unavailableNativeTelemetryFlushResult =
+    NativeTelemetryFlushResult(succeeded = false, errorKind = "unavailable")
+
 /** Production handle over the gomobile outbox object. */
 internal class NativeTelemetryOutbox(context: Context) : TelemetryOutboxHandle {
     private val outbox: OpenRungTelemetryOutbox? = try {
@@ -97,31 +113,38 @@ internal class NativeTelemetryOutbox(context: Context) : TelemetryOutboxHandle {
         null
     }
 
-    override fun enqueue(eventJson: String): Boolean = outbox?.enqueue(eventJson) ?: false
+    override fun enqueue(eventJson: String): Boolean =
+        generatedTelemetryCall(false) { outbox?.enqueue(eventJson) ?: false }
 
     override fun enqueueBatch(eventsJson: String): Int =
         // An unavailable binding never confirms durability: keep the caller's copy.
-        outbox?.enqueueBatchJSON(eventsJson) ?: -1
+        generatedTelemetryCall(-1) { outbox?.enqueueBatchJSON(eventsJson) ?: -1 }
 
     override fun applySessionAttributes(sessionId: String, attributesJson: String) {
-        outbox?.applySessionAttributes(sessionId, attributesJson)
+        generatedTelemetryCall(Unit) { outbox?.applySessionAttributes(sessionId, attributesJson) ?: Unit }
     }
 
-    override fun pendingCount(): Int = outbox?.pendingCount() ?: 0
+    override fun pendingCount(): Int =
+        generatedTelemetryCall(0) { outbox?.pendingCount() ?: 0 }
 
-    override fun beginUpload(): TelemetryUploadHandle = NativeUpload(outbox?.beginUpload())
+    override fun beginUpload(): TelemetryUploadHandle =
+        NativeUpload(generatedTelemetryCall(null) { outbox?.beginUpload() })
 
     private class NativeUpload(
         private val upload: io.nekohasekai.libbox.OpenRungTelemetryUpload?,
     ) : TelemetryUploadHandle {
         override fun flushNextBatch(brokerUrl: String): NativeTelemetryFlushResult =
-            upload?.flushNextBatch(brokerUrl).toFlushResult()
+            generatedTelemetryCall(unavailableNativeTelemetryFlushResult) {
+                upload?.flushNextBatch(brokerUrl).toFlushResult()
+            }
 
         override fun sendHeartbeat(brokerUrl: String, heartbeatJson: String): NativeTelemetryFlushResult =
-            upload?.sendHeartbeat(brokerUrl, heartbeatJson).toFlushResult()
+            generatedTelemetryCall(unavailableNativeTelemetryFlushResult) {
+                upload?.sendHeartbeat(brokerUrl, heartbeatJson).toFlushResult()
+            }
 
         override fun close() {
-            upload?.close()
+            generatedTelemetryCall(Unit) { upload?.close() ?: Unit }
         }
     }
 
