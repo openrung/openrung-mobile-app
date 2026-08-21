@@ -210,12 +210,3 @@ extension WssTicketClient {
         self.init(operationFactory: LibboxBrokerOperationFactory())
     }
 }
-
-public extension TelemetryClient {
-    init(brokerURL: URL) throws {
-        self.init(
-            brokerURL: brokerURL,
-            operationFactory: LibboxBrokerOperationFactory()
-        )
-    }
-}

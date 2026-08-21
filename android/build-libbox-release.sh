@@ -260,6 +260,7 @@ cp "$punch_source/wss_binding.go" "$work_dir/source/experimental/libbox/openrung
 cp "$punch_source/broker_binding.go" "$work_dir/source/experimental/libbox/openrung_broker.go"
 cp "$punch_source/failure_binding.go" "$work_dir/source/experimental/libbox/openrung_failure.go"
 cp "$punch_source/singbox_binding.go" "$work_dir/source/experimental/libbox/openrung_singbox.go"
+cp "$punch_source/telemetry_binding.go" "$work_dir/source/experimental/libbox/openrung_telemetry.go"
 mkdir -p "$work_dir/source/experimental/libbox/internal/openrungpunch"
 for source_file in "$punch_source/internal/openrungpunch/"*.go; do
   case "$source_file" in
@@ -352,6 +353,8 @@ required_classes = [
     "io/nekohasekai/libbox/OpenRungBrokerManifestResult.class",
     "io/nekohasekai/libbox/OpenRungBrokerWSSTicketResult.class",
     "io/nekohasekai/libbox/OpenRungSingBoxConfigResult.class",
+    "io/nekohasekai/libbox/OpenRungTelemetryOutbox.class",
+    "io/nekohasekai/libbox/OpenRungTelemetryFlushResult.class",
 ]
 required_native_libraries = [
     "jni/armeabi-v7a/libbox.so",
@@ -385,7 +388,9 @@ javap_output="$(
     io.nekohasekai.libbox.OpenRungBrokerSpeedTestResult \
     io.nekohasekai.libbox.OpenRungBrokerManifestResult \
     io.nekohasekai.libbox.OpenRungBrokerWSSTicketResult \
-    io.nekohasekai.libbox.OpenRungSingBoxConfigResult
+    io.nekohasekai.libbox.OpenRungSingBoxConfigResult \
+    io.nekohasekai.libbox.OpenRungTelemetryOutbox \
+    io.nekohasekai.libbox.OpenRungTelemetryFlushResult
 )"
 # Every entry below must be a symbol a Kotlin/Swift/React Native call site actually links. Pinning
 # an unconsumed binding method here gates releases on surface nothing uses — `downloadSpeedTest`
@@ -417,7 +422,15 @@ for generated_symbol in \
   'openRungClassifyFailure(java.lang.String);' \
   'openRungFailureDetail(java.lang.String);' \
   'openRungBuildSingBoxConfig(java.lang.String);' \
-  'configJSON();'; do
+  'configJSON();' \
+  'newOpenRungTelemetryOutboxForAndroid(java.lang.String, java.lang.String, java.lang.String, java.lang.String);' \
+  'enqueue(java.lang.String);' \
+  'enqueueBatchJSON(java.lang.String);' \
+  'applySessionAttributes(java.lang.String, java.lang.String);' \
+  'flushNextBatch(java.lang.String);' \
+  'sendHeartbeat(java.lang.String, java.lang.String);' \
+  'pendingCount();' \
+  'sentCount();'; do
   if ! grep -Fq "$generated_symbol" <<< "$javap_output"; then
     echo "error: libbox AAR is missing generated broker symbol: $generated_symbol" >&2
     exit 1

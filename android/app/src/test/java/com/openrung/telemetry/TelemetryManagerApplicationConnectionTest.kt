@@ -3,13 +3,13 @@ package com.openrung.telemetry
 import android.app.Application
 import android.content.Context
 import com.openrung.net.ClientGeoInfo
-import java.io.File
 import java.time.Duration
 import java.util.AbstractList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -31,26 +31,33 @@ import org.robolectric.shadows.ShadowSystemClock
  * still-suppressed tail (the broker sums `connection_count`, so dropped tails would undercount).
  *
  * `TelemetryManager` is a process-wide singleton; each test's `beginSession` resets the
- * aggregator windows, so tests are isolated without any cross-test bookkeeping.
+ * aggregator windows, so tests are isolated without any cross-test bookkeeping. The bound native
+ * outbox is replaced with a recording fake — a JVM test cannot load the gomobile engine — so
+ * these tests pin WHAT the manager hands the outbox; the queue/upload policy itself is pinned by
+ * `android/punchbridge`'s Go suite against the real binding.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], application = Application::class)
 class TelemetryManagerApplicationConnectionTest {
     private lateinit var context: Context
     private lateinit var session: TelemetryManager.Session
-    private val json = Json { ignoreUnknownKeys = true }
+    private lateinit var outbox: FakeTelemetryOutbox
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     @Before
     fun setUp() {
         context = RuntimeEnvironment.getApplication()
-        clearOutbox()
+        clearLegacyPreferences()
+        outbox = FakeTelemetryOutbox(json)
+        TelemetryManager.outboxFactory = { outbox }
         session = TelemetryManager.beginSession(context, "https://broker.invalid/")
     }
 
     @After
     fun tearDown() {
         TelemetryManager.endSession("test_teardown")
-        clearOutbox()
+        TelemetryManager.outboxFactory = ::NativeTelemetryOutbox
+        clearLegacyPreferences()
     }
 
     @Test
@@ -238,7 +245,7 @@ class TelemetryManagerApplicationConnectionTest {
         recordFlow(packageName = "com.example.after-geo")
         TelemetryManager.endSession("test_geo_privacy")
 
-        val events = json.decodeFromString<List<TelemetryEvent>>(storedOutboxJson())
+        val events = outbox.events.toList()
         val applicationEvents = events.filter { it.event == APPLICATION_CONNECTION_EVENT }
         assertEquals(3, applicationEvents.size)
         assertTrue(applicationEvents.all { it.attributes.isEmpty() })
@@ -261,27 +268,25 @@ class TelemetryManagerApplicationConnectionTest {
     }
 
     @Test
-    fun `a pre-upgrade outbox backlog is scrubbed of destination data on the next write`() {
-        context.getSharedPreferences("openrung_telemetry", Context.MODE_PRIVATE)
-            .edit()
-            .putString(
-                "outbox",
-                """[{"schema_version":1,"event_id":"legacy-1","event":"application_connection",""" +
-                    """"occurred_at":"2026-07-01T00:00:00Z","client_id":"c","session_id":"s",""" +
-                    """"application_package":"com.example.legacy","application_uid":10099,""" +
-                    """"destination_ip":"93.184.216.34","destination_port":443,"protocol":"tcp",""" +
-                    """"attributes":{"client_ip":"203.0.113.9","city":"Example City"}}]""",
-            )
-            .commit()
-
+    fun `a pre-file preference backlog is imported into the bound outbox exactly once`() {
+        // The pre-NDJSON SharedPreferences blob. The bound outbox owns the scrubbing of its
+        // removed destination fields (pinned in android/punchbridge's Go suite); this side's
+        // contract is the safe hand-over: read without clearing, import, only then remove the
+        // key — a crash mid-import can never discard the pre-upgrade backlog.
+        val blob =
+            """[{"schema_version":1,"event_id":"legacy-1","event":"application_connection",""" +
+                """"occurred_at":"2026-07-01T00:00:00Z","client_id":"c","session_id":"s",""" +
+                """"application_package":"com.example.legacy","application_uid":10099}]"""
+        val prefs = context.getSharedPreferences("openrung_telemetry", Context.MODE_PRIVATE)
+        prefs.edit().putString("outbox", blob).commit()
+        // The one-time import runs when the outbox handle is first resolved, which the first
+        // enqueue below triggers (nothing in setUp touches the outbox).
         recordFlow(packageName = "com.example.migrate")
 
-        val stored = storedOutboxJson()
-        assertTrue(stored.contains("legacy-1"))
-        assertFalse(stored.contains("destination_ip"))
-        assertFalse(stored.contains("93.184.216.34"))
-        assertFalse(stored.contains("203.0.113.9"))
-        assertFalse(stored.contains("Example City"))
+        assertEquals(listOf(blob), outbox.batchImports)
+        assertFalse("the key must be cleared once the import landed", prefs.contains("outbox"))
+        // The import lands before the event that triggered the resolution.
+        assertEquals("com.example.migrate", outbox.events.single().applicationPackage)
     }
 
     private fun recordFlow(packageName: String, destinationPort: Int = 443) {
@@ -293,26 +298,16 @@ class TelemetryManagerApplicationConnectionTest {
     }
 
     private fun applicationConnectionEvents(): List<TelemetryEvent> =
-        json.decodeFromString<List<TelemetryEvent>>(storedOutboxJson())
-            .filter { it.event == "application_connection" }
+        outbox.events.filter { it.event == "application_connection" }
 
-    /**
-     * The outbox is an append-only NDJSON file (one event per line); the legacy SharedPreferences
-     * blob only exists as a migration source. Joining the lines into a JSON array keeps the
-     * existing decode/contains assertions unchanged.
-     */
-    private fun storedOutboxJson(): String {
-        val file = File(context.filesDir, "openrung_telemetry_outbox.jsonl")
-        if (!file.isFile) return "[]"
-        return file.readLines().filter { it.isNotBlank() }.joinToString(",", "[", "]")
-    }
+    /** The enqueued events re-encoded, keeping the existing contains-assertions meaningful. */
+    private fun storedOutboxJson(): String = outbox.storedJson()
 
-    private fun clearOutbox() {
+    private fun clearLegacyPreferences() {
         context.getSharedPreferences("openrung_telemetry", Context.MODE_PRIVATE)
             .edit()
             .clear()
             .commit()
-        File(context.filesDir, "openrung_telemetry_outbox.jsonl").delete()
     }
 
     private class BlockingPackageList(
@@ -329,4 +324,39 @@ class TelemetryManagerApplicationConnectionTest {
             return packageName
         }
     }
+}
+
+/**
+ * Recording stand-in for the bound native outbox. Decodes enqueued events so assertions read
+ * naturally; flushes always succeed with an empty queue (upload policy is Go-tested).
+ */
+internal class FakeTelemetryOutbox(private val json: Json) : TelemetryOutboxHandle {
+    val events = mutableListOf<TelemetryEvent>()
+    val batchImports = mutableListOf<String>()
+    val sessionAttributePatches = mutableListOf<Pair<String, String>>()
+
+    override fun enqueue(eventJson: String): Boolean {
+        events.add(json.decodeFromString<TelemetryEvent>(eventJson))
+        return true
+    }
+
+    override fun enqueueBatch(eventsJson: String): Int {
+        batchImports.add(eventsJson)
+        return 0
+    }
+
+    override fun applySessionAttributes(sessionId: String, attributesJson: String) {
+        sessionAttributePatches.add(sessionId to attributesJson)
+    }
+
+    override fun pendingCount(): Int = events.size
+
+    override fun flushNextBatch(brokerUrl: String): NativeTelemetryFlushResult =
+        NativeTelemetryFlushResult(succeeded = true)
+
+    override fun sendHeartbeat(brokerUrl: String, heartbeatJson: String): NativeTelemetryFlushResult =
+        NativeTelemetryFlushResult(succeeded = true)
+
+    fun storedJson(): String =
+        events.joinToString(",", "[", "]") { json.encodeToString(it) }
 }

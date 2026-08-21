@@ -1,15 +1,25 @@
 import Foundation
 
-/// PacketTunnel façade combining session, outbox, device attributes, and native VPN telemetry.
-/// The app process reads only the active session ID through `OpenRungVpn.getIdentity`; React Native
-/// constructs and sends speed-test events through the separate `OpenRungBroker` module.
-/// Port of Android `TelemetryManager`.
+/// PacketTunnel façade combining session, device attributes, and native VPN telemetry. The
+/// outbox — persistence in the App Group container, caps, upload batching, heartbeat
+/// piggybacking, and brokerapi posting — is the shared Go implementation behind
+/// `TelemetryOutboxHandling` (`android/punchbridge/telemetry_binding.go`, the same queue policy
+/// every OpenRung client runs); this file only decides WHAT to record and hands fully-formed
+/// events over. The app process reads only the active session ID through
+/// `OpenRungVpn.getIdentity`; React Native constructs and sends speed-test events through the
+/// separate `OpenRungBroker` module. Port of Android `TelemetryManager`.
 enum TelemetryManager {
     /// Traffic counters for the active session, kept in memory only: the engine, the heartbeat
     /// loop, and endSession all run in the packet tunnel extension, so nothing needs to cross
     /// the app-group boundary (the app process never reports these measurements).
     private static let trafficLock = NSLock()
     private static var sessionTraffic: TrafficCounters?
+
+    /// The bound outbox, opened once per process. Compiling this file into a target without
+    /// Libbox fails loudly here — the manager cannot function without the engine's outbox.
+    private static let outbox: any TelemetryOutboxHandling = NativeTelemetryOutbox()
+
+    private static let eventEncoder = JSONEncoder()
 
     static func clientId() -> String {
         ClientIdentity.getOrCreate()
@@ -88,7 +98,14 @@ enum TelemetryManager {
         let attributes = geo.telemetryAttributes()
         session.geoAttributes = attributes
         TelemetrySessionStore.save(session)
-        TelemetryOutbox.applyGeoAttributes(attributes, toSessionId: session.id)
+        // Back-patch the session's already-queued events so records from before the public-IP
+        // lookup resolved still carry the geo attributes. The bound outbox never patches
+        // application_connection rows.
+        if attributes.isEmpty == false,
+           let encoded = try? eventEncoder.encode(attributes),
+           let json = String(data: encoded, encoding: .utf8) {
+            outbox.applySessionAttributes(sessionId: session.id, attributesJson: json)
+        }
         record("client_geo_resolved")
     }
 
@@ -102,7 +119,7 @@ enum TelemetryManager {
         var merged = DeviceAttributes.current()
         merged.merge(session.geoAttributes) { _, new in new }
         merged.merge(attributes) { _, new in new }
-        TelemetryOutbox.enqueue(
+        enqueue(
             TelemetryEvent(
                 eventId: UUID().uuidString,
                 event: event,
@@ -114,6 +131,14 @@ enum TelemetryManager {
                 measurements: measurements
             )
         )
+    }
+
+    private static func enqueue(_ event: TelemetryEvent) {
+        guard
+            let encoded = try? eventEncoder.encode(event),
+            let json = String(data: encoded, encoding: .utf8)
+        else { return }
+        _ = outbox.enqueue(json)
     }
 
     @discardableResult
@@ -134,60 +159,45 @@ enum TelemetryManager {
     }
 
     /// Sends a heartbeat while draining queued events in FIFO, identity-homogeneous batches. The
-    /// heartbeat piggybacks only when the queue head has its exact client/session pair; otherwise
-    /// it sends immediately by itself so historical backlog cannot delay heartbeat cadence.
-    /// Best-effort failures leave the current queued batch and everything after it.
+    /// bound outbox lets the queue head piggyback only when it has the heartbeat's exact
+    /// client/session pair, so historical backlog cannot delay heartbeat cadence. Best-effort:
+    /// failures leave the current queued batch and everything after it.
     static func sendHeartbeat() async {
-        guard
-            let session = TelemetrySessionStore.current(),
-            let brokerURL = URL(string: session.brokerURL)
-        else { return }
+        guard let session = TelemetrySessionStore.current() else { return }
 
         var attributes = DeviceAttributes.current()
         attributes.merge(session.geoAttributes) { _, new in new }
-        guard let heartbeat = buildSessionHeartbeat(
-            session: session,
-            occurredAt: iso8601Now(),
-            elapsedRealtimeMs: MonotonicClock.nowMs(),
-            attributes: attributes,
-            trafficCounters: trafficCounters()
-        ) else { return }
+        guard
+            let heartbeat = buildSessionHeartbeat(
+                session: session,
+                occurredAt: iso8601Now(),
+                elapsedRealtimeMs: MonotonicClock.nowMs(),
+                attributes: attributes,
+                trafficCounters: trafficCounters()
+            ),
+            let encoded = try? eventEncoder.encode(heartbeat),
+            let heartbeatJson = String(data: encoded, encoding: .utf8)
+        else { return }
 
-        do {
-            let client = try TelemetryClient(brokerURL: brokerURL)
-            try await TelemetryUploadCoordinator.sendHeartbeat(
-                heartbeat,
-                maxBatchSize: TelemetryOutboxState.uploadBatchSize,
-                peek: { maxCount in
-                    TelemetryOutbox.peek(max: maxCount)
-                },
-                send: { events, queuedIDs in
-                    try await client.sendAndCommit(events) {
-                        if queuedIDs.isEmpty == false {
-                            TelemetryOutbox.remove(ids: queuedIDs)
-                        }
-                    }
-                }
-            )
-        } catch {
-            // best-effort
-        }
+        let brokerURL = session.brokerURL
+        let outcome = await Task.detached {
+            outbox.sendHeartbeat(brokerURL: brokerURL, heartbeatJson: heartbeatJson)
+        }.value
+        guard outcome.succeeded, outcome.pendingCount > 0 else { return }
+        try? await flush(brokerURL: brokerURL)
     }
 
     static func flush(brokerURL: String) async throws {
-        guard let url = URL(string: brokerURL) else { return }
-        let client = try TelemetryClient(brokerURL: url)
-        try await TelemetryUploadCoordinator.flush(
-            maxBatchSize: TelemetryOutboxState.uploadBatchSize,
-            peek: { maxCount in
-                TelemetryOutbox.peek(max: maxCount)
-            },
-            send: { events, queuedIDs in
-                try await client.sendAndCommit(events) {
-                    TelemetryOutbox.remove(ids: queuedIDs)
-                }
+        while true {
+            try Task.checkCancellation()
+            let outcome = await Task.detached {
+                outbox.flushNextBatch(brokerURL: brokerURL)
+            }.value
+            guard outcome.succeeded else {
+                throw outcome.failure(operationName: "native telemetry upload")
             }
-        )
+            if outcome.pendingCount == 0 { return }
+        }
     }
 
     // Constructing an ISO8601DateFormatter per event costs far more than formatting with one;
