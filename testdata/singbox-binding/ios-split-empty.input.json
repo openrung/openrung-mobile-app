@@ -1,0 +1,27 @@
+{
+  "log_level": "warn",
+  "mtu": 1400,
+  "probe_domain_suffixes": [
+    "probe.openrung.org",
+    "cp.cloudflare.com"
+  ],
+  "relay": {
+    "client_id": "e6b1a1de-9f0f-4c1a-8bb1-1f2b3c4d5e6f",
+    "exit_mode": "direct",
+    "flow": "xtls-rprx-vision",
+    "protocol": "vless-reality-vision",
+    "public_host": "203.0.113.10",
+    "public_port": 443,
+    "reality_public_key": "reality-key",
+    "server_name": "www.example.com",
+    "short_id": "abcd1234"
+  },
+  "split_tunnel": {
+    "bypass_countries": [],
+    "bypass_lan": false,
+    "excluded_packages": [],
+    "rule_set_directory": ""
+  },
+  "tunnel_ipv4_address": "172.19.0.1/30",
+  "tunnel_ipv6_address": "fdfe:dcba:9876::1/126"
+}

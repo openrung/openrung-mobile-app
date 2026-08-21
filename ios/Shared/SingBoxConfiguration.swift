@@ -1,20 +1,32 @@
 import Foundation
+#if canImport(Libbox)
+import Libbox
+#endif
 
+/// Platform input assembly for the shared sing-box config builder: gathers the iOS-side inputs
+/// (relay identity, TUN addresses, an optional punch/WSS loopback bridge, validated split-tunnel
+/// rules) and hands them to the libbox binding's `OpenRungBuildSingBoxConfig`, whose emission
+/// comes from the one Go builder every OpenRung client runs (`connectcore/client` in the sibling
+/// `openrung` repo — the generator this file used to hand-copy). This file no longer emits any
+/// config JSON; the DNS failover chains, probe pins, split-tunnel rules, route exclusions, and
+/// their ordering all live in the shared builder, and the frozen bound outputs under
+/// `testdata/singbox-binding/` are what this platform's structural tests assert against.
+///
+/// The assembly (`bindingInput(debug:)`) is engine-free so the pod-free test bundle can pin it;
+/// the input→config half runs in `android/punchbridge`'s Go tests against the same checked-in
+/// inputs. Unlike the Kotlin twin, the assembly never sends `excluded_packages` or
+/// `route_find_process`: iOS has no OS-level per-app exclusion and never emits `find_process`.
 public struct SingBoxConfiguration: Equatable, Sendable {
-    /// DoH-capable public resolvers reached as IP literals: no bootstrap resolution needed.
+    /// The proxied DoH resolvers the shared builder emits by default (its defaults are the same
+    /// IP literals). Kept here because the probe budgets below are derived from the chain's
+    /// length and timeouts; the bound goldens pin the emitted list, so a builder-side change
+    /// cannot drift past this constant unnoticed.
     public static let defaultDoHResolvers = ["1.1.1.1", "8.8.8.8"]
 
-    /// Hostnames the DoH TLS handshakes authenticate while dialing the IP literals above.
-    private static let dohTLSServerNames = [
-        "1.1.1.1": "cloudflare-dns.com",
-        "8.8.8.8": "dns.google",
-    ]
-
-    // Per-evaluate budget before the next resolver runs, and the terminal/global budget.
+    // Per-evaluate budget before the next resolver runs, and the terminal/global budget — the
+    // shared builder's dnsPrimaryTimeout/dnsFallbackTimeout, in milliseconds.
     public static let dnsPrimaryTimeoutMilliseconds: UInt64 = 2_000
     public static let dnsFallbackTimeoutMilliseconds: UInt64 = 3_000
-    private static let dnsPrimaryTimeout = "\(dnsPrimaryTimeoutMilliseconds / 1_000)s"
-    private static let dnsFallbackTimeout = "\(dnsFallbackTimeoutMilliseconds / 1_000)s"
 
     /// Engine-side worst case for one lookup through the default chain: every non-terminal
     /// resolver may consume its full evaluate timeout before the terminal fallback gets its
@@ -29,11 +41,11 @@ public struct SingBoxConfiguration: Equatable, Sendable {
     public static let defaultTunnelIPv4Address = "172.19.0.1/30"
 
     /// The ONLY in-TUN address whose port-53 traffic sing-box hijacks. When the tun inbound
-    /// carries no explicit `dns_address` (we emit none), sing-tun derives the hijack address as
-    /// the next address after the TUN's own IPv4 address, and the tun inbound tags a packet
-    /// `Protocol=DNS` only when its destination equals that address — after which the router
-    /// hijacks it into the DNS module ahead of any route rule. A datagram addressed to a public
-    /// resolver (1.1.1.1) is NOT tagged, matches no rule, and dies on the TCP-only proxy
+    /// carries no explicit `dns_address` (the shared builder emits none), sing-tun derives the
+    /// hijack address as the next address after the TUN's own IPv4 address, and the tun inbound
+    /// tags a packet `Protocol=DNS` only when its destination equals that address — after which
+    /// the router hijacks it into the DNS module ahead of any route rule. A datagram addressed to
+    /// a public resolver (1.1.1.1) is NOT tagged, matches no rule, and dies on the TCP-only proxy
     /// outbound, so the fresh-DNS probe must target this address. It is also what libbox reports
     /// to `NEDNSSettings`, so it is exactly where system lookups already go.
     public static let defaultTunnelDnsAddress: String = {
@@ -81,8 +93,7 @@ public struct SingBoxConfiguration: Equatable, Sendable {
     public let bridgeHost: String?
     public let bridgePort: Int?
     /// Validated split-tunnel rules, or nil for full-tunnel behavior (byte-identical output to a
-    /// build without split tunneling). Mirrors the Kotlin generator, except iOS NEVER emits
-    /// `exclude_package` — per-app exclusion is Android-only.
+    /// build without split tunneling).
     public let splitTunnel: SplitTunnelRules?
 
     public init(
@@ -103,326 +114,94 @@ public struct SingBoxConfiguration: Equatable, Sendable {
         self.splitTunnel = splitTunnel
     }
 
+    /// The emitted config from the shared builder. Throws
+    /// `SingBoxConfigurationError.rejected` when the binding rejects the input (an invalid
+    /// relay, a partial bridge, an unsupported split-tunnel country, …) — the same failures the
+    /// deleted generator used to reject locally.
     public func encodedJSON() throws -> Data {
-        try JSONSerialization.data(
-            withJSONObject: makeJSONObject(),
-            options: [.prettyPrinted, .sortedKeys]
-        )
+        Data(try encodedJSONString().utf8)
     }
 
     public func encodedJSONString() throws -> String {
-        String(decoding: try encodedJSON(), as: UTF8.self)
-    }
-
-    public func makeJSONObject() -> [String: Any] {
-        var tunInbound: [String: Any] = [
-            "type": "tun",
-            "tag": "tun-in",
-            "address": [
-                tunnelIPv4Address,
-                tunnelIPv6Address
-            ],
-            "mtu": mtu,
-            "auto_route": true,
-            "strict_route": true,
-            "stack": "system",
-            "dns_mode": "hijack",
-            "endpoint_independent_nat": true
-        ]
-        // A native bridge owns its outer socket. Only a direct Reality socket needs the raw relay
-        // address excluded from the TUN route; the inner bridge endpoint must stay on loopback.
-        if bridgeHost == nil, let excludeAddress = Self.relayRouteExcludeAddress(for: relay.publicHost) {
-            tunInbound["route_exclude_address"] = [excludeAddress]
+        #if canImport(Libbox)
+        let result = LibboxOpenRungBuildSingBoxConfig(try serializedBindingInput())
+        guard let result, result.succeeded() else {
+            let reason = result?.errorText() ?? ""
+            throw SingBoxConfigurationError.rejected(
+                reason.isEmpty ? "sing-box config build failed" : reason
+            )
         }
-
-        let outboundHost = bridgeHost ?? relay.publicHost
-        let outboundPort = bridgePort ?? relay.publicPort
-
-        // Split-tunnel emission (spec §2): countries were already validated (files on disk) and
-        // normalized to ir,cn order by the caller; unknown codes are dropped here as a last resort.
-        let bypassCountries = (splitTunnel?.bypassCountries ?? []).compactMap(SplitTunnelCountry.forCode)
-        let bypassLan = splitTunnel?.bypassLan == true
-
-        let dnsServers = Self.defaultDoHResolvers
-        var dnsServerObjects: [[String: Any]] = dnsServers.enumerated().map { index, server in
-            var object: [String: Any] = [
-                "tag": "dns-\(index)",
-                // DoH over 443 via the proxy: relays answer 443 on every transport, while
-                // TCP/53 gets no replies under WSS. IP-literal servers need no bootstrap
-                // resolver (defaults: port 443, path /dns-query).
-                "type": "https",
-                "server": server,
-                "detour": "proxy"
-            ]
-            // TLS authenticates the provider hostname while the dial stays on the IP literal,
-            // so a provider dropping IP SANs from its certificate cannot break resolution.
-            if let serverName = Self.dohTLSServerNames[server] {
-                object["tls"] = ["enabled": true, "server_name": serverName] as [String: Any]
-            }
-            return object
-        }
-        for country in bypassCountries {
-            // A DNS server with no detour builds its own direct dialer, which is exactly what a
-            // bypass resolver needs. Detouring to our otherwise-empty tagged direct outbound is
-            // rejected during sing-box's Start stage. DoH over 443 keeps the query encrypted on
-            // that direct path, and 443 survives the middleboxes that a bare 853 often does not.
-            guard let resolver = country.directResolver else { continue }
-            dnsServerObjects.append([
-                "tag": "dns-direct-\(country.code)",
-                "type": "https",
-                "server": resolver.server,
-                "tls": ["enabled": true, "server_name": resolver.tlsServerName] as [String: Any]
-            ])
-        }
-        // Highest priority: probe lookups must reach the proxied DoH resolvers even when a
-        // country rule would divert them (geosite-cn contains gstatic-class hosts), and must
-        // never be answered from any cache — a cached answer proves nothing about the tunnel
-        // right now. The chain is terminal for probe domains (its trailing route rule always
-        // fires), so a future geosite refresh can never capture a probe lookup.
-        var dnsRules = dnsFailoverRules(
-            domainSuffixes: ProbeTargets.ruleDomainSuffixes,
-            disableCache: true
-        )
-        dnsRules.append(contentsOf: bypassCountries.flatMap { Self.countryDnsRules(for: $0) })
-        // Real failover for everything else: a static `final` would never consult a second
-        // resolver. `evaluate` is non-terminal on a transport error, timeout, SERVFAIL or
-        // REFUSED in the pinned engine — a usable answer (NOERROR, or an authoritative
-        // NXDOMAIN) is returned by `respond`, anything else falls through to the next
-        // resolver's terminal route rule.
-        dnsRules.append(contentsOf: dnsFailoverRules(domainSuffixes: nil, disableCache: false))
-        let dns: [String: Any] = [
-            "servers": dnsServerObjects,
-            "rules": dnsRules,
-            "final": "dns-\(dnsServers.count - 1)",
-            "timeout": Self.dnsFallbackTimeout
-        ]
-
-        var routeRules: [[String: Any]] = [
-            [
-                "protocol": "dns",
-                "action": "hijack-dns"
-            ]
-        ]
-        if bypassCountries.isEmpty == false {
-            // Domain rule sets need the sniffed hostname on raw connections.
-            routeRules.append(["action": "sniff"])
-            // Probe traffic must reach the proxy even when a bypass rule would send it direct;
-            // a probe that escapes onto the direct path can report CONNECTED over a dead
-            // tunnel. Must precede every bypass rule.
-            routeRules.append([
-                "domain_suffix": ProbeTargets.ruleDomainSuffixes,
-                "outbound": "proxy"
-            ])
-        }
-        if bypassLan {
-            routeRules.append([
-                "ip_is_private": true,
-                "outbound": "direct"
-            ])
-        }
-        for country in bypassCountries {
-            routeRules.append([
-                "rule_set": [country.geositeTag, country.geoipTag],
-                "outbound": "direct"
-            ])
-        }
-        var route: [String: Any] = [
-            "auto_detect_interface": true,
-            "default_domain_resolver": "dns-0",
-            "rules": routeRules,
-            "final": "proxy"
-        ]
-        if bypassCountries.isEmpty == false, let ruleSetDirectory = splitTunnel?.ruleSetDirectory {
-            route["rule_set"] = bypassCountries.flatMap { country in
-                [
-                    [
-                        "type": "local",
-                        "tag": country.geositeTag,
-                        "format": "binary",
-                        "path": "\(ruleSetDirectory)/\(country.geositeTag).srs"
-                    ],
-                    [
-                        "type": "local",
-                        "tag": country.geoipTag,
-                        "format": "binary",
-                        "path": "\(ruleSetDirectory)/\(country.geoipTag).srs"
-                    ]
-                ] as [[String: Any]]
-            }
-        }
-
-        // "info" logs every flow and DNS query — each line crosses the gomobile boundary and
-        // costs CPU inside the 50 MB extension, so release builds keep only warnings.
-        #if DEBUG
-        let logLevel = "info"
+        return result.configJSON()
         #else
-        let logLevel = "warn"
+        // Only the engine-free test bundle compiles this branch (see project.yml); it pins the
+        // assembly below and asserts against the frozen bound outputs instead of building live.
+        throw SingBoxConfigurationError.engineUnavailable
         #endif
-
-        return [
-            "log": [
-                "level": logLevel,
-                "timestamp": true
-            ],
-            "dns": dns,
-            "inbounds": [
-                tunInbound
-            ],
-            "outbounds": [
-                [
-                    "type": "vless",
-                    "tag": "proxy",
-                    "server": outboundHost,
-                    "server_port": outboundPort,
-                    "uuid": relay.clientID,
-                    "flow": relay.flow,
-                    "network": "tcp",
-                    "packet_encoding": "xudp",
-                    "tls": [
-                        "enabled": true,
-                        "server_name": relay.serverName,
-                        "utls": [
-                            "enabled": true,
-                            "fingerprint": "chrome"
-                        ],
-                        "reality": [
-                            "enabled": true,
-                            "public_key": relay.realityPublicKey,
-                            "short_id": relay.shortID
-                        ]
-                    ] as [String: Any]
-                ] as [String: Any],
-                [
-                    "type": "direct",
-                    "tag": "direct"
-                ],
-                [
-                    "type": "block",
-                    "tag": "block"
-                ]
-            ],
-            "route": route,
-            "experimental": [
-                // No external_controller is set, so nothing listens; an empty clash_api
-                // block just turns on sing-box's traffic accounting, which feeds the
-                // cumulative bytes_sent/bytes_received counters reported with session
-                // telemetry (see TelemetryManager.updateTrafficCounters).
-                "clash_api": [String: Any]()
-            ]
-        ]
     }
 
-    /// Per-country lookup chain for the domains that country bypasses: ask the in-country DoH
-    /// resolver, and return its answer when it is a real one (NOERROR, or an authoritative
-    /// NXDOMAIN). Nothing else is terminal, so a resolver that is unreachable, times out, or has
-    /// let its certificate lapse falls through to the proxied global chain below instead of
-    /// failing the lookup outright — the same fail-open posture as the rest of the feature
-    /// (CONTRACT §1), and the reason moving off plaintext UDP cannot cost anyone reachability.
-    ///
-    /// `rule_set` matches against the queried domain in both the query and the response pass, so
-    /// the response rules stay scoped to this country's domains.
-    ///
-    /// Empty for a country with no usable in-country resolver: with nothing to evaluate, its
-    /// lookups simply reach the global chain, which is where they would end up anyway.
-    private static func countryDnsRules(for country: SplitTunnelCountry) -> [[String: Any]] {
-        guard country.directResolver != nil else { return [] }
-        var rules: [[String: Any]] = [
-            [
-                "rule_set": [country.geositeTag],
-                "action": "evaluate",
-                "server": "dns-direct-\(country.code)",
-                "timeout": dnsPrimaryTimeout
-            ]
+    /// The binding input for this configuration: one JSON object of the platform-assembled
+    /// fields. The relay object carries the broker's canonical wire names, the probe suffixes
+    /// come from `ProbeTargets` so the builder's probe pins can never diverge from the endpoints
+    /// this platform actually probes, and `debug` selects the log level ("info" logs every flow
+    /// and DNS query — each line crosses the gomobile boundary and costs CPU inside the 50 MB
+    /// extension, so release builds keep only warnings). Values are forwarded faithfully — a
+    /// partial bridge is the binding's to reject, not this assembly's to repair.
+    func bindingInput(debug: Bool) -> [String: Any] {
+        var input: [String: Any] = [
+            "relay": [
+                "public_host": relay.publicHost,
+                "public_port": relay.publicPort,
+                "protocol": relay.relayProtocol,
+                "client_id": relay.clientID,
+                "reality_public_key": relay.realityPublicKey,
+                "short_id": relay.shortID,
+                "server_name": relay.serverName,
+                "flow": relay.flow,
+                "exit_mode": relay.exitMode,
+            ] as [String: Any],
+            "tunnel_ipv4_address": tunnelIPv4Address,
+            "tunnel_ipv6_address": tunnelIPv6Address,
+            "mtu": mtu,
+            "log_level": debug ? "info" : "warn",
+            "probe_domain_suffixes": ProbeTargets.ruleDomainSuffixes,
         ]
-        for rcode in ["NOERROR", "NXDOMAIN"] {
-            rules.append([
-                "rule_set": [country.geositeTag],
-                "match_response": true,
-                "response_rcode": rcode,
-                "action": "respond"
-            ])
+        if let bridgeHost { input["bridge_host"] = bridgeHost }
+        if let bridgePort { input["bridge_port"] = bridgePort }
+        if let splitTunnel {
+            input["split_tunnel"] = [
+                "bypass_lan": splitTunnel.bypassLan,
+                "bypass_countries": splitTunnel.bypassCountries,
+                "excluded_packages": [String](),
+                "rule_set_directory": splitTunnel.ruleSetDirectory,
+            ] as [String: Any]
         }
-        return rules
+        return input
     }
 
-    /// Emits an ordered primary-to-fallback resolver chain from sing-box 1.14 DNS rule actions:
-    /// for every resolver but the last, `evaluate` exchanges the query (non-terminal on error)
-    /// and `respond` returns its answer when the RCODE is NOERROR or NXDOMAIN — both are real
-    /// answers, and probe nonce queries are expected to draw NXDOMAIN. Everything else (timeout,
-    /// transport error, SERVFAIL, REFUSED) falls through until the last resolver's terminal
-    /// route rule. With `domainSuffixes` the whole chain applies only to those domains and is
-    /// guaranteed terminal for them; with nil it applies to every remaining query.
-    private func dnsFailoverRules(
-        domainSuffixes: [String]?,
-        disableCache: Bool
-    ) -> [[String: Any]] {
-        let dnsServers = Self.defaultDoHResolvers
-        var rules: [[String: Any]] = []
-        for index in 0..<(dnsServers.count - 1) {
-            var evaluate: [String: Any] = [
-                "action": "evaluate",
-                "server": "dns-\(index)",
-                "timeout": Self.dnsPrimaryTimeout
-            ]
-            if let domainSuffixes { evaluate["domain_suffix"] = domainSuffixes }
-            if disableCache {
-                evaluate["disable_cache"] = true
-                evaluate["disable_optimistic_cache"] = true
-            }
-            rules.append(evaluate)
-            for rcode in ["NOERROR", "NXDOMAIN"] {
-                var respond: [String: Any] = [
-                    "match_response": true,
-                    "response_rcode": rcode,
-                    "action": "respond"
-                ]
-                if let domainSuffixes { respond["domain_suffix"] = domainSuffixes }
-                rules.append(respond)
-            }
-        }
-        var route: [String: Any] = [
-            "server": "dns-\(dnsServers.count - 1)",
-            "timeout": Self.dnsFallbackTimeout
-        ]
-        if let domainSuffixes { route["domain_suffix"] = domainSuffixes }
-        if disableCache {
-            route["disable_cache"] = true
-            route["disable_optimistic_cache"] = true
-        }
-        rules.append(route)
-        return rules
-    }
-
-    private static func relayRouteExcludeAddress(for host: String) -> String? {
-        let cleanHost = host.removingIPv6Brackets()
-        if cleanHost.isIPv4Literal {
-            return "\(cleanHost)/32"
-        }
-        if cleanHost.contains(":") {
-            return "\(cleanHost)/128"
-        }
-        return nil
+    private func serializedBindingInput() throws -> String {
+        #if DEBUG
+        let debug = true
+        #else
+        let debug = false
+        #endif
+        let data = try JSONSerialization.data(withJSONObject: bindingInput(debug: debug))
+        return String(decoding: data, as: UTF8.self)
     }
 }
 
-private extension String {
-    func removingIPv6Brackets() -> String {
-        guard hasPrefix("["), hasSuffix("]") else {
-            return self
-        }
-        return String(dropFirst().dropLast())
-    }
+/// Failures of the bound sing-box builder, surfaced where the deleted generator used to throw.
+public enum SingBoxConfigurationError: LocalizedError, Equatable {
+    /// The binding rejected the assembled input; the message names the offending field.
+    case rejected(String)
+    /// Only the engine-free test bundle can see this: every shipping target links Libbox.
+    case engineUnavailable
 
-    var isIPv4Literal: Bool {
-        let octets = split(separator: ".", omittingEmptySubsequences: false)
-        guard octets.count == 4 else {
-            return false
-        }
-        return octets.allSatisfy { octet in
-            guard let value = Int(octet), (0...255).contains(value) else {
-                return false
-            }
-            return String(value) == String(octet)
+    public var errorDescription: String? {
+        switch self {
+        case .rejected(let reason):
+            return "The sing-box configuration was rejected: \(reason)"
+        case .engineUnavailable:
+            return "The sing-box config builder is unavailable without the engine."
         }
     }
 }

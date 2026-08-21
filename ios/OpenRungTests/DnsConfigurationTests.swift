@@ -1,17 +1,19 @@
 import Foundation
 import XCTest
 
-/// Regression tests for the DoH emission and the probe-priority pins. TCP/53 through the proxy
-/// receives no replies under WSS relays, and geosite-cn contains probe-class hostnames
+/// Regression tests for the DoH emission and the probe-priority pins, asserted against the frozen
+/// bound outputs under testdata/singbox-binding (see `SingBoxBindingFixtures`). TCP/53 through
+/// the proxy receives no replies under WSS relays, and geosite-cn contains probe-class hostnames
 /// (www.gstatic.com), so both properties below are load-bearing for startup truthfulness.
 /// Mirror of Android `SingBoxConfigurationDnsTest`.
 final class DnsConfigurationTests: XCTestCase {
-    private let ruleSetDirectory = "/var/rulesets"
-
     func testResolversAreEmittedAsDoHServersDetouredThroughTheProxy() throws {
-        let servers = try proxiedDnsServers(SingBoxConfiguration(relay: makeWssTestRelay()).makeJSONObject())
+        let servers = try proxiedDnsServers(SingBoxBindingFixtures.golden("ios-tun"))
         XCTAssertEqual(servers.map { $0["tag"] as? String }, ["dns-0", "dns-1"])
-        XCTAssertEqual(servers.map { $0["server"] as? String }, ["1.1.1.1", "8.8.8.8"])
+        XCTAssertEqual(
+            servers.map { $0["server"] as? String },
+            SingBoxConfiguration.defaultDoHResolvers
+        )
         for server in servers {
             XCTAssertEqual(server["type"] as? String, "https")
             XCTAssertEqual(server["detour"] as? String, "proxy")
@@ -30,14 +32,7 @@ final class DnsConfigurationTests: XCTestCase {
     }
 
     func testNoDnsServerAnywhereSpeaksPlaintextDns() throws {
-        let object = SingBoxConfiguration(
-            relay: makeWssTestRelay(),
-            splitTunnel: SplitTunnelRules(
-                bypassLan: false,
-                bypassCountries: ["ir", "cn"],
-                ruleSetDirectory: ruleSetDirectory
-            )
-        ).makeJSONObject()
+        let object = try SingBoxBindingFixtures.golden("ios-split-ir-cn-lan")
         let dns = try XCTUnwrap(object["dns"] as? [String: Any])
         for server in try XCTUnwrap(dns["servers"] as? [[String: Any]]) {
             // Proxied resolvers need DoH because relays answer 443 on every transport while
@@ -55,7 +50,7 @@ final class DnsConfigurationTests: XCTestCase {
     }
 
     func testDefaultDomainResolverStaysOnPrimaryAndFinalOnTerminalFallback() throws {
-        let object = SingBoxConfiguration(relay: makeWssTestRelay()).makeJSONObject()
+        let object = try SingBoxBindingFixtures.golden("ios-tun")
         let dns = try XCTUnwrap(object["dns"] as? [String: Any])
         // The global chain's trailing route rule is the real terminus; `final` names the same
         // fallback resolver for coherence.
@@ -69,7 +64,7 @@ final class DnsConfigurationTests: XCTestCase {
         // sing-box has no upstream failover of its own: `evaluate` is non-terminal on a
         // transport error/timeout/SERVFAIL/REFUSED, `respond` returns a usable answer (NOERROR,
         // or an authoritative NXDOMAIN), and the trailing route rule is the terminal fallback.
-        let object = SingBoxConfiguration(relay: makeWssTestRelay()).makeJSONObject()
+        let object = try SingBoxBindingFixtures.golden("ios-tun")
         let dns = try XCTUnwrap(object["dns"] as? [String: Any])
         let rules = try XCTUnwrap(dns["rules"] as? [[String: Any]]).suffix(4).map { $0 }
         XCTAssertEqual(rules[0]["action"] as? String, "evaluate")
@@ -89,17 +84,8 @@ final class DnsConfigurationTests: XCTestCase {
     }
 
     func testProbeDnsPinIsAlwaysFirstProxiedAndUncached() throws {
-        let baseline = SingBoxConfiguration(relay: makeWssTestRelay()).makeJSONObject()
-        let china = SingBoxConfiguration(
-            relay: makeWssTestRelay(),
-            splitTunnel: SplitTunnelRules(
-                bypassLan: false,
-                bypassCountries: ["cn"],
-                ruleSetDirectory: ruleSetDirectory
-            )
-        ).makeJSONObject()
-
-        for object in [baseline, china] {
+        for scenario in ["ios-tun", "ios-split-cn"] {
+            let object = try SingBoxBindingFixtures.golden(scenario)
             let dns = try XCTUnwrap(object["dns"] as? [String: Any])
             let probeChain = try XCTUnwrap(dns["rules"] as? [[String: Any]]).prefix(4).map { $0 }
             // Every probe rule is scoped to the probe domains; the chain ends in a terminal
@@ -133,8 +119,8 @@ final class DnsConfigurationTests: XCTestCase {
     func testProbeQueriesTargetTheOnlyAddressSingBoxHijacks() throws {
         // sing-box tags a packet as DNS — and hijacks it into the DNS module ahead of every
         // route rule — ONLY when its destination equals the TUN's derived DNS address (the next
-        // address after the TUN's own IPv4 address, since we emit no dns_address). A probe sent
-        // to a public resolver instead would match no rule and die on the TCP-only proxy
+        // address after the TUN's own IPv4 address, since no dns_address is emitted). A probe
+        // sent to a public resolver instead would match no rule and die on the TCP-only proxy
         // outbound, failing on every healthy tunnel.
         XCTAssertEqual(SingBoxConfiguration.defaultTunnelIPv4Address, "172.19.0.1/30")
         XCTAssertEqual(SingBoxConfiguration.defaultTunnelDnsAddress, "172.19.0.2")
@@ -162,19 +148,14 @@ final class DnsConfigurationTests: XCTestCase {
 
         // An explicit dns_address on the tun inbound would replace the derived hijack address
         // and silently invalidate the probe target above.
-        let object = SingBoxConfiguration(relay: makeWssTestRelay()).makeJSONObject()
+        let object = try SingBoxBindingFixtures.golden("ios-tun")
         let inbounds = try XCTUnwrap(object["inbounds"] as? [[String: Any]])
         XCTAssertNil(try XCTUnwrap(inbounds.first)["dns_address"])
     }
 
     func testDnsBlockIsIdenticalAcrossDirectAndBridgedShapes() throws {
-        let relay = makeWssTestRelay()
-        let direct = SingBoxConfiguration(relay: relay).makeJSONObject()
-        let bridged = SingBoxConfiguration(
-            relay: relay,
-            bridgeHost: "127.0.0.1",
-            bridgePort: 54_321
-        ).makeJSONObject()
+        let direct = try SingBoxBindingFixtures.golden("ios-tun")
+        let bridged = try SingBoxBindingFixtures.golden("ios-bridge")
         XCTAssertEqual(
             try JSONSerialization.data(withJSONObject: XCTUnwrap(direct["dns"]), options: [.sortedKeys]),
             try JSONSerialization.data(withJSONObject: XCTUnwrap(bridged["dns"]), options: [.sortedKeys])
@@ -185,14 +166,7 @@ final class DnsConfigurationTests: XCTestCase {
         // The confirmed regression: geosite-cn contains www.gstatic.com, so before these pins a
         // dead proxy still produced a passing probe over the direct path and the app published
         // CONNECTED. Probe DNS and probe routing must both win before any country rule.
-        let object = SingBoxConfiguration(
-            relay: makeWssTestRelay(),
-            splitTunnel: SplitTunnelRules(
-                bypassLan: false,
-                bypassCountries: ["cn"],
-                ruleSetDirectory: ruleSetDirectory
-            )
-        ).makeJSONObject()
+        let object = try SingBoxBindingFixtures.golden("ios-split-cn")
 
         let dns = try XCTUnwrap(object["dns"] as? [String: Any])
         let dnsRules = try XCTUnwrap(dns["rules"] as? [[String: Any]])

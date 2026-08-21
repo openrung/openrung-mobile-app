@@ -6,8 +6,7 @@ import com.openrung.model.WssFrontDescriptor
 import com.openrung.net.DnsProbe
 import com.openrung.net.InternetProbeResult
 import com.openrung.net.ProbeTargets
-import com.openrung.net.SingBoxConfiguration
-import com.openrung.net.SplitTunnelRules
+import com.openrung.net.SingBoxBindingFixtures
 import com.openrung.net.TunnelDnsTransport
 import com.openrung.net.TunnelHttpProbe
 import com.openrung.net.TunnelPathProbe
@@ -86,15 +85,9 @@ class StartupProbeChinaBypassTest {
     fun `china bypass config keeps every probe flow on the proxy`() {
         // The premise the socket-boundary fakes rest on: with cn bypass enabled, probe DNS is
         // answered only via the proxied DoH resolver and probe HTTPS routes only to the proxy.
-        val config = SingBoxConfiguration(
-            relay(),
-            splitTunnel = SplitTunnelRules(
-                bypassLan = false,
-                bypassCountries = listOf("cn"),
-                excludedPackages = emptyList(),
-                ruleSetDirectory = "/data/user/0/rulesets",
-            ),
-        ).makeJsonObject()
+        // The config is the frozen bound output for exactly this shape (see
+        // SingBoxBindingFixtures and SingBoxConfigurationBindingInputTest).
+        val config = SingBoxBindingFixtures.golden("android-split-cn")
 
         val dns = config["dns"]!!.jsonObject
         val probeDnsRule = dns["rules"]!!.jsonArray.first().jsonObject
