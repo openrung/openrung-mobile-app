@@ -1,0 +1,162 @@
+{
+  "dns": {
+    "final": "dns-1",
+    "rules": [
+      {
+        "action": "evaluate",
+        "disable_cache": true,
+        "disable_optimistic_cache": true,
+        "domain_suffix": [
+          "probe.openrung.org",
+          "cp.cloudflare.com"
+        ],
+        "server": "dns-0",
+        "timeout": "2s"
+      },
+      {
+        "action": "respond",
+        "domain_suffix": [
+          "probe.openrung.org",
+          "cp.cloudflare.com"
+        ],
+        "match_response": true,
+        "response_rcode": "NOERROR"
+      },
+      {
+        "action": "respond",
+        "domain_suffix": [
+          "probe.openrung.org",
+          "cp.cloudflare.com"
+        ],
+        "match_response": true,
+        "response_rcode": "NXDOMAIN"
+      },
+      {
+        "disable_cache": true,
+        "disable_optimistic_cache": true,
+        "domain_suffix": [
+          "probe.openrung.org",
+          "cp.cloudflare.com"
+        ],
+        "server": "dns-1",
+        "timeout": "3s"
+      },
+      {
+        "action": "evaluate",
+        "server": "dns-0",
+        "timeout": "2s"
+      },
+      {
+        "action": "respond",
+        "match_response": true,
+        "response_rcode": "NOERROR"
+      },
+      {
+        "action": "respond",
+        "match_response": true,
+        "response_rcode": "NXDOMAIN"
+      },
+      {
+        "server": "dns-1",
+        "timeout": "3s"
+      }
+    ],
+    "servers": [
+      {
+        "detour": "proxy",
+        "server": "1.1.1.1",
+        "tag": "dns-0",
+        "tls": {
+          "enabled": true,
+          "server_name": "cloudflare-dns.com"
+        },
+        "type": "https"
+      },
+      {
+        "detour": "proxy",
+        "server": "8.8.8.8",
+        "tag": "dns-1",
+        "tls": {
+          "enabled": true,
+          "server_name": "dns.google"
+        },
+        "type": "https"
+      }
+    ],
+    "timeout": "3s"
+  },
+  "experimental": {
+    "clash_api": {}
+  },
+  "inbounds": [
+    {
+      "address": [
+        "172.19.0.1/30",
+        "fdfe:dcba:9876::1/126"
+      ],
+      "auto_route": true,
+      "dns_mode": "hijack",
+      "endpoint_independent_nat": true,
+      "mtu": 1400,
+      "route_exclude_address": [
+        "203.0.113.10/32"
+      ],
+      "stack": "system",
+      "strict_route": true,
+      "tag": "tun-in",
+      "type": "tun"
+    }
+  ],
+  "log": {
+    "level": "warn",
+    "timestamp": true
+  },
+  "outbounds": [
+    {
+      "flow": "xtls-rprx-vision",
+      "network": "tcp",
+      "packet_encoding": "xudp",
+      "server": "203.0.113.10",
+      "server_port": 443,
+      "tag": "proxy",
+      "tls": {
+        "enabled": true,
+        "reality": {
+          "enabled": true,
+          "public_key": "reality-key",
+          "short_id": "abcd1234"
+        },
+        "server_name": "www.example.com",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "type": "vless",
+      "uuid": "e6b1a1de-9f0f-4c1a-8bb1-1f2b3c4d5e6f"
+    },
+    {
+      "tag": "direct",
+      "type": "direct"
+    },
+    {
+      "tag": "block",
+      "type": "block"
+    }
+  ],
+  "route": {
+    "auto_detect_interface": true,
+    "default_domain_resolver": "dns-0",
+    "final": "proxy",
+    "rules": [
+      {
+        "action": "hijack-dns",
+        "protocol": "dns"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "direct"
+      }
+    ]
+  }
+}

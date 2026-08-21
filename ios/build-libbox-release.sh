@@ -271,6 +271,8 @@ cp "$binding_source/broker_binding.go" \
   "$work_dir/source/experimental/libbox/openrung_broker.go"
 cp "$binding_source/failure_binding.go" \
   "$work_dir/source/experimental/libbox/openrung_failure.go"
+cp "$binding_source/singbox_binding.go" \
+  "$work_dir/source/experimental/libbox/openrung_singbox.go"
 mkdir -p "$work_dir/source/experimental/libbox/internal/openrungpunch"
 for source_file in "$binding_source/internal/openrungpunch/"*.go; do
   case "$source_file" in
@@ -385,6 +387,15 @@ for slice in ios-arm64 ios-arm64_x86_64-simulator; do
     'LibboxOpenRungFailureDetail'; do
     if ! grep -Fq "$classifier_symbol" "$header"; then
       echo "error: Apple build is missing the OpenRung failure classifier API in $slice: $classifier_symbol" >&2
+      exit 1
+    fi
+  done
+  for singbox_symbol in \
+    'LibboxOpenRungBuildSingBoxConfig' \
+    'LibboxOpenRungSingBoxConfigResult' \
+    ')configJSON;'; do
+    if ! grep -Fq "$singbox_symbol" "$header"; then
+      echo "error: Apple build is missing the OpenRung sing-box builder API in $slice: $singbox_symbol" >&2
       exit 1
     fi
   done

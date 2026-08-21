@@ -1,7 +1,5 @@
 package com.openrung.net
 
-import com.openrung.model.RelayDescriptor
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -15,16 +13,20 @@ import org.junit.Test
 import java.net.URI
 
 /**
- * Regression tests for the DoH emission and the probe-priority pins. TCP/53 through the proxy
- * receives no replies under WSS relays, and geosite-cn contains probe-class hostnames
+ * Regression tests for the DoH emission and the probe-priority pins, asserted against the frozen
+ * bound outputs under testdata/singbox-binding (see [SingBoxBindingFixtures]). TCP/53 through the
+ * proxy receives no replies under WSS relays, and geosite-cn contains probe-class hostnames
  * (www.gstatic.com), so both properties below are load-bearing for startup truthfulness.
  */
 class SingBoxConfigurationDnsTest {
     @Test
     fun `resolvers are emitted as DoH servers detoured through the proxy`() {
-        val servers = SingBoxConfiguration(relay()).makeJsonObject().dnsServers()
+        val servers = SingBoxBindingFixtures.golden("android-tun").dnsServers()
         assertEquals(listOf("dns-0", "dns-1"), servers.map { it.tag() })
-        assertEquals(listOf("1.1.1.1", "8.8.8.8"), servers.map { it["server"]!!.jsonPrimitive.content })
+        assertEquals(
+            SingBoxConfiguration.DEFAULT_DOH_RESOLVERS,
+            servers.map { it["server"]!!.jsonPrimitive.content },
+        )
         servers.forEach { server ->
             assertEquals("https", server["type"]!!.jsonPrimitive.content)
             assertEquals("proxy", server["detour"]!!.jsonPrimitive.content)
@@ -44,18 +46,15 @@ class SingBoxConfigurationDnsTest {
 
     @Test
     fun `no dns server anywhere speaks plaintext dns`() {
-        val config = SingBoxConfiguration(
-            relay(),
-            splitTunnel = rules(bypassCountries = listOf("ir", "cn")),
-        ).makeJsonObject()
-        config.dnsServers().forEach { server ->
+        val config = SingBoxBindingFixtures.golden("android-split-ir-cn-lan")
+        config.dnsServers(includeDirect = true).forEach { server ->
             // Proxied resolvers need DoH because relays answer 443 on every transport while
             // TCP/53 gets no replies under WSS. The bypass-country resolvers need it for a
             // different reason: they are dialed DIRECTLY, so an unencrypted query would leave
             // the device on the user's real IP — in cleartext, and forgeable — while the tunnel
             // is up. Neither may ever regress to udp/tcp.
             assertEquals(
-                "every dns server must be encrypted: ${server["tag"]!!.jsonPrimitive.content}",
+                "every dns server must be encrypted: ${server.tag()}",
                 "https",
                 server["type"]!!.jsonPrimitive.content,
             )
@@ -68,7 +67,7 @@ class SingBoxConfigurationDnsTest {
 
     @Test
     fun `default domain resolver stays on the primary and final on the terminal fallback`() {
-        val config = SingBoxConfiguration(relay()).makeJsonObject()
+        val config = SingBoxBindingFixtures.golden("android-tun")
         // The global chain's trailing route rule is the real terminus; `final` names the same
         // fallback resolver for coherence.
         assertEquals("dns-1", config["dns"]!!.jsonObject["final"]!!.jsonPrimitive.content)
@@ -84,8 +83,7 @@ class SingBoxConfigurationDnsTest {
         // sing-box has no upstream failover of its own: `evaluate` is non-terminal on a
         // transport error/timeout/SERVFAIL/REFUSED, `respond` returns a usable answer (NOERROR,
         // or an authoritative NXDOMAIN), and the trailing route rule is the terminal fallback.
-        val rules = SingBoxConfiguration(relay()).makeJsonObject()
-            .dnsRules().takeLast(4)
+        val rules = SingBoxBindingFixtures.golden("android-tun").dnsRules().takeLast(4)
         assertEquals("evaluate", rules[0]["action"]!!.jsonPrimitive.content)
         assertEquals("dns-0", rules[0]["server"]!!.jsonPrimitive.content)
         assertEquals("2s", rules[0]["timeout"]!!.jsonPrimitive.content)
@@ -101,31 +99,20 @@ class SingBoxConfigurationDnsTest {
 
     @Test
     fun `probe dns chain is always first uncached and terminal for probe domains`() {
-        val baseline = SingBoxConfiguration(relay()).makeJsonObject()
-        val china = SingBoxConfiguration(
-            relay(),
-            splitTunnel = rules(bypassCountries = listOf("cn")),
-        ).makeJsonObject()
-
-        listOf(baseline, china).forEach { config ->
-            val probeChain = config.dnsRules().take(4)
+        listOf("android-tun", "android-split-cn").forEach { scenario ->
+            val probeChain = SingBoxBindingFixtures.golden(scenario).dnsRules().take(4)
             // Every probe rule is scoped to the probe domains; the chain ends in a terminal
             // route rule, so a probe lookup can never leak past it into a country rule.
             probeChain.forEach { rule ->
+                assertEquals(
+                    ProbeTargets.RULE_DOMAIN_SUFFIXES,
+                    rule["domain_suffix"]!!.jsonArray.map { it.jsonPrimitive.content },
+                )
                 if (rule["match_response"]?.jsonPrimitive?.content?.toBoolean() != true) {
-                    assertEquals(
-                        ProbeTargets.RULE_DOMAIN_SUFFIXES,
-                        rule["domain_suffix"]!!.jsonArray.map { it.jsonPrimitive.content },
-                    )
                     assertEquals(true, rule["disable_cache"]!!.jsonPrimitive.content.toBoolean())
                     assertEquals(
                         true,
                         rule["disable_optimistic_cache"]!!.jsonPrimitive.content.toBoolean(),
-                    )
-                } else {
-                    assertEquals(
-                        ProbeTargets.RULE_DOMAIN_SUFFIXES,
-                        rule["domain_suffix"]!!.jsonArray.map { it.jsonPrimitive.content },
                     )
                 }
             }
@@ -143,10 +130,7 @@ class SingBoxConfigurationDnsTest {
         // The confirmed regression: geosite-cn contains www.gstatic.com, so before these pins a
         // dead proxy still produced a passing probe over the direct path and the app published
         // CONNECTED. Probe DNS and probe routing must both win before any country rule.
-        val config = SingBoxConfiguration(
-            relay(),
-            splitTunnel = rules(bypassCountries = listOf("cn")),
-        ).makeJsonObject()
+        val config = SingBoxBindingFixtures.golden("android-split-cn")
 
         val dnsRules = config.dnsRules()
         assertTrue(dnsRules[0].containsKey("domain_suffix"))
@@ -189,15 +173,15 @@ class SingBoxConfigurationDnsTest {
     fun `probe queries target the only address sing-box hijacks`() {
         // sing-box tags a packet as DNS — and hijacks it into the DNS module ahead of every
         // route rule — ONLY when its destination equals the TUN's derived DNS address (the next
-        // address after the TUN's own IPv4 address, since we emit no dns_address). A probe sent
-        // to a public resolver instead would match no rule and die on the TCP-only proxy
+        // address after the TUN's own IPv4 address, since no dns_address is emitted). A probe
+        // sent to a public resolver instead would match no rule and die on the TCP-only proxy
         // outbound, failing on every healthy tunnel.
         assertEquals("172.19.0.1/30", SingBoxConfiguration.DEFAULT_TUNNEL_IPV4_ADDRESS)
         assertEquals("172.19.0.2", SingBoxConfiguration.DEFAULT_TUNNEL_DNS_ADDRESS)
         assertEquals(
             SingBoxConfiguration.DEFAULT_TUNNEL_DNS_ADDRESS,
             SingBoxConfiguration.tunnelDnsAddress(
-                SingBoxConfiguration(relay()).tunnelIPv4Address,
+                SingBoxConfiguration(SingBoxBindingFixtures.relay()).tunnelIPv4Address,
             ),
         )
         // Octet carry, so a future tunnel address change cannot silently derive a wrong hijack
@@ -231,61 +215,25 @@ class SingBoxConfigurationDnsTest {
     fun `tun inbound never pins its own dns_address away from the derived one`() {
         // An explicit dns_address on the tun inbound would replace the derived hijack address
         // and silently invalidate the probe target above.
-        val tunInbound = SingBoxConfiguration(relay()).makeJsonObject()["inbounds"]!!
+        val tunInbound = SingBoxBindingFixtures.golden("android-tun")["inbounds"]!!
             .jsonArray[0].jsonObject
         assertFalse(tunInbound.containsKey("dns_address"))
     }
 
     @Test
     fun `dns block is identical across direct and bridged shapes`() {
-        val direct = SingBoxConfiguration(relay()).makeJsonObject()
-        val bridged = SingBoxConfiguration(
-            relay(),
-            bridgeHost = "127.0.0.1",
-            bridgePort = 54321,
-        ).makeJsonObject()
-        assertEquals(direct["dns"], bridged["dns"])
+        assertEquals(
+            SingBoxBindingFixtures.golden("android-tun")["dns"],
+            SingBoxBindingFixtures.golden("android-bridge")["dns"],
+        )
     }
 
-    private fun JsonObject.dnsServers(): List<JsonObject> =
+    private fun JsonObject.dnsServers(includeDirect: Boolean = false): List<JsonObject> =
         this["dns"]!!.jsonObject["servers"]!!.jsonArray.map { it.jsonObject }
-            .filter { it.tag().startsWith("dns-") && !it.tag().startsWith("dns-direct-") }
+            .filter { includeDirect || !it.tag().startsWith("dns-direct-") }
 
     private fun JsonObject.dnsRules(): List<JsonObject> =
         this["dns"]!!.jsonObject["rules"]!!.jsonArray.map { it.jsonObject }
 
     private fun JsonObject.tag(): String = this["tag"]!!.jsonPrimitive.content
-
-    private fun rules(
-        bypassLan: Boolean = false,
-        bypassCountries: List<String> = emptyList(),
-    ): SplitTunnelRules = SplitTunnelRules(
-        bypassLan = bypassLan,
-        bypassCountries = bypassCountries,
-        excludedPackages = emptyList(),
-        ruleSetDirectory = "/data/user/0/rulesets",
-    )
-
-    private fun relay(): RelayDescriptor = RelayDescriptor(
-        id = "relay-1",
-        label = "test-relay",
-        publicHost = "203.0.113.10",
-        publicPort = 443,
-        relayProtocol = "vless-reality-vision",
-        clientId = "e6b1a1de-9f0f-4c1a-8bb1-1f2b3c4d5e6f",
-        realityPublicKey = "reality-key",
-        shortId = "abcd1234",
-        serverName = "www.example.com",
-        flow = "xtls-rprx-vision",
-        exitMode = "direct",
-        maxSessions = 8,
-        maxMbps = 100,
-        relayVersion = "1.0.0",
-        transport = "tunnel",
-        punchCapable = true,
-        punchEndpoint = "https://203.0.113.10:9444",
-        registeredAt = "2026-01-01T00:00:00Z",
-        lastHeartbeatAt = "2026-01-01T00:00:00Z",
-        expiresAt = "2026-01-01T01:00:00Z",
-    )
 }

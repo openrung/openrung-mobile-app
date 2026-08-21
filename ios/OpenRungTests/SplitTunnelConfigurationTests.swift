@@ -3,39 +3,24 @@ import XCTest
 
 final class SplitTunnelConfigurationTests: XCTestCase {
     private static let testDefaultsSuite = "com.openrung.tests.split-tunnel"
-    private let ruleSetDirectory = "/var/rulesets"
+    private let ruleSetDirectory = "/var/mobile/rulesets"
 
-    // MARK: - sing-box emission (spec §2; byte-parallel with the Kotlin generator)
+    // MARK: - sing-box emission (spec §2), asserted against the frozen bound outputs under
+    // testdata/singbox-binding (see SingBoxBindingFixtures); the scenario inputs those goldens
+    // are built from are pinned by SingBoxConfigurationBindingInputTests below.
 
     func testNilAndInertRulesEmitBaselineConfig() throws {
-        let relay = makeWssTestRelay()
-        let baseline = SingBoxConfiguration(relay: relay).makeJSONObject()
-        let explicitNil = SingBoxConfiguration(relay: relay, splitTunnel: nil).makeJSONObject()
-        // Callers pass nil when disabled, but rules contributing nothing must also be a no-op.
-        let inert = SingBoxConfiguration(
-            relay: relay,
-            splitTunnel: SplitTunnelRules(
-                bypassLan: false,
-                bypassCountries: [],
-                ruleSetDirectory: ruleSetDirectory
-            )
-        ).makeJSONObject()
-
-        XCTAssertEqual(try canonicalJSON(baseline), try canonicalJSON(explicitNil))
-        XCTAssertEqual(try canonicalJSON(baseline), try canonicalJSON(inert))
+        // Rules contributing nothing must be a no-op (nil-vs-absent is assembly-level: both
+        // produce the ios-tun input, pinned by the binding-input suite).
+        XCTAssertEqual(
+            try SingBoxBindingFixtures.goldenText("ios-tun"),
+            try SingBoxBindingFixtures.goldenText("ios-split-empty")
+        )
     }
 
     func testLanOnlyRulesAddExactlyOnePrivateBypassRouteRule() throws {
-        let relay = makeWssTestRelay()
-        var baseline = SingBoxConfiguration(relay: relay).makeJSONObject()
-        var split = SingBoxConfiguration(
-            relay: relay,
-            splitTunnel: SplitTunnelRules(
-                bypassLan: true,
-                bypassCountries: [],
-                ruleSetDirectory: ruleSetDirectory
-            )
-        ).makeJSONObject()
+        var baseline = try SingBoxBindingFixtures.golden("ios-tun")
+        var split = try SingBoxBindingFixtures.golden("ios-split-lan")
 
         let route = try XCTUnwrap(split["route"] as? [String: Any])
         XCTAssertNil(route["rule_set"])
@@ -52,20 +37,14 @@ final class SplitTunnelConfigurationTests: XCTestCase {
     }
 
     func testIranOnlyRulesEmitDnsAndRouteDeltasInOrder() throws {
-        let object = SingBoxConfiguration(
-            relay: makeWssTestRelay(),
-            splitTunnel: SplitTunnelRules(
-                bypassLan: false,
-                bypassCountries: ["ir"],
-                ruleSetDirectory: ruleSetDirectory
-            )
-        ).makeJSONObject()
+        let object = try SingBoxBindingFixtures.golden("ios-split-ir")
 
-        // Iran has no encrypted public resolver we can currently stand behind, so it contributes
-        // no dns server and no dns rules at all — its ROUTE bypass below is untouched, and its
-        // lookups just reach the proxied global chain. A dead primary would be strictly worse:
-        // every bypassed lookup would burn the full evaluate timeout on a doomed TLS handshake.
-        let baselineDns = SingBoxConfiguration(relay: makeWssTestRelay()).makeJSONObject()["dns"]
+        // Iran has no encrypted public resolver the shared builder can currently stand behind,
+        // so it contributes no dns server and no dns rules at all — its ROUTE bypass below is
+        // untouched, and its lookups just reach the proxied global chain. A dead primary would
+        // be strictly worse: every bypassed lookup would burn the full evaluate timeout on a
+        // doomed TLS handshake.
+        let baselineDns = try SingBoxBindingFixtures.golden("ios-tun")["dns"]
         XCTAssertEqual(try canonicalJSON(object["dns"]), try canonicalJSON(baselineDns))
 
         let route = try XCTUnwrap(object["route"] as? [String: Any])
@@ -76,20 +55,19 @@ final class SplitTunnelConfigurationTests: XCTestCase {
             ["rule_set": ["geosite-ir", "geoip-ir"], "outbound": "direct"],
         ] as [[String: Any]]))
         XCTAssertEqual(try canonicalJSON(route["rule_set"]), try canonicalJSON([
-            ["type": "local", "tag": "geosite-ir", "format": "binary", "path": "/var/rulesets/geosite-ir.srs"],
-            ["type": "local", "tag": "geoip-ir", "format": "binary", "path": "/var/rulesets/geoip-ir.srs"],
+            ["type": "local", "tag": "geosite-ir", "format": "binary", "path": "\(ruleSetDirectory)/geosite-ir.srs"],
+            ["type": "local", "tag": "geoip-ir", "format": "binary", "path": "\(ruleSetDirectory)/geoip-ir.srs"],
         ] as [[String: Any]]))
     }
 
     func testFullRulesEmitIranBeforeChinaAndLeaveTheRestUntouched() throws {
-        let relay = makeWssTestRelay()
-        var baseline = SingBoxConfiguration(relay: relay).makeJSONObject()
-        var split = SingBoxConfiguration(relay: relay, splitTunnel: fullRules).makeJSONObject()
+        var baseline = try SingBoxBindingFixtures.golden("ios-tun")
+        var split = try SingBoxBindingFixtures.golden("ios-split-ir-cn-lan")
 
         let dns = try XCTUnwrap(split["dns"] as? [String: Any])
         let servers = try XCTUnwrap(dns["servers"] as? [[String: Any]])
-        // Only China contributes a resolver today (see SplitTunnelCountry.directResolver), but the
-        // ROUTE rules below still cover both countries.
+        // Only China contributes a resolver today (see connectcore's split-tunnel resolver
+        // table), but the ROUTE rules below still cover both countries.
         XCTAssertEqual(servers.map { $0["tag"] as? String }, ["dns-0", "dns-1", "dns-direct-cn"])
         XCTAssertEqual(servers[2]["server"] as? String, "223.5.5.5")
         XCTAssertEqual(
@@ -134,14 +112,8 @@ final class SplitTunnelConfigurationTests: XCTestCase {
     }
 
     func testBridgeModeKeepsSplitRulesAndStillOmitsRouteExcludeAddress() throws {
-        let relay = makeWssTestRelay()
-        let direct = SingBoxConfiguration(relay: relay, splitTunnel: fullRules).makeJSONObject()
-        let bridged = SingBoxConfiguration(
-            relay: relay,
-            bridgeHost: "127.0.0.1",
-            bridgePort: 24_680,
-            splitTunnel: fullRules
-        ).makeJSONObject()
+        let direct = try SingBoxBindingFixtures.golden("ios-split-ir-cn-lan")
+        let bridged = try SingBoxBindingFixtures.golden("ios-split-ir-cn-lan-bridge")
 
         XCTAssertEqual(try canonicalJSON(direct["dns"]), try canonicalJSON(bridged["dns"]))
         XCTAssertEqual(try canonicalJSON(direct["route"]), try canonicalJSON(bridged["route"]))
@@ -151,18 +123,13 @@ final class SplitTunnelConfigurationTests: XCTestCase {
     }
 
     func testCountryConstantsMatchSpec() {
+        // The per-country direct resolvers (and Iran's documented absence) are the shared
+        // builder's now; the bound goldens pin them (see the full-rules test above).
         XCTAssertEqual(SplitTunnelCountry.supported.map(\.code), ["ir", "cn"])
         XCTAssertEqual(SplitTunnelCountry.forCode("ir")?.geositeTag, "geosite-ir")
         XCTAssertEqual(SplitTunnelCountry.forCode("ir")?.geoipTag, "geoip-ir")
-        // Iran ships no resolver while Shecan's certificate is expired; see the type's docs
-        // before restoring one, and verify the live endpoint rather than its documentation.
-        XCTAssertNil(SplitTunnelCountry.forCode("ir")?.directResolver)
         XCTAssertEqual(SplitTunnelCountry.forCode("cn")?.geositeTag, "geosite-cn")
         XCTAssertEqual(SplitTunnelCountry.forCode("cn")?.geoipTag, "geoip-cn")
-        XCTAssertEqual(
-            SplitTunnelCountry.forCode("cn")?.directResolver,
-            SplitTunnelDirectResolver(server: "223.5.5.5", tlsServerName: "dns.alidns.com")
-        )
         XCTAssertNil(SplitTunnelCountry.forCode("us"))
     }
 
@@ -431,14 +398,6 @@ final class SplitTunnelConfigurationTests: XCTestCase {
         ]
     }
 
-    private var fullRules: SplitTunnelRules {
-        SplitTunnelRules(
-            bypassLan: true,
-            bypassCountries: ["ir", "cn"],
-            ruleSetDirectory: ruleSetDirectory
-        )
-    }
-
     private func firstInbound(_ object: [String: Any]) throws -> [String: Any] {
         let inbounds = try XCTUnwrap(object["inbounds"] as? [[String: Any]])
         return try XCTUnwrap(inbounds.first)
@@ -446,5 +405,116 @@ final class SplitTunnelConfigurationTests: XCTestCase {
 
     private func canonicalJSON(_ object: Any?) throws -> Data {
         try JSONSerialization.data(withJSONObject: XCTUnwrap(object), options: [.sortedKeys])
+    }
+}
+
+/// The assembly half of the sing-box builder contract: the configuration each iOS scenario
+/// constructs must produce exactly the checked-in binding input for that scenario. The other half
+/// — those inputs building to the frozen goldens through the real binding — runs in
+/// `android/punchbridge`'s Go tests, and the structural suites above assert against the goldens.
+/// Lives in this file because the OpenRungTests target lists files explicitly (xcodegen); adding
+/// a file means regenerating the project.
+final class SingBoxConfigurationBindingInputTests: XCTestCase {
+    private let ruleSetDirectory = "/var/mobile/rulesets"
+
+    /// The configuration whose assembly must reproduce each scenario's input file.
+    private func configuration(for scenario: String) throws -> SingBoxConfiguration {
+        let relay = SingBoxBindingFixtures.relay()
+        switch scenario {
+        case "ios-tun":
+            return SingBoxConfiguration(relay: relay)
+        case "ios-bridge":
+            return SingBoxConfiguration(relay: relay, bridgeHost: "127.0.0.1", bridgePort: 54_321)
+        case "ios-split-empty":
+            return SingBoxConfiguration(
+                relay: relay,
+                splitTunnel: SplitTunnelRules(bypassLan: false, bypassCountries: [], ruleSetDirectory: "")
+            )
+        case "ios-split-lan":
+            return SingBoxConfiguration(
+                relay: relay,
+                splitTunnel: SplitTunnelRules(
+                    bypassLan: true,
+                    bypassCountries: [],
+                    ruleSetDirectory: ruleSetDirectory
+                )
+            )
+        case "ios-split-ir":
+            return SingBoxConfiguration(
+                relay: relay,
+                splitTunnel: SplitTunnelRules(
+                    bypassLan: false,
+                    bypassCountries: ["ir"],
+                    ruleSetDirectory: ruleSetDirectory
+                )
+            )
+        case "ios-split-cn":
+            return SingBoxConfiguration(
+                relay: relay,
+                splitTunnel: SplitTunnelRules(
+                    bypassLan: false,
+                    bypassCountries: ["cn"],
+                    ruleSetDirectory: ruleSetDirectory
+                )
+            )
+        case "ios-split-ir-cn-lan":
+            return SingBoxConfiguration(
+                relay: relay,
+                splitTunnel: SplitTunnelRules(
+                    bypassLan: true,
+                    bypassCountries: ["ir", "cn"],
+                    ruleSetDirectory: ruleSetDirectory
+                )
+            )
+        case "ios-split-ir-cn-lan-bridge":
+            return SingBoxConfiguration(
+                relay: relay,
+                bridgeHost: "127.0.0.1",
+                bridgePort: 54_321,
+                splitTunnel: SplitTunnelRules(
+                    bypassLan: true,
+                    bypassCountries: ["ir", "cn"],
+                    ruleSetDirectory: ruleSetDirectory
+                )
+            )
+        default:
+            throw XCTSkip("no construction for scenario \(scenario); add it here when adding a fixture")
+        }
+    }
+
+    func testEveryIOSScenarioAssemblesToItsCheckedInBindingInput() throws {
+        let scenarios = try SingBoxBindingFixtures.scenarios(platform: "ios")
+        XCTAssertGreaterThanOrEqual(
+            scenarios.count, 5,
+            "no ios scenarios found; the fixture directory changed shape"
+        )
+        for scenario in scenarios {
+            let assembled = try configuration(for: scenario).bindingInput(debug: false)
+            XCTAssertEqual(
+                assembled as NSDictionary,
+                try SingBoxBindingFixtures.input(scenario) as NSDictionary,
+                "scenario \(scenario)"
+            )
+        }
+    }
+
+    func testDebugBuildsRequestTheInfoLogLevel() {
+        let assembled = SingBoxConfiguration(relay: SingBoxBindingFixtures.relay())
+            .bindingInput(debug: true)
+        XCTAssertEqual(assembled["log_level"] as? String, "info")
+    }
+
+    func testPartialBridgeIsForwardedFaithfullyForTheBindingToReject() {
+        // The old generator quietly kept a partial bridge off the outbound; rejection is the
+        // binding's now (see the Go suite), so the assembly must not repair or drop the values.
+        let hostOnly = SingBoxConfiguration(relay: SingBoxBindingFixtures.relay(), bridgeHost: "127.0.0.1")
+            .bindingInput(debug: false)
+        XCTAssertEqual(hostOnly["bridge_host"] as? String, "127.0.0.1")
+        XCTAssertNil(hostOnly["bridge_port"])
+
+        let portOnly = SingBoxConfiguration(relay: SingBoxBindingFixtures.relay(), bridgePort: 1_234)
+            .bindingInput(debug: false)
+        XCTAssertEqual(portOnly["bridge_port"] as? Int, 1_234)
+        XCTAssertNil(portOnly["bridge_host"])
     }
 }

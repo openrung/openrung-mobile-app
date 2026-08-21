@@ -55,20 +55,17 @@ final class WssLifecycleAndConfigurationTests: XCTestCase {
     }
 
     func testBridgeChangesOnlyRealityTransportEndpointAndKeepsLoopbackInsideTun() throws {
-        let relay = makeWssTestRelay()
-        let direct = SingBoxConfiguration(relay: relay).makeJSONObject()
-        let bridged = SingBoxConfiguration(
-            relay: relay,
-            bridgeHost: "127.0.0.1",
-            bridgePort: 24_680
-        ).makeJSONObject()
+        // The frozen bound outputs for the direct and bridged shapes (see SingBoxBindingFixtures).
+        let relay = SingBoxBindingFixtures.relay()
+        let direct = try SingBoxBindingFixtures.golden("ios-tun")
+        let bridged = try SingBoxBindingFixtures.golden("ios-bridge")
 
         var directOutbound = try firstOutbound(direct)
         var bridgedOutbound = try firstOutbound(bridged)
         XCTAssertEqual(directOutbound["server"] as? String, relay.publicHost)
         XCTAssertEqual(directOutbound["server_port"] as? Int, relay.publicPort)
         XCTAssertEqual(bridgedOutbound["server"] as? String, "127.0.0.1")
-        XCTAssertEqual(bridgedOutbound["server_port"] as? Int, 24_680)
+        XCTAssertEqual(bridgedOutbound["server_port"] as? Int, 54_321)
         directOutbound.removeValue(forKey: "server")
         directOutbound.removeValue(forKey: "server_port")
         bridgedOutbound.removeValue(forKey: "server")

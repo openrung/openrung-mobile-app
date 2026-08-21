@@ -259,6 +259,7 @@ cp "$punch_source/binding.go" "$work_dir/source/experimental/libbox/openrung_pun
 cp "$punch_source/wss_binding.go" "$work_dir/source/experimental/libbox/openrung_wss.go"
 cp "$punch_source/broker_binding.go" "$work_dir/source/experimental/libbox/openrung_broker.go"
 cp "$punch_source/failure_binding.go" "$work_dir/source/experimental/libbox/openrung_failure.go"
+cp "$punch_source/singbox_binding.go" "$work_dir/source/experimental/libbox/openrung_singbox.go"
 mkdir -p "$work_dir/source/experimental/libbox/internal/openrungpunch"
 for source_file in "$punch_source/internal/openrungpunch/"*.go; do
   case "$source_file" in
@@ -350,6 +351,7 @@ required_classes = [
     "io/nekohasekai/libbox/OpenRungBrokerSpeedTestResult.class",
     "io/nekohasekai/libbox/OpenRungBrokerManifestResult.class",
     "io/nekohasekai/libbox/OpenRungBrokerWSSTicketResult.class",
+    "io/nekohasekai/libbox/OpenRungSingBoxConfigResult.class",
 ]
 required_native_libraries = [
     "jni/armeabi-v7a/libbox.so",
@@ -382,7 +384,8 @@ javap_output="$(
     io.nekohasekai.libbox.OpenRungBrokerRelayResult \
     io.nekohasekai.libbox.OpenRungBrokerSpeedTestResult \
     io.nekohasekai.libbox.OpenRungBrokerManifestResult \
-    io.nekohasekai.libbox.OpenRungBrokerWSSTicketResult
+    io.nekohasekai.libbox.OpenRungBrokerWSSTicketResult \
+    io.nekohasekai.libbox.OpenRungSingBoxConfigResult
 )"
 # Every entry below must be a symbol a Kotlin/Swift/React Native call site actually links. Pinning
 # an unconsumed binding method here gates releases on surface nothing uses — `downloadSpeedTest`
@@ -412,7 +415,9 @@ for generated_symbol in \
   'httpStatus();' \
   'retryAfterMillis();' \
   'openRungClassifyFailure(java.lang.String);' \
-  'openRungFailureDetail(java.lang.String);'; do
+  'openRungFailureDetail(java.lang.String);' \
+  'openRungBuildSingBoxConfig(java.lang.String);' \
+  'configJSON();'; do
   if ! grep -Fq "$generated_symbol" <<< "$javap_output"; then
     echo "error: libbox AAR is missing generated broker symbol: $generated_symbol" >&2
     exit 1
