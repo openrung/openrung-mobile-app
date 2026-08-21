@@ -120,7 +120,7 @@ func testTelemetryEventJSON(t *testing.T, id, event, clientID, sessionID string,
 func drainTelemetryOutbox(t *testing.T, outbox OpenRungTelemetryOutbox, brokerURL string) {
 	t.Helper()
 	for i := 0; i < 20; i++ {
-		result := outbox.FlushNextBatch(brokerURL)
+		result := outbox.BeginUpload().FlushNextBatch(brokerURL)
 		if !result.Succeeded() {
 			t.Fatalf("flush failed: %s (%s)", result.ErrorText(), result.ErrorKind())
 		}
@@ -364,7 +364,7 @@ func TestOpenRungTelemetryOutboxDefersApplicationsOverTheFlowBudget(t *testing.T
 	outbox.Enqueue(testTelemetryEventJSON(t, "plain", "connection_failed", "c", "s", nil))
 
 	broker := newTelemetryTestBroker(t)
-	first := outbox.FlushNextBatch(broker.server.URL)
+	first := outbox.BeginUpload().FlushNextBatch(broker.server.URL)
 	if !first.Succeeded() || first.SentCount() != 2 {
 		t.Fatalf("first batch should carry heavy-1 and plain: %+v", broker.received())
 	}
@@ -373,7 +373,7 @@ func TestOpenRungTelemetryOutboxDefersApplicationsOverTheFlowBudget(t *testing.T
 		t.Fatalf("budgeted batch selection wrong: %v", got)
 	}
 	// The deferred application event lands in the next request.
-	second := outbox.FlushNextBatch(broker.server.URL)
+	second := outbox.BeginUpload().FlushNextBatch(broker.server.URL)
 	if !second.Succeeded() || second.PendingCount() != 0 {
 		t.Fatalf("deferred event not drained: %+v", second)
 	}
@@ -386,7 +386,7 @@ func TestOpenRungTelemetryOutboxHeartbeatPiggybacksOnlyItsOwnIdentity(t *testing
 	broker := newTelemetryTestBroker(t)
 
 	heartbeat := testTelemetryEventJSON(t, "hb-1", "session_heartbeat", "c", "session-now", nil)
-	result := outbox.SendHeartbeat(broker.server.URL, heartbeat)
+	result := outbox.BeginUpload().SendHeartbeat(broker.server.URL, heartbeat)
 	if !result.Succeeded() || result.SentCount() != 2 || result.PendingCount() != 0 {
 		t.Fatalf("heartbeat with same-identity head: %+v", result)
 	}
@@ -399,7 +399,7 @@ func TestOpenRungTelemetryOutboxHeartbeatPiggybacksOnlyItsOwnIdentity(t *testing
 	// the backlog stays queued for FlushNextBatch.
 	outbox.Enqueue(testTelemetryEventJSON(t, "old-session", "connection_failed", "c", "session-old", nil))
 	heartbeat2 := testTelemetryEventJSON(t, "hb-2", "session_heartbeat", "c", "session-new", nil)
-	result = outbox.SendHeartbeat(broker.server.URL, heartbeat2)
+	result = outbox.BeginUpload().SendHeartbeat(broker.server.URL, heartbeat2)
 	if !result.Succeeded() || result.SentCount() != 1 || result.PendingCount() != 1 {
 		t.Fatalf("heartbeat with a historical head: %+v", result)
 	}
@@ -412,7 +412,7 @@ func TestOpenRungTelemetryOutboxKeepsEventsWhenTheBrokerFails(t *testing.T) {
 	broker := newTelemetryTestBroker(t)
 	broker.setStatus(http.StatusInternalServerError)
 
-	result := outbox.FlushNextBatch(broker.server.URL)
+	result := outbox.BeginUpload().FlushNextBatch(broker.server.URL)
 	if result.Succeeded() {
 		t.Fatal("a 500 response must fail the flush")
 	}
@@ -424,7 +424,7 @@ func TestOpenRungTelemetryOutboxKeepsEventsWhenTheBrokerFails(t *testing.T) {
 	}
 
 	heartbeat := testTelemetryEventJSON(t, "hb", "session_heartbeat", "c", "s", nil)
-	if hb := outbox.SendHeartbeat(broker.server.URL, heartbeat); hb.Succeeded() {
+	if hb := outbox.BeginUpload().SendHeartbeat(broker.server.URL, heartbeat); hb.Succeeded() {
 		t.Fatal("a 500 response must fail the heartbeat")
 	}
 	if got := outbox.PendingCount(); got != 1 {
@@ -483,22 +483,22 @@ func TestOpenRungTelemetryOutboxBoundsBadInput(t *testing.T) {
 	if outbox.ApplySessionAttributes("s", "not json") {
 		t.Fatal("undecodable attributes must be rejected")
 	}
-	if result := outbox.FlushNextBatch(""); result.Succeeded() {
+	if result := outbox.BeginUpload().FlushNextBatch(""); result.Succeeded() {
 		// An empty queue would succeed regardless of the URL; queue one first.
 		t.Log("empty queue short-circuits before URL validation")
 	}
 	outbox.Enqueue(testTelemetryEventJSON(t, "e", "x", "c", "s", nil))
-	if result := outbox.FlushNextBatch("not a url"); result.Succeeded() || result.ErrorKind() != "validation" {
+	if result := outbox.BeginUpload().FlushNextBatch("not a url"); result.Succeeded() || result.ErrorKind() != "validation" {
 		t.Fatalf("invalid broker URL must fail validation: %+v", result)
 	}
 }
 
-// TestOpenRungTelemetryOutboxAbortUnblocksAnInFlightUpload: a caller's own
+// TestOpenRungTelemetryUploadCloseUnblocksAnInFlightUpload: a caller's own
 // cancellation (a terminal flush hitting its deadline) must never be held
-// hostage by an unresponsive broker. AbortUploads returns the blocked call
-// promptly with the cancelled outcome, commits nothing, and leaves the outbox
-// usable for the next attempt.
-func TestOpenRungTelemetryOutboxAbortUnblocksAnInFlightUpload(t *testing.T) {
+// hostage by an unresponsive broker. Closing the upload returns the blocked
+// call promptly with the cancelled outcome, commits nothing, and leaves the
+// outbox usable for the next attempt.
+func TestOpenRungTelemetryUploadCloseUnblocksAnInFlightUpload(t *testing.T) {
 	requestArrived := make(chan struct{})
 	release := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
@@ -514,27 +514,84 @@ func TestOpenRungTelemetryOutboxAbortUnblocksAnInFlightUpload(t *testing.T) {
 	outbox := testTelemetryOutbox(t, t.TempDir())
 	outbox.Enqueue(testTelemetryEventJSON(t, "held", "connection_failed", "c", "s", nil))
 
+	upload := outbox.BeginUpload()
 	results := make(chan *OpenRungTelemetryFlushResult, 1)
-	go func() { results <- outbox.FlushNextBatch(server.URL) }()
+	go func() { results <- upload.FlushNextBatch(server.URL) }()
 	select {
 	case <-requestArrived:
 	case <-time.After(5 * time.Second):
 		t.Fatal("upload never reached the broker")
 	}
 
-	outbox.AbortUploads()
+	// Close waits for the in-flight attempt to actually return, mirroring the
+	// broker operation, so the platforms never proceed past a live request.
+	upload.Close()
 	var result *OpenRungTelemetryFlushResult
 	select {
 	case result = <-results:
 	case <-time.After(5 * time.Second):
-		t.Fatal("AbortUploads did not unblock the in-flight upload")
+		t.Fatal("Close did not unblock the in-flight upload")
 	}
 	if result.Succeeded() || result.ErrorKind() != "cancelled" {
-		t.Fatalf("aborted upload must report the cancelled outcome: %+v", result)
+		t.Fatalf("closed upload must report the cancelled outcome: %+v", result)
 	}
 	if got := outbox.PendingCount(); got != 1 {
-		t.Fatalf("aborted upload must commit nothing, have %d queued", got)
+		t.Fatalf("closed upload must commit nothing, have %d queued", got)
 	}
+}
+
+// TestOpenRungTelemetryUploadCloseBeforeStartNeverSendsAnything: the start
+// gate. A cancellation that lands before the request begins — a task already
+// cancelled when it reaches the bridge, or one cancelled before the worker
+// claims the native call — must win under the upload's own mutex: the request
+// never starts, no thread blocks on the transport timeout, and no bytes reach
+// the broker.
+func TestOpenRungTelemetryUploadCloseBeforeStartNeverSendsAnything(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Error("a closed upload must never reach the broker")
+	}))
+	t.Cleanup(server.Close)
+
+	outbox := testTelemetryOutbox(t, t.TempDir())
+	outbox.Enqueue(testTelemetryEventJSON(t, "kept", "connection_failed", "c", "s", nil))
+
+	upload := outbox.BeginUpload()
+	upload.Close()
+	start := time.Now()
+	result := upload.FlushNextBatch(server.URL)
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("closed upload blocked for %v", elapsed)
+	}
+	if result.Succeeded() || result.ErrorKind() != "cancelled" {
+		t.Fatalf("pre-closed upload must report the cancelled outcome: %+v", result)
+	}
+	if got := outbox.PendingCount(); got != 1 {
+		t.Fatalf("pre-closed upload must commit nothing, have %d queued", got)
+	}
+
+	heartbeat := testTelemetryEventJSON(t, "hb", "session_heartbeat", "c", "s", nil)
+	closedHeartbeat := outbox.BeginUpload()
+	closedHeartbeat.Close()
+	if result := closedHeartbeat.SendHeartbeat(server.URL, heartbeat); result.Succeeded() ||
+		result.ErrorKind() != "cancelled" {
+		t.Fatalf("pre-closed heartbeat must report the cancelled outcome: %+v", result)
+	}
+}
+
+// TestOpenRungTelemetryUploadIsSingleUse mirrors the broker operation's
+// contract: exactly one network method per upload.
+func TestOpenRungTelemetryUploadIsSingleUse(t *testing.T) {
+	broker := newTelemetryTestBroker(t)
+	outbox := testTelemetryOutbox(t, t.TempDir())
+	upload := outbox.BeginUpload()
+	if result := upload.FlushNextBatch(broker.server.URL); !result.Succeeded() {
+		t.Fatalf("first use failed: %+v", result)
+	}
+	if result := upload.FlushNextBatch(broker.server.URL); result.Succeeded() ||
+		result.ErrorKind() != "validation" {
+		t.Fatalf("second use must fail validation: %+v", result)
+	}
+	upload.Close()
 }
 
 // TestOpenRungTelemetryOutboxLegacyImportReportsDurability: the caller deletes

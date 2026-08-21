@@ -60,9 +60,7 @@ type OpenRungTelemetryOutbox interface {
 	EnqueueBatchJSON(eventsJSON string) int32
 	ApplySessionAttributes(sessionID, attributesJSON string) bool
 	PendingCount() int32
-	FlushNextBatch(brokerURL string) *OpenRungTelemetryFlushResult
-	SendHeartbeat(brokerURL, heartbeatJSON string) *OpenRungTelemetryFlushResult
-	AbortUploads()
+	BeginUpload() *OpenRungTelemetryUpload
 	Close()
 }
 
@@ -75,12 +73,10 @@ type openRungTelemetryOutbox struct {
 	path   string
 	poster openRungTelemetryPoster
 
-	loaded      bool
-	events      []brokerapi.TelemetryEvent
-	fileLines   int
-	closed      bool
-	nextSendID  int
-	activeSends map[int]context.CancelFunc
+	loaded    bool
+	events    []brokerapi.TelemetryEvent
+	fileLines int
+	closed    bool
 }
 
 type openRungTelemetryPoster interface {
@@ -127,8 +123,7 @@ func newOpenRungTelemetryOutbox(
 		path:   filepath.Join(directory, fileName),
 		// Passing nil is required: brokerapi selects its shared, opportunistic-
 		// ECH transport and verified ordinary-TLS fallback.
-		poster:      brokerapi.NewClient(nil, options),
-		activeSends: make(map[int]context.CancelFunc),
+		poster: brokerapi.NewClient(nil, options),
 	}
 }
 
@@ -297,12 +292,7 @@ func (r *OpenRungTelemetryFlushResult) PendingCount() int32 {
 	return r.pending
 }
 
-// FlushNextBatch uploads at most one batch — the queue head's identity-
-// homogeneous prefix under the per-application flow budget — and removes it
-// from the outbox on success. An empty queue succeeds with SentCount 0. The
-// platforms loop until PendingCount reaches 0, keeping their own cancellation
-// between requests exactly as before.
-func (o *openRungTelemetryOutbox) FlushNextBatch(brokerURL string) *OpenRungTelemetryFlushResult {
+func (o *openRungTelemetryOutbox) flushNextBatch(ctx context.Context, brokerURL string) *OpenRungTelemetryFlushResult {
 	o.mu.Lock()
 	if o.closed {
 		o.mu.Unlock()
@@ -311,17 +301,14 @@ func (o *openRungTelemetryOutbox) FlushNextBatch(brokerURL string) *OpenRungTele
 	o.loadLocked()
 	batch := openRungTelemetryUploadBatch(o.events, openRungTelemetryBatchSize)
 	pending := int32(len(o.events))
+	o.mu.Unlock()
+
 	if len(batch) == 0 {
-		o.mu.Unlock()
 		return &OpenRungTelemetryFlushResult{
 			outcome: successfulOpenRungBrokerOutcome(),
 			pending: pending,
 		}
 	}
-	ctx, endSend := o.beginSendLocked()
-	o.mu.Unlock()
-	defer endSend()
-
 	if err := o.send(ctx, brokerURL, batch); err != nil {
 		return failedOpenRungTelemetryFlushResult(err, pending)
 	}
@@ -332,14 +319,8 @@ func (o *openRungTelemetryOutbox) FlushNextBatch(brokerURL string) *OpenRungTele
 	}
 }
 
-// SendHeartbeat uploads heartbeatJSON, letting the queue head's identity-
-// homogeneous prefix piggyback only when it matches the heartbeat's own
-// client/session pair — a historical backlog (or a failure uploading it) must
-// never suppress heartbeat cadence, so any other head sends the heartbeat
-// alone. Piggybacked events are removed on success; the heartbeat itself is
-// never persisted (both platforms rebuild it each cadence). The platforms
-// drain what remains with FlushNextBatch afterwards.
-func (o *openRungTelemetryOutbox) SendHeartbeat(
+func (o *openRungTelemetryOutbox) sendHeartbeat(
+	ctx context.Context,
 	brokerURL, heartbeatJSON string,
 ) *OpenRungTelemetryFlushResult {
 	heartbeat, ok := decodeOpenRungTelemetryEvent(heartbeatJSON)
@@ -363,9 +344,7 @@ func (o *openRungTelemetryOutbox) SendHeartbeat(
 		piggybacked = openRungTelemetryUploadBatch(o.events, openRungTelemetryBatchSize-1)
 	}
 	pending := int32(len(o.events))
-	ctx, endSend := o.beginSendLocked()
 	o.mu.Unlock()
-	defer endSend()
 
 	if err := o.send(ctx, brokerURL, append(piggybacked[:len(piggybacked):len(piggybacked)], heartbeat)); err != nil {
 		return failedOpenRungTelemetryFlushResult(err, pending)
@@ -380,41 +359,125 @@ func (o *openRungTelemetryOutbox) SendHeartbeat(
 	}
 }
 
-// beginSendLocked registers one cancelable upload. The returned end function
-// must run when the send finishes, whatever the outcome.
-func (o *openRungTelemetryOutbox) beginSendLocked() (context.Context, func()) {
+// BeginUpload prepares one single-use, cancelable upload attempt. The
+// platforms create one per request and close it from their cancellation
+// handlers, so a caller's own cancellation (a terminal flush hitting its
+// deadline, tunnel shutdown draining the heartbeat task) is never held
+// hostage by an unresponsive broker — the same begin/Close contract the
+// per-operation broker transport provides, including its start gate: a Close
+// that lands before the request begins wins under the upload's own mutex, and
+// the request never starts.
+func (o *openRungTelemetryOutbox) BeginUpload() *OpenRungTelemetryUpload {
 	ctx, cancel := context.WithCancel(o.ctx)
-	id := o.nextSendID
-	o.nextSendID++
-	o.activeSends[id] = cancel
-	return ctx, func() {
-		o.mu.Lock()
-		delete(o.activeSends, id)
-		o.mu.Unlock()
-		cancel()
+	return &OpenRungTelemetryUpload{
+		outbox:    o,
+		ctx:       ctx,
+		cancel:    cancel,
+		closeDone: make(chan struct{}),
 	}
 }
 
-// AbortUploads cancels every in-flight upload without closing the outbox: the
-// blocked FlushNextBatch/SendHeartbeat calls return promptly with the
-// "cancelled" outcome, nothing is committed, and the outbox stays usable. The
-// platforms call it from their cancellation handlers so a caller's own
-// cancellation (a terminal flush hitting its deadline, a superseded connect
-// epoch) is never held hostage by an unresponsive broker — the exact guarantee
-// the per-operation transport used to provide by closing the operation.
-func (o *openRungTelemetryOutbox) AbortUploads() {
-	if o == nil {
+// OpenRungTelemetryUpload is one cancelable telemetry upload. Every upload is
+// single-use: exactly one of FlushNextBatch/SendHeartbeat may be called. Close
+// may run concurrently with that method and is idempotent; it cancels an
+// in-flight request, prevents a not-yet-started one from ever starting, and
+// waits until any in-flight attempt has returned. The outbox itself stays
+// open — a closed upload commits nothing and the events retry later.
+type OpenRungTelemetryUpload struct {
+	mu sync.Mutex
+
+	outbox *openRungTelemetryOutbox
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	attempted   bool
+	closed      bool
+	attemptDone chan struct{}
+	closeDone   chan struct{}
+}
+
+var errOpenRungTelemetryUploadUsed = errors.New("OpenRung telemetry upload may be invoked only once")
+
+// begin is the start gate: it claims the single attempt under the upload's
+// mutex, so it and Close are mutually exclusive — a Close that wins means the
+// native request never starts.
+func (u *OpenRungTelemetryUpload) begin() (context.Context, chan struct{}, error) {
+	if u == nil || u.outbox == nil {
+		return nil, nil, openRungClassifiedError("unavailable")
+	}
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.closed {
+		return nil, nil, context.Canceled
+	}
+	if u.attempted {
+		return nil, nil, errOpenRungTelemetryUploadUsed
+	}
+	u.attempted = true
+	u.attemptDone = make(chan struct{})
+	return u.ctx, u.attemptDone, nil
+}
+
+// FlushNextBatch uploads at most one batch — the queue head's identity-
+// homogeneous prefix under the per-application flow budget — and removes it
+// from the outbox on success. An empty queue succeeds with SentCount 0. The
+// platforms loop with a fresh upload per batch until PendingCount reaches 0,
+// keeping their own cancellation between requests exactly as before.
+func (u *OpenRungTelemetryUpload) FlushNextBatch(brokerURL string) *OpenRungTelemetryFlushResult {
+	ctx, done, err := u.begin()
+	if err != nil {
+		return failedOpenRungTelemetryFlushResult(err, 0)
+	}
+	defer close(done)
+	return u.outbox.flushNextBatch(ctx, brokerURL)
+}
+
+// SendHeartbeat uploads heartbeatJSON, letting the queue head's identity-
+// homogeneous prefix piggyback only when it matches the heartbeat's own
+// client/session pair — a historical backlog (or a failure uploading it) must
+// never suppress heartbeat cadence, so any other head sends the heartbeat
+// alone. Piggybacked events are removed on success; the heartbeat itself is
+// never persisted (both platforms rebuild it each cadence). The platforms
+// drain what remains with FlushNextBatch uploads afterwards.
+func (u *OpenRungTelemetryUpload) SendHeartbeat(
+	brokerURL, heartbeatJSON string,
+) *OpenRungTelemetryFlushResult {
+	ctx, done, err := u.begin()
+	if err != nil {
+		return failedOpenRungTelemetryFlushResult(err, 0)
+	}
+	defer close(done)
+	return u.outbox.sendHeartbeat(ctx, brokerURL, heartbeatJSON)
+}
+
+// Close is idempotent, cancels a blocked request, and waits until any
+// in-flight attempt has returned — mirroring the broker operation's Close.
+func (u *OpenRungTelemetryUpload) Close() {
+	if u == nil {
 		return
 	}
-	o.mu.Lock()
-	cancels := make([]context.CancelFunc, 0, len(o.activeSends))
-	for _, cancel := range o.activeSends {
-		cancels = append(cancels, cancel)
+	u.mu.Lock()
+	if u.closeDone == nil {
+		u.closeDone = make(chan struct{})
 	}
-	o.mu.Unlock()
-	for _, cancel := range cancels {
-		cancel()
+	if u.closed {
+		closeDone := u.closeDone
+		u.mu.Unlock()
+		<-closeDone
+		return
 	}
+	u.closed = true
+	if u.cancel != nil {
+		u.cancel()
+	}
+	attemptDone := u.attemptDone
+	closeDone := u.closeDone
+	u.mu.Unlock()
+
+	if attemptDone != nil {
+		<-attemptDone
+	}
+	close(closeDone)
 }
 
 // Close cancels any in-flight upload and rejects further use. It deliberately
@@ -680,6 +743,11 @@ func openRungApplicationConnectionCount(event brokerapi.TelemetryEvent) int64 {
 }
 
 func failedOpenRungTelemetryFlushResult(err error, pending int32) *OpenRungTelemetryFlushResult {
+	if errors.Is(err, errOpenRungTelemetryUploadUsed) {
+		// A reused single-use upload is a caller bug, bounded like the broker
+		// operation's own reuse error.
+		err = openRungClassifiedError("validation")
+	}
 	return &OpenRungTelemetryFlushResult{
 		outcome: classifyOpenRungBrokerError(nil, err),
 		pending: pending,

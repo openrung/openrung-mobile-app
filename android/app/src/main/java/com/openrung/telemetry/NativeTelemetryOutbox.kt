@@ -32,9 +32,22 @@ interface TelemetryOutboxHandle {
     fun pendingCount(): Int
 
     /**
+     * Prepares one single-use, cancelable upload attempt. The manager creates one per request
+     * and closes it from its cancellation handler; the begin/close gate lives inside the bound
+     * upload's own mutex, so a close that lands before the request begins wins and the native
+     * call never starts — a terminal flush deadline is never held hostage by an unresponsive
+     * broker, whichever side of the start the cancellation lands on.
+     */
+    fun beginUpload(): TelemetryUploadHandle
+}
+
+/** One single-use, cancelable native upload (see [TelemetryOutboxHandle.beginUpload]). */
+interface TelemetryUploadHandle {
+    /**
      * Uploads at most one batch from the queue head, removing it on success. Blocking network
-     * I/O — call on a worker dispatcher. The caller loops until [NativeTelemetryFlushResult
-     * .pendingCount] reaches zero, keeping cancellation between requests.
+     * I/O — call on a worker dispatcher. The caller loops with a fresh upload per batch until
+     * [NativeTelemetryFlushResult.pendingCount] reaches zero, keeping cancellation between
+     * requests.
      */
     fun flushNextBatch(brokerUrl: String): NativeTelemetryFlushResult
 
@@ -45,12 +58,11 @@ interface TelemetryOutboxHandle {
     fun sendHeartbeat(brokerUrl: String, heartbeatJson: String): NativeTelemetryFlushResult
 
     /**
-     * Cancels every in-flight upload without closing the outbox: blocked [flushNextBatch] and
-     * [sendHeartbeat] calls return promptly with the cancelled outcome and commit nothing.
-     * Called from the manager's cancellation handler so a terminal flush deadline is never held
-     * hostage by an unresponsive broker.
+     * Idempotent: cancels a blocked request (which returns promptly with the cancelled outcome
+     * and commits nothing), prevents a not-yet-started one from ever starting, and waits until
+     * any in-flight attempt has returned. The outbox itself stays open.
      */
-    fun abortUploads()
+    fun close()
 }
 
 /**
@@ -88,33 +100,39 @@ internal class NativeTelemetryOutbox(context: Context) : TelemetryOutboxHandle {
 
     override fun pendingCount(): Int = outbox?.pendingCount() ?: 0
 
-    override fun flushNextBatch(brokerUrl: String): NativeTelemetryFlushResult =
-        outbox?.flushNextBatch(brokerUrl).toFlushResult()
+    override fun beginUpload(): TelemetryUploadHandle = NativeUpload(outbox?.beginUpload())
 
-    override fun sendHeartbeat(brokerUrl: String, heartbeatJson: String): NativeTelemetryFlushResult =
-        outbox?.sendHeartbeat(brokerUrl, heartbeatJson).toFlushResult()
+    private class NativeUpload(
+        private val upload: io.nekohasekai.libbox.OpenRungTelemetryUpload?,
+    ) : TelemetryUploadHandle {
+        override fun flushNextBatch(brokerUrl: String): NativeTelemetryFlushResult =
+            upload?.flushNextBatch(brokerUrl).toFlushResult()
 
-    override fun abortUploads() {
-        outbox?.abortUploads()
-    }
+        override fun sendHeartbeat(brokerUrl: String, heartbeatJson: String): NativeTelemetryFlushResult =
+            upload?.sendHeartbeat(brokerUrl, heartbeatJson).toFlushResult()
 
-    private fun OpenRungTelemetryFlushResult?.toFlushResult(): NativeTelemetryFlushResult {
-        if (this == null) {
-            return NativeTelemetryFlushResult(succeeded = false, errorKind = "unavailable")
+        override fun close() {
+            upload?.close()
         }
-        return NativeTelemetryFlushResult(
-            succeeded = succeeded(),
-            errorKind = errorKind(),
-            errorText = errorText(),
-            httpStatus = httpStatus(),
-            retryAfterMillis = retryAfterMillis(),
-            sentCount = sentCount(),
-            pendingCount = pendingCount(),
-        )
     }
 
     companion object {
         /** The NDJSON outbox the pre-binding Kotlin manager wrote; same name, so no migration. */
         const val OUTBOX_FILE_NAME = "openrung_telemetry_outbox.jsonl"
     }
+}
+
+private fun OpenRungTelemetryFlushResult?.toFlushResult(): NativeTelemetryFlushResult {
+    if (this == null) {
+        return NativeTelemetryFlushResult(succeeded = false, errorKind = "unavailable")
+    }
+    return NativeTelemetryFlushResult(
+        succeeded = succeeded(),
+        errorKind = errorKind(),
+        errorText = errorText(),
+        httpStatus = httpStatus(),
+        retryAfterMillis = retryAfterMillis(),
+        sentCount = sentCount(),
+        pendingCount = pendingCount(),
+    )
 }

@@ -404,12 +404,13 @@ for slice in ios-arm64 ios-arm64_x86_64-simulator; do
   for telemetry_symbol in \
     'LibboxNewOpenRungTelemetryOutboxForIOS' \
     'LibboxOpenRungTelemetryOutbox' \
+    'LibboxOpenRungTelemetryUpload' \
     'LibboxOpenRungTelemetryFlushResult' \
     ')enqueue:' \
     ')applySessionAttributes:' \
     ')flushNextBatch:' \
     ')sendHeartbeat:' \
-    ')abortUploads;' \
+    ')beginUpload;' \
     ')pendingCount;' \
     ')sentCount;'; do
     if ! grep -Fq "$telemetry_symbol" "$header"; then

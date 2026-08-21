@@ -180,8 +180,8 @@ enum TelemetryManager {
         else { return }
 
         let brokerURL = session.brokerURL
-        let outcome = await runUpload {
-            outbox.sendHeartbeat(brokerURL: brokerURL, heartbeatJson: heartbeatJson)
+        let outcome = await runUpload { upload in
+            upload.sendHeartbeat(brokerURL: brokerURL, heartbeatJson: heartbeatJson)
         }
         guard outcome.succeeded, outcome.pendingCount > 0 else { return }
         try? await flush(brokerURL: brokerURL)
@@ -190,8 +190,8 @@ enum TelemetryManager {
     static func flush(brokerURL: String) async throws {
         while true {
             try Task.checkCancellation()
-            let outcome = await runUpload {
-                outbox.flushNextBatch(brokerURL: brokerURL)
+            let outcome = await runUpload { upload in
+                upload.flushNextBatch(brokerURL: brokerURL)
             }
             // A cancelled caller aborted the request above; surface its own cancellation rather
             // than a broker failure, exactly like the per-operation transport used to.
@@ -203,18 +203,37 @@ enum TelemetryManager {
         }
     }
 
-    /// Runs one blocking native upload with the same cancellation contract the per-operation
-    /// transport used to provide: cancelling the awaiting task aborts the in-flight request
-    /// (tunnel shutdown drains the heartbeat task and must never wait out an unresponsive
-    /// broker), the blocked call returns promptly with the cancelled outcome, and the shared
-    /// outbox stays open — aborted uploads commit nothing and retry later.
+    /// Runs one single-use native upload with the same cancellation contract as
+    /// `NativeBrokerRunner`: an already-cancelled task never starts the request, the locked
+    /// start gate makes cancellation and claiming the native call mutually exclusive on this
+    /// side, and the bound upload's own begin/close mutex closes the remaining window — a close
+    /// that lands before the request begins wins in Go and the request never starts, while an
+    /// in-flight request is cancelled and returns promptly. Tunnel shutdown (which drains the
+    /// heartbeat task) is therefore never held hostage by an unresponsive broker. The shared
+    /// outbox stays open — closed uploads commit nothing and the events retry later.
     private static func runUpload(
-        _ call: @escaping @Sendable () -> NativeTelemetryFlushOutcome
+        _ call: @escaping @Sendable (any TelemetryUploadHandling) -> NativeTelemetryFlushOutcome
     ) async -> NativeTelemetryFlushOutcome {
-        await withTaskCancellationHandler {
-            await Task.detached { call() }.value
+        let upload = outbox.beginUpload()
+        let startGate = NativeBrokerStartGate()
+        return await withTaskCancellationHandler {
+            let worker = Task.detached { () -> NativeTelemetryFlushOutcome in
+                // Cancellation may land before this worker executes. Only one side wins the
+                // locked claim; a cancellation winner skips Go entirely.
+                guard startGate.claimStart() else {
+                    return NativeTelemetryFlushOutcome(succeeded: false, errorKind: "cancelled")
+                }
+                defer { upload.close() }
+                return call(upload)
+            }
+            return await worker.value
         } onCancel: {
-            outbox.abortUploads()
+            // Mark synchronously so a not-yet-started worker cannot race ahead of asynchronous
+            // Close. Close itself must remain off this stack because Go waits for in-flight work.
+            startGate.cancel()
+            DispatchQueue.global(qos: .utility).async {
+                upload.close()
+            }
         }
     }
 

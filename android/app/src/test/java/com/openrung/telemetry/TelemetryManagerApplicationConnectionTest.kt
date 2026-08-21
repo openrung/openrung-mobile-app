@@ -294,23 +294,32 @@ class TelemetryManagerApplicationConnectionTest {
     }
 
     @Test
-    fun `cancelling a flush aborts the in-flight native upload`() = runBlocking {
+    fun `cancelling a flush closes the in-flight native upload`() = runBlocking {
         // The terminal-flush deadline (withTimeoutOrNull around flush) must never be held
-        // hostage by an unresponsive broker: cancellation aborts the blocked native call and
-        // waits for it to return before propagating.
+        // hostage by an unresponsive broker: cancellation closes the single-use upload, which
+        // unblocks the native call, and waits for it to return before propagating. The
+        // close-before-start half of the gate lives in the bound upload's own mutex, pinned by
+        // android/punchbridge's Go suite.
         val entered = CountDownLatch(1)
         val release = CountDownLatch(1)
-        val aborted = CountDownLatch(1)
+        val closed = CountDownLatch(1)
         val blocking = object : TelemetryOutboxHandle by outbox {
-            override fun flushNextBatch(brokerUrl: String): NativeTelemetryFlushResult {
-                entered.countDown()
-                check(release.await(5, TimeUnit.SECONDS)) { "upload was never aborted" }
-                return NativeTelemetryFlushResult(succeeded = false, errorKind = "cancelled")
-            }
+            override fun beginUpload(): TelemetryUploadHandle = object : TelemetryUploadHandle {
+                override fun flushNextBatch(brokerUrl: String): NativeTelemetryFlushResult {
+                    entered.countDown()
+                    check(release.await(5, TimeUnit.SECONDS)) { "upload was never closed" }
+                    return NativeTelemetryFlushResult(succeeded = false, errorKind = "cancelled")
+                }
 
-            override fun abortUploads() {
-                aborted.countDown()
-                release.countDown()
+                override fun sendHeartbeat(
+                    brokerUrl: String,
+                    heartbeatJson: String,
+                ): NativeTelemetryFlushResult = throw AssertionError("flush must not send heartbeats")
+
+                override fun close() {
+                    closed.countDown()
+                    release.countDown()
+                }
             }
         }
         TelemetryManager.outboxFactory = { blocking }
@@ -321,8 +330,8 @@ class TelemetryManagerApplicationConnectionTest {
         assertTrue("flush never reached the native call", entered.await(5, TimeUnit.SECONDS))
         flushJob.cancelAndJoin()
         assertTrue(
-            "cancellation must abort the in-flight upload",
-            aborted.await(1, TimeUnit.SECONDS),
+            "cancellation must close the in-flight upload",
+            closed.await(1, TimeUnit.SECONDS),
         )
     }
 
@@ -408,13 +417,15 @@ internal class FakeTelemetryOutbox(private val json: Json) : TelemetryOutboxHand
 
     override fun pendingCount(): Int = events.size
 
-    override fun flushNextBatch(brokerUrl: String): NativeTelemetryFlushResult =
-        NativeTelemetryFlushResult(succeeded = true)
+    override fun beginUpload(): TelemetryUploadHandle = object : TelemetryUploadHandle {
+        override fun flushNextBatch(brokerUrl: String): NativeTelemetryFlushResult =
+            NativeTelemetryFlushResult(succeeded = true)
 
-    override fun sendHeartbeat(brokerUrl: String, heartbeatJson: String): NativeTelemetryFlushResult =
-        NativeTelemetryFlushResult(succeeded = true)
+        override fun sendHeartbeat(brokerUrl: String, heartbeatJson: String): NativeTelemetryFlushResult =
+            NativeTelemetryFlushResult(succeeded = true)
 
-    override fun abortUploads() = Unit
+        override fun close() = Unit
+    }
 
     fun storedJson(): String =
         events.joinToString(",", "[", "]") { json.encodeToString(it) }

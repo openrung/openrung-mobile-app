@@ -333,25 +333,36 @@ object TelemetryManager {
     }
 
     /**
-     * Runs one blocking native upload with the same cancellation contract the per-operation
-     * transport used to provide: a cancelled caller aborts the in-flight request (the terminal
-     * flush deadline must never be held hostage by an unresponsive broker) and waits for the
-     * native call to actually return before rethrowing, so no upload outlives its epoch unseen.
-     * The outbox itself stays open — aborted uploads commit nothing and retry later.
+     * Runs one single-use native upload with the same cancellation contract as
+     * [com.openrung.net.runNativeBrokerOperation]: a cancelled caller closes the upload — whose
+     * begin/close gate lives inside the bound object's own mutex, so a close that lands before
+     * the request starts wins and the request never begins, while an in-flight request is
+     * cancelled and Close waits for it to return. Either way the terminal flush deadline is
+     * never held hostage by an unresponsive broker, and no upload outlives its epoch unseen. A
+     * scope that is already cancelled never dispatches the worker at all. The outbox itself
+     * stays open — closed uploads commit nothing and the events retry later.
      */
     private suspend fun runOutboxUpload(
         handle: TelemetryOutboxHandle,
-        call: (TelemetryOutboxHandle) -> NativeTelemetryFlushResult,
-    ): NativeTelemetryFlushResult = coroutineScope {
-        val worker = async(Dispatchers.IO) { call(handle) }
+        call: (TelemetryUploadHandle) -> NativeTelemetryFlushResult,
+    ): NativeTelemetryFlushResult {
+        val upload = handle.beginUpload()
         try {
-            worker.await().also { coroutineContext.ensureActive() }
-        } catch (cancellation: CancellationException) {
-            withContext(NonCancellable + Dispatchers.IO) {
-                handle.abortUploads()
-                worker.join()
+            return coroutineScope {
+                val worker = async(Dispatchers.IO) { call(upload) }
+                try {
+                    worker.await().also { coroutineContext.ensureActive() }
+                } catch (cancellation: CancellationException) {
+                    withContext(NonCancellable + Dispatchers.IO) {
+                        upload.close()
+                    }
+                    throw cancellation
+                }
             }
-            throw cancellation
+        } finally {
+            withContext(NonCancellable + Dispatchers.IO) {
+                upload.close()
+            }
         }
     }
 

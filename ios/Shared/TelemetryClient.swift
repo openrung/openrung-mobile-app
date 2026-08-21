@@ -20,8 +20,18 @@ public protocol TelemetryOutboxHandling: Sendable {
 
     func pendingCount() -> Int
 
+    /// Prepares one single-use, cancelable upload attempt. The manager creates one per request
+    /// and closes it from its cancellation handler; the begin/close gate lives inside the bound
+    /// upload's own mutex, so a close that lands before the request begins wins and the native
+    /// call never starts — tunnel shutdown is never held hostage by an unresponsive broker,
+    /// whichever side of the start the cancellation lands on.
+    func beginUpload() -> any TelemetryUploadHandling
+}
+
+/// One single-use, cancelable native upload (see `TelemetryOutboxHandling.beginUpload`).
+public protocol TelemetryUploadHandling: Sendable {
     /// Uploads at most one batch from the queue head, removing it on success. Blocking network
-    /// I/O — call off the cooperative pool. The caller loops until
+    /// I/O — call off the cooperative pool. The caller loops with a fresh upload per batch until
     /// `NativeTelemetryFlushOutcome.pendingCount` reaches zero, keeping cancellation between
     /// requests.
     func flushNextBatch(brokerURL: String) -> NativeTelemetryFlushOutcome
@@ -30,11 +40,10 @@ public protocol TelemetryOutboxHandling: Sendable {
     /// heartbeat's own client/session identity. Blocking network I/O.
     func sendHeartbeat(brokerURL: String, heartbeatJson: String) -> NativeTelemetryFlushOutcome
 
-    /// Cancels every in-flight upload without closing the outbox: blocked `flushNextBatch` and
-    /// `sendHeartbeat` calls return promptly with the cancelled outcome and commit nothing.
-    /// Called from the manager's cancellation handlers so tunnel shutdown is never held hostage
-    /// by an unresponsive broker.
-    func abortUploads()
+    /// Idempotent: cancels a blocked request (which returns promptly with the cancelled outcome
+    /// and commits nothing), prevents a not-yet-started one from ever starting, and waits until
+    /// any in-flight attempt has returned. The outbox itself stays open.
+    func close()
 }
 
 /// One native flush outcome, carrying the broker binding's bounded error taxonomy.
@@ -111,16 +120,28 @@ public final class NativeTelemetryOutbox: TelemetryOutboxHandling, @unchecked Se
         Int(outbox?.pendingCount() ?? 0)
     }
 
-    public func flushNextBatch(brokerURL: String) -> NativeTelemetryFlushOutcome {
-        outcome(outbox?.flushNextBatch(brokerURL))
+    public func beginUpload() -> any TelemetryUploadHandling {
+        NativeTelemetryUpload(upload: outbox?.beginUpload())
+    }
+}
+
+private final class NativeTelemetryUpload: TelemetryUploadHandling, @unchecked Sendable {
+    private let upload: LibboxOpenRungTelemetryUpload?
+
+    init(upload: LibboxOpenRungTelemetryUpload?) {
+        self.upload = upload
     }
 
-    public func sendHeartbeat(brokerURL: String, heartbeatJson: String) -> NativeTelemetryFlushOutcome {
-        outcome(outbox?.sendHeartbeat(brokerURL, heartbeatJSON: heartbeatJson))
+    func flushNextBatch(brokerURL: String) -> NativeTelemetryFlushOutcome {
+        outcome(upload?.flushNextBatch(brokerURL))
     }
 
-    public func abortUploads() {
-        outbox?.abortUploads()
+    func sendHeartbeat(brokerURL: String, heartbeatJson: String) -> NativeTelemetryFlushOutcome {
+        outcome(upload?.sendHeartbeat(brokerURL, heartbeatJSON: heartbeatJson))
+    }
+
+    func close() {
+        upload?.close()
     }
 
     private func outcome(_ result: LibboxOpenRungTelemetryFlushResult?) -> NativeTelemetryFlushOutcome {

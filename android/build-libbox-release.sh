@@ -354,6 +354,7 @@ required_classes = [
     "io/nekohasekai/libbox/OpenRungBrokerWSSTicketResult.class",
     "io/nekohasekai/libbox/OpenRungSingBoxConfigResult.class",
     "io/nekohasekai/libbox/OpenRungTelemetryOutbox.class",
+    "io/nekohasekai/libbox/OpenRungTelemetryUpload.class",
     "io/nekohasekai/libbox/OpenRungTelemetryFlushResult.class",
 ]
 required_native_libraries = [
@@ -390,6 +391,7 @@ javap_output="$(
     io.nekohasekai.libbox.OpenRungBrokerWSSTicketResult \
     io.nekohasekai.libbox.OpenRungSingBoxConfigResult \
     io.nekohasekai.libbox.OpenRungTelemetryOutbox \
+    io.nekohasekai.libbox.OpenRungTelemetryUpload \
     io.nekohasekai.libbox.OpenRungTelemetryFlushResult
 )"
 # Every entry below must be a symbol a Kotlin/Swift/React Native call site actually links. Pinning
@@ -429,7 +431,8 @@ for generated_symbol in \
   'applySessionAttributes(java.lang.String, java.lang.String);' \
   'flushNextBatch(java.lang.String);' \
   'sendHeartbeat(java.lang.String, java.lang.String);' \
-  'abortUploads();' \
+  'beginUpload();' \
+  'close();' \
   'pendingCount();' \
   'sentCount();'; do
   if ! grep -Fq "$generated_symbol" <<< "$javap_output"; then
