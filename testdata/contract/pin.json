@@ -2,8 +2,8 @@
   "comment": "Pin for the contract vectors vendored beside this file. They are copies of connectcore/contract/vectors/ in openrung/openrung, which is their only source of truth: edit them THERE, then re-vendor here with `npm run contract:sync`. `npm run contract:check` verifies both halves — that the local bytes still hash to the digests recorded here, and that they are byte-identical to the pinned openrung ref — so a copy that drifts from upstream fails instead of quietly testing this repo against stale expectations.",
   "repo": "openrung/openrung",
   "source_dir": "connectcore/contract/vectors",
-  "ref": "4aa3dad54b1be451c2413a24d7e88dfe0f583dea",
-  "ref_note": "The merge commit on openrung/openrung's main that carries connectcore/contract/vectors (PR #138 introduced the directory as contract/vectors, PR #139 reworked the relay-decode rejection codes, PR #145 moved it into the connectcore module and bumped every file's version for the move). Move this to a newer main commit only together with `npm run contract:sync`, which re-vendors the files and rewrites the digests below to match.",
+  "ref": "connectcore/v0.1.0",
+  "ref_note": "The connectcore module tag android/punchbridge/go.mod pins — the release whose embedded vectors the Go binding actually ships, so the Kotlin/Swift/Jest suites test the same contract the binding compiles against. contract:check derives the expected value from go.mod and fails on a mismatch: bumping connectcore in go.mod means moving this ref to the matching connectcore/vX.Y.Z tag and running `npm run contract:sync` in the same change, which re-vendors the files and rewrites the digests below to match.",
   "suites_note": "'suites' is copied from each vector file and says which suites the contract expects to consume it. 'local_suites' is what THIS repo actually runs today, and 'pending_suites' is the difference, with a reason. contract:check fails when local_suites plus pending_suites does not account for every non-go suite the file declares, so an unwired consumer stays visible instead of reading as coverage.",
   "files": {
     "classification.json": {
