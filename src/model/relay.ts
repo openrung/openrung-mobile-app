@@ -71,7 +71,7 @@ export interface ErrorResponse {
  * degrade to the less-privileged side instead of being rejected.
  *
  * Keep in sync with the Kotlin `RelayDescriptor.normalizedNodeClass()`, the Swift
- * `RelayDescriptor.normalizedNodeClass()`, and Go's `relay.EffectiveNodeClass`. The shared
+ * `RelayDescriptor.normalizedNodeClass()`, and Go's `brokerapi.EffectiveNodeClass`. The shared
  * contract vectors in testdata/contract/relay_decode.json pin all four against the same rows.
  */
 export function effectiveNodeClass(nodeClass: string | undefined): 'foundation' | 'volunteer' {

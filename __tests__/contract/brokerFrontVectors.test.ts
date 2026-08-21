@@ -11,7 +11,7 @@
 import vectors from '../../testdata/contract/broker_fronts.json';
 import { AppConfig } from '../../src/config';
 
-const EXPECTED_VERSION = 1;
+const EXPECTED_VERSION = 2;
 const SUITE = 'ts';
 
 describe('broker front contract vectors', () => {

@@ -17,7 +17,7 @@ import XCTest
 final class ContractClassificationVectorsTests: XCTestCase {
 
     /// The version this suite was written against; a bump upstream means revisiting it.
-    private static let expectedVersion = 1
+    private static let expectedVersion = 2
 
     /// This suite's identifier in the file's `suites` declaration.
     private static let suite = "swift"

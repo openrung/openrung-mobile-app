@@ -10,7 +10,7 @@ import XCTest
 /// A front that quietly stops existing is a fallback a blocked user no longer has.
 final class ContractBrokerFrontsTests: XCTestCase {
 
-    private static let expectedVersion = 1
+    private static let expectedVersion = 2
     private static let suite = "swift"
 
     private var vectors: [String: Any] = [:]

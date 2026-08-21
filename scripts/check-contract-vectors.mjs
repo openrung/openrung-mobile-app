@@ -3,7 +3,7 @@
 /**
  * Guard for the contract vectors vendored in testdata/contract.
  *
- * They are copies. openrung/openrung's contract/vectors is the source of truth, and a copy that
+ * They are copies. openrung/openrung's connectcore/contract/vectors is the source of truth, and a copy that
  * drifts from it is worse than no copy at all: the Kotlin, Swift, and Jest suites keep passing
  * against expectations the Go side has already moved on from, which reads as agreement between
  * four clients that no longer agree.
@@ -60,6 +60,31 @@ async function fetchUpstream(pin, file) {
 
 const pin = JSON.parse(fs.readFileSync(pinPath, 'utf8'));
 const pinned = Object.keys(pin.files);
+// A 40-hex ref is an opaque commit worth truncating in messages; a tag name is not.
+const refLabel = /^[0-9a-f]{40}$/.test(pin.ref) ? pin.ref.slice(0, 12) : pin.ref;
+
+// The Go binding compiles against the connectcore release pinned in
+// android/punchbridge/go.mod, and that release embeds these same vectors — so the copies the
+// Kotlin, Swift, and Jest suites read must come from that exact tag, or the non-Go suites test a
+// different contract than the binding actually ships. The expected ref is derived from go.mod
+// rather than recorded twice; bumping connectcore there means moving pin.json's ref to the
+// matching tag and running `npm run contract:sync` in the same change. No network needed: this is
+// part of the local half.
+const goMod = fs.readFileSync(path.join(root, 'android/punchbridge/go.mod'), 'utf8');
+const connectcore = goMod.match(/^\s*github\.com\/openrung\/openrung\/connectcore\s+v(\S+)\s*$/m);
+if (!connectcore) {
+  fail('android/punchbridge/go.mod has no require for github.com/openrung/openrung/connectcore');
+} else if (pin.ref !== `connectcore/v${connectcore[1]}`) {
+  fail(
+    `pin.json ref "${pin.ref}" does not match android/punchbridge/go.mod's connectcore ` +
+      `v${connectcore[1]} (want "connectcore/v${connectcore[1]}"). Move the ref together with ` +
+      'go.mod, then re-vendor with `npm run contract:sync`.',
+  );
+}
+if (sync && failures.length > 0) {
+  console.error(`contract:sync refused: ${failures.join('; ')}`);
+  process.exit(2);
+}
 
 // Bytes already downloaded this run (by --sync), so the remote half below never fetches twice.
 const upstreamCache = new Map();
@@ -101,7 +126,7 @@ if (sync) {
     pin.files[file].sha256 = digest(upstream);
     pin.files[file].version = parsed.version;
     pin.files[file].suites = parsed.suites;
-    notes.push(`synced ${file} from ${pin.ref.slice(0, 12)}`);
+    notes.push(`synced ${file} from ${refLabel}`);
   }
   fs.writeFileSync(pinPath, `${JSON.stringify(pin, null, 2)}\n`);
 }
@@ -185,7 +210,7 @@ for (const [file, expected] of Object.entries(pin.files)) {
 if (offline) {
   console.error(
     'contract:check --offline: skipped the comparison against ' +
-      `${pin.repo}@${pin.ref.slice(0, 12)}. Local digests only; run without --offline before merging.`,
+      `${pin.repo}@${refLabel}. Local digests only; run without --offline before merging.`,
   );
 } else {
   // Upstream drift is independent of the local bookkeeping checks above, so it is reported even
@@ -218,11 +243,11 @@ if (offline) {
     }
     if (!upstream.equals(fs.readFileSync(localPath))) {
       fail(
-        `${file}: differs from ${pin.repo}@${pin.ref.slice(0, 12)}:${pin.source_dir}/${file}. ` +
+        `${file}: differs from ${pin.repo}@${refLabel}:${pin.source_dir}/${file}. ` +
           'Re-vendor with `npm run contract:sync`, or move the pin if upstream moved on purpose.',
       );
     } else {
-      notes.push(`${file} matches ${pin.repo}@${pin.ref.slice(0, 12)}`);
+      notes.push(`${file} matches ${pin.repo}@${refLabel}`);
     }
   }
 }
