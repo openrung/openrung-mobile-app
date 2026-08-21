@@ -3,7 +3,7 @@
 /**
  * Guard for the contract vectors vendored in testdata/contract.
  *
- * They are copies. openrung/openrung's contract/vectors is the source of truth, and a copy that
+ * They are copies. openrung/openrung's connectcore/contract/vectors is the source of truth, and a copy that
  * drifts from it is worse than no copy at all: the Kotlin, Swift, and Jest suites keep passing
  * against expectations the Go side has already moved on from, which reads as agreement between
  * four clients that no longer agree.

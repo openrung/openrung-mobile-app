@@ -165,7 +165,7 @@ docs/                CONTRACT.md (binding), ARCHITECTURE.md (overview).
 `testdata/contract/` holds golden vectors that four suites across two repos run
 against the same expectations: the failure-classification token set, the
 relay-directory decode, and the broker-front list. They are **copies** —
-`contract/vectors/` in `openrung/openrung` is the only source of truth, and
+`connectcore/contract/vectors/` in `openrung/openrung` is the only source of truth, and
 `pin.json` records the ref they came from plus a digest per file.
 
 ```bash
