@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/openrung/openrung/brokerapi"
 )
@@ -489,5 +490,85 @@ func TestOpenRungTelemetryOutboxBoundsBadInput(t *testing.T) {
 	outbox.Enqueue(testTelemetryEventJSON(t, "e", "x", "c", "s", nil))
 	if result := outbox.FlushNextBatch("not a url"); result.Succeeded() || result.ErrorKind() != "validation" {
 		t.Fatalf("invalid broker URL must fail validation: %+v", result)
+	}
+}
+
+// TestOpenRungTelemetryOutboxAbortUnblocksAnInFlightUpload: a caller's own
+// cancellation (a terminal flush hitting its deadline) must never be held
+// hostage by an unresponsive broker. AbortUploads returns the blocked call
+// promptly with the cancelled outcome, commits nothing, and leaves the outbox
+// usable for the next attempt.
+func TestOpenRungTelemetryOutboxAbortUnblocksAnInFlightUpload(t *testing.T) {
+	requestArrived := make(chan struct{})
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		close(requestArrived)
+		<-release
+		response.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(func() {
+		close(release)
+		server.Close()
+	})
+
+	outbox := testTelemetryOutbox(t, t.TempDir())
+	outbox.Enqueue(testTelemetryEventJSON(t, "held", "connection_failed", "c", "s", nil))
+
+	results := make(chan *OpenRungTelemetryFlushResult, 1)
+	go func() { results <- outbox.FlushNextBatch(server.URL) }()
+	select {
+	case <-requestArrived:
+	case <-time.After(5 * time.Second):
+		t.Fatal("upload never reached the broker")
+	}
+
+	outbox.AbortUploads()
+	var result *OpenRungTelemetryFlushResult
+	select {
+	case result = <-results:
+	case <-time.After(5 * time.Second):
+		t.Fatal("AbortUploads did not unblock the in-flight upload")
+	}
+	if result.Succeeded() || result.ErrorKind() != "cancelled" {
+		t.Fatalf("aborted upload must report the cancelled outcome: %+v", result)
+	}
+	if got := outbox.PendingCount(); got != 1 {
+		t.Fatalf("aborted upload must commit nothing, have %d queued", got)
+	}
+}
+
+// TestOpenRungTelemetryOutboxLegacyImportReportsDurability: the caller deletes
+// the only copy of a pre-file backlog on this answer, so "accepted" must mean
+// durably on disk. An unwritable outbox (or a closed one) answers -1: keep the
+// legacy store and retry on the next open.
+func TestOpenRungTelemetryOutboxLegacyImportReportsDurability(t *testing.T) {
+	directory := t.TempDir()
+	blob := `[` + testTelemetryEventJSON(t, "legacy-1", "connection_failed", "c", "s", nil) + `]`
+
+	if err := os.Chmod(directory, 0o500); err != nil {
+		t.Fatalf("making directory unwritable: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(directory, 0o700) })
+
+	unwritable := testTelemetryOutbox(t, directory)
+	if got := unwritable.EnqueueBatchJSON(blob); got != -1 {
+		t.Fatalf("import into an unwritable outbox reported %d, want -1", got)
+	}
+
+	if err := os.Chmod(directory, 0o700); err != nil {
+		t.Fatalf("restoring directory permissions: %v", err)
+	}
+	writable := testTelemetryOutbox(t, directory)
+	if got := writable.EnqueueBatchJSON(blob); got != 1 {
+		t.Fatalf("import into a writable outbox reported %d, want 1", got)
+	}
+	writable.Close()
+	if got := writable.EnqueueBatchJSON(blob); got != -1 {
+		t.Fatalf("import into a closed outbox reported %d, want -1", got)
+	}
+
+	reopened := testTelemetryOutbox(t, directory)
+	if got := reopened.PendingCount(); got != 1 {
+		t.Fatalf("durably imported backlog holds %d events, want 1", got)
 	}
 }

@@ -62,6 +62,7 @@ type OpenRungTelemetryOutbox interface {
 	PendingCount() int32
 	FlushNextBatch(brokerURL string) *OpenRungTelemetryFlushResult
 	SendHeartbeat(brokerURL, heartbeatJSON string) *OpenRungTelemetryFlushResult
+	AbortUploads()
 	Close()
 }
 
@@ -74,10 +75,12 @@ type openRungTelemetryOutbox struct {
 	path   string
 	poster openRungTelemetryPoster
 
-	loaded    bool
-	events    []brokerapi.TelemetryEvent
-	fileLines int
-	closed    bool
+	loaded      bool
+	events      []brokerapi.TelemetryEvent
+	fileLines   int
+	closed      bool
+	nextSendID  int
+	activeSends map[int]context.CancelFunc
 }
 
 type openRungTelemetryPoster interface {
@@ -124,7 +127,8 @@ func newOpenRungTelemetryOutbox(
 		path:   filepath.Join(directory, fileName),
 		// Passing nil is required: brokerapi selects its shared, opportunistic-
 		// ECH transport and verified ordinary-TLS fallback.
-		poster: brokerapi.NewClient(nil, options),
+		poster:      brokerapi.NewClient(nil, options),
+		activeSends: make(map[int]context.CancelFunc),
 	}
 }
 
@@ -146,9 +150,15 @@ func (o *openRungTelemetryOutbox) Enqueue(eventJSON string) bool {
 }
 
 // EnqueueBatchJSON appends every decodable event of a JSON array, oldest
-// first, and returns the accepted count. It exists for the platforms'
-// pre-file legacy stores (Android's SharedPreferences blob), whose one-time
-// import must land through the same cap and sanitization as live events.
+// first. It exists for the platforms' pre-file legacy stores (Android's
+// SharedPreferences blob), whose one-time import must land through the same
+// cap and sanitization as live events — and whose only durable copy the
+// caller deletes on this method's word. The return value is therefore a
+// three-way answer: the accepted count once the events are DURABLY persisted
+// to the outbox file, 0 for a blob that holds nothing importable (the import
+// is complete; the caller may clear its store), and -1 when the events could
+// not be durably written (closed outbox, unwritable directory) — the caller
+// must keep its copy and retry on the next open.
 func (o *openRungTelemetryOutbox) EnqueueBatchJSON(eventsJSON string) int32 {
 	var raw []json.RawMessage
 	if err := json.Unmarshal([]byte(eventsJSON), &raw); err != nil {
@@ -166,9 +176,13 @@ func (o *openRungTelemetryOutbox) EnqueueBatchJSON(eventsJSON string) int32 {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if o.closed {
-		return 0
+		return -1
 	}
-	o.appendLocked(events)
+	if !o.appendLocked(events) {
+		// The events stay in the in-memory queue (a later flush may still
+		// upload them), but nothing durable landed: the caller keeps its copy.
+		return -1
+	}
 	return int32(len(events))
 }
 
@@ -297,15 +311,17 @@ func (o *openRungTelemetryOutbox) FlushNextBatch(brokerURL string) *OpenRungTele
 	o.loadLocked()
 	batch := openRungTelemetryUploadBatch(o.events, openRungTelemetryBatchSize)
 	pending := int32(len(o.events))
-	ctx := o.ctx
-	o.mu.Unlock()
-
 	if len(batch) == 0 {
+		o.mu.Unlock()
 		return &OpenRungTelemetryFlushResult{
 			outcome: successfulOpenRungBrokerOutcome(),
 			pending: pending,
 		}
 	}
+	ctx, endSend := o.beginSendLocked()
+	o.mu.Unlock()
+	defer endSend()
+
 	if err := o.send(ctx, brokerURL, batch); err != nil {
 		return failedOpenRungTelemetryFlushResult(err, pending)
 	}
@@ -347,8 +363,9 @@ func (o *openRungTelemetryOutbox) SendHeartbeat(
 		piggybacked = openRungTelemetryUploadBatch(o.events, openRungTelemetryBatchSize-1)
 	}
 	pending := int32(len(o.events))
-	ctx := o.ctx
+	ctx, endSend := o.beginSendLocked()
 	o.mu.Unlock()
+	defer endSend()
 
 	if err := o.send(ctx, brokerURL, append(piggybacked[:len(piggybacked):len(piggybacked)], heartbeat)); err != nil {
 		return failedOpenRungTelemetryFlushResult(err, pending)
@@ -360,6 +377,43 @@ func (o *openRungTelemetryOutbox) SendHeartbeat(
 		outcome:   successfulOpenRungBrokerOutcome(),
 		sentCount: int32(len(piggybacked)) + 1,
 		pending:   pending,
+	}
+}
+
+// beginSendLocked registers one cancelable upload. The returned end function
+// must run when the send finishes, whatever the outcome.
+func (o *openRungTelemetryOutbox) beginSendLocked() (context.Context, func()) {
+	ctx, cancel := context.WithCancel(o.ctx)
+	id := o.nextSendID
+	o.nextSendID++
+	o.activeSends[id] = cancel
+	return ctx, func() {
+		o.mu.Lock()
+		delete(o.activeSends, id)
+		o.mu.Unlock()
+		cancel()
+	}
+}
+
+// AbortUploads cancels every in-flight upload without closing the outbox: the
+// blocked FlushNextBatch/SendHeartbeat calls return promptly with the
+// "cancelled" outcome, nothing is committed, and the outbox stays usable. The
+// platforms call it from their cancellation handlers so a caller's own
+// cancellation (a terminal flush hitting its deadline, a superseded connect
+// epoch) is never held hostage by an unresponsive broker — the exact guarantee
+// the per-operation transport used to provide by closing the operation.
+func (o *openRungTelemetryOutbox) AbortUploads() {
+	if o == nil {
+		return
+	}
+	o.mu.Lock()
+	cancels := make([]context.CancelFunc, 0, len(o.activeSends))
+	for _, cancel := range o.activeSends {
+		cancels = append(cancels, cancel)
+	}
+	o.mu.Unlock()
+	for _, cancel := range cancels {
+		cancel()
 	}
 }
 
@@ -417,7 +471,10 @@ func (o *openRungTelemetryOutbox) removeSent(sent []brokerapi.TelemetryEvent) in
 	return int32(len(o.events))
 }
 
-func (o *openRungTelemetryOutbox) appendLocked(events []brokerapi.TelemetryEvent) {
+// appendLocked queues events and lands them on disk, reporting whether the
+// events are now durably persisted (directly appended, or via the rewrite a
+// failed append and the compaction both fall back to).
+func (o *openRungTelemetryOutbox) appendLocked(events []brokerapi.TelemetryEvent) bool {
 	o.loadLocked()
 	o.events = append(o.events, events...)
 	if len(o.events) > openRungTelemetryMaxQueued {
@@ -445,8 +502,9 @@ func (o *openRungTelemetryOutbox) appendLocked(events []brokerapi.TelemetryEvent
 	// The file may hold more lines than the cap between compactions; a failed
 	// append falls back to the same durable rewrite the compaction uses.
 	if !appendable || o.fileLines > openRungTelemetryCompactThreshold {
-		o.rewriteLocked()
+		return o.rewriteLocked()
 	}
+	return true
 }
 
 // loadLocked populates the cache from the outbox file on first use: NDJSON
@@ -501,9 +559,10 @@ func (o *openRungTelemetryOutbox) loadLocked() {
 	}
 }
 
-// rewriteLocked lands the cache as one durable file: temp write + atomic
-// rename, so a kill mid-rewrite leaves the previous complete file in place.
-func (o *openRungTelemetryOutbox) rewriteLocked() {
+// rewriteLocked lands the cache as one durable file — temp write + atomic
+// rename, so a kill mid-rewrite leaves the previous complete file in place —
+// and reports whether the file now holds the cache.
+func (o *openRungTelemetryOutbox) rewriteLocked() bool {
 	var lines []byte
 	for _, event := range o.events {
 		line, err := json.Marshal(event)
@@ -515,13 +574,17 @@ func (o *openRungTelemetryOutbox) rewriteLocked() {
 	}
 	temp := o.path + ".tmp"
 	if err := os.WriteFile(temp, lines, 0o600); err != nil {
-		return
+		return false
 	}
 	if err := os.Rename(temp, o.path); err != nil {
-		_ = os.WriteFile(o.path, lines, 0o600)
+		direct := os.WriteFile(o.path, lines, 0o600)
 		_ = os.Remove(temp)
+		if direct != nil {
+			return false
+		}
 	}
 	o.fileLines = len(o.events)
+	return true
 }
 
 func appendOpenRungOutboxFile(path string, lines []byte) error {

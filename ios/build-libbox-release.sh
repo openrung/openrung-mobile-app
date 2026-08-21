@@ -409,6 +409,7 @@ for slice in ios-arm64 ios-arm64_x86_64-simulator; do
     ')applySessionAttributes:' \
     ')flushNextBatch:' \
     ')sendHeartbeat:' \
+    ')abortUploads;' \
     ')pendingCount;' \
     ')sentCount;'; do
     if ! grep -Fq "$telemetry_symbol" "$header"; then

@@ -180,9 +180,9 @@ enum TelemetryManager {
         else { return }
 
         let brokerURL = session.brokerURL
-        let outcome = await Task.detached {
+        let outcome = await runUpload {
             outbox.sendHeartbeat(brokerURL: brokerURL, heartbeatJson: heartbeatJson)
-        }.value
+        }
         guard outcome.succeeded, outcome.pendingCount > 0 else { return }
         try? await flush(brokerURL: brokerURL)
     }
@@ -190,13 +190,31 @@ enum TelemetryManager {
     static func flush(brokerURL: String) async throws {
         while true {
             try Task.checkCancellation()
-            let outcome = await Task.detached {
+            let outcome = await runUpload {
                 outbox.flushNextBatch(brokerURL: brokerURL)
-            }.value
+            }
+            // A cancelled caller aborted the request above; surface its own cancellation rather
+            // than a broker failure, exactly like the per-operation transport used to.
+            try Task.checkCancellation()
             guard outcome.succeeded else {
                 throw outcome.failure(operationName: "native telemetry upload")
             }
             if outcome.pendingCount == 0 { return }
+        }
+    }
+
+    /// Runs one blocking native upload with the same cancellation contract the per-operation
+    /// transport used to provide: cancelling the awaiting task aborts the in-flight request
+    /// (tunnel shutdown drains the heartbeat task and must never wait out an unresponsive
+    /// broker), the blocked call returns promptly with the cancelled outcome, and the shared
+    /// outbox stays open — aborted uploads commit nothing and retry later.
+    private static func runUpload(
+        _ call: @escaping @Sendable () -> NativeTelemetryFlushOutcome
+    ) async -> NativeTelemetryFlushOutcome {
+        await withTaskCancellationHandler {
+            await Task.detached { call() }.value
+        } onCancel: {
+            outbox.abortUploads()
         }
     }
 

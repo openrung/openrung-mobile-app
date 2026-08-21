@@ -29,6 +29,12 @@ public protocol TelemetryOutboxHandling: Sendable {
     /// Uploads one heartbeat, letting the queue head piggyback only when it carries the
     /// heartbeat's own client/session identity. Blocking network I/O.
     func sendHeartbeat(brokerURL: String, heartbeatJson: String) -> NativeTelemetryFlushOutcome
+
+    /// Cancels every in-flight upload without closing the outbox: blocked `flushNextBatch` and
+    /// `sendHeartbeat` calls return promptly with the cancelled outcome and commit nothing.
+    /// Called from the manager's cancellation handlers so tunnel shutdown is never held hostage
+    /// by an unresponsive broker.
+    func abortUploads()
 }
 
 /// One native flush outcome, carrying the broker binding's bounded error taxonomy.
@@ -111,6 +117,10 @@ public final class NativeTelemetryOutbox: TelemetryOutboxHandling, @unchecked Se
 
     public func sendHeartbeat(brokerURL: String, heartbeatJson: String) -> NativeTelemetryFlushOutcome {
         outcome(outbox?.sendHeartbeat(brokerURL, heartbeatJSON: heartbeatJson))
+    }
+
+    public func abortUploads() {
+        outbox?.abortUploads()
     }
 
     private func outcome(_ result: LibboxOpenRungTelemetryFlushResult?) -> NativeTelemetryFlushOutcome {

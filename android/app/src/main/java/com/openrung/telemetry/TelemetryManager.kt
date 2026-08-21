@@ -8,7 +8,11 @@ import android.os.SystemClock
 import com.openrung.BuildConfig
 import com.openrung.net.ClientGeoInfo
 import com.openrung.net.requireNativeBrokerSuccess
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
@@ -312,9 +316,7 @@ object TelemetryManager {
         ) ?: return
         val handle = synchronized(lock) { outboxLocked(appContext) }
         val heartbeatJson = json.encodeToString(heartbeat)
-        val result = withContext(Dispatchers.IO) {
-            handle.sendHeartbeat(session.brokerUrl, heartbeatJson)
-        }
+        val result = runOutboxUpload(handle) { it.sendHeartbeat(session.brokerUrl, heartbeatJson) }
         requireNativeBrokerSuccess(result, "native telemetry heartbeat")
         if (result.pendingCount > 0) flush(session.brokerUrl)
     }
@@ -323,10 +325,33 @@ object TelemetryManager {
         val appContext = context ?: return
         val handle = synchronized(lock) { outboxLocked(appContext) }
         while (true) {
-            val result = withContext(Dispatchers.IO) { handle.flushNextBatch(brokerUrl) }
+            val result = runOutboxUpload(handle) { it.flushNextBatch(brokerUrl) }
             requireNativeBrokerSuccess(result, "native telemetry upload")
             if (result.pendingCount == 0) return
             coroutineContext.ensureActive()
+        }
+    }
+
+    /**
+     * Runs one blocking native upload with the same cancellation contract the per-operation
+     * transport used to provide: a cancelled caller aborts the in-flight request (the terminal
+     * flush deadline must never be held hostage by an unresponsive broker) and waits for the
+     * native call to actually return before rethrowing, so no upload outlives its epoch unseen.
+     * The outbox itself stays open — aborted uploads commit nothing and retry later.
+     */
+    private suspend fun runOutboxUpload(
+        handle: TelemetryOutboxHandle,
+        call: (TelemetryOutboxHandle) -> NativeTelemetryFlushResult,
+    ): NativeTelemetryFlushResult = coroutineScope {
+        val worker = async(Dispatchers.IO) { call(handle) }
+        try {
+            worker.await().also { coroutineContext.ensureActive() }
+        } catch (cancellation: CancellationException) {
+            withContext(NonCancellable + Dispatchers.IO) {
+                handle.abortUploads()
+                worker.join()
+            }
+            throw cancellation
         }
     }
 
@@ -338,10 +363,12 @@ object TelemetryManager {
 
     /**
      * Resolves the bound outbox, importing the pre-file SharedPreferences backlog exactly once:
-     * the blob is read WITHOUT clearing, handed to the bound outbox (which persists it durably
-     * before returning), and only then removed — a crash mid-import can never discard the
-     * pre-upgrade backlog, and a key left behind by an interrupted removal is re-imported as
-     * duplicates the broker deduplicates by event id.
+     * the blob is read WITHOUT clearing, handed to the bound outbox, and removed only after the
+     * outbox confirms durable persistence (0 means the blob held nothing importable, which also
+     * completes the migration; -1 means nothing durable landed) — a crash, a full disk, or an
+     * unavailable binding can never discard the only copy of the pre-upgrade backlog. A key
+     * whose removal raced a crash is re-imported as duplicates the broker deduplicates by
+     * event id.
      */
     private fun outboxLocked(context: Context): TelemetryOutboxHandle {
         outbox?.let { return it }
@@ -349,8 +376,9 @@ object TelemetryManager {
         outbox = handle
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         prefs.getString(KEY_OUTBOX, null)?.let { encoded ->
-            handle.enqueueBatch(encoded)
-            prefs.edit().remove(KEY_OUTBOX).apply()
+            if (handle.enqueueBatch(encoded) >= 0) {
+                prefs.edit().remove(KEY_OUTBOX).apply()
+            }
         }
         return handle
     }

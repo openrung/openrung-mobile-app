@@ -429,6 +429,7 @@ for generated_symbol in \
   'applySessionAttributes(java.lang.String, java.lang.String);' \
   'flushNextBatch(java.lang.String);' \
   'sendHeartbeat(java.lang.String, java.lang.String);' \
+  'abortUploads();' \
   'pendingCount();' \
   'sentCount();'; do
   if ! grep -Fq "$generated_symbol" <<< "$javap_output"; then

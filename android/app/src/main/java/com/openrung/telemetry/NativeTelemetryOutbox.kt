@@ -19,7 +19,11 @@ interface TelemetryOutboxHandle {
     /** Persists one event (a [TelemetryEvent] as JSON); false when the event was undecodable. */
     fun enqueue(eventJson: String): Boolean
 
-    /** One-time import of a legacy JSON-array backlog; returns the accepted count. */
+    /**
+     * One-time import of a legacy JSON-array backlog. Returns the accepted count once the events
+     * are DURABLY persisted, 0 for a blob holding nothing importable (import complete), and -1
+     * when nothing durable landed — the caller must keep its copy for a later retry.
+     */
     fun enqueueBatch(eventsJson: String): Int
 
     /** Back-patches attributes onto the queued events of one session (the geo patch). */
@@ -39,6 +43,14 @@ interface TelemetryOutboxHandle {
      * heartbeat's own client/session identity. Blocking network I/O.
      */
     fun sendHeartbeat(brokerUrl: String, heartbeatJson: String): NativeTelemetryFlushResult
+
+    /**
+     * Cancels every in-flight upload without closing the outbox: blocked [flushNextBatch] and
+     * [sendHeartbeat] calls return promptly with the cancelled outcome and commit nothing.
+     * Called from the manager's cancellation handler so a terminal flush deadline is never held
+     * hostage by an unresponsive broker.
+     */
+    fun abortUploads()
 }
 
 /**
@@ -67,7 +79,8 @@ internal class NativeTelemetryOutbox(context: Context) : TelemetryOutboxHandle {
     override fun enqueue(eventJson: String): Boolean = outbox?.enqueue(eventJson) ?: false
 
     override fun enqueueBatch(eventsJson: String): Int =
-        outbox?.enqueueBatchJSON(eventsJson) ?: 0
+        // An unavailable binding never confirms durability: keep the caller's copy.
+        outbox?.enqueueBatchJSON(eventsJson) ?: -1
 
     override fun applySessionAttributes(sessionId: String, attributesJson: String) {
         outbox?.applySessionAttributes(sessionId, attributesJson)
@@ -80,6 +93,10 @@ internal class NativeTelemetryOutbox(context: Context) : TelemetryOutboxHandle {
 
     override fun sendHeartbeat(brokerUrl: String, heartbeatJson: String): NativeTelemetryFlushResult =
         outbox?.sendHeartbeat(brokerUrl, heartbeatJson).toFlushResult()
+
+    override fun abortUploads() {
+        outbox?.abortUploads()
+    }
 
     private fun OpenRungTelemetryFlushResult?.toFlushResult(): NativeTelemetryFlushResult {
         if (this == null) {

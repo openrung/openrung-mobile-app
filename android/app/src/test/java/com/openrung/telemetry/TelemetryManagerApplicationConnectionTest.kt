@@ -8,6 +8,10 @@ import java.util.AbstractList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -289,6 +293,56 @@ class TelemetryManagerApplicationConnectionTest {
         assertEquals("com.example.migrate", outbox.events.single().applicationPackage)
     }
 
+    @Test
+    fun `cancelling a flush aborts the in-flight native upload`() = runBlocking {
+        // The terminal-flush deadline (withTimeoutOrNull around flush) must never be held
+        // hostage by an unresponsive broker: cancellation aborts the blocked native call and
+        // waits for it to return before propagating.
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val aborted = CountDownLatch(1)
+        val blocking = object : TelemetryOutboxHandle by outbox {
+            override fun flushNextBatch(brokerUrl: String): NativeTelemetryFlushResult {
+                entered.countDown()
+                check(release.await(5, TimeUnit.SECONDS)) { "upload was never aborted" }
+                return NativeTelemetryFlushResult(succeeded = false, errorKind = "cancelled")
+            }
+
+            override fun abortUploads() {
+                aborted.countDown()
+                release.countDown()
+            }
+        }
+        TelemetryManager.outboxFactory = { blocking }
+
+        val flushJob = launch(Dispatchers.Default) {
+            runCatching { TelemetryManager.flush("https://broker.invalid/") }
+        }
+        assertTrue("flush never reached the native call", entered.await(5, TimeUnit.SECONDS))
+        flushJob.cancelAndJoin()
+        assertTrue(
+            "cancellation must abort the in-flight upload",
+            aborted.await(1, TimeUnit.SECONDS),
+        )
+    }
+
+    @Test
+    fun `a failed preference import keeps the backlog for a later retry`() {
+        // -1 is the bound outbox saying nothing durable landed (unwritable directory, closed or
+        // unavailable binding). The only copy of the backlog must survive for the next open.
+        val blob =
+            """[{"schema_version":1,"event_id":"legacy-2","event":"connection_failed",""" +
+                """"occurred_at":"2026-07-01T00:00:00Z","client_id":"c","session_id":"s"}]"""
+        val prefs = context.getSharedPreferences("openrung_telemetry", Context.MODE_PRIVATE)
+        prefs.edit().putString("outbox", blob).commit()
+        outbox.batchImportResult = -1
+
+        recordFlow(packageName = "com.example.migrate-failed")
+
+        assertEquals(listOf(blob), outbox.batchImports)
+        assertTrue("the key must survive a failed import", prefs.contains("outbox"))
+    }
+
     private fun recordFlow(packageName: String, destinationPort: Int = 443) {
         TelemetryManager.recordApplicationConnection(
             uid = 10_001,
@@ -340,9 +394,12 @@ internal class FakeTelemetryOutbox(private val json: Json) : TelemetryOutboxHand
         return true
     }
 
+    /** The durability answer the next import receives: 0 = complete, -1 = keep the source. */
+    var batchImportResult: Int = 0
+
     override fun enqueueBatch(eventsJson: String): Int {
         batchImports.add(eventsJson)
-        return 0
+        return batchImportResult
     }
 
     override fun applySessionAttributes(sessionId: String, attributesJson: String) {
@@ -356,6 +413,8 @@ internal class FakeTelemetryOutbox(private val json: Json) : TelemetryOutboxHand
 
     override fun sendHeartbeat(brokerUrl: String, heartbeatJson: String): NativeTelemetryFlushResult =
         NativeTelemetryFlushResult(succeeded = true)
+
+    override fun abortUploads() = Unit
 
     fun storedJson(): String =
         events.joinToString(",", "[", "]") { json.encodeToString(it) }
