@@ -31,20 +31,6 @@ enum TunnelDiagnostics {
         defaults.set(Date().timeIntervalSince1970, forKey: updatedAtKey)
     }
 
-    static func latestSummary() -> String? {
-        guard let defaults = defaults else {
-            return nil
-        }
-
-        let message = defaults.string(forKey: lastErrorKey)
-            ?? defaults.string(forKey: lastEventKey)
-        guard let message, message.isEmpty == false else {
-            return nil
-        }
-
-        return message
-    }
-
     private static var defaults: UserDefaults? {
         UserDefaults(suiteName: AppConfig.appGroupIdentifier)
     }

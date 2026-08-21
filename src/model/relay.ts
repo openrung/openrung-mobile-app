@@ -59,10 +59,6 @@ export interface RelayListResponse {
   limit?: number; // API channel only: echo of the effective request limit
 }
 
-export interface ErrorResponse {
-  error?: string;
-}
-
 /**
  * The relay class a client should act on. Only the exact literal 'foundation' is the foundation
  * class; an absent, unrecognized, or differently-cased value is 'volunteer'. The strictness is

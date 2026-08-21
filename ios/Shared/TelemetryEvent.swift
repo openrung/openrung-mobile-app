@@ -58,11 +58,3 @@ public struct TelemetryEvent: Codable, Sendable, Equatable {
         self.measurements = measurements
     }
 }
-
-public struct TelemetryBatch: Codable, Sendable {
-    public let events: [TelemetryEvent]
-
-    public init(events: [TelemetryEvent]) {
-        self.events = events
-    }
-}

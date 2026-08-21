@@ -262,8 +262,3 @@ data class RelayListResponse(
     val serverInstant: Instant
         get() = Instant.parse(serverTime)
 }
-
-@Serializable
-data class ErrorResponse(
-    val error: String = "",
-)

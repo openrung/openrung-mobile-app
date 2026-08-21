@@ -29,8 +29,6 @@ interface TelemetryOutboxHandle {
     /** Back-patches attributes onto the queued events of one session (the geo patch). */
     fun applySessionAttributes(sessionId: String, attributesJson: String)
 
-    fun pendingCount(): Int
-
     /**
      * Prepares one single-use, cancelable upload attempt. The manager creates one per request
      * and closes it from its cancellation handler; the begin/close gate lives inside the bound
@@ -75,7 +73,6 @@ data class NativeTelemetryFlushResult(
     override val errorText: String = "",
     override val httpStatus: Int = 0,
     override val retryAfterMillis: Long = 0,
-    val sentCount: Int = 0,
     val pendingCount: Int = 0,
 ) : NativeBrokerResult
 
@@ -124,9 +121,6 @@ internal class NativeTelemetryOutbox(context: Context) : TelemetryOutboxHandle {
         generatedTelemetryCall(Unit) { outbox?.applySessionAttributes(sessionId, attributesJson) ?: Unit }
     }
 
-    override fun pendingCount(): Int =
-        generatedTelemetryCall(0) { outbox?.pendingCount() ?: 0 }
-
     override fun beginUpload(): TelemetryUploadHandle =
         NativeUpload(generatedTelemetryCall(null) { outbox?.beginUpload() })
 
@@ -164,7 +158,6 @@ private fun OpenRungTelemetryFlushResult?.toFlushResult(): NativeTelemetryFlushR
         errorText = errorText(),
         httpStatus = httpStatus(),
         retryAfterMillis = retryAfterMillis(),
-        sentCount = sentCount(),
         pendingCount = pendingCount(),
     )
 }

@@ -59,11 +59,6 @@ function ensureNativeStateWired(): void {
     });
 }
 
-/** Test-only: lets a fresh test file re-run the wiring against a reset store/mock. */
-export function resetNativeStateWiringForTests(): void {
-  nativeStateWired = false;
-}
-
 /**
  * Connect/disconnect actions plus the native-event wiring, without subscribing to any state:
  * components that only trigger transitions (or select their own slices via `useAppSelector`)
