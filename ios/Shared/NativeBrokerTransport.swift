@@ -490,7 +490,9 @@ public enum NativeBrokerRunner {
     }
 }
 
-private final class NativeBrokerStartGate: @unchecked Sendable {
+/// Internal (not private): the telemetry upload bridge in TelemetryManager reuses the same
+/// claim-start-or-cancel gate for its own single-use native uploads.
+final class NativeBrokerStartGate: @unchecked Sendable {
     private let lock = NSLock()
     private var cancelled = false
     private var startClaimed = false

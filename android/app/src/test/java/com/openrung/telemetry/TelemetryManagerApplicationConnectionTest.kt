@@ -3,13 +3,17 @@ package com.openrung.telemetry
 import android.app.Application
 import android.content.Context
 import com.openrung.net.ClientGeoInfo
-import java.io.File
 import java.time.Duration
 import java.util.AbstractList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -31,26 +35,33 @@ import org.robolectric.shadows.ShadowSystemClock
  * still-suppressed tail (the broker sums `connection_count`, so dropped tails would undercount).
  *
  * `TelemetryManager` is a process-wide singleton; each test's `beginSession` resets the
- * aggregator windows, so tests are isolated without any cross-test bookkeeping.
+ * aggregator windows, so tests are isolated without any cross-test bookkeeping. The bound native
+ * outbox is replaced with a recording fake — a JVM test cannot load the gomobile engine — so
+ * these tests pin WHAT the manager hands the outbox; the queue/upload policy itself is pinned by
+ * `android/punchbridge`'s Go suite against the real binding.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], application = Application::class)
 class TelemetryManagerApplicationConnectionTest {
     private lateinit var context: Context
     private lateinit var session: TelemetryManager.Session
-    private val json = Json { ignoreUnknownKeys = true }
+    private lateinit var outbox: FakeTelemetryOutbox
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     @Before
     fun setUp() {
         context = RuntimeEnvironment.getApplication()
-        clearOutbox()
+        clearLegacyPreferences()
+        outbox = FakeTelemetryOutbox(json)
+        TelemetryManager.outboxFactory = { outbox }
         session = TelemetryManager.beginSession(context, "https://broker.invalid/")
     }
 
     @After
     fun tearDown() {
         TelemetryManager.endSession("test_teardown")
-        clearOutbox()
+        TelemetryManager.outboxFactory = ::NativeTelemetryOutbox
+        clearLegacyPreferences()
     }
 
     @Test
@@ -238,7 +249,7 @@ class TelemetryManagerApplicationConnectionTest {
         recordFlow(packageName = "com.example.after-geo")
         TelemetryManager.endSession("test_geo_privacy")
 
-        val events = json.decodeFromString<List<TelemetryEvent>>(storedOutboxJson())
+        val events = outbox.events.toList()
         val applicationEvents = events.filter { it.event == APPLICATION_CONNECTION_EVENT }
         assertEquals(3, applicationEvents.size)
         assertTrue(applicationEvents.all { it.attributes.isEmpty() })
@@ -261,27 +272,84 @@ class TelemetryManagerApplicationConnectionTest {
     }
 
     @Test
-    fun `a pre-upgrade outbox backlog is scrubbed of destination data on the next write`() {
-        context.getSharedPreferences("openrung_telemetry", Context.MODE_PRIVATE)
-            .edit()
-            .putString(
-                "outbox",
-                """[{"schema_version":1,"event_id":"legacy-1","event":"application_connection",""" +
-                    """"occurred_at":"2026-07-01T00:00:00Z","client_id":"c","session_id":"s",""" +
-                    """"application_package":"com.example.legacy","application_uid":10099,""" +
-                    """"destination_ip":"93.184.216.34","destination_port":443,"protocol":"tcp",""" +
-                    """"attributes":{"client_ip":"203.0.113.9","city":"Example City"}}]""",
-            )
-            .commit()
-
+    fun `a pre-file preference backlog is imported into the bound outbox exactly once`() {
+        // The pre-NDJSON SharedPreferences blob. The bound outbox owns the scrubbing of its
+        // removed destination fields (pinned in android/punchbridge's Go suite); this side's
+        // contract is the safe hand-over: read without clearing, import, only then remove the
+        // key — a crash mid-import can never discard the pre-upgrade backlog.
+        val blob =
+            """[{"schema_version":1,"event_id":"legacy-1","event":"application_connection",""" +
+                """"occurred_at":"2026-07-01T00:00:00Z","client_id":"c","session_id":"s",""" +
+                """"application_package":"com.example.legacy","application_uid":10099}]"""
+        val prefs = context.getSharedPreferences("openrung_telemetry", Context.MODE_PRIVATE)
+        prefs.edit().putString("outbox", blob).commit()
+        // The one-time import runs when the outbox handle is first resolved, which the first
+        // enqueue below triggers (nothing in setUp touches the outbox).
         recordFlow(packageName = "com.example.migrate")
 
-        val stored = storedOutboxJson()
-        assertTrue(stored.contains("legacy-1"))
-        assertFalse(stored.contains("destination_ip"))
-        assertFalse(stored.contains("93.184.216.34"))
-        assertFalse(stored.contains("203.0.113.9"))
-        assertFalse(stored.contains("Example City"))
+        assertEquals(listOf(blob), outbox.batchImports)
+        assertFalse("the key must be cleared once the import landed", prefs.contains("outbox"))
+        // The import lands before the event that triggered the resolution.
+        assertEquals("com.example.migrate", outbox.events.single().applicationPackage)
+    }
+
+    @Test
+    fun `cancelling a flush closes the in-flight native upload`() = runBlocking {
+        // The terminal-flush deadline (withTimeoutOrNull around flush) must never be held
+        // hostage by an unresponsive broker: cancellation closes the single-use upload, which
+        // unblocks the native call, and waits for it to return before propagating. The
+        // close-before-start half of the gate lives in the bound upload's own mutex, pinned by
+        // android/punchbridge's Go suite.
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val closed = CountDownLatch(1)
+        val blocking = object : TelemetryOutboxHandle by outbox {
+            override fun beginUpload(): TelemetryUploadHandle = object : TelemetryUploadHandle {
+                override fun flushNextBatch(brokerUrl: String): NativeTelemetryFlushResult {
+                    entered.countDown()
+                    check(release.await(5, TimeUnit.SECONDS)) { "upload was never closed" }
+                    return NativeTelemetryFlushResult(succeeded = false, errorKind = "cancelled")
+                }
+
+                override fun sendHeartbeat(
+                    brokerUrl: String,
+                    heartbeatJson: String,
+                ): NativeTelemetryFlushResult = throw AssertionError("flush must not send heartbeats")
+
+                override fun close() {
+                    closed.countDown()
+                    release.countDown()
+                }
+            }
+        }
+        TelemetryManager.outboxFactory = { blocking }
+
+        val flushJob = launch(Dispatchers.Default) {
+            runCatching { TelemetryManager.flush("https://broker.invalid/") }
+        }
+        assertTrue("flush never reached the native call", entered.await(5, TimeUnit.SECONDS))
+        flushJob.cancelAndJoin()
+        assertTrue(
+            "cancellation must close the in-flight upload",
+            closed.await(1, TimeUnit.SECONDS),
+        )
+    }
+
+    @Test
+    fun `a failed preference import keeps the backlog for a later retry`() {
+        // -1 is the bound outbox saying nothing durable landed (unwritable directory, closed or
+        // unavailable binding). The only copy of the backlog must survive for the next open.
+        val blob =
+            """[{"schema_version":1,"event_id":"legacy-2","event":"connection_failed",""" +
+                """"occurred_at":"2026-07-01T00:00:00Z","client_id":"c","session_id":"s"}]"""
+        val prefs = context.getSharedPreferences("openrung_telemetry", Context.MODE_PRIVATE)
+        prefs.edit().putString("outbox", blob).commit()
+        outbox.batchImportResult = -1
+
+        recordFlow(packageName = "com.example.migrate-failed")
+
+        assertEquals(listOf(blob), outbox.batchImports)
+        assertTrue("the key must survive a failed import", prefs.contains("outbox"))
     }
 
     private fun recordFlow(packageName: String, destinationPort: Int = 443) {
@@ -293,26 +361,16 @@ class TelemetryManagerApplicationConnectionTest {
     }
 
     private fun applicationConnectionEvents(): List<TelemetryEvent> =
-        json.decodeFromString<List<TelemetryEvent>>(storedOutboxJson())
-            .filter { it.event == "application_connection" }
+        outbox.events.filter { it.event == "application_connection" }
 
-    /**
-     * The outbox is an append-only NDJSON file (one event per line); the legacy SharedPreferences
-     * blob only exists as a migration source. Joining the lines into a JSON array keeps the
-     * existing decode/contains assertions unchanged.
-     */
-    private fun storedOutboxJson(): String {
-        val file = File(context.filesDir, "openrung_telemetry_outbox.jsonl")
-        if (!file.isFile) return "[]"
-        return file.readLines().filter { it.isNotBlank() }.joinToString(",", "[", "]")
-    }
+    /** The enqueued events re-encoded, keeping the existing contains-assertions meaningful. */
+    private fun storedOutboxJson(): String = outbox.storedJson()
 
-    private fun clearOutbox() {
+    private fun clearLegacyPreferences() {
         context.getSharedPreferences("openrung_telemetry", Context.MODE_PRIVATE)
             .edit()
             .clear()
             .commit()
-        File(context.filesDir, "openrung_telemetry_outbox.jsonl").delete()
     }
 
     private class BlockingPackageList(
@@ -329,4 +387,46 @@ class TelemetryManagerApplicationConnectionTest {
             return packageName
         }
     }
+}
+
+/**
+ * Recording stand-in for the bound native outbox. Decodes enqueued events so assertions read
+ * naturally; flushes always succeed with an empty queue (upload policy is Go-tested).
+ */
+internal class FakeTelemetryOutbox(private val json: Json) : TelemetryOutboxHandle {
+    val events = mutableListOf<TelemetryEvent>()
+    val batchImports = mutableListOf<String>()
+    val sessionAttributePatches = mutableListOf<Pair<String, String>>()
+
+    override fun enqueue(eventJson: String): Boolean {
+        events.add(json.decodeFromString<TelemetryEvent>(eventJson))
+        return true
+    }
+
+    /** The durability answer the next import receives: 0 = complete, -1 = keep the source. */
+    var batchImportResult: Int = 0
+
+    override fun enqueueBatch(eventsJson: String): Int {
+        batchImports.add(eventsJson)
+        return batchImportResult
+    }
+
+    override fun applySessionAttributes(sessionId: String, attributesJson: String) {
+        sessionAttributePatches.add(sessionId to attributesJson)
+    }
+
+    override fun pendingCount(): Int = events.size
+
+    override fun beginUpload(): TelemetryUploadHandle = object : TelemetryUploadHandle {
+        override fun flushNextBatch(brokerUrl: String): NativeTelemetryFlushResult =
+            NativeTelemetryFlushResult(succeeded = true)
+
+        override fun sendHeartbeat(brokerUrl: String, heartbeatJson: String): NativeTelemetryFlushResult =
+            NativeTelemetryFlushResult(succeeded = true)
+
+        override fun close() = Unit
+    }
+
+    fun storedJson(): String =
+        events.joinToString(",", "[", "]") { json.encodeToString(it) }
 }

@@ -273,6 +273,8 @@ cp "$binding_source/failure_binding.go" \
   "$work_dir/source/experimental/libbox/openrung_failure.go"
 cp "$binding_source/singbox_binding.go" \
   "$work_dir/source/experimental/libbox/openrung_singbox.go"
+cp "$binding_source/telemetry_binding.go" \
+  "$work_dir/source/experimental/libbox/openrung_telemetry.go"
 mkdir -p "$work_dir/source/experimental/libbox/internal/openrungpunch"
 for source_file in "$binding_source/internal/openrungpunch/"*.go; do
   case "$source_file" in
@@ -396,6 +398,23 @@ for slice in ios-arm64 ios-arm64_x86_64-simulator; do
     ')configJSON;'; do
     if ! grep -Fq "$singbox_symbol" "$header"; then
       echo "error: Apple build is missing the OpenRung sing-box builder API in $slice: $singbox_symbol" >&2
+      exit 1
+    fi
+  done
+  for telemetry_symbol in \
+    'LibboxNewOpenRungTelemetryOutboxForIOS' \
+    'LibboxOpenRungTelemetryOutbox' \
+    'LibboxOpenRungTelemetryUpload' \
+    'LibboxOpenRungTelemetryFlushResult' \
+    ')enqueue:' \
+    ')applySessionAttributes:' \
+    ')flushNextBatch:' \
+    ')sendHeartbeat:' \
+    ')beginUpload;' \
+    ')pendingCount;' \
+    ')sentCount;'; do
+    if ! grep -Fq "$telemetry_symbol" "$header"; then
+      echo "error: Apple build is missing the OpenRung telemetry outbox API in $slice: $telemetry_symbol" >&2
       exit 1
     fi
   done
