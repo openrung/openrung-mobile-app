@@ -81,12 +81,21 @@ data class NativeTelemetryFlushResult(
 
 /** Production handle over the gomobile outbox object. */
 internal class NativeTelemetryOutbox(context: Context) : TelemetryOutboxHandle {
-    private val outbox: OpenRungTelemetryOutbox? = Libbox.newOpenRungTelemetryOutboxForAndroid(
-        context.filesDir.absolutePath,
-        OUTBOX_FILE_NAME,
-        BuildConfig.VERSION_NAME,
-        Build.VERSION.SDK_INT.toString(),
-    )
+    private val outbox: OpenRungTelemetryOutbox? = try {
+        Libbox.newOpenRungTelemetryOutboxForAndroid(
+            context.filesDir.absolutePath,
+            OUTBOX_FILE_NAME,
+            BuildConfig.VERSION_NAME,
+            Build.VERSION.SDK_INT.toString(),
+        )
+    } catch (error: LinkageError) {
+        // The gomobile engine can be unloadable (a missing ABI split, a stale
+        // install). Telemetry must degrade to the unavailable path, never take
+        // down the service — record() runs inside failure handlers where a
+        // throw would replace the real error. Mirrors NativeBrokerTransport's
+        // constructor seam.
+        null
+    }
 
     override fun enqueue(eventJson: String): Boolean = outbox?.enqueue(eventJson) ?: false
 

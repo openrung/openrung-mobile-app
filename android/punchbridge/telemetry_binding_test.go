@@ -629,3 +629,197 @@ func TestOpenRungTelemetryOutboxLegacyImportReportsDurability(t *testing.T) {
 		t.Fatalf("durably imported backlog holds %d events, want 1", got)
 	}
 }
+
+// TestOpenRungTelemetryUploadBatchCopiesAttributeMaps: the send marshals the
+// batch outside the outbox lock, so the batch must not share attribute or
+// measurement maps with the live queue — the geo back-patch mutates those
+// under the lock, and a shared header is a fatal concurrent map access.
+func TestOpenRungTelemetryUploadBatchCopiesAttributeMaps(t *testing.T) {
+	events := []brokerapi.TelemetryEvent{{
+		EventID:      "e-1",
+		Event:        "connection_failed",
+		ClientID:     "c",
+		SessionID:    "s",
+		Attributes:   map[string]string{"failure_reason": "timeout"},
+		Measurements: map[string]int64{"attempt": 1},
+	}}
+	batch := openRungTelemetryUploadBatch(events, 10)
+	if len(batch) != 1 {
+		t.Fatalf("batch holds %d events, want 1", len(batch))
+	}
+	events[0].Attributes["country"] = "JP"
+	events[0].Measurements["attempt"] = 2
+	if _, leaked := batch[0].Attributes["country"]; leaked {
+		t.Fatal("batch shares the queue's attribute map")
+	}
+	if batch[0].Measurements["attempt"] != 1 {
+		t.Fatal("batch shares the queue's measurement map")
+	}
+}
+
+// TestOpenRungTelemetryOutboxLoadFailureDoesNotEraseTheBacklog: a transient
+// read failure must not read as an empty queue — the operations degrade, the
+// file stays intact, and the next operation after recovery sees the backlog.
+func TestOpenRungTelemetryOutboxLoadFailureDoesNotEraseTheBacklog(t *testing.T) {
+	directory := t.TempDir()
+	writer := testTelemetryOutbox(t, directory)
+	writer.Enqueue(testTelemetryEventJSON(t, "b-1", "connection_failed", "c", "session-1", nil))
+	writer.Enqueue(testTelemetryEventJSON(t, "b-2", "connection_ended", "c", "session-1", nil))
+	writer.Close()
+	path := filepath.Join(directory, testOutboxFileName)
+	intact, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading outbox: %v", err)
+	}
+
+	if err := os.Chmod(path, 0o000); err != nil {
+		t.Fatalf("making outbox unreadable: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(path, 0o600) })
+	outbox := testTelemetryOutbox(t, directory)
+	if got := outbox.PendingCount(); got != 0 {
+		t.Fatalf("unreadable outbox reported %d pending, want 0", got)
+	}
+	if outbox.Enqueue(testTelemetryEventJSON(t, "b-3", "x", "c", "session-1", nil)) {
+		t.Fatal("enqueue must fail while the queue is unreadable")
+	}
+	if outbox.ApplySessionAttributes("session-1", `{"country":"JP"}`) {
+		t.Fatal("the geo back-patch must not run against an unloadable queue")
+	}
+	if result := outbox.BeginUpload().FlushNextBatch("http://127.0.0.1:1"); result.Succeeded() {
+		t.Fatal("a flush must not report a drained queue it could not read")
+	}
+	if raw, err := os.ReadFile(path); err == nil && string(raw) != string(intact) {
+		t.Fatal("the backlog file changed while unreadable")
+	}
+
+	if err := os.Chmod(path, 0o600); err != nil {
+		t.Fatalf("restoring outbox permissions: %v", err)
+	}
+	if got := outbox.PendingCount(); got != 2 {
+		t.Fatalf("recovered outbox holds %d events, want the intact 2", got)
+	}
+}
+
+// TestOpenRungTelemetryOutboxArrayMigrationValidatesEachElement: the legacy
+// array is folded in element by element — a row without identity fields (which
+// would permanently poison the head batch) and a row Go cannot decode are
+// dropped without discarding the decodable remainder.
+func TestOpenRungTelemetryOutboxArrayMigrationValidatesEachElement(t *testing.T) {
+	directory := t.TempDir()
+	legacy := `[` +
+		testTelemetryEventJSON(t, "keep-1", "connection_failed", "c", "s", nil) + `,` +
+		`{"schema_version":1,"event_id":"no-identity","event":"connection_failed","occurred_at":"2026-07-01T08:00:00Z"},` +
+		`{"schema_version":1,"event_id":"bad-time","event":"connection_failed","occurred_at":"yesterday","client_id":"c","session_id":"s"},` +
+		testTelemetryEventJSON(t, "keep-2", "connection_ended", "c", "s", nil) +
+		`]`
+	if err := os.WriteFile(filepath.Join(directory, "outbox.json"), []byte(legacy), 0o600); err != nil {
+		t.Fatalf("writing legacy array outbox: %v", err)
+	}
+
+	broker := newTelemetryTestBroker(t)
+	outbox := NewOpenRungTelemetryOutboxForIOS(directory, "outbox.json", "1.2.3", "26.0")
+	if outbox == nil {
+		t.Fatal("outbox constructor rejected valid inputs")
+	}
+	t.Cleanup(outbox.Close)
+	if got := outbox.PendingCount(); got != 2 {
+		t.Fatalf("validated migration loaded %d events, want 2", got)
+	}
+	drainTelemetryOutbox(t, outbox, broker.server.URL)
+	if got := broker.receivedEventIDs(); len(got) != 2 || got[0] != "keep-1" || got[1] != "keep-2" {
+		t.Fatalf("decodable rows lost across the migration: %v", got)
+	}
+}
+
+// TestOpenRungTelemetryOutboxPersistsTheLoadTimeScrub: scrubbing on load must
+// reach the disk even when every line decodes — otherwise the removed
+// destination_* keys and application_connection attributes survive on the
+// device indefinitely.
+func TestOpenRungTelemetryOutboxPersistsTheLoadTimeScrub(t *testing.T) {
+	directory := t.TempDir()
+	preUpgrade := strings.Join([]string{
+		`{"schema_version":1,"event_id":"s-1","event":"connection_failed","occurred_at":"2026-08-01T10:00:00Z","client_id":"c","session_id":"s","destination_ip":"203.0.113.9","destination_port":443,"protocol":"tcp"}`,
+		`{"schema_version":1,"event_id":"s-2","event":"application_connection","occurred_at":"2026-08-01T10:01:00Z","client_id":"c","session_id":"s","application_package":"com.example.app","attributes":{"stale":"metadata"}}`,
+		``,
+	}, "\n")
+	path := filepath.Join(directory, testOutboxFileName)
+	if err := os.WriteFile(path, []byte(preUpgrade), 0o600); err != nil {
+		t.Fatalf("writing pre-upgrade outbox: %v", err)
+	}
+
+	outbox := testTelemetryOutbox(t, directory)
+	if got := outbox.PendingCount(); got != 2 {
+		t.Fatalf("backlog loaded %d events, want 2", got)
+	}
+	scrubbed, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading scrubbed outbox: %v", err)
+	}
+	for _, leaked := range []string{"destination_ip", "destination_port", "protocol", "stale"} {
+		if strings.Contains(string(scrubbed), leaked) {
+			t.Fatalf("scrubbed data still on disk after load: %q", leaked)
+		}
+	}
+}
+
+// TestOpenRungTelemetryOutboxRepairsAnUnterminatedTailLine: a decodable tail
+// line missing its newline must be re-terminated at load, or the next append
+// fuses two events into one undecodable line and loses both.
+func TestOpenRungTelemetryOutboxRepairsAnUnterminatedTailLine(t *testing.T) {
+	directory := t.TempDir()
+	torn := testTelemetryEventJSON(t, "t-1", "connection_failed", "c", "s", nil) + "\n" +
+		testTelemetryEventJSON(t, "t-2", "connection_ended", "c", "s", nil) // no trailing newline
+	path := filepath.Join(directory, testOutboxFileName)
+	if err := os.WriteFile(path, []byte(torn), 0o600); err != nil {
+		t.Fatalf("writing torn outbox: %v", err)
+	}
+
+	outbox := testTelemetryOutbox(t, directory)
+	if got := outbox.PendingCount(); got != 2 {
+		t.Fatalf("torn-tail outbox loaded %d events, want 2", got)
+	}
+	repaired, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading repaired outbox: %v", err)
+	}
+	if len(repaired) == 0 || repaired[len(repaired)-1] != '\n' {
+		t.Fatal("the unterminated tail line was not re-terminated at load")
+	}
+	outbox.Enqueue(testTelemetryEventJSON(t, "t-3", "x", "c", "s", nil))
+	outbox.Close()
+
+	reopened := testTelemetryOutbox(t, directory)
+	if got := reopened.PendingCount(); got != 3 {
+		t.Fatalf("append after repair fused events: %d survive, want 3", got)
+	}
+}
+
+// TestOpenRungTelemetryOutboxSecondHandleCannotClobberTheOwner: one process
+// owns the outbox file at a time. A second live handle degrades to the
+// unavailable path instead of caching its own snapshot and renaming it over
+// the owner's queue, and takes over cleanly once the owner closes.
+func TestOpenRungTelemetryOutboxSecondHandleCannotClobberTheOwner(t *testing.T) {
+	directory := t.TempDir()
+	owner := testTelemetryOutbox(t, directory)
+	owner.Enqueue(testTelemetryEventJSON(t, "o-1", "connection_failed", "c", "s", nil))
+
+	second := testTelemetryOutbox(t, directory)
+	if second.Enqueue(testTelemetryEventJSON(t, "x-1", "x", "c", "s", nil)) {
+		t.Fatal("a second handle must not write while the owner holds the lock")
+	}
+	if got := second.EnqueueBatchJSON(`[` + testTelemetryEventJSON(t, "x-2", "x", "c", "s", nil) + `]`); got != -1 {
+		t.Fatalf("a locked-out import reported %d, want -1 (keep the copy)", got)
+	}
+	if got := second.PendingCount(); got != 0 {
+		t.Fatalf("a locked-out handle reported %d pending, want 0", got)
+	}
+	if result := second.BeginUpload().FlushNextBatch("http://127.0.0.1:1"); result.Succeeded() {
+		t.Fatal("a locked-out flush must fail, not report a drained queue")
+	}
+
+	owner.Close()
+	if got := second.PendingCount(); got != 1 {
+		t.Fatalf("after the owner closed, the second handle sees %d events, want 1", got)
+	}
+}
