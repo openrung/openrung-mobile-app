@@ -18,7 +18,6 @@ public protocol TelemetryOutboxHandling: Sendable {
     /// Back-patches attributes onto the queued events of one session (the geo patch).
     func applySessionAttributes(sessionId: String, attributesJson: String)
 
-    func pendingCount() -> Int
 
     /// Prepares one single-use, cancelable upload attempt. The manager creates one per request
     /// and closes it from its cancellation handler; the begin/close gate lives inside the bound
@@ -53,7 +52,6 @@ public struct NativeTelemetryFlushOutcome: Equatable, Sendable {
     public let errorText: String
     public let httpStatus: Int32
     public let retryAfterMilliseconds: Int64
-    public let sentCount: Int
     public let pendingCount: Int
 
     public init(
@@ -62,7 +60,6 @@ public struct NativeTelemetryFlushOutcome: Equatable, Sendable {
         errorText: String = "",
         httpStatus: Int32 = 0,
         retryAfterMilliseconds: Int64 = 0,
-        sentCount: Int = 0,
         pendingCount: Int = 0
     ) {
         self.succeeded = succeeded
@@ -70,7 +67,6 @@ public struct NativeTelemetryFlushOutcome: Equatable, Sendable {
         self.errorText = errorText
         self.httpStatus = httpStatus
         self.retryAfterMilliseconds = retryAfterMilliseconds
-        self.sentCount = sentCount
         self.pendingCount = pendingCount
     }
 
@@ -116,10 +112,6 @@ public final class NativeTelemetryOutbox: TelemetryOutboxHandling, @unchecked Se
         _ = outbox?.applySessionAttributes(sessionId, attributesJSON: attributesJson)
     }
 
-    public func pendingCount() -> Int {
-        Int(outbox?.pendingCount() ?? 0)
-    }
-
     public func beginUpload() -> any TelemetryUploadHandling {
         NativeTelemetryUpload(upload: outbox?.beginUpload())
     }
@@ -154,7 +146,6 @@ private final class NativeTelemetryUpload: TelemetryUploadHandling, @unchecked S
             errorText: result.errorText(),
             httpStatus: result.httpStatus(),
             retryAfterMilliseconds: result.retryAfterMillis(),
-            sentCount: Int(result.sentCount()),
             pendingCount: Int(result.pendingCount())
         )
     }

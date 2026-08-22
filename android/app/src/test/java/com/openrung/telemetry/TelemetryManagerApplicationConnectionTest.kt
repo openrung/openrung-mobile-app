@@ -415,8 +415,6 @@ internal class FakeTelemetryOutbox(private val json: Json) : TelemetryOutboxHand
         sessionAttributePatches.add(sessionId to attributesJson)
     }
 
-    override fun pendingCount(): Int = events.size
-
     override fun beginUpload(): TelemetryUploadHandle = object : TelemetryUploadHandle {
         override fun flushNextBatch(brokerUrl: String): NativeTelemetryFlushResult =
             NativeTelemetryFlushResult(succeeded = true)

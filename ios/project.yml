@@ -235,7 +235,6 @@ targets:
       - path: Shared/SingBoxConfiguration.swift
       - path: Shared/SplitTunnelConfig.swift
       - path: Shared/TelemetryClient.swift
-      - path: Shared/TelemetryEvent.swift
       - path: Shared/WssFallbackPolicy.swift
       - path: Shared/WssTicketClient.swift
     settings:

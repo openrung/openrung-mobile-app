@@ -28,7 +28,6 @@ class NativeTelemetryOutboxTest {
         // -1 tells the legacy import to keep its only copy for a later retry.
         assertEquals(-1, outbox.enqueueBatch("[]"))
         outbox.applySessionAttributes("session", """{"country":"JP"}""")
-        assertEquals(0, outbox.pendingCount())
 
         val upload = outbox.beginUpload()
         val flush = upload.flushNextBatch("https://broker.example")

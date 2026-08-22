@@ -29,6 +29,3 @@ data class TelemetryEvent(
     val attributes: Map<String, String> = emptyMap(),
     val measurements: Map<String, Long> = emptyMap(),
 )
-
-@Serializable
-data class TelemetryBatch(val events: List<TelemetryEvent>)

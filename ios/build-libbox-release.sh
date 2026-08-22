@@ -411,8 +411,7 @@ for slice in ios-arm64 ios-arm64_x86_64-simulator; do
     ')flushNextBatch:' \
     ')sendHeartbeat:' \
     ')beginUpload;' \
-    ')pendingCount;' \
-    ')sentCount;'; do
+    ')pendingCount;'; do
     if ! grep -Fq "$telemetry_symbol" "$header"; then
       echo "error: Apple build is missing the OpenRung telemetry outbox API in $slice: $telemetry_symbol" >&2
       exit 1

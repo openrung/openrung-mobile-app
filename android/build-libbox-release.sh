@@ -433,8 +433,7 @@ for generated_symbol in \
   'sendHeartbeat(java.lang.String, java.lang.String);' \
   'beginUpload();' \
   'close();' \
-  'pendingCount();' \
-  'sentCount();'; do
+  'pendingCount();'; do
   if ! grep -Fq "$generated_symbol" <<< "$javap_output"; then
     echo "error: libbox AAR is missing generated broker symbol: $generated_symbol" >&2
     exit 1

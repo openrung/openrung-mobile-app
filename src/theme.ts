@@ -22,7 +22,6 @@ export const palette = {
   /** Relay line text. */
   relayLine: '#A5F2B5',
   /** Connect button container when connected or working. */
-  connectedButton: '#B6F579',
   /** Text on green buttons. */
   onGreenText: '#061008',
   /** Console error text. */
@@ -34,9 +33,7 @@ export const palette = {
   /** FAB container. */
   fabBackground: '#0D1C12',
   /** FAB content (icon). */
-  fabContent: '#65F58A',
   /** Map marker stroke / count-label text halo. */
-  markerStroke: '#04140A',
 } as const;
 
 // Individual named exports for convenience (same values as `palette`).
@@ -47,14 +44,11 @@ export const terminalGreen = palette.terminalGreen;
 export const bodyText = palette.bodyText;
 export const dimText = palette.dimText;
 export const relayLine = palette.relayLine;
-export const connectedButton = palette.connectedButton;
 export const onGreenText = palette.onGreenText;
 export const consoleError = palette.consoleError;
 export const chipFailedText = palette.chipFailedText;
 export const chipBackground = palette.chipBackground;
 export const fabBackground = palette.fabBackground;
-export const fabContent = palette.fabContent;
-export const markerStroke = palette.markerStroke;
 
 /** Every text element is monospace, exactly like the production app. */
 export const monoFont = Platform.select({ ios: 'Menlo', default: 'monospace' });

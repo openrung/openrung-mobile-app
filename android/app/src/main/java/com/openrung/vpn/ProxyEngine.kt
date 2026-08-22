@@ -637,12 +637,6 @@ private object EmptyStringIterator : StringIterator {
     override fun next(): String = ""
 }
 
-private object EmptyNetworkInterfaceIterator : NetworkInterfaceIterator {
-    override fun hasNext(): Boolean = false
-    override fun next(): BoxNetworkInterface =
-        throw NoSuchElementException()
-}
-
 private class ListStringIterator(private val values: List<String>) : StringIterator {
     private val iterator = values.iterator()
 
