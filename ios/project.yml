@@ -40,7 +40,6 @@ settings:
       - "-DFOLLY_HAVE_CLOCK_GETTIME=1"
   configs:
     Debug:
-      ENABLE_BITCODE: "NO"
       GCC_DYNAMIC_NO_PIC: "NO"
       GCC_OPTIMIZATION_LEVEL: "0"
       MTL_ENABLE_DEBUG_INFO: "YES"
@@ -55,8 +54,25 @@ targets:
     sources:
       # App sources incl. the OpenRungVpn native module, LaunchScreen, assets, privacy manifest.
       - path: OpenRung
-      # Shared layer is compiled into BOTH targets (the module reads SharedConnectionState etc.).
+      # Shared layer is compiled into both targets (the module reads SharedConnectionState etc.),
+      # EXCEPT the tunnel-only broker/relay/config stack below, which nothing in OpenRung/
+      # references. Excluding it keeps those files (and their source closure) out of the app
+      # binary; the PacketTunnel and OpenRungTests targets still compile all of them.
       - path: Shared
+        excludes:
+          - BrokerClient.swift
+          - BrokerClientError.swift
+          - InternetProbe.swift
+          - LibboxBrokerTransport+Tunnel.swift
+          - PunchFallbackPolicy.swift
+          - RelayDescriptor.swift
+          - RelayRanker.swift
+          - RelayReachability.swift
+          - RelayReachabilityError.swift
+          - RelaySelector.swift
+          - SingBoxConfiguration.swift
+          - WssFallbackPolicy.swift
+          - WssTicketClient.swift
     dependencies:
       # Embeds the PacketTunnel appex into PlugIns/.
       - target: PacketTunnel

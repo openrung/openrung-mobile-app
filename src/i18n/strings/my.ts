@@ -3,23 +3,17 @@ import type { Strings } from './en';
 /** Ported from `res/values-my/strings.xml`; missing keys fall back to English. */
 export const my: Partial<Strings> = {
   appName: 'OpenRung',
-  mainTitle: 'openrung://mobile-client',
-  statusFormat: (status: string) => `အခြေအနေ = ${status}`,
-  relayFormat: (relay: string) => `relay = ${relay}`,
-  relayLocationUnknown: 'မသိသော တည်နေရာ',
   actionConnect: 'ချိတ်ဆက်မည်',
   actionDisconnect: 'ချိတ်ဆက်မှု ဖြုတ်မည်',
   readyLog:
     'အသင့်ဖြစ်ပါပြီ။ ရီလေးမှတစ်ဆင့် ချိတ်ဆက်ရန် ချိတ်ဆက်မည် ကိုနှိပ်ပါ။',
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
-  settingsContentDescription: 'ဆက်တင်များ ဖွင့်ရန်',
   settingsTitle: 'ဆက်တင်များ',
   backContentDescription: 'နောက်သို့',
   languageSettingTitle: 'ဘာသာစကား',
   languageSettingSubtitle:
     'စနစ်ဘာသာစကားကို သုံးပါ၊ သို့မဟုတ် OpenRung အတွက် ဘာသာစကားရွေးပါ။',
-  versionSettingTitle: 'ဗားရှင်း',
   languageSystem: 'စနစ် မူလတန်ဖိုး',
   languageEnglish: 'English',
   languageSimplifiedChinese: '简体中文',
@@ -82,7 +76,6 @@ export const my: Partial<Strings> = {
 
   // Recent locations.
   recentsLabel: 'မကြာသေးမီက',
-  recentsEmpty: 'မကြာသေးမီက တည်နေရာများ မရှိသေးပါ။',
 
   // Map / list view toggle.
   viewToggleMap: 'မြေပုံ',

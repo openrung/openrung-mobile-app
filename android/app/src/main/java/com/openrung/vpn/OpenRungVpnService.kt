@@ -18,13 +18,11 @@ import com.openrung.R
 import com.openrung.config.AppConfig
 import com.openrung.model.CountryGeo
 import com.openrung.model.RecentNode
-import com.openrung.model.RelayConstants
 import com.openrung.model.RelayDescriptor
 import com.openrung.model.RelaySelector
 import com.openrung.model.WssFrontDescriptor
 import com.openrung.net.BrokerClient
 import com.openrung.net.BrokerNativeFailure
-import com.openrung.net.DnsPathUnverifiedException
 import com.openrung.net.GeoIpClient
 import com.openrung.net.NatPunchClient
 import com.openrung.net.NatPunchResult
@@ -256,7 +254,6 @@ class OpenRungVpnService : VpnService() {
         val telemetrySession = TelemetryManager.beginSession(applicationContext, AppConfig.TELEMETRY_BROKER_URL)
         var failureStage = "preparing"
         TelemetryManager.record("connection_attempted")
-        OpenRungStatusStore.setBrokerUrl(brokerUrl)
         OpenRungStatusStore.clearError()
         OpenRungStatusStore.setStatus(ConnectionStatus.PREPARING, relayLabel = null, lastError = null)
         startForeground(NOTIFICATION_ID, notification(getString(R.string.vpn_notification_preparing)))

@@ -152,7 +152,6 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
 
     private func connect(completionHandler: ((Error?) -> Void)?, isRecovery: Bool) async {
         var startCompletionDelivered = false
-        TunnelDiagnostics.clear()
         let brokerURL = resolveBrokerURL()
         let targetCountry = resolveTargetCountry()
         let targetRelayID = resolveTargetRelayID()
@@ -397,7 +396,6 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 return
             }
             SharedConnectionState.fail(message)
-            TunnelDiagnostics.recordError(message)
             logger.error("Failed to start tunnel: \(message, privacy: .public)")
             if isRecovery {
                 lifecycleQueue.sync { reasserting = false }
@@ -1703,7 +1701,6 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         }
         guard shouldPublishTerminalFailure else { return }
         SharedConnectionState.fail(message)
-        TunnelDiagnostics.recordError(message)
         cancelTunnelWithError(error)
     }
 

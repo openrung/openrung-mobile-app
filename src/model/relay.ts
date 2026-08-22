@@ -28,9 +28,6 @@ export interface RelayDescriptor {
   node_class?: string;
   // Legacy broker wire name; this reports the software version for every relay class.
   volunteer_version: string;
-  transport?: 'direct' | 'tunnel';
-  punch_capable?: boolean;
-  punch_endpoint?: string;
   registered_at: string; // ISO instant
   last_heartbeat_at: string;
   expires_at: string;

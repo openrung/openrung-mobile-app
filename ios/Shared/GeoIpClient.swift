@@ -8,8 +8,6 @@ public struct ClientGeoInfo: Sendable, Equatable {
     public let asn: String
     public let isp: String
     public let organization: String
-    public let latitude: Double
-    public let longitude: Double
 
     public init(
         ip: String,
@@ -18,9 +16,7 @@ public struct ClientGeoInfo: Sendable, Equatable {
         city: String,
         asn: String,
         isp: String,
-        organization: String,
-        latitude: Double = 0.0,
-        longitude: Double = 0.0
+        organization: String
     ) {
         self.ip = ip
         self.country = country
@@ -29,8 +25,6 @@ public struct ClientGeoInfo: Sendable, Equatable {
         self.asn = asn
         self.isp = isp
         self.organization = organization
-        self.latitude = latitude
-        self.longitude = longitude
     }
 
     public func telemetryAttributes() -> [String: String] {
@@ -44,11 +38,6 @@ public struct ClientGeoInfo: Sendable, Equatable {
             "organization": organization,
         ].filter { $0.value.isEmpty == false }
     }
-
-    /// Human-readable location such as "Austin, United States", or "" when unknown.
-    public func locationLabel() -> String {
-        [city, country].filter { $0.isEmpty == false }.joined(separator: ", ")
-    }
 }
 
 public enum GeoIpError: Error, Equatable {
@@ -56,7 +45,7 @@ public enum GeoIpError: Error, Equatable {
     case lookupFailed
 }
 
-/// Looks up geo information for the caller's own IP or a specific relay IP via ipwho.is.
+/// Looks up geo information for the caller's own public IP via ipwho.is.
 /// Port of Android `GeoIpClient`.
 public struct GeoIpClient: Sendable {
     public static let defaultEndpoint = URL(string: "https://ipwho.is/")!
@@ -69,16 +58,9 @@ public struct GeoIpClient: Sendable {
         self.session = session
     }
 
-    /// Looks up geo info for `ip`, or the caller's own public IP when `ip` is nil/blank.
-    public func lookup(ip: String? = nil) async throws -> ClientGeoInfo {
-        let target: URL
-        if let ip, ip.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
-            target = endpoint.appendingPathComponent(ip.trimmingCharacters(in: .whitespacesAndNewlines))
-        } else {
-            target = endpoint
-        }
-
-        var request = URLRequest(url: target)
+    /// Looks up geo info for the caller's own public IP.
+    public func lookup() async throws -> ClientGeoInfo {
+        var request = URLRequest(url: endpoint)
         request.httpMethod = "GET"
         request.timeoutInterval = 4
         request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
@@ -103,9 +85,7 @@ public struct GeoIpClient: Sendable {
             city: response.city,
             asn: response.asn > 0 ? "AS\(response.asn)" : "",
             isp: response.isp,
-            organization: response.org,
-            latitude: response.latitude,
-            longitude: response.longitude
+            organization: response.org
         )
     }
 }
@@ -116,14 +96,12 @@ private struct GeoIpResponse: Decodable {
     let country: String
     let countryCode: String
     let city: String
-    let latitude: Double
-    let longitude: Double
     let asn: Int
     let org: String
     let isp: String
 
     enum CodingKeys: String, CodingKey {
-        case ip, success, country, city, latitude, longitude, connection
+        case ip, success, country, city, connection
         case countryCode = "country_code"
     }
 
@@ -138,8 +116,6 @@ private struct GeoIpResponse: Decodable {
         country = (try? container.decode(String.self, forKey: .country)) ?? ""
         countryCode = (try? container.decode(String.self, forKey: .countryCode)) ?? ""
         city = (try? container.decode(String.self, forKey: .city)) ?? ""
-        latitude = (try? container.decode(Double.self, forKey: .latitude)) ?? 0.0
-        longitude = (try? container.decode(Double.self, forKey: .longitude)) ?? 0.0
 
         if let connection = try? container.nestedContainer(keyedBy: ConnectionKeys.self, forKey: .connection) {
             asn = (try? connection.decode(Int.self, forKey: .asn)) ?? 0

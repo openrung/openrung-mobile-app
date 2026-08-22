@@ -19,7 +19,6 @@ data class NatPunchResult(
     val bridgeHost: String,
     val bridgePort: Int,
     val peerIp: String,
-    val sessionId: String,
     val natClass: String,
     val rttMillis: Long,
 )
@@ -109,7 +108,6 @@ private class LibboxNatPunchSession(
             bridgeHost = native.bridgeHost(),
             bridgePort = native.bridgePort(),
             peerIp = native.peerIP(),
-            sessionId = native.sessionID(),
             natClass = native.natClass(),
             rttMillis = native.rttMillis(),
         ).also {

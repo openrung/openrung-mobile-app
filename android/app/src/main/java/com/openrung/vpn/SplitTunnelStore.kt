@@ -106,9 +106,9 @@ data class SplitTunnelConfig(
 
 /**
  * Native persistence for the raw split-tunnel config JSON (contract §3). The raw string is stored
- * verbatim so [writeRaw] can detect no-op pushes by string equality — RN serializes with a stable
- * key order, making equal configs byte-equal. Fail-open (CONTRACT §1): an absent or invalid config
- * parses to null and the service degrades to full-tunnel behavior.
+ * verbatim so [writeAndReportEffectiveChange] can detect no-op pushes by string equality — RN
+ * serializes with a stable key order, making equal configs byte-equal. Fail-open (CONTRACT §1): an
+ * absent or invalid config parses to null and the service degrades to full-tunnel behavior.
  */
 object SplitTunnelStore {
     private const val PREFS_NAME = "openrung_split_tunnel"
@@ -123,14 +123,6 @@ object SplitTunnelStore {
 
     fun read(context: Context): SplitTunnelConfig? =
         parse(prefs(context).getString(KEY_CONFIG_JSON, null))
-
-    /** Persists the raw config JSON; returns whether it differs from the stored value. */
-    fun writeRaw(context: Context, configJson: String): Boolean {
-        val prefs = prefs(context)
-        if (prefs.getString(KEY_CONFIG_JSON, null) == configJson) return false
-        prefs.edit().putString(KEY_CONFIG_JSON, configJson).apply()
-        return true
-    }
 
     /**
      * Persists [configJson] and reports whether the EFFECTIVE configuration changed — i.e. whether

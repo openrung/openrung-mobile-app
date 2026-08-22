@@ -14,8 +14,6 @@ import java.time.format.DateTimeFormatter
 
 object OpenRungStatusStore {
     private const val KEY_STATUS = "status"
-    private const val KEY_BROKER_URL = "broker_url"
-    private const val KEY_RELAY_LABEL = "relay_label"
     private const val KEY_LAST_ERROR = "last_error"
     private const val KEY_LOG_LINES = "log_lines"
     private const val KEY_RECENT_NODES = "recent_nodes"
@@ -23,7 +21,7 @@ object OpenRungStatusStore {
 
     private val timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
     private val json = Json { ignoreUnknownKeys = true }
-    private val state = MutableStateFlow(OpenRungUiState(brokerUrl = AppConfig.DEFAULT_BROKER_URL))
+    private val state = MutableStateFlow(OpenRungUiState())
     private var appContext: Context? = null
 
     val uiState: StateFlow<OpenRungUiState> = state.asStateFlow()
@@ -37,7 +35,6 @@ object OpenRungStatusStore {
         }.getOrDefault(ConnectionStatus.DISCONNECTED)
         state.value = OpenRungUiState(
             status = if (restoredStatus == ConnectionStatus.CONNECTED) ConnectionStatus.DISCONNECTED else restoredStatus,
-            brokerUrl = prefs.getString(KEY_BROKER_URL, AppConfig.DEFAULT_BROKER_URL) ?: AppConfig.DEFAULT_BROKER_URL,
             // A cold start always reconnects fresh, so never restore stale relay details.
             relayLabel = null,
             relayName = null,
@@ -46,11 +43,6 @@ object OpenRungStatusStore {
             logLines = prefs.getString(KEY_LOG_LINES, null)?.lines()?.filter { it.isNotBlank() }.orEmpty(),
             recentRegions = loadRecents(prefs.getString(KEY_RECENT_NODES, null)),
         )
-    }
-
-    fun setBrokerUrl(brokerUrl: String) {
-        state.update { it.copy(brokerUrl = brokerUrl) }
-        persist()
     }
 
     /** Updates only the relay label (e.g. resolved geo location) without emitting a status log line. */
@@ -144,8 +136,6 @@ object OpenRungStatusStore {
         context.getSharedPreferences(AppConfig.STATUS_PREFS, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_STATUS, current.status.name)
-            .putString(KEY_BROKER_URL, current.brokerUrl)
-            .putString(KEY_RELAY_LABEL, current.relayLabel)
             .putString(KEY_LAST_ERROR, current.lastError)
             .putString(KEY_LOG_LINES, current.logLines.joinToString("\n"))
             .putString(KEY_RECENT_NODES, json.encodeToString(ListSerializer(RecentNode.serializer()), current.recentRegions))

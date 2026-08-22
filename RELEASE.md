@@ -33,15 +33,16 @@ Bumping the core is a `go.mod`/`go.sum` edit committed like a
 
 Both native Libbox artifacts consume the WSS/CDN transport implementation only
 as the tagged Go module `github.com/openrung/openrung/wsscore`, currently pinned
-to **v0.2.0**
+to **v0.6.0**
 in `android/punchbridge/go.mod` with its checksum in `go.sum`. Do not copy its
 WebSocket/TLS/yamux transport into this repository. A wsscore bump, like a
 punchcore bump, MUST update the exact module pin and checksum and rebuild both
 the combined Android AAR and unified Apple XCFramework in the same change.
 
 Both artifacts also consume the broker control-plane implementation as the
-tagged Go module `github.com/openrung/openrung/brokerapi`, pinned to **v0.1.0**
-in the same `go.mod` with its checksum in `go.sum`. Its thin gomobile binding is
+tagged Go module `github.com/openrung/openrung/brokerapi`, currently pinned to
+**v0.5.0** in the same `go.mod` with its checksum in `go.sum`. Its thin
+gomobile binding is
 compiled into the existing libbox runtime; never create a second AAR or
 XCFramework for it. Production constructors pass a nil HTTP client so eligible
 direct broker requests attempt opportunistic ECH with verified ordinary-TLS
@@ -63,7 +64,7 @@ A punch wire/protocol change flows like this:
    version: if `proxy.golang.org` was asked early, it negative-caches the
    miss — wait a few minutes for the cache TTL to expire and re-fetch.
 3. Dependabot ([`.github/dependabot.yml`](.github/dependabot.yml), scoped to
-   the three shared OpenRung modules only) opens the bump PR here — the require in
+   the four shared OpenRung modules only) opens the bump PR here — the require in
    `android/punchbridge/go.mod` plus `go.sum`. Manual fallback:
    `go get github.com/openrung/openrung/punchcore@vX.Y.Z` inside
    `android/punchbridge`. Either way the bump automatically busts the AAR CI

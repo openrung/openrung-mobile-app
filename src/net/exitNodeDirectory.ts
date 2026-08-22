@@ -17,7 +17,7 @@ import type { RelayDescriptor, RelayListResponse } from '../model/relay';
  *
  * The relay fetch is injected so this stays free of network dependencies and is unit-testable.
  */
-export interface ExitNodeDirectoryOptions {
+interface ExitNodeDirectoryOptions {
   fetchRelays: () => Promise<RelayListResponse>;
 }
 

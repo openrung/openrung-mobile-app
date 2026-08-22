@@ -3,22 +3,16 @@ import type { Strings } from './en';
 /** Ported from `res/values-ru/strings.xml`; missing keys fall back to English. */
 export const ru: Partial<Strings> = {
   appName: 'OpenRung',
-  mainTitle: 'openrung://mobile-client',
-  statusFormat: (status: string) => `статус = ${status}`,
-  relayFormat: (relay: string) => `ретранслятор = ${relay}`,
-  relayLocationUnknown: 'Неизвестное местоположение',
   actionConnect: 'ПОДКЛЮЧИТЬ',
   actionDisconnect: 'ОТКЛЮЧИТЬ',
   readyLog: 'готово. нажмите «подключить», чтобы пройти через ретранслятор.',
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
-  settingsContentDescription: 'Открыть настройки',
   settingsTitle: 'Настройки',
   backContentDescription: 'Назад',
   languageSettingTitle: 'Язык',
   languageSettingSubtitle:
     'Используйте системный язык или выберите язык для OpenRung.',
-  versionSettingTitle: 'Версия',
   languageSystem: 'Как в системе',
   languageEnglish: 'English',
   languageSimplifiedChinese: '简体中文',
@@ -80,7 +74,6 @@ export const ru: Partial<Strings> = {
 
   // Recents, view toggle & list view.
   recentsLabel: 'Недавние',
-  recentsEmpty: 'Пока нет недавних локаций.',
   viewToggleMap: 'Карта',
   viewToggleList: 'Список',
   listContentDescription: 'Список доступных выходных узлов',

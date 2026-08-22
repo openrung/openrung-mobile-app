@@ -7,7 +7,7 @@
 > GPL-3.0-or-later (see the repo `LICENSE` and `THIRD_PARTY_NOTICES.md`). The build below pins the **exact sing-box
 > revision** recorded in [`../../SINGBOX_VERSION`](../../SINGBOX_VERSION). The
 > OpenRung's broker, punch, and WSS wrappers also resolve the exact `brokerapi`,
-> `punchcore`, and `wsscore` tags pinned in
+> `connectcore`, `punchcore`, and `wsscore` tags pinned in
 > [`../../android/punchbridge/go.mod`](../../android/punchbridge/go.mod), so the
 > GPL §6 corresponding source is reproducible — keep those pins in lockstep
 > with the shipped binary (see [`../../RELEASE.md`](../../RELEASE.md)).
@@ -35,7 +35,8 @@ OpenRung broker, punch, and WSS bindings into `experimental/libbox`, trims
 sing-box's
 libbox build tags to OpenRung's feature set (dropping Tailscale, WireGuard, and
 naiveproxy — see [`../../RELEASE.md`](../../RELEASE.md) §2), resolves the tagged
-`brokerapi`, `punchcore`, and `wsscore` modules, and emits one unified
+`brokerapi`, `connectcore`, `punchcore`, and `wsscore` modules, and emits one
+unified
 `Libbox.xcframework`. This is required because a second gomobile framework
 would load a second, incompatible Go runtime. Shared transport implementations
 are never copied into this repository. Swift confines generated broker objects
@@ -52,6 +53,7 @@ For development against unpublished local checkouts, use any of:
 
 ```sh
 BROKERAPI_SRC=/absolute/path/to/brokerapi \
+CONNECTCORE_SRC=/absolute/path/to/connectcore \
 PUNCHCORE_SRC=/absolute/path/to/punchcore \
 WSSCORE_SRC=/absolute/path/to/wsscore \
 ./ios/build-libbox-release.sh

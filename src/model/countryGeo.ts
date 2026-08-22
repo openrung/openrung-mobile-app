@@ -8,7 +8,7 @@
  * Ported verbatim from the production `model/CountryGeo.kt`.
  */
 
-export interface Centroid {
+interface Centroid {
   name: string;
   latitude: number;
   longitude: number;

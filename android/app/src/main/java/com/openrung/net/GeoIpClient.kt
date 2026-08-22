@@ -17,8 +17,6 @@ data class ClientGeoInfo(
     val asn: String,
     val isp: String,
     val organization: String,
-    val latitude: Double = 0.0,
-    val longitude: Double = 0.0,
 ) {
     fun telemetryAttributes(): Map<String, String> = mapOf(
         "client_ip" to ip,
@@ -29,9 +27,6 @@ data class ClientGeoInfo(
         "isp" to isp,
         "organization" to organization,
     ).filterValues { it.isNotBlank() }
-
-    /** Human-readable location such as "Austin, United States", or "" when unknown. */
-    fun locationLabel(): String = listOf(city, country).filter { it.isNotBlank() }.joinToString(", ")
 }
 
 @Serializable
@@ -42,8 +37,6 @@ private data class GeoIpResponse(
     @SerialName("country_code")
     val countryCode: String = "",
     val city: String = "",
-    val latitude: Double = 0.0,
-    val longitude: Double = 0.0,
     val connection: GeoIpConnection = GeoIpConnection(),
 )
 
@@ -90,8 +83,6 @@ class GeoIpClient(
             asn = response.connection.asn.takeIf { it > 0 }?.let { "AS$it" }.orEmpty(),
             isp = response.connection.isp,
             organization = response.connection.org,
-            latitude = response.latitude,
-            longitude = response.longitude,
         )
     }
 

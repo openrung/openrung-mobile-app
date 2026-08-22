@@ -141,7 +141,7 @@ export function getSnapshot(): AppState {
   return state;
 }
 
-export function subscribe(listener: () => void): () => void {
+function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);

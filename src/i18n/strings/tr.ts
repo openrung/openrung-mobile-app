@@ -3,22 +3,16 @@ import type { Strings } from './en';
 /** Ported from `res/values-tr/strings.xml`; missing keys fall back to English. */
 export const tr: Partial<Strings> = {
   appName: 'OpenRung',
-  mainTitle: 'openrung://mobile-client',
-  statusFormat: (status: string) => `durum = ${status}`,
-  relayFormat: (relay: string) => `röle = ${relay}`,
-  relayLocationUnknown: 'Bilinmeyen konum',
   actionConnect: 'BAĞLAN',
   actionDisconnect: 'BAĞLANTIYI KES',
   readyLog: "hazır. röle üzerinden yönlendirmek için bağlan'a dokunun.",
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
-  settingsContentDescription: 'Ayarları aç',
   settingsTitle: 'Ayarlar',
   backContentDescription: 'Geri',
   languageSettingTitle: 'Dil',
   languageSettingSubtitle:
     'Sistem dilini kullanın veya OpenRung için bir dil seçin.',
-  versionSettingTitle: 'Sürüm',
   languageSystem: 'Sistem varsayılanı',
   languageEnglish: 'English',
   languageSimplifiedChinese: '简体中文',
@@ -78,7 +72,6 @@ export const tr: Partial<Strings> = {
 
   // Recent locations.
   recentsLabel: 'Son kullanılanlar',
-  recentsEmpty: 'Henüz son kullanılan konum yok.',
 
   // Map / list view toggle.
   viewToggleMap: 'Harita',

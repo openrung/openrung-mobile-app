@@ -1,5 +1,4 @@
 import Foundation
-import Network
 import NetworkExtension
 import OSLog
 
@@ -31,7 +30,6 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
     private var commandServer: LibboxCommandServer?
     private var statusClient: LibboxCommandClient?
     private var platformInterface: LibboxPacketTunnelPlatformInterface?
-    private var activeRelay: RelayDescriptor?
     private let stopSignal = EngineStopSignal()
 
     /// Status push interval, a Go time.Duration in nanoseconds. The counters it carries are
@@ -59,11 +57,8 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
         configuration: SingBoxConfiguration,
         tunnelProvider: NEPacketTunnelProvider
     ) async throws {
-        activeRelay = relay
-
         let configurationJSON = try configuration.encodedJSONString()
         let directories = try EngineDirectories.make()
-        TunnelDiagnostics.recordEvent("Generated sing-box config and engine directories")
         logger.info("Generated sing-box config and engine directories")
 
         let setupOptions = LibboxSetupOptions()
@@ -93,7 +88,6 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
         setupOptions.commandServerListenPort = try availableCommandServerPort()
         setupOptions.commandServerSecret = Self.makeCommandServerSecret()
 
-        TunnelDiagnostics.recordEvent("Setting up libbox")
         logger.info("Setting up libbox")
         var setupError: NSError?
         LibboxSetup(setupOptions, &setupError)
@@ -113,10 +107,8 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
         }
 
         do {
-            TunnelDiagnostics.recordEvent("Starting libbox command server")
             logger.info("Starting libbox command server")
             try commandServer.start()
-            TunnelDiagnostics.recordEvent("Starting libbox service")
             logger.info("Starting libbox service")
             try commandServer.startOrReloadService(configurationJSON, options: LibboxOverrideOptions())
         } catch {
@@ -161,7 +153,6 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
         platformInterface?.reset()
         commandServer = nil
         platformInterface = nil
-        activeRelay = nil
     }
 
     /// The status stream pushes counters only every `statusIntervalNs`, so at teardown the
@@ -209,7 +200,6 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
         guard LibboxAvailablePort(19090, &port, &error) else {
             throw PacketTunnelProxyEngineError.engineStartFailed(error?.localizedDescription ?? "Unable to allocate libbox command server port.")
         }
-        TunnelDiagnostics.recordEvent("Using libbox command server port \(port)")
         logger.info("Using libbox command server port \(port, privacy: .public)")
         return port
     }
@@ -261,7 +251,6 @@ private final class TrafficStatusHandler: NSObject, LibboxCommandClientHandlerPr
 #else
 
 final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
-    private var activeRelay: RelayDescriptor?
     private let stopSignal = EngineStopSignal()
 
     static func preflight(configuration: SingBoxConfiguration) throws {
@@ -274,7 +263,6 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
         configuration: SingBoxConfiguration,
         tunnelProvider _: NEPacketTunnelProvider
     ) async throws {
-        activeRelay = relay
         _ = try configuration.encodedJSON()
 
         throw PacketTunnelProxyEngineError.engineNotLinked
@@ -282,7 +270,6 @@ final class EmbeddedProxyEngine: PacketTunnelProxyEngine {
 
     func stop() {
         _ = prepareForExpectedStop()
-        activeRelay = nil
     }
 
     func prepareForExpectedStop() -> Bool { stopSignal.finishExpected() }

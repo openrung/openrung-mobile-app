@@ -3,21 +3,15 @@ import type { Strings } from './en';
 /** Ported from `res/values-zh-rCN/strings.xml`; missing keys fall back to English. */
 export const zhCN: Partial<Strings> = {
   appName: 'OpenRung',
-  mainTitle: 'openrung://mobile-client',
-  statusFormat: (status: string) => `状态 = ${status}`,
-  relayFormat: (relay: string) => `中继 = ${relay}`,
-  relayLocationUnknown: '未知位置',
   actionConnect: '连接',
   actionDisconnect: '断开连接',
   readyLog: '就绪。点按"连接"即可通过中继路由。',
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
-  settingsContentDescription: '打开设置',
   settingsTitle: '设置',
   backContentDescription: '返回',
   languageSettingTitle: '语言',
   languageSettingSubtitle: '使用系统语言，或为 OpenRung 选择语言。',
-  versionSettingTitle: '版本',
   languageSystem: '跟随系统',
   languageEnglish: 'English',
   languageSimplifiedChinese: '简体中文',
@@ -75,7 +69,6 @@ export const zhCN: Partial<Strings> = {
 
   // Recent locations.
   recentsLabel: '最近使用',
-  recentsEmpty: '暂无最近使用的地点。',
 
   // Map / list view toggle.
   viewToggleMap: '地图',

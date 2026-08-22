@@ -374,7 +374,7 @@ export function decodeUpdateEnvelope(raw: string): DecodedUpdateManifest {
 
 // --- fetching ---------------------------------------------------------------------------------
 
-export interface FetchedUpdateManifest {
+interface FetchedUpdateManifest {
   url: string;
   /** The raw envelope body — persisted verbatim so hydration re-verifies the signature. */
   raw: string;
@@ -427,7 +427,7 @@ async function fetchAttempt(url: string): Promise<FetchedUpdateManifest> {
   throw manifestFailure('unsupported candidate URL');
 }
 
-export interface FetchManifestOptions {
+interface FetchManifestOptions {
   /**
    * generatedAtMs of the caller's cached VERIFIED manifest, if any. A verified candidate at
    * least this fresh ends the walk immediately (the steady state: every front serves the same

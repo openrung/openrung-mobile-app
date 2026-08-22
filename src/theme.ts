@@ -21,7 +21,6 @@ export const palette = {
   dimText: '#7DA989',
   /** Relay line text. */
   relayLine: '#A5F2B5',
-  /** Connect button container when connected or working. */
   /** Text on green buttons. */
   onGreenText: '#061008',
   /** Console error text. */
@@ -32,23 +31,7 @@ export const palette = {
   chipBackground: '#07110BCC',
   /** FAB container. */
   fabBackground: '#0D1C12',
-  /** FAB content (icon). */
-  /** Map marker stroke / count-label text halo. */
 } as const;
-
-// Individual named exports for convenience (same values as `palette`).
-export const screen = palette.screen;
-export const panel = palette.panel;
-export const borderDim = palette.borderDim;
-export const terminalGreen = palette.terminalGreen;
-export const bodyText = palette.bodyText;
-export const dimText = palette.dimText;
-export const relayLine = palette.relayLine;
-export const onGreenText = palette.onGreenText;
-export const consoleError = palette.consoleError;
-export const chipFailedText = palette.chipFailedText;
-export const chipBackground = palette.chipBackground;
-export const fabBackground = palette.fabBackground;
 
 /** Every text element is monospace, exactly like the production app. */
 export const monoFont = Platform.select({ ios: 'Menlo', default: 'monospace' });

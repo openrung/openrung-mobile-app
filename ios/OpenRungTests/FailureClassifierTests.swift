@@ -120,7 +120,6 @@ final class FailureClassifierTests: XCTestCase {
         XCTAssertEqual(facts(BrokerClientError.httpStatus(429)), ["http_status": 429])
         XCTAssertEqual(facts(BrokerClientError.httpStatus(503)), ["http_status": 503])
         XCTAssertEqual(facts(BrokerClientError.httpStatus(500)), ["http_status": 500])
-        XCTAssertEqual(facts(BrokerClientError.invalidResponse), [:])
     }
 
     func testEveryNativeBrokerKindPassesThroughWithItsStatus() {

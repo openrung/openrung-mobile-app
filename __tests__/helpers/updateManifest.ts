@@ -65,7 +65,7 @@ export function envelopeFor(
 }
 
 /** The Response surface used by the narrowly allowed GitHub manifest fallback. */
-export interface MockManifestResponse {
+interface MockManifestResponse {
   status: number;
   text(): Promise<string>;
 }

@@ -23,93 +23,18 @@ public enum InternetProbeError: LocalizedError {
     }
 }
 
-/// Verifies internet reachability through the active tunnel by hitting captive-portal
-/// `generate_204` endpoints. Port of Android `InternetProbe`.
-///
-/// This URLSession implementation is suitable for non-provider callers only. Apple deliberately
-/// excludes a PacketTunnelProvider's own URLSession traffic from its TUN; the extension therefore
-/// uses `PacketTunnelInternetProbe`, backed by `createTCPConnectionThroughTunnel`, whenever the
+/// Shared constants for the internet probes. Apple deliberately excludes a
+/// PacketTunnelProvider's own URLSession traffic from its TUN; the extension therefore uses
+/// `PacketTunnelInternetProbe`, backed by `createTCPConnectionThroughTunnel`, whenever the
 /// result is used to classify a Reality/WSS path.
-public struct InternetProbe: Sendable {
+public enum InternetProbe {
     // Through-tunnel endpoints only. Every hostname here MUST also appear in
     // ProbeTargets.ruleDomainSuffixes so the emitted config pins its DNS and routing through
     // the proxy ahead of any country-bypass rule.
     public static let defaultEndpoints = ProbeTargets.tunnelProbeURLs
 
-    private let endpoints: [String]
-    private let session: URLSession
-    private let deadlineMs: UInt64 = 12_000
-    private let retryDelayNs: UInt64 = 500_000_000
-    private let requestTimeout: TimeInterval = 3
-
-    public init(endpoints: [String] = InternetProbe.defaultEndpoints, session: URLSession = .shared) {
-        self.endpoints = endpoints
-        self.session = session
-    }
-
-    public func verify() async throws -> InternetProbeResult {
-        let startedNs = DispatchTime.now().uptimeNanoseconds
-        let deadlineNs = startedNs + deadlineMs * 1_000_000
-        var lastError: Error?
-
-        while DispatchTime.now().uptimeNanoseconds < deadlineNs {
-            for endpoint in endpoints {
-                do {
-                    try await probe(endpoint)
-                    let elapsedMs = Int64((DispatchTime.now().uptimeNanoseconds - startedNs) / 1_000_000)
-                    return InternetProbeResult(endpoint: endpoint, durationMs: elapsedMs)
-                } catch is CancellationError {
-                    throw CancellationError()
-                } catch {
-                    lastError = error
-                }
-            }
-            try await Task.sleep(nanoseconds: retryDelayNs)
-        }
-
-        throw InternetProbeError.unreachable(lastError)
-    }
-
-    /// One no-retry sweep for long-lived tunnel health monitoring. Startup retains the bounded
-    /// retry loop above; health checks need individual outcomes so policy can apply a threshold.
-    public func verifyOnce() async throws -> InternetProbeResult {
-        let startedNs = DispatchTime.now().uptimeNanoseconds
-        var lastError: Error?
-        for endpoint in endpoints {
-            do {
-                try await probe(endpoint)
-                return InternetProbeResult(
-                    endpoint: endpoint,
-                    durationMs: Int64((DispatchTime.now().uptimeNanoseconds - startedNs) / 1_000_000)
-                )
-            } catch is CancellationError {
-                throw CancellationError()
-            } catch {
-                lastError = error
-            }
-        }
-        throw InternetProbeError.unreachable(lastError)
-    }
-
     public static func acceptsHTTPStatus(_ status: Int) -> Bool {
         (200..<300).contains(status)
-    }
-
-    private func probe(_ endpoint: String) async throws {
-        guard let url = URL(string: endpoint) else {
-            throw URLError(.badURL)
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.timeoutInterval = requestTimeout
-        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
-
-        let (_, response) = try await session.data(for: request)
-        let status = (response as? HTTPURLResponse)?.statusCode ?? -1
-        guard InternetProbe.acceptsHTTPStatus(status) else {
-            throw URLError(.badServerResponse)
-        }
     }
 }
 
