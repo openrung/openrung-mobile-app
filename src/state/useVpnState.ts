@@ -20,7 +20,7 @@ export interface VpnActions {
   prepareAndConnect: (country?: string | null, relayId?: string | null) => Promise<void>;
 }
 
-export interface VpnStateHook extends VpnActions {
+interface VpnStateHook extends VpnActions {
   state: AppState;
   /** preparing | connecting | disconnecting */
   isWorking: boolean;

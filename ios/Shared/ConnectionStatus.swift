@@ -1,7 +1,7 @@
 import Foundation
 
 /// Connection lifecycle states. Port of Android `ConnectionStatus`.
-public enum ConnectionStatus: String, Codable, Sendable, CaseIterable {
+public enum ConnectionStatus: String, Codable, Sendable {
     case disconnected
     case preparing
     case connecting
@@ -63,9 +63,6 @@ public struct ConnectionStateSnapshot: Codable, Sendable, Equatable {
         self.logLines = logLines
         self.recentRegions = recentRegions
     }
-
-    public var isWorking: Bool { status.isWorking }
-    public var isConnected: Bool { status.isConnected }
 
     enum CodingKeys: String, CodingKey {
         case status

@@ -13,11 +13,11 @@
 		02421CE533C162FF7D211D9A /* LibboxKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = AB8C9F2F42E47E0E9E9AA47E /* LibboxKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		024B9A8C62881E530EB591B4 /* RelaySelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD9B5CA88D770C6F0A9597FE /* RelaySelector.swift */; };
 		02A118A7025D0906AAA606E1 /* NetworkPathMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C127CAD14278743A1BD298 /* NetworkPathMonitor.swift */; };
-		02E9AD5F4252406BE29B4B5D /* BrokerClientError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 683F07997A392045B7540E47 /* BrokerClientError.swift */; };
 		0483F1444764AB1812DC4A79 /* GeoIpClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 135777353E0B842A0E8E1A49 /* GeoIpClient.swift */; };
 		064EE332A9DA0543E819E36C /* EngineStopSignal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 007F9F5B484B9408D05F255E /* EngineStopSignal.swift */; };
 		069A422F72032F6301328723 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4783169BE46FEE9B0472504 /* AppConfig.swift */; };
 		08F12A1BB6BE2540FEF05AEB /* ContractBrokerFrontsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77C0ADAE13A64A7038DFE0A6 /* ContractBrokerFrontsTests.swift */; };
+		0B175E07B730475C0746D9DA /* libPods-OpenRung.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A44B257CAC6A81F279C2854E /* libPods-OpenRung.a */; };
 		0EDBAE2EAFCBE31BD3D98EC9 /* NativeBrokerTransportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11E1EF79FDA717F2ED5A32F0 /* NativeBrokerTransportTests.swift */; };
 		1001D8102F7EA1A694366DFF /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A9B3E3F0BA7E28C5D05A1731 /* Images.xcassets */; };
 		101812ACF2D87E69B666B516 /* DeviceAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4E77D10C22E8939116D44BD /* DeviceAttributes.swift */; };
@@ -30,7 +30,6 @@
 		21FE1A3D627446ABB0D038FA /* LibboxKit.m in Sources */ = {isa = PBXBuildFile; fileRef = 950A6D203D0D99231E812DF9 /* LibboxKit.m */; };
 		2226FA02DA3CF06280AA3D27 /* CountryGeo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2570C01745DA49558877810 /* CountryGeo.swift */; };
 		2367D4EBC8213B6D57E65A0E /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A07146C137269D283F062DB /* AppDelegate.swift */; };
-		27BE72CA10A4E0EC9A5643FB /* BrokerClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0CE1F672D5FAD1FBB511D5B /* BrokerClient.swift */; };
 		27D1C74BA3413782534C860E /* TelemetryClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4254868EF5882AD951E8D23B /* TelemetryClient.swift */; };
 		2809AA415FE496DE7FF7A72C /* DnsProbeMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D55BA84C5D35B80DFF05F1A /* DnsProbeMessage.swift */; };
 		293B5AB965931E683887D8F4 /* TelemetryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA18FA5754E54F0ADC5189F0 /* TelemetryManager.swift */; };
@@ -48,7 +47,6 @@
 		39331D5AF76FB94FA1EB09CA /* PacketTunnelProxyEngineError.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A0014BD8DAE8D1AB0AA819 /* PacketTunnelProxyEngineError.swift */; };
 		395673F4F22F8D43200B404C /* ConnectionStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 584A04475F28B3CAC39B501E /* ConnectionStatus.swift */; };
 		39DC9ED8F1825AD63630611E /* geosite-ir.srs in Resources */ = {isa = PBXBuildFile; fileRef = 8E7518B2A5F26BA00BA159E1 /* geosite-ir.srs */; };
-		3C4F7852DEFB4756E73631F6 /* libPods-OpenRung.a in Frameworks */ = {isa = PBXBuildFile; fileRef = AC27BC65EB65E57F6C3F2919 /* libPods-OpenRung.a */; };
 		3CCF2F1EFD201AD5A17B3998 /* BrokerClientError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 683F07997A392045B7540E47 /* BrokerClientError.swift */; };
 		3CD18F293222260B71D429B1 /* TelemetryClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F2C000CBB239AC6AD0AD566 /* TelemetryClientTests.swift */; };
 		3CF707854EB1FBBCFC3E354F /* ConnectionStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 584A04475F28B3CAC39B501E /* ConnectionStatus.swift */; };
@@ -70,23 +68,19 @@
 		5F7D90BE5F101E0C8681DF70 /* TelemetrySessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42FBF71585756F18035DA71D /* TelemetrySessionStore.swift */; };
 		60F22B6A9A9C2E8398560EC5 /* PunchNativeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80ADBA548D57C01CAE8FA99B /* PunchNativeClient.swift */; };
 		62AE36E16F5E162B6C7921DF /* SingBoxConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = D156734F7F68151301FEF878 /* SingBoxConfiguration.swift */; };
-		63A9108F5E4004BFF5FEC44C /* InternetProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 005F1F59591EC44366AC6B21 /* InternetProbe.swift */; };
 		63F4601CF297170FC3EA5408 /* NetworkPathMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C127CAD14278743A1BD298 /* NetworkPathMonitor.swift */; };
 		6531CAFFDE106455D238BF18 /* OpenRungBrokerCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 069A5BBA8E1C40AC3EABFD68 /* OpenRungBrokerCoordinatorTests.swift */; };
 		662019FD66D0F3A9572970F8 /* BrokerClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0CE1F672D5FAD1FBB511D5B /* BrokerClient.swift */; };
-		6BE03273C0331255B97BE15A /* SingBoxConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = D156734F7F68151301FEF878 /* SingBoxConfiguration.swift */; };
 		6F79A2D91A14A48D88AB7A99 /* PacketTunnelDnsProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F02C36295E0BF915B4B9736 /* PacketTunnelDnsProbe.swift */; };
 		709A9385BBD22960A6922F77 /* PacketTunnelInternetProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BEE51EC45A891A7FD184DFB /* PacketTunnelInternetProbe.swift */; };
 		73D8BDE378B63443C918F178 /* TelemetrySession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A5299A99DA8ED8C75B1E25B /* TelemetrySession.swift */; };
 		767680B070BBDB21811EA1F0 /* LibboxKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AB8C9F2F42E47E0E9E9AA47E /* LibboxKit.framework */; };
 		794747220E38522FACAC57B2 /* TelemetryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA18FA5754E54F0ADC5189F0 /* TelemetryManager.swift */; };
-		7AD3CF8197D457CDDC3CCBCE /* RelayDescriptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC6AEF8D510DD407C368119F /* RelayDescriptor.swift */; };
 		7B4D3DC05BA1AE1A2F069C94 /* LibboxKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AB8C9F2F42E47E0E9E9AA47E /* LibboxKit.framework */; };
 		7BA2BB158A3143887B1DE5BC /* LibboxBrokerTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 274F2564F2D6019FBBD3B92A /* LibboxBrokerTransport.swift */; };
 		7CB2622B1AF9054F3A3CC5EA /* OpenRungBrokerModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 9AA34278398F5C3F677BC7A6 /* OpenRungBrokerModule.m */; };
 		81C2338B54BA856645F46A5E /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9D3B66E26E617B7B00140A4 /* PacketTunnelProvider.swift */; };
 		837E14040DB7B0414964DCFC /* InternetProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 005F1F59591EC44366AC6B21 /* InternetProbe.swift */; };
-		83EE6EF005FCAA047976FF9D /* TunnelDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B9BA54065E95B7262DA7A95 /* TunnelDiagnostics.swift */; };
 		84468A6D600DC1F02F4A0E08 /* SplitTunnelConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88FBD70740FE33FC9CC6564B /* SplitTunnelConfig.swift */; };
 		89009F889ABE5BCFA7F125B2 /* TelemetrySessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42FBF71585756F18035DA71D /* TelemetrySessionStore.swift */; };
 		8B1D40AA78408CC3BF775618 /* OpenRungBrokerCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B04CC982440EBB0C449CA5A /* OpenRungBrokerCoordinator.swift */; };
@@ -98,29 +92,22 @@
 		952EFF368D06083B89F5EE8D /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4783169BE46FEE9B0472504 /* AppConfig.swift */; };
 		95BF75EED69904C3B224E0BF /* NativeBrokerTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66C3AC37AF7128A85A7F7CC7 /* NativeBrokerTransport.swift */; };
 		9604E15625FCE8C234279160 /* InternetProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 005F1F59591EC44366AC6B21 /* InternetProbe.swift */; };
-		96BB7B46EF5D5F9477362805 /* WssTicketClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4D8011970829712F59E5141 /* WssTicketClient.swift */; };
 		9806DF1AA177A05D22FA2708 /* ProbeTargets.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C369738D2565177A979FAC /* ProbeTargets.swift */; };
 		982E14D3077355EF8F7F3DB5 /* ProbeTargets.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C369738D2565177A979FAC /* ProbeTargets.swift */; };
 		990A59F55F64D829C9DF9CAB /* PunchFallbackPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814744A51A1FB277327DD215 /* PunchFallbackPolicy.swift */; };
 		99A7C25018C3380ECB1C01AF /* StartupPathVerification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23D668BED08950120483C704 /* StartupPathVerification.swift */; };
-		99B78A60650A2E277D201009 /* WssFallbackPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6778C7AC035DF5A9549A7A2D /* WssFallbackPolicy.swift */; };
 		9B19065CFCC93684ADE3C707 /* WssTestFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3DFA10EE6C65833EE32289D /* WssTestFixtures.swift */; };
 		9B3097DAD33017F59D7B0774 /* SplitTunnelConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 293D5236C6FC627E5993262E /* SplitTunnelConfigurationTests.swift */; };
 		9E3FE5CDA11DD5EEC1F54942 /* SharedConnectionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11601E153A60E8B30351E20 /* SharedConnectionState.swift */; };
 		A2BD7C4271FDE1F796CA7E77 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4783169BE46FEE9B0472504 /* AppConfig.swift */; };
 		A456EFF327FBA312F10D2DDA /* ActivityLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C27022D3D9D7FEEC839F406 /* ActivityLog.swift */; };
-		A47671E4D8F1625738EA3742 /* RelayReachability.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5AFE2F1F1556F9E70F0AC99 /* RelayReachability.swift */; };
 		A8F913880F45765F628CA0BE /* RelayRanker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69D27334571CA6F3A5CEB1BD /* RelayRanker.swift */; };
 		AB96391CC76AF367EFC71A23 /* PunchRecoveryCircuitBreakerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FE575C8C524F31D6CD8423C /* PunchRecoveryCircuitBreakerTests.swift */; };
 		AD065EDAA7E707087D40585B /* WssNativeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EC4D45896D45D90A17A3E83 /* WssNativeClient.swift */; };
-		ADCA603D15EE662D1B0A279C /* RelayReachabilityError.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8FF4517B34B4819F6DCD4D1 /* RelayReachabilityError.swift */; };
 		B399CE98F2A1BE3D97D45856 /* NativeBrokerTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66C3AC37AF7128A85A7F7CC7 /* NativeBrokerTransport.swift */; };
 		B434A0C0E679EE9A6A8ED7AE /* NativeBrokerTestDoubles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44DD4C9CB725E92B8F423EC7 /* NativeBrokerTestDoubles.swift */; };
-		B466AFF5D620F556EA05524F /* RelaySelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD9B5CA88D770C6F0A9597FE /* RelaySelector.swift */; };
 		B483D0418D53CDA277FC58A0 /* PhysicalNetworkEpochMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28019235E34D443A26534186 /* PhysicalNetworkEpochMonitor.swift */; };
-		B6964681672D4F326B16F976 /* TunnelDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B9BA54065E95B7262DA7A95 /* TunnelDiagnostics.swift */; };
 		BB0CE4474A9BF517F57AA4E8 /* BrokerClientError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 683F07997A392045B7540E47 /* BrokerClientError.swift */; };
-		BEF1E21F2635010264AFB26A /* PunchFallbackPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814744A51A1FB277327DD215 /* PunchFallbackPolicy.swift */; };
 		BF18951369CEC4EA7C3627F7 /* WssNativeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EC4D45896D45D90A17A3E83 /* WssNativeClient.swift */; };
 		BF55D9C9334181B84F1D36EC /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 83209B5DF847F742A280CD21 /* LaunchScreen.storyboard */; };
 		BF67256F0E4E976654DB9E4D /* WssTicketClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4D8011970829712F59E5141 /* WssTicketClient.swift */; };
@@ -133,7 +120,6 @@
 		C98C9E042E602DF887F4B995 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A025739761D97ABD7227B8DA /* PrivacyInfo.xcprivacy */; };
 		CA3379CA0C7E8B6506A3861C /* RelayRankerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE70163A0AFAFED70BA816C7 /* RelayRankerTests.swift */; };
 		CCB2C474FEDC465EA9762C71 /* TelemetryClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4254868EF5882AD951E8D23B /* TelemetryClient.swift */; };
-		CDEAE1A5C571C1C12B15F55C /* RelayRanker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69D27334571CA6F3A5CEB1BD /* RelayRanker.swift */; };
 		CE26B8D6344D51017EAD7EC8 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 81CC00C2F7324111F25D07A0 /* UIKit.framework */; };
 		CE5FF08F60EA9B59A3FAD581 /* RelayReachabilityError.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8FF4517B34B4819F6DCD4D1 /* RelayReachabilityError.swift */; };
 		D095482C735B4750F9AC99BB /* RelayDescriptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC6AEF8D510DD407C368119F /* RelayDescriptor.swift */; };
@@ -147,6 +133,7 @@
 		DA63F6EDE23966103B89E919 /* DnsConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF68A64E6FB095B8FD6A3F3F /* DnsConfigurationTests.swift */; };
 		DA7F413E3D63AC3050CE4A6B /* BrokerClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0CE1F672D5FAD1FBB511D5B /* BrokerClient.swift */; };
 		DB776EA0CB28A8D6A698A6D7 /* SingBoxConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = D156734F7F68151301FEF878 /* SingBoxConfiguration.swift */; };
+		DD3B9D8275BC1F711FAA7D19 /* LibboxBrokerTransport+Tunnel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 587496AEAFA29034F07181E9 /* LibboxBrokerTransport+Tunnel.swift */; };
 		E11F61893E71E26974AF879B /* WssTicketClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4D8011970829712F59E5141 /* WssTicketClient.swift */; };
 		E23AB43D1F262132DECB88F3 /* PacketTunnelProxyEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D65DF435DF84A90675DAFD54 /* PacketTunnelProxyEngine.swift */; };
 		E2C945F0A942AE0E937369EC /* OpenRungVpnModule.m in Sources */ = {isa = PBXBuildFile; fileRef = ED28831CA960E8B89D5D7D04 /* OpenRungVpnModule.m */; };
@@ -233,6 +220,7 @@
 		25CB8E64CF645C0DD1375294 /* EngineDirectories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineDirectories.swift; sourceTree = "<group>"; };
 		274F2564F2D6019FBBD3B92A /* LibboxBrokerTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibboxBrokerTransport.swift; sourceTree = "<group>"; };
 		28019235E34D443A26534186 /* PhysicalNetworkEpochMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicalNetworkEpochMonitor.swift; sourceTree = "<group>"; };
+		2925A6CA9CDE63A1865E53D8 /* Pods-OpenRung.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OpenRung.release.xcconfig"; path = "Target Support Files/Pods-OpenRung/Pods-OpenRung.release.xcconfig"; sourceTree = "<group>"; };
 		293D5236C6FC627E5993262E /* SplitTunnelConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitTunnelConfigurationTests.swift; sourceTree = "<group>"; };
 		2D55BA84C5D35B80DFF05F1A /* DnsProbeMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DnsProbeMessage.swift; sourceTree = "<group>"; };
 		31A10C67D3636F8903463D9E /* WssLifecycleAndConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WssLifecycleAndConfigurationTests.swift; sourceTree = "<group>"; };
@@ -242,8 +230,8 @@
 		42FBF71585756F18035DA71D /* TelemetrySessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetrySessionStore.swift; sourceTree = "<group>"; };
 		44DD4C9CB725E92B8F423EC7 /* NativeBrokerTestDoubles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeBrokerTestDoubles.swift; sourceTree = "<group>"; };
 		49C9C9695B7E93F7A4F5460B /* TelemetryEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryEvent.swift; sourceTree = "<group>"; };
-		4B9BA54065E95B7262DA7A95 /* TunnelDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelDiagnostics.swift; sourceTree = "<group>"; };
 		584A04475F28B3CAC39B501E /* ConnectionStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStatus.swift; sourceTree = "<group>"; };
+		587496AEAFA29034F07181E9 /* LibboxBrokerTransport+Tunnel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibboxBrokerTransport+Tunnel.swift"; sourceTree = "<group>"; };
 		5A5941A8CF4A810D424C4147 /* OpenRungBrokerModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRungBrokerModule.swift; sourceTree = "<group>"; };
 		5F4DB9A32A2B929C586861C2 /* WssFallbackPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WssFallbackPolicyTests.swift; sourceTree = "<group>"; };
 		66C3AC37AF7128A85A7F7CC7 /* NativeBrokerTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeBrokerTransport.swift; sourceTree = "<group>"; };
@@ -272,16 +260,14 @@
 		9AA34278398F5C3F677BC7A6 /* OpenRungBrokerModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = OpenRungBrokerModule.m; sourceTree = "<group>"; };
 		9C27022D3D9D7FEEC839F406 /* ActivityLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityLog.swift; sourceTree = "<group>"; };
 		9C3C1158F41CEF59BEB36FEB /* PacketTunnelError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelError.swift; sourceTree = "<group>"; };
-		9CDCBED64BC53F2A840F46C6 /* Pods-OpenRung.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OpenRung.debug.xcconfig"; path = "Target Support Files/Pods-OpenRung/Pods-OpenRung.debug.xcconfig"; sourceTree = "<group>"; };
 		9F02C36295E0BF915B4B9736 /* PacketTunnelDnsProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelDnsProbe.swift; sourceTree = "<group>"; };
 		A025739761D97ABD7227B8DA /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		A44B257CAC6A81F279C2854E /* libPods-OpenRung.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-OpenRung.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		A67786D43A1A748C219A1C39 /* StartupPathVerificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupPathVerificationTests.swift; sourceTree = "<group>"; };
 		A9B3E3F0BA7E28C5D05A1731 /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Images.xcassets; sourceTree = "<group>"; };
 		AAC6D89892DE900192CBBBA5 /* PacketTunnelInternetProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelInternetProbeTests.swift; sourceTree = "<group>"; };
 		AB117725DF8A60D9A23412CC /* PacketTunnel.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PacketTunnel.entitlements; sourceTree = "<group>"; };
 		AB8C9F2F42E47E0E9E9AA47E /* LibboxKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = LibboxKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		AC27BC65EB65E57F6C3F2919 /* libPods-OpenRung.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-OpenRung.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		AD20C53940C8777449DB9043 /* Pods-OpenRung.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OpenRung.release.xcconfig"; path = "Target Support Files/Pods-OpenRung/Pods-OpenRung.release.xcconfig"; sourceTree = "<group>"; };
 		AE70163A0AFAFED70BA816C7 /* RelayRankerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayRankerTests.swift; sourceTree = "<group>"; };
 		B0C127CAD14278743A1BD298 /* NetworkPathMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkPathMonitor.swift; sourceTree = "<group>"; };
 		B3A0014BD8DAE8D1AB0AA819 /* PacketTunnelProxyEngineError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProxyEngineError.swift; sourceTree = "<group>"; };
@@ -301,6 +287,7 @@
 		D5AFE2F1F1556F9E70F0AC99 /* RelayReachability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayReachability.swift; sourceTree = "<group>"; };
 		D65DF435DF84A90675DAFD54 /* PacketTunnelProxyEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProxyEngine.swift; sourceTree = "<group>"; };
 		D8FF4517B34B4819F6DCD4D1 /* RelayReachabilityError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayReachabilityError.swift; sourceTree = "<group>"; };
+		D9DD5A61842429ACF2A05EB4 /* Pods-OpenRung.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OpenRung.debug.xcconfig"; path = "Target Support Files/Pods-OpenRung/Pods-OpenRung.debug.xcconfig"; sourceTree = "<group>"; };
 		DC6AEF8D510DD407C368119F /* RelayDescriptor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayDescriptor.swift; sourceTree = "<group>"; };
 		DD4088394FB9EBCF808F81C2 /* ClientIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientIdentity.swift; sourceTree = "<group>"; };
 		E015EBBA482879150C779611 /* OpenRung.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = OpenRung.entitlements; sourceTree = "<group>"; };
@@ -345,7 +332,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				767680B070BBDB21811EA1F0 /* LibboxKit.framework in Frameworks */,
-				3C4F7852DEFB4756E73631F6 /* libPods-OpenRung.a in Frameworks */,
+				0B175E07B730475C0746D9DA /* libPods-OpenRung.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -385,6 +372,7 @@
 				135777353E0B842A0E8E1A49 /* GeoIpClient.swift */,
 				005F1F59591EC44366AC6B21 /* InternetProbe.swift */,
 				274F2564F2D6019FBBD3B92A /* LibboxBrokerTransport.swift */,
+				587496AEAFA29034F07181E9 /* LibboxBrokerTransport+Tunnel.swift */,
 				66C3AC37AF7128A85A7F7CC7 /* NativeBrokerTransport.swift */,
 				B0C127CAD14278743A1BD298 /* NetworkPathMonitor.swift */,
 				F9C369738D2565177A979FAC /* ProbeTargets.swift */,
@@ -402,7 +390,6 @@
 				BA18FA5754E54F0ADC5189F0 /* TelemetryManager.swift */,
 				6A5299A99DA8ED8C75B1E25B /* TelemetrySession.swift */,
 				42FBF71585756F18035DA71D /* TelemetrySessionStore.swift */,
-				4B9BA54065E95B7262DA7A95 /* TunnelDiagnostics.swift */,
 				6778C7AC035DF5A9549A7A2D /* WssFallbackPolicy.swift */,
 				E4D8011970829712F59E5141 /* WssTicketClient.swift */,
 			);
@@ -415,16 +402,6 @@
 				950A6D203D0D99231E812DF9 /* LibboxKit.m */,
 			);
 			path = LibboxKit;
-			sourceTree = "<group>";
-		};
-		7A1CDE613D21A81C5564FA46 /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				9CDCBED64BC53F2A840F46C6 /* Pods-OpenRung.debug.xcconfig */,
-				AD20C53940C8777449DB9043 /* Pods-OpenRung.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
 			sourceTree = "<group>";
 		};
 		837FBBD5687C0AB326CC593E /* OpenRungTests */ = {
@@ -476,7 +453,7 @@
 				EC15DA1827B19848080D3452 /* libresolv.tbd */,
 				091BB47D3F7E77446C73342D /* Network.framework */,
 				81CC00C2F7324111F25D07A0 /* UIKit.framework */,
-				AC27BC65EB65E57F6C3F2919 /* libPods-OpenRung.a */,
+				A44B257CAC6A81F279C2854E /* libPods-OpenRung.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -527,8 +504,18 @@
 				3F24A472F75132572E2891A1 /* Shared */,
 				A1C815B9A63C637692C1C541 /* Frameworks */,
 				E73A5155909F9EFE9F13A6A1 /* Products */,
-				7A1CDE613D21A81C5564FA46 /* Pods */,
+				F970B96DD9E08575D19C7137 /* Pods */,
 			);
+			sourceTree = "<group>";
+		};
+		F970B96DD9E08575D19C7137 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				D9DD5A61842429ACF2A05EB4 /* Pods-OpenRung.debug.xcconfig */,
+				2925A6CA9CDE63A1865E53D8 /* Pods-OpenRung.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -572,16 +559,16 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = F19D0D1C8CB7FB1B6B178E82 /* Build configuration list for PBXNativeTarget "OpenRung" */;
 			buildPhases = (
-				E74D7BB39E9883B7B6AAE396 /* [CP] Check Pods Manifest.lock */,
+				86E678890F91FA0F635E32B7 /* [CP] Check Pods Manifest.lock */,
 				BC3282E3662088C7CF8F8BC7 /* Sources */,
 				7272F5C7D4F2765DAB69942D /* Resources */,
 				6E9C330AAB907426FF017F77 /* Frameworks */,
 				141D130B421160859A220937 /* Embed Foundation Extensions */,
 				E5A73D1935A290882F2E847C /* Embed Frameworks */,
 				7645E65DA025354651549041 /* Bundle React Native code and images */,
-				F167B01E93E044D2613BAA4B /* [MapLibre React Native] Remove MapLibre.xcframework-ios.signature */,
-				3B3883CDB83B946557FDC6C8 /* [CP] Embed Pods Frameworks */,
-				3D76EB1F693CF2FDD43AA6DC /* [CP] Copy Pods Resources */,
+				05BBE1BEB169819F4319BC98 /* [MapLibre React Native] Remove MapLibre.xcframework-ios.signature */,
+				06EAEC5BDE4F7EA0B0719F8B /* [CP] Embed Pods Frameworks */,
+				E4FCCA0B8ED38177551F84D9 /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -591,7 +578,7 @@
 			);
 			name = OpenRung;
 			packageProductDependencies = (
-				23E52CE3E2F37860141016F6 /* MapLibre */,
+				2DD99C03003230BD13C12608 /* MapLibre */,
 			);
 			productName = OpenRung;
 			productReference = 81B10868A3F7FA99A84696A4 /* OpenRung.app */;
@@ -649,7 +636,7 @@
 			mainGroup = F4646C7E57CBAA9E0DF5661F;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				168F5979A14ACF68DFB27CEF /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */,
+				B4FCE78CB8E08EB70534C3AC /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E73A5155909F9EFE9F13A6A1 /* Products */;
@@ -689,7 +676,26 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		3B3883CDB83B946557FDC6C8 /* [CP] Embed Pods Frameworks */ = {
+		05BBE1BEB169819F4319BC98 /* [MapLibre React Native] Remove MapLibre.xcframework-ios.signature */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "[MapLibre React Native] Remove MapLibre.xcframework-ios.signature";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "rm -rf \"$CONFIGURATION_BUILD_DIR/MapLibre.xcframework-ios.signature\"";
+		};
+		06EAEC5BDE4F7EA0B0719F8B /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -704,23 +710,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		3D76EB1F693CF2FDD43AA6DC /* [CP] Copy Pods Resources */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-resources-${CONFIGURATION}-input-files.xcfilelist",
-			);
-			name = "[CP] Copy Pods Resources";
-			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-resources-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 		7645E65DA025354651549041 /* Bundle React Native code and images */ = {
@@ -743,7 +732,7 @@
 			shellPath = /bin/sh;
 			shellScript = "set -e\n\nWITH_ENVIRONMENT=\"$REACT_NATIVE_PATH/scripts/xcode/with-environment.sh\"\nREACT_NATIVE_XCODE=\"$REACT_NATIVE_PATH/scripts/react-native-xcode.sh\"\n\n/bin/sh -c \"\\\"$WITH_ENVIRONMENT\\\" \\\"$REACT_NATIVE_XCODE\\\"\"\n";
 		};
-		E74D7BB39E9883B7B6AAE396 /* [CP] Check Pods Manifest.lock */ = {
+		86E678890F91FA0F635E32B7 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -765,24 +754,22 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		F167B01E93E044D2613BAA4B /* [MapLibre React Native] Remove MapLibre.xcframework-ios.signature */ = {
+		E4FCCA0B8ED38177551F84D9 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
-			name = "[MapLibre React Native] Remove MapLibre.xcframework-ios.signature";
+			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
-			);
-			outputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-resources-${CONFIGURATION}-output-files.xcfilelist",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "rm -rf \"$CONFIGURATION_BUILD_DIR/MapLibre.xcframework-ios.signature\"";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-resources.sh\"\n";
+			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -805,6 +792,7 @@
 				EAD1DFA9AB52E6A93CB60890 /* FailureClassifier.swift in Sources */,
 				352F6CA320938DBB039664C2 /* GeoIpClient.swift in Sources */,
 				9604E15625FCE8C234279160 /* InternetProbe.swift in Sources */,
+				DD3B9D8275BC1F711FAA7D19 /* LibboxBrokerTransport+Tunnel.swift in Sources */,
 				D420784479B66EB7456E650F /* LibboxBrokerTransport.swift in Sources */,
 				C4B31101802A2AE5B0E26703 /* LibboxPacketTunnelPlatformInterface.swift in Sources */,
 				FE46CA9BB747203298E45D6F /* NativeBrokerTransport.swift in Sources */,
@@ -834,7 +822,6 @@
 				794747220E38522FACAC57B2 /* TelemetryManager.swift in Sources */,
 				F6D4EDF154A64B658BBAA677 /* TelemetrySession.swift in Sources */,
 				89009F889ABE5BCFA7F125B2 /* TelemetrySessionStore.swift in Sources */,
-				83EE6EF005FCAA047976FF9D /* TunnelDiagnostics.swift in Sources */,
 				94D05989D726F0125FC4CBDA /* WssFallbackPolicy.swift in Sources */,
 				AD065EDAA7E707087D40585B /* WssNativeClient.swift in Sources */,
 				BF67256F0E4E976654DB9E4D /* WssTicketClient.swift in Sources */,
@@ -919,15 +906,12 @@
 				A456EFF327FBA312F10D2DDA /* ActivityLog.swift in Sources */,
 				A2BD7C4271FDE1F796CA7E77 /* AppConfig.swift in Sources */,
 				2367D4EBC8213B6D57E65A0E /* AppDelegate.swift in Sources */,
-				27BE72CA10A4E0EC9A5643FB /* BrokerClient.swift in Sources */,
-				02E9AD5F4252406BE29B4B5D /* BrokerClientError.swift in Sources */,
 				ED0AA86BCFC9211195B7081E /* ClientIdentity.swift in Sources */,
 				3CF707854EB1FBBCFC3E354F /* ConnectionStatus.swift in Sources */,
 				1688E26406D6F8E93575AFCA /* CountryGeo.swift in Sources */,
 				101812ACF2D87E69B666B516 /* DeviceAttributes.swift in Sources */,
 				582566C8B59E519B2D10CD5B /* DnsProbeMessage.swift in Sources */,
 				0483F1444764AB1812DC4A79 /* GeoIpClient.swift in Sources */,
-				63A9108F5E4004BFF5FEC44C /* InternetProbe.swift in Sources */,
 				7BA2BB158A3143887B1DE5BC /* LibboxBrokerTransport.swift in Sources */,
 				B399CE98F2A1BE3D97D45856 /* NativeBrokerTransport.swift in Sources */,
 				63F4601CF297170FC3EA5408 /* NetworkPathMonitor.swift in Sources */,
@@ -937,23 +921,13 @@
 				E2C945F0A942AE0E937369EC /* OpenRungVpnModule.m in Sources */,
 				F82F4E03FAD0D3DFDB106718 /* OpenRungVpnModule.swift in Sources */,
 				982E14D3077355EF8F7F3DB5 /* ProbeTargets.swift in Sources */,
-				BEF1E21F2635010264AFB26A /* PunchFallbackPolicy.swift in Sources */,
-				7AD3CF8197D457CDDC3CCBCE /* RelayDescriptor.swift in Sources */,
-				CDEAE1A5C571C1C12B15F55C /* RelayRanker.swift in Sources */,
-				A47671E4D8F1625738EA3742 /* RelayReachability.swift in Sources */,
-				ADCA603D15EE662D1B0A279C /* RelayReachabilityError.swift in Sources */,
-				B466AFF5D620F556EA05524F /* RelaySelector.swift in Sources */,
 				9E3FE5CDA11DD5EEC1F54942 /* SharedConnectionState.swift in Sources */,
-				6BE03273C0331255B97BE15A /* SingBoxConfiguration.swift in Sources */,
 				FDD249EAC97CC2DF789CBCE6 /* SplitTunnelConfig.swift in Sources */,
 				27D1C74BA3413782534C860E /* TelemetryClient.swift in Sources */,
 				598ABF6F03F652193C9D5B96 /* TelemetryEvent.swift in Sources */,
 				293B5AB965931E683887D8F4 /* TelemetryManager.swift in Sources */,
 				73D8BDE378B63443C918F178 /* TelemetrySession.swift in Sources */,
 				5F7D90BE5F101E0C8681DF70 /* TelemetrySessionStore.swift in Sources */,
-				B6964681672D4F326B16F976 /* TunnelDiagnostics.swift in Sources */,
-				99B78A60650A2E277D201009 /* WssFallbackPolicy.swift in Sources */,
-				96BB7B46EF5D5F9477362805 /* WssTicketClient.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -980,7 +954,7 @@
 /* Begin XCBuildConfiguration section */
 		0D953B3D127C0BB08E644293 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = AD20C53940C8777449DB9043 /* Pods-OpenRung.release.xcconfig */;
+			baseConfigurationReference = 2925A6CA9CDE63A1865E53D8 /* Pods-OpenRung.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = OpenRung/OpenRung.entitlements;
@@ -1128,10 +1102,9 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 9VLV9A7KS9;
-				ENABLE_BITCODE = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -1159,7 +1132,7 @@
 					"\"$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)\"",
 					"\"$(inherited)\"",
 				);
-				MARKETING_VERSION = 0.3.7;
+				MARKETING_VERSION = 0.3.8;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -1190,7 +1163,7 @@
 		};
 		73BE8C16CB91640112F4357A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 9CDCBED64BC53F2A840F46C6 /* Pods-OpenRung.debug.xcconfig */;
+			baseConfigurationReference = D9DD5A61842429ACF2A05EB4 /* Pods-OpenRung.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = OpenRung/OpenRung.entitlements;
@@ -1291,7 +1264,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 13;
+				CURRENT_PROJECT_VERSION = 14;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 9VLV9A7KS9;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -1315,7 +1288,7 @@
 					"\"$(TOOLCHAIN_DIR)/usr/lib/swift/$(PLATFORM_NAME)\"",
 					"\"$(inherited)\"",
 				);
-				MARKETING_VERSION = 0.3.7;
+				MARKETING_VERSION = 0.3.8;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				OTHER_CFLAGS = (
@@ -1416,7 +1389,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		168F5979A14ACF68DFB27CEF /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */ = {
+		B4FCE78CB8E08EB70534C3AC /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/maplibre/maplibre-gl-native-distribution";
 			requirement = {
@@ -1427,9 +1400,9 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		23E52CE3E2F37860141016F6 /* MapLibre */ = {
+		2DD99C03003230BD13C12608 /* MapLibre */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 168F5979A14ACF68DFB27CEF /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */;
+			package = B4FCE78CB8E08EB70534C3AC /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */;
 			productName = MapLibre;
 		};
 /* End XCSwiftPackageProductDependency section */

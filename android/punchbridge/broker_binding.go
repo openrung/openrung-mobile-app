@@ -44,7 +44,6 @@ type OpenRungBrokerOperation interface {
 		brokerURL, relayID, frontID, clientID, sessionID string,
 	) *OpenRungBrokerWSSTicketResult
 	RunSpeedTest(brokerURL string) *OpenRungBrokerSpeedTestResult
-	DownloadSpeedTest(brokerURL string, byteCount int32) *OpenRungBrokerSpeedTestResult
 	FetchManifestCandidate(candidateURL string) *OpenRungBrokerManifestResult
 	Close()
 }
@@ -385,7 +384,6 @@ type openRungBrokerClient interface {
 		brokerapi.WSSTicketRequest,
 	) (brokerapi.WSSTicketResponse, error)
 	RunSpeedTest(context.Context, string) (brokerapi.SpeedTestResult, error)
-	DownloadSpeedTest(context.Context, string, int) (brokerapi.SpeedTestResult, error)
 }
 
 type openRungBrokerOperation struct {
@@ -618,31 +616,6 @@ func (o *openRungBrokerOperation) RunSpeedTest(
 	return successfulOpenRungBrokerSpeedTestResult(result)
 }
 
-func (o *openRungBrokerOperation) DownloadSpeedTest(
-	brokerURL string,
-	byteCount int32,
-) *OpenRungBrokerSpeedTestResult {
-	ctx, done, err := o.begin()
-	if err != nil {
-		return failedOpenRungBrokerSpeedTestResult(ctx, err)
-	}
-	defer close(done)
-	if o.client == nil {
-		return failedOpenRungBrokerSpeedTestResult(ctx, openRungClassifiedError("validation"))
-	}
-	if _, err := brokerapi.SpeedTestURL(brokerURL, int(byteCount)); err != nil {
-		return failedOpenRungBrokerSpeedTestResult(ctx, openRungClassifiedError("validation"))
-	}
-	result, err := o.client.DownloadSpeedTest(ctx, brokerURL, int(byteCount))
-	if err != nil {
-		return failedOpenRungBrokerSpeedTestResult(ctx, err)
-	}
-	if ctx.Err() != nil {
-		return failedOpenRungBrokerSpeedTestResult(ctx, ctx.Err())
-	}
-	return successfulOpenRungBrokerSpeedTestResult(result)
-}
-
 func (o *openRungBrokerOperation) FetchManifestCandidate(
 	candidateURL string,
 ) *OpenRungBrokerManifestResult {
@@ -721,16 +694,6 @@ func (o *openRungBrokerOperation) Close() {
 		<-attemptDone
 	}
 	close(closeDone)
-}
-
-// OpenRungDefaultBrokerURLsJSON returns brokerapi's fresh default order without
-// exposing a Go slice through gomobile.
-func OpenRungDefaultBrokerURLsJSON() string {
-	encoded, err := json.Marshal(brokerapi.DefaultBrokerURLs())
-	if err != nil {
-		return "[]"
-	}
-	return string(encoded)
 }
 
 func validateOpenRungTelemetryBatchJSON(batchJSON string) (bool, error) {

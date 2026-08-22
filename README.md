@@ -20,7 +20,7 @@ reach blocked websites and apps.
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
 [![React Native](https://img.shields.io/badge/React%20Native-0.86-61dafb?logo=react&logoColor=white)](package.json)
 [![Platforms](https://img.shields.io/badge/platforms-iOS%20%C2%B7%20Android-4a5568)](#building)
-[![Locales](https://img.shields.io/badge/locales-10-1d8a4f)](src/i18n)
+[![Locales](https://img.shields.io/badge/locales-9-1d8a4f)](src/i18n)
 
 [Website](https://openrung.org) · [Architecture](docs/ARCHITECTURE.md) · [Native contract](docs/CONTRACT.md) · [Report an issue](https://github.com/openrung/openrung-mobile-app/issues)
 
@@ -82,7 +82,7 @@ clients**. The prototype IDs are `com.openrung.mobile` on Android and
 - 🧭 **Translucent tab bar** — Home / Settings / About us, floating over the map.
 - 🌃 **Terminal cyberpunk theme** — the production green-on-black palette
   (`#65F58A` on `#030604`), all-monospace type, neon glows and HUD accents.
-- 🌍 **10 locales** — persisted per-app language selection.
+- 🌍 **9 locales** — persisted per-app language selection.
 - 📦 **Offline Android sharing** — send the installed, signed APK through the
   system sharesheet to Quick Share or any compatible nearby-transfer app; no
   network or storage permission is required.
@@ -143,21 +143,26 @@ clients**. The prototype IDs are `com.openrung.mobile` on Android and
 ```text
 App.tsx              Route enum navigation, back handling, safe areas.
 src/config.ts        Port of AppConfig.kt (same constant names/values).
-src/i18n/            Language provider + strings for 10 locales.
-src/model/           Relay descriptor, country centroids, exit-node types.
-src/net/             Broker, GeoIP, speed-test, telemetry clients.
+src/i18n/            Language provider + strings for 9 locales.
+src/model/           Relay descriptor, country centroids, exit-node types,
+                     update status, split-tunnel defaults.
+src/net/             Broker, exit-node directory, speed-test, telemetry, and
+                     update-manifest clients.
 src/state/           App store + native-event wiring.
 src/native/          Bridge types, module accessor, mock simulator.
-src/screens/         Main, Settings, Debug, Licenses, LicenseText.
+src/screens/         Main, Settings, SplitTunneling, Debug, About, Licenses,
+                     LicenseText, UpdateRequired.
 src/components/      Map, status chip, recents, panels, header.
 src/licenses/        Bundled license text for the in-app screen.
 android/             RN Android app + ported VPN service and bridge.
-  punchbridge/       Go gomobile adapters over pinned brokerapi, punchcore, and
-                     wsscore modules, injected into the generated libbox AAR.
+  punchbridge/       Go gomobile adapters over pinned brokerapi, connectcore,
+                     punchcore, and wsscore modules, injected into the
+                     generated libbox AAR.
 ios/                 RN iOS app + PacketTunnel extension (xcodegen).
 testdata/contract/   Contract vectors vendored from openrung/openrung, with the
                      pinned ref in pin.json. See "Contract vectors" below.
-docs/                CONTRACT.md (binding), ARCHITECTURE.md (overview).
+docs/                CONTRACT.md (binding), ARCHITECTURE.md (overview),
+                     UPDATE_MANIFEST.md (update manifest pipeline).
 ```
 
 ### Contract vectors
@@ -205,15 +210,16 @@ android/app/libs/libbox.aar
 
 The AAR is intentionally ignored by Git because it is generated and large. Build
 it from the pinned sing-box revision (in `SINGBOX_VERSION`), the committed
-Android native adapters (`android/punchbridge`), and the shared broker, punch,
-and WSS implementations consumed as the pinned
+Android native adapters (`android/punchbridge`), and the shared broker,
+connect-policy, punch, and WSS implementations consumed as the pinned
 `github.com/openrung/openrung/brokerapi`,
+`github.com/openrung/openrung/connectcore`,
 `github.com/openrung/openrung/punchcore`, and
 `github.com/openrung/openrung/wsscore` Go modules, with
 [`android/build-libbox-release.sh`](android/build-libbox-release.sh) — it needs
 JDK 17, the Android SDK + NDK `29.0.14206865`, and Go and `python3` on `PATH`
-(python3 extracts all three pins from `go.mod`). The sing-box revision, this
-repository commit, and all three pinned module versions together are the GPL §6
+(python3 extracts all four pins from `go.mod`). The sing-box revision, this
+repository commit, and all four pinned module versions together are the GPL §6
 corresponding source for the shipped native engine; the
 per-release procedure is in [`RELEASE.md`](RELEASE.md).
 
@@ -255,8 +261,8 @@ ios/ThirdParty/Libbox.xcframework
 ```
 
 Also Git-ignored. Build one unified device+simulator framework from the pinned
-sing-box revision plus the brokerapi, punchcore, and wsscore tags shared with
-Android:
+sing-box revision plus the brokerapi, connectcore, punchcore, and wsscore tags
+shared with Android:
 
 ```sh
 ./ios/build-libbox-release.sh

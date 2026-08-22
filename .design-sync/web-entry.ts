@@ -20,7 +20,7 @@ export {
 export type { IconProps } from '../src/components/Icons';
 export { MapStatusChip } from '../src/components/MapStatusChip';
 export type { MapStatusChipProps } from '../src/components/MapStatusChip';
-export { OceanTelemetry, formatUptime, lastDialledRelay } from '../src/components/OceanTelemetry';
+export { OceanTelemetry, formatUptime } from '../src/components/OceanTelemetry';
 export type { OceanTelemetryProps } from '../src/components/OceanTelemetry';
 export { RecentsSection } from '../src/components/RecentsSection';
 export type { RecentsSectionProps } from '../src/components/RecentsSection';

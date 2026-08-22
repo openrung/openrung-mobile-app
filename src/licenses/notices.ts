@@ -3,8 +3,8 @@
 // THIRD_PARTY_NOTICES.md — keep the two in sync when either changes. Covers the
 // GPL sing-box/libbox core plus the React Native layer (react-native,
 // @maplibre/maplibre-react-native, @react-native-async-storage/async-storage,
-// @noble/ed25519, @noble/hashes, react-native-safe-area-context,
-// react-native-svg — all MIT).
+// @noble/ed25519, @noble/hashes, react-native-bottom-tabs,
+// react-native-safe-area-context, react-native-svg — all MIT).
 
 /** One bundled/linked third-party component shown on the licenses screen. */
 export interface LicenseComponent {
@@ -22,6 +22,7 @@ export const components: LicenseComponent[] = [
   { name: "OpenRung brokerapi", license: "GPL-3.0-or-later", url: "https://github.com/openrung/openrung/tree/main/brokerapi" },
   { name: "OpenRung wsscore", license: "GPL-3.0-or-later", url: "https://github.com/openrung/openrung/tree/main/wsscore" },
   { name: "OpenRung connectcore", license: "GPL-3.0-or-later", url: "https://github.com/openrung/openrung/tree/main/connectcore" },
+  { name: "OpenRung punchcore", license: "GPL-3.0-or-later", url: "https://github.com/openrung/openrung/tree/main/punchcore" },
   { name: "Gorilla WebSocket", license: "BSD-2-Clause", url: "https://github.com/gorilla/websocket" },
   { name: "HashiCorp yamux", license: "MPL-2.0", url: "https://github.com/hashicorp/yamux/tree/v0.1.2" },
   { name: "gVisor", license: "Apache-2.0", url: "https://github.com/google/gvisor" },
@@ -30,7 +31,7 @@ export const components: LicenseComponent[] = [
   { name: "SagerNet wireguard-go fork", license: "MIT", url: "https://github.com/SagerNet/wireguard-go" },
   { name: "utls", license: "BSD-3-Clause", url: "https://github.com/refraction-networking/utls" },
   { name: "MapLibre Native Android SDK", license: "BSD-2-Clause", url: "https://github.com/maplibre/maplibre-native" },
-  { name: "Jetpack Compose / AndroidX", license: "Apache-2.0", url: "https://developer.android.com/jetpack" },
+  { name: "AndroidX", license: "Apache-2.0", url: "https://developer.android.com/jetpack/androidx" },
   { name: "Kotlin standard library", license: "Apache-2.0", url: "https://github.com/JetBrains/kotlin" },
   { name: "kotlinx-coroutines", license: "Apache-2.0", url: "https://github.com/Kotlin/kotlinx.coroutines" },
   { name: "kotlinx-serialization", license: "Apache-2.0", url: "https://github.com/Kotlin/kotlinx.serialization" },
@@ -43,6 +44,7 @@ export const components: LicenseComponent[] = [
   { name: "@react-native-async-storage/async-storage", license: "MIT", url: "https://github.com/react-native-async-storage/async-storage" },
   { name: "@noble/ed25519", license: "MIT", url: "https://github.com/paulmillr/noble-ed25519" },
   { name: "@noble/hashes", license: "MIT", url: "https://github.com/paulmillr/noble-hashes" },
+  { name: "react-native-bottom-tabs", license: "MIT", url: "https://github.com/callstack/react-native-bottom-tabs" },
   { name: "react-native-safe-area-context", license: "MIT", url: "https://github.com/AppAndFlow/react-native-safe-area-context" },
   { name: "react-native-svg", license: "MIT", url: "https://github.com/software-mansion/react-native-svg" },
 ];
@@ -1176,14 +1178,26 @@ OpenRung client runs) rather than a third-party project, but its tagged source
 is a separate native release input. The complete GPL-3.0 text is bundled as
 \`LICENSE\`.
 
+### OpenRung punchcore — GPL-3.0-or-later
+
+- **Component:** \`github.com/openrung/openrung/punchcore\` at the exact version
+  pinned in \`android/punchbridge/go.mod\` (linked into both Libbox artifacts).
+- **License:** GNU General Public License v3.0 or later.
+- **Upstream/source:** https://github.com/openrung/openrung/tree/main/punchcore
+
+This is first-party shared NAT-punch session code rather than a third-party
+project, but its tagged source is a separate native release input. The complete
+GPL-3.0 text is bundled as \`LICENSE\`.
+
 #### sing-box transitive components (compiled into the apps)
 
 The \`libbox\` build statically links additional libraries that are therefore
 distributed inside the apps. The build scripts trim sing-box's build tags to
 disable the Tailscale and WireGuard protocols and the naive outbound that
-OpenRung never configures (see \`RELEASE.md\` §2). Those tag changes do **not**
-remove every related package: retained \`with_gvisor\` code links sing-box's
-Tailscale-backed native-shell helpers (including \`wireguard-go\`), while retained
+OpenRung never configures, and swap sing-box's Tailscale-backed native-shell
+helper for a stub so the \`tailscale\`/\`wireguard-go\` closure is not compiled
+into release builds (see \`RELEASE.md\` §2). Those modules remain in the module
+dependency graph, so their notices are retained below out of caution; retained
 \`with_quic\` code links the naive inbound/QUIC implementation. The notices below
 therefore reflect the dependencies in the exact trimmed build (\`go-licenses\`
 against it); the notable ones include:
@@ -1251,6 +1265,13 @@ Appendix A.
   Copyright (c) 2022 Paul Miller (\`@noble/hashes\`).
 - **Upstream:** https://github.com/paulmillr/noble-ed25519 and
   https://github.com/paulmillr/noble-hashes
+
+### react-native-bottom-tabs
+
+- **Component:** \`react-native-bottom-tabs\` 1.3.1 (native bottom tab bar for
+  the Home / Settings / About navigation; ships a native module in both apps).
+- **License:** MIT — Copyright (c) 2024 Callstack.
+- **Upstream:** https://github.com/callstack/react-native-bottom-tabs
 
 ### react-native-safe-area-context
 

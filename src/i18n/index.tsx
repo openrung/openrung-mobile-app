@@ -22,7 +22,7 @@ export type { Strings };
  */
 
 export const SUPPORTED_TAGS = ['en', 'zh-CN', 'zh-TW', 'fa', 'ru', 'ar', 'tr', 'vi', 'my'] as const;
-export type SupportedTag = (typeof SUPPORTED_TAGS)[number];
+type SupportedTag = (typeof SUPPORTED_TAGS)[number];
 
 const OVERRIDES: Record<SupportedTag, Partial<Strings>> = {
   en: {},
@@ -40,7 +40,7 @@ const OVERRIDES: Record<SupportedTag, Partial<Strings>> = {
  * Picker options in the exact production order: System default first, then the nine languages.
  * `label` reads the (locale-appropriate) option name out of the active strings.
  */
-export interface LanguageOption {
+interface LanguageOption {
   tag: '' | SupportedTag;
   label: (strings: Strings) => string;
 }

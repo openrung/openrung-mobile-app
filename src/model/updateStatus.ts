@@ -17,7 +17,7 @@ import { compareVersions } from '../net/updateManifestClient';
  *                 "unsupported" build may still work fine.
  */
 
-export type UpdateTier = 'none' | 'available' | 'notify' | 'blocked';
+type UpdateTier = 'none' | 'available' | 'notify' | 'blocked';
 
 export interface UpdateUiState {
   tier: UpdateTier;

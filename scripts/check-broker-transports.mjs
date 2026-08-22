@@ -334,10 +334,7 @@ requirePolicy(
   `${vpnServicePath}: physicalNetworkAlive must use only PhysicalNetworkProbe endpoints`,
 );
 
-const iosUrlSessionAllowlist = new Set([
-  'ios/Shared/GeoIpClient.swift',
-  'ios/Shared/InternetProbe.swift',
-]);
+const iosUrlSessionAllowlist = new Set(['ios/Shared/GeoIpClient.swift']);
 const iosFiles = ['ios/OpenRung', 'ios/PacketTunnel', 'ios/Shared'].flatMap(directory =>
   walk(directory, ['.swift', '.m', '.mm']),
 );

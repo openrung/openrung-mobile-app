@@ -417,8 +417,8 @@ The exact descriptor URL and opaque ticket are passed unchanged to
 `wsscore.DialClient`; neither is reconstructed, put into another URL, or logged.
 Its loopback endpoint is validated and supplied to the existing Reality client.
 The shared transport implementation is the tagged Go module
-`github.com/openrung/openrung/wsscore v0.2.0`, pinned in
-`android/punchbridge/go.mod`; the repository contains only the gomobile adapter,
+`github.com/openrung/openrung/wsscore`, pinned in
+`android/punchbridge/go.mod` (currently v0.6.0); the repository contains only the gomobile adapter,
 ticket/lifecycle policy, telemetry, and platform integration. Android constructs
 the client with a `SocketProtector`; before the outer CDN socket connects it
 delegates to `VpnService.protect(fd)`. A missing callback, exception, panic, or
@@ -594,7 +594,7 @@ used as evidence that Reality or WSS carried end-to-end traffic.
 - Gradle: serialization plugin (Kotlin 2.1.20), kotlinx-serialization-json 1.7.3,
   kotlinx-coroutines-android 1.9.0, conditional `implementation(files("libs/libbox.aar"))`
   (file is copied locally, git-ignored). Status strings the service logs live in
-  `res/values*/strings.xml` (ported subset, all 10 locales).
+  `res/values*/strings.xml` (ported subset, all 9 locales).
 - `android/punchbridge/` (the gomobile punch, WSS, and broker bindings plus the
   sagernet-QUIC session/transport/bridge layer, tests excluded) is copied into sing-box's
   temporary `experimental/libbox` tree by `build-libbox-release.sh`, so punch
@@ -611,7 +611,8 @@ used as evidence that Reality or WSS carried end-to-end traffic.
   version in `android/punchbridge/go.mod`. `WSSCORE_SRC` is a local-development
   replace only and MUST NOT be used for a release artifact.
 - The AAR also grafts `broker_binding.go` and resolves
-  `github.com/openrung/openrung/brokerapi v0.1.0` from the same `go.mod`.
+  `github.com/openrung/openrung/brokerapi` at the version pinned in the same
+  `go.mod` (currently v0.5.0).
   Eligible direct broker requests attempt opportunistic ECH with verified
   ordinary-TLS fallback. `BROKERAPI_SRC` is an explicit local-development
   replace only. Kotlin/Swift generated adapters serve both platform-native
@@ -737,8 +738,8 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
 - `ios/build-libbox-release.sh` generates that one device+simulator
   `Libbox.xcframework` by grafting the shared punch binding/session/bridge,
   `broker_binding.go`, and `wss_binding.go` into the pinned sing-box libbox
-  package and resolving brokerapi v0.1.0, punchcore v0.1.0, and wsscore v0.2.0
-  from `android/punchbridge/go.mod`. PacketTunnel calls the generated
+  package and resolving the brokerapi, punchcore, and wsscore versions pinned
+  in `android/punchbridge/go.mod`. PacketTunnel calls the generated
   `LibboxNewOpenRungPunchClientForIOS(baseURL,relayID,insecureTLS,certSHA256,listener)`
   export. Its nil protector is Apple-specific: provider-created sockets are
   outside PacketTunnel's own TUN, while the Android constructor remains

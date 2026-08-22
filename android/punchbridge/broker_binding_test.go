@@ -34,8 +34,7 @@ type testOpenRungBrokerClient struct {
 		string,
 		brokerapi.WSSTicketRequest,
 	) (brokerapi.WSSTicketResponse, error)
-	runSpeedTest      func(context.Context, string) (brokerapi.SpeedTestResult, error)
-	downloadSpeedTest func(context.Context, string, int) (brokerapi.SpeedTestResult, error)
+	runSpeedTest func(context.Context, string) (brokerapi.SpeedTestResult, error)
 }
 
 func (c *testOpenRungBrokerClient) FirstReachable(
@@ -79,17 +78,6 @@ func (c *testOpenRungBrokerClient) RunSpeedTest(
 		return brokerapi.SpeedTestResult{}, errors.New("unexpected RunSpeedTest call")
 	}
 	return c.runSpeedTest(ctx, brokerURL)
-}
-
-func (c *testOpenRungBrokerClient) DownloadSpeedTest(
-	ctx context.Context,
-	brokerURL string,
-	byteCount int,
-) (brokerapi.SpeedTestResult, error) {
-	if c.downloadSpeedTest == nil {
-		return brokerapi.SpeedTestResult{}, errors.New("unexpected DownloadSpeedTest call")
-	}
-	return c.downloadSpeedTest(ctx, brokerURL, byteCount)
 }
 
 func openRungBrokerImplementation(
@@ -160,9 +148,9 @@ func TestOpenRungBrokerConstructorsEmitFixedPlatformHeaders(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-				if request.URL.Path != "/api/v1/speed-test" ||
-					request.URL.Query().Get("bytes") != "1" {
-					t.Errorf("speed request URL = %s", request.URL.String())
+				if request.URL.Path != "/api/v1/relays" ||
+					request.URL.Query().Get("limit") != "1" {
+					t.Errorf("relay request URL = %s", request.URL.String())
 				}
 				if got := request.Header.Get("X-OpenRung-App-Version"); got != "1.2.3" {
 					t.Errorf("app version header = %q", got)
@@ -175,20 +163,19 @@ func TestOpenRungBrokerConstructorsEmitFixedPlatformHeaders(t *testing.T) {
 						t.Errorf("unexpected %s = %q", forbidden, got)
 					}
 				}
-				_, _ = io.WriteString(response, "x")
+				_, _ = io.WriteString(response, validLoopbackRelayJSON())
 			}))
 			defer server.Close()
 
 			operation := test.newOperation()
-			result := operation.DownloadSpeedTest(server.URL, 1)
+			result := operation.FirstReachable(server.URL, 1, "", "")
 			operation.Close()
-			if !result.Succeeded() || result.Bytes() != 1 {
+			if !result.Succeeded() {
 				t.Fatalf(
-					"speed result = success:%v kind:%q text:%q bytes:%d",
+					"relay result = success:%v kind:%q text:%q",
 					result.Succeeded(),
 					result.ErrorKind(),
 					result.ErrorText(),
-					result.Bytes(),
 				)
 			}
 		})
@@ -205,13 +192,6 @@ func TestOpenRungBrokerReactNativePlatformIsOneStringEnum(t *testing.T) {
 	if implementation.options.Platform == brokerapi.PlatformAndroid ||
 		implementation.options.Platform == brokerapi.PlatformIOS {
 		t.Fatalf("React Native operation selected native platform %q", implementation.options.Platform)
-	}
-}
-
-func TestOpenRungDefaultBrokerURLsJSON(t *testing.T) {
-	const want = `["https://broker.openrung.org/","https://d2r7mdpyevvs1m.cloudfront.net/","https://cdn-edge-cxdnhsg2aadmaubj.z02.azurefd.net/"]`
-	if got := OpenRungDefaultBrokerURLsJSON(); got != want {
-		t.Fatalf("OpenRungDefaultBrokerURLsJSON() = %q, want %q", got, want)
 	}
 }
 
@@ -614,26 +594,6 @@ func TestOpenRungSpeedResultsPreserveBrokerapiSemantics(t *testing.T) {
 			result.Mbps(),
 		)
 	}
-
-	downloadOperation := NewOpenRungBrokerOperationForIOS("1.2.3", "18.5")
-	downloadImplementation := openRungBrokerImplementation(t, downloadOperation)
-	downloadImplementation.client = &testOpenRungBrokerClient{
-		downloadSpeedTest: func(
-			_ context.Context,
-			gotBrokerURL string,
-			byteCount int,
-		) (brokerapi.SpeedTestResult, error) {
-			if gotBrokerURL != brokerURL || byteCount != 1234 {
-				t.Errorf("DownloadSpeedTest(%q, %d)", gotBrokerURL, byteCount)
-			}
-			return brokerapi.SpeedTestResult{Bytes: int64(byteCount)}, nil
-		},
-	}
-	download := downloadOperation.DownloadSpeedTest(brokerURL, 1234)
-	downloadOperation.Close()
-	if !download.Succeeded() || download.Bytes() != 1234 {
-		t.Fatalf("download result = success:%v bytes:%d", download.Succeeded(), download.Bytes())
-	}
 }
 
 func TestOpenRungBrokerOperationIsSingleUseAndCloseCancels(t *testing.T) {
@@ -659,7 +619,7 @@ func TestOpenRungBrokerOperationIsSingleUseAndCloseCancels(t *testing.T) {
 	}()
 	<-started
 
-	second := operation.DownloadSpeedTest("http://127.0.0.1:8080", 1)
+	second := operation.RunSpeedTest("http://127.0.0.1:8080")
 	if second.Succeeded() || second.ErrorKind() != "validation" {
 		t.Fatalf(
 			"concurrent second invocation = success:%v kind:%q",

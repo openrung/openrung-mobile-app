@@ -60,8 +60,8 @@ export function Disconnected(): React.JSX.Element {
         directoryStatus="loading"
         status="disconnected"
         relayLabel={null}
+        relayName={null}
         lastError={null}
-        logLines={[]}
         connectedAtMs={null}
       />
     </div>
@@ -69,8 +69,8 @@ export function Disconnected(): React.JSX.Element {
 }
 
 /**
- * Live session: counts from the directory, volunteer name mined from the
- * "trying relay" log line, uptime clock at ~01:02:03.
+ * Live session: counts from the directory, relay name mirrored from native
+ * state, uptime clock at ~01:02:03.
  */
 export function Connected(): React.JSX.Element {
   return (
@@ -80,12 +80,8 @@ export function Connected(): React.JSX.Element {
         directoryStatus="loaded"
         status="connected"
         relayLabel="Tokyo, Japan"
+        relayName="silly-lemur"
         lastError={null}
-        logLines={[
-          '[14:02:10] fetching directory from broker.openrung.net',
-          '[14:02:11] trying relay relay_8f2c1a9b at 203.0.113.4:443',
-          '[14:02:12] tunnel interface up, mtu 1380',
-        ]}
         connectedAtMs={Date.now() - 3723000}
       />
     </div>
@@ -101,8 +97,8 @@ export function Failed(): React.JSX.Element {
         directoryStatus="loaded"
         status="failed"
         relayLabel={null}
+        relayName={null}
         lastError="no route to relay — network unreachable"
-        logLines={['[14:05:56] relay unreachable, retrying']}
         connectedAtMs={null}
       />
     </div>

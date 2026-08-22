@@ -42,7 +42,6 @@
     <string name="error_relay_not_available">The selected relay is no longer available.</string>
     <string name="error_vpn_connection_failed">VPN connection failed</string>
     <string name="error_tunnel_engine_stopped">The local VPN tunnel engine stopped unexpectedly.</string>
-    <string name="error_relay_unreachable">Relay %1$s:%2$d is not reachable from this Android device. If this is the emulator, use an IPv4/dual-stack relay endpoint or an IPv6-capable emulator network.</string>
     <string name="error_all_relays_failed">All relay connection attempts failed. Last error: %1$s</string>
     <string name="error_unknown">unknown</string>
 </resources>

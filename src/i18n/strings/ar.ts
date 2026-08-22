@@ -3,21 +3,15 @@ import type { Strings } from './en';
 /** Ported from `res/values-ar/strings.xml`; missing keys fall back to English. */
 export const ar: Partial<Strings> = {
   appName: 'OpenRung',
-  mainTitle: 'openrung://mobile-client',
-  statusFormat: (status: string) => `الحالة = ${status}`,
-  relayFormat: (relay: string) => `المرحل = ${relay}`,
-  relayLocationUnknown: 'موقع غير معروف',
   actionConnect: 'اتصال',
   actionDisconnect: 'قطع الاتصال',
   readyLog: 'جاهز. اضغط على «اتصال» للتوجيه عبر مُرحّل.',
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
-  settingsContentDescription: 'فتح الإعدادات',
   settingsTitle: 'الإعدادات',
   backContentDescription: 'رجوع',
   languageSettingTitle: 'اللغة',
   languageSettingSubtitle: 'استخدم لغة النظام أو اختر لغة لـ OpenRung.',
-  versionSettingTitle: 'الإصدار',
   languageSystem: 'افتراضي النظام',
   languageEnglish: 'English',
   languageSimplifiedChinese: '简体中文',
@@ -76,7 +70,6 @@ export const ar: Partial<Strings> = {
 
   // Recents, map/list toggle, and list view.
   recentsLabel: 'الأخيرة',
-  recentsEmpty: 'لا توجد مواقع حديثة بعد.',
   viewToggleMap: 'خريطة',
   viewToggleList: 'قائمة',
   listContentDescription: 'قائمة عقد الخروج المتاحة',

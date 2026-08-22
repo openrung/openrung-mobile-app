@@ -44,7 +44,6 @@ object AppConfig {
     )
 
     const val RELAY_LIMIT = 5
-    const val VPN_SESSION_NAME = "OpenRung VPN"
     const val STATUS_PREFS = "openrung_status"
 
     /**
@@ -56,18 +55,4 @@ object AppConfig {
 
     /** Most-recently connected locations kept for the main-screen "Recents" row. */
     const val MAX_RECENTS = 8
-
-    /**
-     * Public source repository. Surfaced in the in-app open-source licenses screen and used as the
-     * GPL-3.0 corresponding-source offer for the (GPL-licensed) app.
-     */
-    const val SOURCE_URL = "https://github.com/openrung/openrung"
-
-    /**
-     * Vector tiles + glyphs for the exit-node map. We build our own flat style (blue ocean / grey
-     * land) around these MapLibre demo tiles rather than using the demo *style*, which colour-codes
-     * every country. An operator can point these at a self-hosted source to avoid third-party tiles.
-     */
-    const val MAP_TILES_URL = "https://demotiles.maplibre.org/tiles/tiles.json"
-    const val MAP_GLYPHS_URL = "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf"
 }

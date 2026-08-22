@@ -5,12 +5,12 @@ import {
 import type { RelayDescriptor, RelayListResponse } from '../model/relay';
 
 /** A verified relay fetch together with the broker endpoint selected by brokerapi. */
-export interface Fetch {
+interface Fetch {
   brokerUrl: string;
   response: RelayListResponse;
 }
 
-export interface FirstReachableOptions {
+interface FirstReachableOptions {
   limit?: number;
   clientId: string;
   sessionId?: string | null;

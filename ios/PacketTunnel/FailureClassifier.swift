@@ -118,8 +118,6 @@ enum FailureClassifier {
             switch brokerError {
             case .httpStatus(let code):
                 return .facts(["http_status": code])
-            case .invalidResponse:
-                return .facts([:])
             }
         }
 

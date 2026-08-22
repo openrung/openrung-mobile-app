@@ -471,7 +471,7 @@ switch (mode) {
     break;
   default:
     console.error(
-      'usage: update-manifest.mjs <generate [--out file] [--android-latest x.y.z] | check | keygen [--name n]>',
+      'usage: update-manifest.mjs <generate [--out file] [--android-latest x.y.z] [--release-published-at iso8601] | check | keygen [--name n]>',
     );
     process.exit(1);
 }

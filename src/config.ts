@@ -20,19 +20,12 @@ export const AppConfig = {
    */
   TELEMETRY_BROKER_URL: 'https://broker.openrung.org/',
 
-  RELAY_LIMIT: 5,
-  VPN_SESSION_NAME: 'OpenRung VPN',
-  STATUS_PREFS: 'openrung_status',
-
   /**
-   * Relay fetch used to populate the exit-node map directory (the connect path still uses
-   * RELAY_LIMIT). This is the broker's maximum allowed page size — the broker rejects anything
-   * larger with HTTP 400 — so it captures the full set of currently-advertised relays.
+   * Relay fetch used to populate the exit-node map directory. This is the broker's maximum
+   * allowed page size — the broker rejects anything larger with HTTP 400 — so it captures the
+   * full set of currently-advertised relays.
    */
   DIRECTORY_RELAY_LIMIT: 20,
-
-  /** Most-recently connected locations kept for the main-screen "Recents" row. */
-  MAX_RECENTS: 8,
 
   /**
    * Public source repository. Surfaced in the in-app open-source licenses screen and used as the

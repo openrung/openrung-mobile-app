@@ -28,7 +28,7 @@ class SplitTunnelStoreTest {
     fun `written config round-trips through read`() {
         val configJson =
             """{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":["ir","cn"],"excluded_packages":["com.tencent.mm"]}"""
-        assertTrue(SplitTunnelStore.writeRaw(context, configJson))
+        seedRaw(context, configJson)
 
         val config = SplitTunnelStore.read(context)!!
         assertEquals(1, config.version)
@@ -68,11 +68,12 @@ class SplitTunnelStoreTest {
     }
 
     @Test
-    fun `writeRaw reports whether the stored value changed`() {
+    fun `pushing a byte-identical raw config is reported as no change`() {
         val configJson = """{"version":1,"enabled":true}"""
-        assertTrue(SplitTunnelStore.writeRaw(context, configJson))
-        assertFalse(SplitTunnelStore.writeRaw(context, configJson))
-        assertTrue(SplitTunnelStore.writeRaw(context, """{"version":1,"enabled":false}"""))
+        assertTrue(SplitTunnelStore.writeAndReportEffectiveChange(context, configJson))
+        // Same raw string: short-circuits on string equality before any parsing.
+        assertFalse(SplitTunnelStore.writeAndReportEffectiveChange(context, configJson))
+        assertTrue(SplitTunnelStore.writeAndReportEffectiveChange(context, """{"version":1,"enabled":false}"""))
     }
 
     @Test
@@ -146,4 +147,10 @@ class SplitTunnelStoreTest {
     private fun readBackRaw(context: Context): String? =
         context.getSharedPreferences("openrung_split_tunnel", Context.MODE_PRIVATE)
             .getString("config_json", null)
+
+    /** Seeds the store the way the deleted writeRaw helper did: same prefs file, same key. */
+    private fun seedRaw(context: Context, configJson: String) {
+        context.getSharedPreferences("openrung_split_tunnel", Context.MODE_PRIVATE)
+            .edit().putString("config_json", configJson).apply()
+    }
 }

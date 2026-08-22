@@ -144,7 +144,8 @@ weaken the production OS policy.
   `wss_fronts` are tried in their advertised order. The client obtains a
   relay/front-bound ticket by redirect-rejecting HTTPS POST with sequential
   broker-front failover under one deadline, then passes the exact signed URL and
-  opaque ticket to the pinned `github.com/openrung/openrung/wsscore v0.2.0`.
+  opaque ticket to `github.com/openrung/openrung/wsscore`, pinned in
+  `android/punchbridge/go.mod` (currently v0.6.0).
   wsscore exposes a loopback endpoint to the unchanged Reality client. Android
   requires `VpnService.protect(fd)` to return true before connecting the outer
   socket and fails closed; PacketTunnel uses the dedicated Apple constructor's
@@ -419,7 +420,8 @@ are not ported (TS owns them). Key pieces:
   yamux, copying, and transport bounds remain entirely in the pinned wsscore Go
   module compiled into the combined AAR.
 - `android/punchbridge/broker_binding.go` — the single-use gomobile foundation
-  over pinned `brokerapi v0.1.0`, compiled into that same AAR/Go runtime.
+  over `brokerapi`, pinned in `android/punchbridge/go.mod` (currently v0.5.0)
+  and compiled into that same AAR/Go runtime.
   `NativeBrokerTransport` confines generated objects and serves both the
   Android VPN clients and the separate `OpenRungBroker` module through
   constructor-specific factories.

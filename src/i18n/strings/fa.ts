@@ -3,22 +3,16 @@ import type { Strings } from './en';
 /** Ported from `res/values-fa/strings.xml`; missing keys fall back to English. */
 export const fa: Partial<Strings> = {
   appName: 'OpenRung',
-  mainTitle: 'openrung://mobile-client',
-  statusFormat: (status: string) => `وضعیت = ${status}`,
-  relayFormat: (relay: string) => `رله = ${relay}`,
-  relayLocationUnknown: 'موقعیت نامشخص',
   actionConnect: 'اتصال',
   actionDisconnect: 'قطع اتصال',
   readyLog: 'آماده است. برای عبور از رله، روی اتصال ضربه بزنید.',
   logLineFormat: (line: string) => `> ${line}`,
   errorLineFormat: (error: string) => `! ${error}`,
-  settingsContentDescription: 'باز کردن تنظیمات',
   settingsTitle: 'تنظیمات',
   backContentDescription: 'بازگشت',
   languageSettingTitle: 'زبان',
   languageSettingSubtitle:
     'از زبان سیستم استفاده کنید یا زبانی برای OpenRung انتخاب کنید.',
-  versionSettingTitle: 'نسخه',
   languageSystem: 'پیش‌فرض سیستم',
   languageEnglish: 'English',
   languageSimplifiedChinese: '简体中文',
@@ -78,7 +72,6 @@ export const fa: Partial<Strings> = {
 
   // Recent locations.
   recentsLabel: 'اخیر',
-  recentsEmpty: 'هنوز مکان اخیری وجود ندارد.',
 
   // Map / list toggle.
   viewToggleMap: 'نقشه',
