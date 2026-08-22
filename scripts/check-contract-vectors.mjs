@@ -15,9 +15,11 @@
  *           up here or listed as pending with a reason. No network.
  *   remote  the vendored bytes are byte-identical to the pinned openrung ref. Needs network.
  *
- * Both always run.
+ * Both run by default. `--offline` runs the local half only and says so on stderr — the point of
+ * the flag is a dev machine without network, not a way to make CI quiet, so it never downgrades a
+ * real mismatch into a pass.
  *
- * Usage: node scripts/check-contract-vectors.mjs [--sync]
+ * Usage: node scripts/check-contract-vectors.mjs [--offline] [--sync]
  *        --sync rewrites the vendored copies and digests from the pinned ref.
  */
 import crypto from 'node:crypto';
@@ -29,6 +31,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const vectorDir = path.join(root, 'testdata/contract');
 const pinPath = path.join(vectorDir, 'pin.json');
 
+const offline = process.argv.includes('--offline');
 const sync = process.argv.includes('--sync');
 const failures = [];
 const notes = [];
@@ -91,6 +94,10 @@ const upstreamCache = new Map();
 // anything: a partial sync — some files rewritten, pin.json still holding the old digests — would
 // point the next contract:check's remediation text back at the sync that broke the tree.
 if (sync) {
+  if (offline) {
+    console.error('--sync needs the network; drop --offline.');
+    process.exit(2);
+  }
   try {
     await Promise.all(
       pinned.map(async file => {
@@ -200,38 +207,48 @@ for (const [file, expected] of Object.entries(pin.files)) {
   }
 }
 
-// Upstream drift is independent of the local bookkeeping checks above, so it is reported even
-// when they failed — one red run should carry the whole story, not ration it across two.
-const fetched = await Promise.all(
-  pinned.map(async file => {
-    if (upstreamCache.has(file)) {
-      return { file, upstream: upstreamCache.get(file).upstream };
+if (offline) {
+  console.error(
+    'contract:check --offline: skipped the comparison against ' +
+      `${pin.repo}@${refLabel}. Local digests only; run without --offline before merging.`,
+  );
+} else {
+  // Upstream drift is independent of the local bookkeeping checks above, so it is reported even
+  // when they failed — one red run should carry the whole story, not ration it across two.
+  const fetched = await Promise.all(
+    pinned.map(async file => {
+      if (upstreamCache.has(file)) {
+        return { file, upstream: upstreamCache.get(file).upstream };
+      }
+      try {
+        return { file, upstream: await fetchUpstream(pin, file) };
+      } catch (error) {
+        return { file, error };
+      }
+    }),
+  );
+  for (const { file, upstream, error } of fetched) {
+    if (error) {
+      // Never downgrade an unreachable upstream to a pass: an unchecked copy is the whole failure
+      // mode this script exists for.
+      fail(
+        `${file}: could not read the pinned copy (${error.message}). ` +
+          'Use --offline only when the network is genuinely unavailable.',
+      );
+      continue;
     }
-    try {
-      return { file, upstream: await fetchUpstream(pin, file) };
-    } catch (error) {
-      return { file, error };
+    const localPath = path.join(vectorDir, file);
+    if (!fs.existsSync(localPath)) {
+      continue; // already reported as "pinned but not vendored" above
     }
-  }),
-);
-for (const { file, upstream, error } of fetched) {
-  if (error) {
-    // Never downgrade an unreachable upstream to a pass: an unchecked copy is the whole failure
-    // mode this script exists for.
-    fail(`${file}: could not read the pinned copy (${error.message}).`);
-    continue;
-  }
-  const localPath = path.join(vectorDir, file);
-  if (!fs.existsSync(localPath)) {
-    continue; // already reported as "pinned but not vendored" above
-  }
-  if (!upstream.equals(fs.readFileSync(localPath))) {
-    fail(
-      `${file}: differs from ${pin.repo}@${refLabel}:${pin.source_dir}/${file}. ` +
-        'Re-vendor with `npm run contract:sync`, or move the pin if upstream moved on purpose.',
-    );
-  } else {
-    notes.push(`${file} matches ${pin.repo}@${refLabel}`);
+    if (!upstream.equals(fs.readFileSync(localPath))) {
+      fail(
+        `${file}: differs from ${pin.repo}@${refLabel}:${pin.source_dir}/${file}. ` +
+          'Re-vendor with `npm run contract:sync`, or move the pin if upstream moved on purpose.',
+      );
+    } else {
+      notes.push(`${file} matches ${pin.repo}@${refLabel}`);
+    }
   }
 }
 
