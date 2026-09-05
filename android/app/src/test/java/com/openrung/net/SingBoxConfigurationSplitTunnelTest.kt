@@ -56,13 +56,19 @@ class SingBoxConfigurationSplitTunnelTest {
             probeRule["domain_suffix"]!!.jsonArray.map { it.jsonPrimitive.content },
         )
         assertEquals("proxy", probeRule["outbound"]!!.jsonPrimitive.content)
+        assertEquals("tcp", probeRule["network"]!!.jsonPrimitive.content)
         val countryRule = routeRules[3].jsonObject
         assertEquals(
             listOf("geosite-ir", "geoip-ir"),
             countryRule["rule_set"]!!.jsonArray.map { it.jsonPrimitive.content },
         )
         assertEquals("direct", countryRule["outbound"]!!.jsonPrimitive.content)
-        assertEquals(4, routeRules.size)
+        assertEquals(5, routeRules.size)
+        val reject = routeRules.last().jsonObject
+        assertEquals("reject", reject["action"]!!.jsonPrimitive.content)
+        assertEquals("udp", reject["network"]!!.jsonPrimitive.content)
+        assertEquals("443", reject["port"]!!.jsonPrimitive.content)
+        assertEquals("true", reject["no_drop"]!!.jsonPrimitive.content)
 
         val dns = config["dns"]!!.jsonObject
         // Iran has no encrypted public resolver we can currently stand behind, so it contributes
@@ -91,7 +97,7 @@ class SingBoxConfigurationSplitTunnelTest {
         val config = SingBoxBindingFixtures.golden("android-split-ir-cn-lan")
 
         val routeRules = config.routeRules().map { it.jsonObject }
-        assertEquals(6, routeRules.size)
+        assertEquals(7, routeRules.size)
         assertEquals("hijack-dns", routeRules[0]["action"]!!.jsonPrimitive.content)
         assertEquals("sniff", routeRules[1]["action"]!!.jsonPrimitive.content)
         assertEquals("proxy", routeRules[2]["outbound"]!!.jsonPrimitive.content)

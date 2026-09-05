@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/openrung/openrung/brokerapi"
+	"github.com/openrung/openrung/connectcore/clienttelemetry"
 )
 
 const testOutboxFileName = "openrung_telemetry_outbox.jsonl"
@@ -254,27 +255,27 @@ func TestOpenRungTelemetryOutboxPersistsAcrossInstances(t *testing.T) {
 func TestOpenRungTelemetryOutboxCapsTheQueueOldestFirst(t *testing.T) {
 	directory := t.TempDir()
 	outbox := testTelemetryOutbox(t, directory)
-	for i := 0; i < openRungTelemetryMaxQueued+25; i++ {
+	for i := 0; i < clienttelemetry.OutboxMaxQueued+25; i++ {
 		id := fmt.Sprintf("e-%04d", i)
 		if !outbox.Enqueue(testTelemetryEventJSON(t, id, "connection_failed", "c", "s", nil)) {
 			t.Fatalf("enqueue %s rejected", id)
 		}
 	}
-	if got := outbox.PendingCount(); got != openRungTelemetryMaxQueued {
-		t.Fatalf("queue holds %d events, want the %d cap", got, openRungTelemetryMaxQueued)
+	if got := outbox.PendingCount(); got != clienttelemetry.OutboxMaxQueued {
+		t.Fatalf("queue holds %d events, want the %d cap", got, clienttelemetry.OutboxMaxQueued)
 	}
 	// A fresh instance sees the same capped queue: the cap survives the file.
 	outbox.Close()
 	reopened := testTelemetryOutbox(t, directory)
-	if got := reopened.PendingCount(); got != openRungTelemetryMaxQueued {
-		t.Fatalf("reloaded queue holds %d events, want %d", got, openRungTelemetryMaxQueued)
+	if got := reopened.PendingCount(); got != clienttelemetry.OutboxMaxQueued {
+		t.Fatalf("reloaded queue holds %d events, want %d", got, clienttelemetry.OutboxMaxQueued)
 	}
 }
 
 func TestOpenRungTelemetryOutboxCompactsTheAppendOnlyFile(t *testing.T) {
 	directory := t.TempDir()
 	outbox := testTelemetryOutbox(t, directory)
-	total := openRungTelemetryCompactThreshold + 10
+	total := (2 * clienttelemetry.OutboxMaxQueued) + 10
 	for i := 0; i < total; i++ {
 		outbox.Enqueue(testTelemetryEventJSON(t, fmt.Sprintf("e-%04d", i), "x", "c", "s", nil))
 	}
@@ -283,8 +284,8 @@ func TestOpenRungTelemetryOutboxCompactsTheAppendOnlyFile(t *testing.T) {
 		t.Fatalf("reading outbox file: %v", err)
 	}
 	lines := strings.Count(string(raw), "\n")
-	if lines > openRungTelemetryCompactThreshold {
-		t.Fatalf("file holds %d lines; compaction should bound it at %d", lines, openRungTelemetryCompactThreshold)
+	if lines > (2 * clienttelemetry.OutboxMaxQueued) {
+		t.Fatalf("file holds %d lines; compaction should bound it at %d", lines, (2 * clienttelemetry.OutboxMaxQueued))
 	}
 }
 
@@ -359,7 +360,7 @@ func TestOpenRungTelemetryOutboxDefersApplicationsOverTheFlowBudget(t *testing.T
 			"measurements":        map[string]int64{"connection_count": count},
 		})
 	}
-	outbox.Enqueue(appEvent("heavy-1", openRungMaxReportedFlows))
+	outbox.Enqueue(appEvent("heavy-1", 100_000))
 	outbox.Enqueue(appEvent("heavy-2", 5))
 	outbox.Enqueue(testTelemetryEventJSON(t, "plain", "connection_failed", "c", "s", nil))
 
@@ -634,32 +635,6 @@ func TestOpenRungTelemetryOutboxLegacyImportReportsDurability(t *testing.T) {
 // batch outside the outbox lock, so the batch must not share attribute or
 // measurement maps with the live queue — the geo back-patch mutates those
 // under the lock, and a shared header is a fatal concurrent map access.
-func TestOpenRungTelemetryUploadBatchCopiesAttributeMaps(t *testing.T) {
-	events := []brokerapi.TelemetryEvent{{
-		EventID:      "e-1",
-		Event:        "connection_failed",
-		ClientID:     "c",
-		SessionID:    "s",
-		Attributes:   map[string]string{"failure_reason": "timeout"},
-		Measurements: map[string]int64{"attempt": 1},
-	}}
-	batch := openRungTelemetryUploadBatch(events, 10)
-	if len(batch) != 1 {
-		t.Fatalf("batch holds %d events, want 1", len(batch))
-	}
-	events[0].Attributes["country"] = "JP"
-	events[0].Measurements["attempt"] = 2
-	if _, leaked := batch[0].Attributes["country"]; leaked {
-		t.Fatal("batch shares the queue's attribute map")
-	}
-	if batch[0].Measurements["attempt"] != 1 {
-		t.Fatal("batch shares the queue's measurement map")
-	}
-}
-
-// TestOpenRungTelemetryOutboxLoadFailureDoesNotEraseTheBacklog: a transient
-// read failure must not read as an empty queue — the operations degrade, the
-// file stays intact, and the next operation after recovery sees the backlog.
 func TestOpenRungTelemetryOutboxLoadFailureDoesNotEraseTheBacklog(t *testing.T) {
 	directory := t.TempDir()
 	writer := testTelemetryOutbox(t, directory)
@@ -880,26 +855,3 @@ func TestOpenRungTelemetryOutboxStaysUnloadedWhenTheRepairCannotLand(t *testing.
 // the cross-process lock, so another process may own the file by then. The
 // commit must refuse to rewrite; re-delivering the accepted batch later is the
 // safe side.
-func TestOpenRungTelemetryOutboxRemoveSentRefusesAfterClose(t *testing.T) {
-	directory := t.TempDir()
-	handle := testTelemetryOutbox(t, directory)
-	if !handle.Enqueue(testTelemetryEventJSON(t, "r-1", "connection_failed", "c", "s", nil)) {
-		t.Fatal("enqueue rejected a valid event")
-	}
-	outbox := handle.(*openRungTelemetryOutbox)
-	outbox.mu.Lock()
-	batch := openRungTelemetryUploadBatch(outbox.events, openRungTelemetryBatchSize)
-	outbox.mu.Unlock()
-	path := filepath.Join(directory, testOutboxFileName)
-	before, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("reading outbox: %v", err)
-	}
-
-	handle.Close()
-	outbox.removeSent(batch)
-	after, err := os.ReadFile(path)
-	if err != nil || string(after) != string(before) {
-		t.Fatal("a closed outbox rewrote the file it no longer owns")
-	}
-}

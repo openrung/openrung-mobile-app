@@ -50,7 +50,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: android/app/libs/libbox.aar
-          key: libbox-${{ hashFiles('SINGBOX_VERSION', 'android/build-libbox-release.sh', 'android/punchbridge/**/*.go', 'android/punchbridge/go.mod', 'android/punchbridge/go.sum') }}
+          key: libbox-${{ hashFiles('SINGBOX_VERSION', 'package.json', 'android/build-libbox-release.sh', 'android/punchbridge/**/*.go', 'android/punchbridge/go.mod', 'android/punchbridge/go.sum') }}
       - name: Install gomobile
         if: steps.libbox.outputs.cache-hit != 'true'
         run: |

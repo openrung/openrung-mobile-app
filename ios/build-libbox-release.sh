@@ -275,6 +275,33 @@ cp "$binding_source/singbox_binding.go" \
   "$work_dir/source/experimental/libbox/openrung_singbox.go"
 cp "$binding_source/telemetry_binding.go" \
   "$work_dir/source/experimental/libbox/openrung_telemetry.go"
+# Engine lifecycle and in-process runtime share the existing libbox package.
+for engine_source in engine_binding.go engine_runtime.go; do
+  cp "$binding_source/$engine_source" "$work_dir/source/experimental/libbox/openrung_$engine_source"
+done
+# The build constraint excludes this file from the standalone binding module.
+# The graft provides PlatformInterface/CommandServer and always includes it.
+if [ "$(head -n 1 "$binding_source/engine_libbox.go")" != '//go:build openrung_libbox' ]; then
+  echo "error: engine_libbox.go graft constraint changed" >&2
+  exit 1
+fi
+tail -n +3 "$binding_source/engine_libbox.go" > "$work_dir/source/experimental/libbox/openrung_engine_libbox.go"
+# Graft-only tests verify the concrete service adapter on the build host.
+tail -n +3 "$binding_source/engine_libbox_test.go" > "$work_dir/source/experimental/libbox/openrung_engine_libbox_test.go"
+
+# Set the engine's process-wide app version during package initialization,
+# before any goroutine can read it; never mutate it from a live constructor.
+python3 - "$repo_root/package.json" "$work_dir/source/experimental/libbox/openrung_engine_version.go" <<'ENGINE_VERSION'
+import json
+from pathlib import Path
+import sys
+version = json.loads(Path(sys.argv[1]).read_text())["version"]
+Path(sys.argv[2]).write_text(
+    'package libbox\nimport "github.com/openrung/openrung/connectcore/client"\n'
+    'func init() { client.SetAppVersion(' + json.dumps(version) + ') }\n'
+)
+ENGINE_VERSION
+
 mkdir -p "$work_dir/source/experimental/libbox/internal/openrungpunch"
 for source_file in "$binding_source/internal/openrungpunch/"*.go; do
   case "$source_file" in
@@ -339,6 +366,8 @@ done
       "github.com/openrung/openrung/punchcore@$punchcore_version" \
       "github.com/openrung/openrung/wsscore@$wsscore_version"
   GOMODCACHE="$module_cache" GOWORK=off \
+    go test -race -tags with_gvisor,with_quic ./experimental/libbox -run TestOpenRungLibbox
+  GOMODCACHE="$module_cache" GOWORK=off \
     go run ./cmd/internal/build_libbox \
       -target apple \
       -platform ios,iossimulator
@@ -384,6 +413,24 @@ for slice in ios-arm64 ios-arm64_x86_64-simulator; do
     echo "error: Apple build is missing the OpenRung iOS broker constructor in $slice" >&2
     exit 1
   fi
+  for engine_symbol in \
+    'LibboxNewOpenRungEngineForAndroid' \
+    'LibboxNewOpenRungEngineForIOS' \
+    '@protocol LibboxOpenRungEngine <NSObject>' \
+    '@protocol LibboxOpenRungEngineListener <NSObject>' \
+    ')start:' \
+    ')disconnect:' \
+    ')stop:' \
+    ')pause;' \
+    ')resume;' \
+    ')networkChanged:' \
+    ')stateJSON;' \
+    ')onEvent:'; do
+    if ! grep -Fq "$engine_symbol" "$header"; then
+      echo "error: Apple build is missing engine API in $slice: $engine_symbol" >&2
+      exit 1
+    fi
+  done
   for classifier_symbol in \
     'LibboxOpenRungClassifyFailure' \
     'LibboxOpenRungFailureDetail'; do

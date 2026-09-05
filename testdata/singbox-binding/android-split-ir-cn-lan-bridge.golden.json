@@ -218,6 +218,7 @@
           "probe.openrung.org",
           "cp.cloudflare.com"
         ],
+        "network": "tcp",
         "outbound": "proxy"
       },
       {
@@ -237,6 +238,12 @@
           "geosite-cn",
           "geoip-cn"
         ]
+      },
+      {
+        "action": "reject",
+        "network": "udp",
+        "no_drop": true,
+        "port": 443
       }
     ]
   }

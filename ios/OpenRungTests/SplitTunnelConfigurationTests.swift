@@ -27,6 +27,7 @@ final class SplitTunnelConfigurationTests: XCTestCase {
         XCTAssertEqual(try canonicalJSON(route["rules"]), try canonicalJSON([
             ["protocol": "dns", "action": "hijack-dns"],
             ["ip_is_private": true, "outbound": "direct"],
+            ["action": "reject", "network": "udp", "port": 443, "no_drop": true],
         ] as [[String: Any]]))
 
         // Everything outside route — dns (incl. the always-on probe rule), tun inbound,
@@ -51,8 +52,9 @@ final class SplitTunnelConfigurationTests: XCTestCase {
         XCTAssertEqual(try canonicalJSON(route["rules"]), try canonicalJSON([
             ["protocol": "dns", "action": "hijack-dns"],
             ["action": "sniff"],
-            ["domain_suffix": ProbeTargets.ruleDomainSuffixes, "outbound": "proxy"],
+            ["network": "tcp", "domain_suffix": ProbeTargets.ruleDomainSuffixes, "outbound": "proxy"],
             ["rule_set": ["geosite-ir", "geoip-ir"], "outbound": "direct"],
+            ["action": "reject", "network": "udp", "port": 443, "no_drop": true],
         ] as [[String: Any]]))
         XCTAssertEqual(try canonicalJSON(route["rule_set"]), try canonicalJSON([
             ["type": "local", "tag": "geosite-ir", "format": "binary", "path": "\(ruleSetDirectory)/geosite-ir.srs"],
@@ -88,10 +90,11 @@ final class SplitTunnelConfigurationTests: XCTestCase {
         XCTAssertEqual(try canonicalJSON(route["rules"]), try canonicalJSON([
             ["protocol": "dns", "action": "hijack-dns"],
             ["action": "sniff"],
-            ["domain_suffix": ProbeTargets.ruleDomainSuffixes, "outbound": "proxy"],
+            ["network": "tcp", "domain_suffix": ProbeTargets.ruleDomainSuffixes, "outbound": "proxy"],
             ["ip_is_private": true, "outbound": "direct"],
             ["rule_set": ["geosite-ir", "geoip-ir"], "outbound": "direct"],
             ["rule_set": ["geosite-cn", "geoip-cn"], "outbound": "direct"],
+            ["action": "reject", "network": "udp", "port": 443, "no_drop": true],
         ] as [[String: Any]]))
         let ruleSets = try XCTUnwrap(route["rule_set"] as? [[String: Any]])
         XCTAssertEqual(

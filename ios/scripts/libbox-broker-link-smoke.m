@@ -17,6 +17,17 @@ int main(void) {
         LibboxNewOpenRungPunchClientForIOS(@"https://coordinator.invalid",
                                           @"relay-link-smoke", NO, @"", nil);
     [punchClient close];
+    NSError *engineError = nil;
+    id<LibboxOpenRungEngine> engine =
+        LibboxNewOpenRungEngineForIOS(@"{}", nil, nil, &engineError);
+    (void)LibboxNewOpenRungEngineForAndroid(@"{}", nil, nil, nil, &engineError);
+    [engine start:@"https://broker.invalid" country:@"" relayID:@"" error:&engineError];
+    [engine pause];
+    [engine resume];
+    [engine networkChanged:YES fingerprint:@"wifi" dnsServersJSON:@"[]" error:&engineError];
+    (void)[engine stateJSON];
+    [engine disconnect:&engineError];
+    [engine stop:1000 error:&engineError];
   }
   return 0;
 }

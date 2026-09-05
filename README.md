@@ -169,13 +169,14 @@ docs/                CONTRACT.md (binding), ARCHITECTURE.md (overview),
 
 `testdata/contract/` holds golden vectors that four suites across two repos run
 against the same expectations: the failure-classification token set, the
-relay-directory decode, and the broker-front list. They are **copies** —
+relay-directory decode, broker-front list, and engine event sequences. They are **copies** —
 `connectcore/contract/vectors/` in `openrung/openrung` is the only source of truth, and
 `pin.json` records the ref they came from plus a digest per file.
 
 ```bash
 npm run contract:check   # local digests + byte-identical to the pinned ref
 npm run contract:sync    # re-vendor from the pinned ref after moving it
+python3 scripts/test-engine-vectors.py -race  # A4 scenarios through the Go binding
 ```
 
 Fix a vector upstream, then move the ref and re-sync here; editing a vendored
@@ -190,6 +191,11 @@ tests, run by `android-unit-test.yml`), and `ContractClassificationVectorsTests`
 Each file's `suites` field says which suites the contract expects; `pin.json`
 records which of those this repo runs today and, for any it does not yet, the
 reason. `contract:check` fails on a declared consumer that is neither.
+
+ADR-003 B1's engine lifecycle API, runtime ownership, validation, and measured
+idle memory delta are recorded in [ENGINE_BINDING.md](docs/ENGINE_BINDING.md).
+The platform orchestrator cutovers and platform event-vector runners follow in
+B2/B3.
 
 ## Building
 

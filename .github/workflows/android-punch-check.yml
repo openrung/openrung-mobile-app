@@ -7,6 +7,9 @@ on:
       - 'android/build-libbox-release.sh'
       - 'ios/build-libbox-release.sh'
       - 'SINGBOX_VERSION'
+      - 'package.json'
+      - 'scripts/test-engine-vectors.py'
+      - 'testdata/contract/**'
       - '.github/workflows/android-punch-check.yml'
   push:
     branches: [main]
@@ -15,6 +18,9 @@ on:
       - 'android/build-libbox-release.sh'
       - 'ios/build-libbox-release.sh'
       - 'SINGBOX_VERSION'
+      - 'package.json'
+      - 'scripts/test-engine-vectors.py'
+      - 'testdata/contract/**'
       - '.github/workflows/android-punch-check.yml'
 
 jobs:
@@ -29,5 +35,7 @@ jobs:
       - name: Test OpenRung protocols and gomobile bindings
         working-directory: android/punchbridge
         run: go test -race ./...
+      - name: Run A4 vectors through the engine binding
+        run: python3 scripts/test-engine-vectors.py -race
       - name: Check native release build scripts
         run: bash -n android/build-libbox-release.sh ios/build-libbox-release.sh

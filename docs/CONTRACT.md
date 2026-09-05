@@ -17,6 +17,14 @@ broker relay fetch (connect path), relay selection, TCP reachability, sing-box
 handling, heartbeat telemetry, VPN permission + background lifecycle, recents
 recording, status/log persistence.
 
+ADR-003 B1 adds the shared engine lifecycle binding under
+`android/punchbridge/engine_binding.go`, the per-run runtime in
+`engine_runtime.go`, and the concrete libbox graft in `engine_libbox.go`.
+The shipping native orchestrators remain in use until their B2/B3 cutovers.
+See [ENGINE_BINDING.md](ENGINE_BINDING.md) for the callback/lifetime contract,
+memory measurements, validation, and resolved divergences introduced by the
+connectcore pin (including the shared builder's explicit tunneled-QUIC rejection).
+
 **TypeScript (RN shell)** owns everything the production *app processes* own:
 all UI, navigation, exit-node map directory modeling (grouped by broker-served
 relay locations — relay IPs are never geolocated client-side), speed-test UI
