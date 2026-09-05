@@ -473,6 +473,11 @@ used as evidence that Reality or WSS carried end-to-end traffic.
   Android NAT-punch-first/RelayHub and direct-first WSS/CDN fallback,
   connection-failure handling,
   notification id 2001 channel `openrung_vpn`, heartbeat 50–70s.
+- `vpn/OpenRungLibboxPlatform.kt` — Android TUN fd creation, socket protection,
+  connection ownership, and interface enumeration, extracted from `ProxyEngine`.
+  B2 preparation adds `vpn/EngineEventDispatcher.kt` for queued gomobile events
+  with service-owner isolation. The service cutover is still pending the shared
+  API prerequisites and acceptance checks in [ANDROID_ENGINE_CUTOVER.md](ANDROID_ENGINE_CUTOVER.md).
 - `net/` BrokerClient, GeoIpClient, InternetProbe, RelayReachability,
   SingBoxConfiguration, NatPunchClient, WssTicketClient, WssClient,
   PhysicalNetworkEpochMonitor; `model/` RelayDescriptor, RelaySelector, CountryGeo,
