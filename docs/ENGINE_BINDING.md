@@ -79,7 +79,9 @@ generated configuration bytes directly to `StartOrReloadService`, and forwards
 fatal/unexpected stop/reload events. It does not start a gRPC listener. Startup
 returns at launch; connectcore's probes retain readiness ownership. Failed starts
 close any partially created instance, including libbox's FATAL state, where
-`CloseService` itself refuses cleanup.
+`CloseService` itself refuses cleanup. If `Box.Start` already closed the failed
+instance, the adapter accepts `os.ErrClosed` as completed teardown and preserves
+the startup error. Other close failures still keep the runtime unavailable.
 
 Each `Done` reports once and closes. Stop waits for actual cleanup. An in-process
 Go call cannot be forcibly killed safely: a blocked native startup or close can
@@ -115,6 +117,8 @@ listed as pending in `testdata/contract/pin.json`.
 
 Both release scripts also run the concrete graft's libbox launch-failure and
 constructor tests under Go's race detector, then verify generated ABI symbols.
+The launch tests cover invalid JSON and repeated OS TUN refusals after instance
+creation, followed by a successful start and stop on the same runtime.
 Android's `EngineBindingAbiTest` checks the rebuilt AAR signatures without loading
 Android native code in the host JVM. The Apple link smoke calls both constructors
 and references every lifecycle method against the device and simulator archives.

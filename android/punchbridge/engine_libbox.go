@@ -5,6 +5,7 @@ package libbox
 import (
 	"context"
 	"errors"
+	"os"
 	"sync"
 
 	"github.com/openrung/openrung/brokerapi"
@@ -84,10 +85,13 @@ type openRungLibboxService struct {
 	initialOnce sync.Once
 	watched     chan struct{}
 	started     bool // accessed only by the status subscriber
+	startFailed bool // start and close run sequentially on the runtime goroutine
 }
 
 func (s *openRungLibboxService) start(configJSON string) error {
-	return s.server.StartOrReloadService(configJSON, &OverrideOptions{})
+	err := s.server.StartOrReloadService(configJSON, &OverrideOptions{})
+	s.startFailed = err != nil
+	return err
 }
 func (s *openRungLibboxService) close() error {
 	s.cancel()
@@ -98,6 +102,12 @@ func (s *openRungLibboxService) close() error {
 	var err error
 	if instance := s.server.Instance(); instance != nil {
 		err = instance.Close()
+		// Box.Start closes itself on failure, but the daemon retains that
+		// instance in FATAL. Its repeated Close is completed teardown, not
+		// a live tunnel that should poison the runtime and prevent retries.
+		if s.startFailed && errors.Is(err, os.ErrClosed) {
+			err = nil
+		}
 	}
 	s.server.Close()
 	return err
