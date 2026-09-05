@@ -365,8 +365,9 @@ done
       "github.com/openrung/openrung/connectcore@$connectcore_version" \
       "github.com/openrung/openrung/punchcore@$punchcore_version" \
       "github.com/openrung/openrung/wsscore@$wsscore_version"
+  # Match upstream build_libbox: oomprofile uses runtime linknames on Linux.
   GOMODCACHE="$module_cache" GOWORK=off \
-    go test -race -tags with_gvisor,with_quic ./experimental/libbox -run TestOpenRungLibbox
+    go test -race -ldflags=-checklinkname=0 -tags with_gvisor,with_quic ./experimental/libbox -run TestOpenRungLibbox
   GOMODCACHE="$module_cache" GOWORK=off \
     go run ./cmd/internal/build_libbox \
       -target apple \
