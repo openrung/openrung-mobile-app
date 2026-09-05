@@ -107,7 +107,7 @@ jobs:
           # The AAR includes both the pinned sing-box tree and OpenRung's
           # committed NAT-punch binding. Hash every native source input so a
           # punch fix can never restore and ship a stale cached AAR.
-          key: libbox-${{ hashFiles('SINGBOX_VERSION', 'package.json', 'android/build-libbox-release.sh', 'android/punchbridge/**/*.go', 'android/punchbridge/go.mod', 'android/punchbridge/go.sum') }}
+          key: libbox-${{ hashFiles('SINGBOX_VERSION', 'package.json', 'android/build-libbox-release.sh', 'scripts/graft-engine-binding.sh', 'android/punchbridge/**/*.go', 'android/punchbridge/go.mod', 'android/punchbridge/go.sum') }}
       # sing-box's build_libbox execs $GOPATH/bin/{gomobile,gobind} and aborts with
       # "missing gomobile installation" if they're absent. Install the exact fork + version
       # sing-box pins (github.com/sagernet/gomobile — see its go.mod).

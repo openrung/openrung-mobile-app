@@ -275,32 +275,10 @@ cp "$binding_source/singbox_binding.go" \
   "$work_dir/source/experimental/libbox/openrung_singbox.go"
 cp "$binding_source/telemetry_binding.go" \
   "$work_dir/source/experimental/libbox/openrung_telemetry.go"
-# Engine lifecycle and in-process runtime share the existing libbox package.
-for engine_source in engine_binding.go engine_runtime.go; do
-  cp "$binding_source/$engine_source" "$work_dir/source/experimental/libbox/openrung_$engine_source"
-done
-# The build constraint excludes this file from the standalone binding module.
-# The graft provides PlatformInterface/CommandServer and always includes it.
-if [ "$(head -n 1 "$binding_source/engine_libbox.go")" != '//go:build openrung_libbox' ]; then
-  echo "error: engine_libbox.go graft constraint changed" >&2
-  exit 1
-fi
-tail -n +3 "$binding_source/engine_libbox.go" > "$work_dir/source/experimental/libbox/openrung_engine_libbox.go"
-# Graft-only tests verify the concrete service adapter on the build host.
-tail -n +3 "$binding_source/engine_libbox_test.go" > "$work_dir/source/experimental/libbox/openrung_engine_libbox_test.go"
-
-# Set the engine's process-wide app version during package initialization,
-# before any goroutine can read it; never mutate it from a live constructor.
-python3 - "$repo_root/package.json" "$work_dir/source/experimental/libbox/openrung_engine_version.go" <<'ENGINE_VERSION'
-import json
-from pathlib import Path
-import sys
-version = json.loads(Path(sys.argv[1]).read_text())["version"]
-Path(sys.argv[2]).write_text(
-    'package libbox\nimport "github.com/openrung/openrung/connectcore/client"\n'
-    'func init() { client.SetAppVersion(' + json.dumps(version) + ') }\n'
-)
-ENGINE_VERSION
+# The engine binding graft (file list, build-constraint guard, app-version
+# generator) is shared with the other platform's release script.
+bash "$repo_root/scripts/graft-engine-binding.sh" "$binding_source" \
+  "$work_dir/source/experimental/libbox" "$repo_root/package.json"
 
 mkdir -p "$work_dir/source/experimental/libbox/internal/openrungpunch"
 for source_file in "$binding_source/internal/openrungpunch/"*.go; do

@@ -38,8 +38,9 @@ Omitted mode means `tun`; `proxy` is also supported for loopback hosts/tests.
 Omitted/zero MTU means 1400. An empty telemetry directory keeps the engine's
 in-memory outbox. The platform supplies a private directory for durable sessions.
 Empty punch URL uses the signed relay's coordinator. TLS verification remains
-enabled. The release graft initializes connectcore's app version from
-`package.json` before any engine goroutine runs.
+enabled. The release graft (`scripts/graft-engine-binding.sh`, shared by both
+release scripts) initializes connectcore's app version from `package.json`
+before any engine goroutine runs.
 
 | Method | Contract |
 |---|---|

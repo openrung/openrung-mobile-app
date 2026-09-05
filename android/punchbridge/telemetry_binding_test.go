@@ -631,10 +631,9 @@ func TestOpenRungTelemetryOutboxLegacyImportReportsDurability(t *testing.T) {
 	}
 }
 
-// TestOpenRungTelemetryUploadBatchCopiesAttributeMaps: the send marshals the
-// batch outside the outbox lock, so the batch must not share attribute or
-// measurement maps with the live queue — the geo back-patch mutates those
-// under the lock, and a shared header is a fatal concurrent map access.
+// TestOpenRungTelemetryOutboxLoadFailureDoesNotEraseTheBacklog: a transient
+// read failure must not read as an empty queue — the operations degrade, the
+// file stays intact, and the next operation after recovery sees the backlog.
 func TestOpenRungTelemetryOutboxLoadFailureDoesNotEraseTheBacklog(t *testing.T) {
 	directory := t.TempDir()
 	writer := testTelemetryOutbox(t, directory)
@@ -849,9 +848,3 @@ func TestOpenRungTelemetryOutboxStaysUnloadedWhenTheRepairCannotLand(t *testing.
 		t.Fatal("the retried load did not land the NDJSON migration")
 	}
 }
-
-// TestOpenRungTelemetryOutboxRemoveSentRefusesAfterClose: the send runs
-// outside the mutex, so it can succeed while racing Close — and Close released
-// the cross-process lock, so another process may own the file by then. The
-// commit must refuse to rewrite; re-delivering the accepted batch later is the
-// safe side.

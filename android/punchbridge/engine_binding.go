@@ -55,7 +55,8 @@ type openRungEngineConfig struct {
 }
 
 type openRungEngine struct {
-	engine *connectcore.Engine
+	engine  *connectcore.Engine
+	runtime *openRungEngineRuntime
 	// Orders whole lifecycle calls, including Start versus Stop. The engine
 	// has its own connect lock; this lock also orders Pause/Resume with them.
 	mu sync.Mutex
@@ -63,7 +64,7 @@ type openRungEngine struct {
 
 func newOpenRungEngine(configJSON string, platform brokerapi.Platform,
 	protector OpenRungWSSProtector, listener OpenRungEngineListener,
-	runtime connectcore.TunnelRuntime, allowUnprotected bool,
+	runtime *openRungEngineRuntime, allowUnprotected bool,
 ) (*openRungEngine, error) {
 	if strings.TrimSpace(configJSON) == "null" {
 		return nil, errors.New("engine config must be an object")
@@ -112,7 +113,7 @@ func newOpenRungEngine(configJSON string, platform brokerapi.Platform,
 		_ = engine.SetMode(connectcore.ModeTUN)
 	}
 	engine.Start()
-	return &openRungEngine{engine: engine}, nil
+	return &openRungEngine{engine: engine, runtime: runtime}, nil
 }
 
 // OS consent and TUN ownership remain in VpnService/NEPacketTunnelProvider;
@@ -140,10 +141,7 @@ func (e *openRungEngine) Stop(flushBudgetMillis int64) error {
 	err := e.engine.Shutdown(time.Duration(flushBudgetMillis) * time.Millisecond)
 	// connectcore's candidate cleanup intentionally discards TunnelRun.Stop
 	// errors. Mobile must still tell its OS owner when a TUN failed to close.
-	if runtime, ok := e.engine.TunnelRuntime.(*openRungEngineRuntime); ok {
-		err = errors.Join(err, runtime.shutdownError())
-	}
-	return err
+	return errors.Join(err, e.runtime.shutdownError())
 }
 func (e *openRungEngine) Pause()  { e.mu.Lock(); defer e.mu.Unlock(); e.engine.Pause() }
 func (e *openRungEngine) Resume() { e.mu.Lock(); defer e.mu.Unlock(); e.engine.Resume() }
