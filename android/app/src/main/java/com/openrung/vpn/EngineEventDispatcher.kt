@@ -17,7 +17,8 @@ internal data class EngineEvent(val sequence: Long, val kind: String, val payloa
  *
  * Attach/detach run on that same queue. Before attaching a successor, the host must join the
  * previous engine Stop: this gate discards queued deliveries, not future callbacks from a run
- * the host left alive. Engine sequence numbers persist across service owners and sessions.
+ * the host left alive. Each attachment starts a new delivery baseline, so a replacement engine
+ * whose sequence starts at 1 can use the dispatcher after the previous engine has stopped.
  */
 internal class EngineEventDispatcher(
     private val post: (() -> Unit) -> Unit,
@@ -28,6 +29,7 @@ internal class EngineEventDispatcher(
     private var lastSequence = 0L // service queue only
 
     fun attach(receive: (EngineEvent) -> Unit) {
+        lastSequence = 0L
         owner = Owner(receive)
     }
 
@@ -46,6 +48,9 @@ internal class EngineEventDispatcher(
             }
             if (event.sequence <= lastSequence) return@post
             lastSequence = event.sequence
+            // A new kind within version 1 is additive. Validate its envelope and
+            // consume its sequence, but leave handling to a future adapter.
+            if (event.kind !in setOf("state", "notice", "log")) return@post
             destination.receive(event)
         }
     }
@@ -56,8 +61,10 @@ internal class EngineEventDispatcher(
         require(envelope["version"]?.jsonPrimitive?.intOrNull == 1)
         val sequence = envelope["sequence"]?.jsonPrimitive?.longOrNull ?: error("sequence required")
         require(sequence > 0)
-        val kind = envelope["kind"]?.jsonPrimitive?.contentOrNull ?: error("kind required")
-        require(kind in setOf("state", "notice", "log"))
+        val kindValue = envelope["kind"]?.jsonPrimitive ?: error("kind required")
+        require(kindValue.isString)
+        val kind = kindValue.contentOrNull ?: error("kind required")
+        require(kind.isNotBlank())
         val payload = envelope["payload"] as? JsonObject ?: error("payload required")
         return EngineEvent(sequence, kind, payload)
     }

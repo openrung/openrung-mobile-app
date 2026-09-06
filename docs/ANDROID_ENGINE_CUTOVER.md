@@ -13,6 +13,9 @@ There is no runtime engine selector. This branch is not cutover acceptance.
   It copies callbacks onto an asynchronous service queue, decodes B1 envelopes
   there, orders deliveries by sequence, and discards work queued for a retired
   service owner. Each attachment has a new identity even if its receiver is reused.
+  Attachment also resets sequence tracking, allowing a replacement engine to
+  restart at sequence 1 after its predecessor stops. Valid version-1 envelopes
+  with unknown kinds advance the sequence but are skipped without diagnostics.
   It is ready for the new service host; the shipping service does not use it yet.
 - JVM tests cover trampoline delivery, service replacement, rapid reconnect,
   duplicates/reordering, malformed envelopes, and stale diagnostic suppression.
