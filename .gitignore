@@ -99,3 +99,7 @@ ds-bundle/
 .design-sync/.cache/
 .design-sync/learnings/
 .design-sync/node_modules
+
+# Isolated JNI contract test app outputs
+android/app/build-engine-contract/
+scripts/__pycache__/

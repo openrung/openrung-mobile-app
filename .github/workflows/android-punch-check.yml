@@ -10,6 +10,7 @@ on:
       - 'SINGBOX_VERSION'
       - 'package.json'
       - 'scripts/test-engine-vectors.py'
+      - 'scripts/engine_contract_seams.py'
       - 'testdata/contract/**'
       - '.github/workflows/android-punch-check.yml'
   push:
@@ -22,6 +23,7 @@ on:
       - 'SINGBOX_VERSION'
       - 'package.json'
       - 'scripts/test-engine-vectors.py'
+      - 'scripts/engine_contract_seams.py'
       - 'testdata/contract/**'
       - '.github/workflows/android-punch-check.yml'
 

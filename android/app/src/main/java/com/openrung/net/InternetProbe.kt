@@ -1,9 +1,6 @@
 package com.openrung.net
 
-import android.content.Context
-import android.net.ConnectivityManager
 import android.net.Network
-import android.net.NetworkCapabilities
 import android.os.SystemClock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -23,8 +20,7 @@ class InternetProbeHttpStatusException(
     val status: Int,
 ) : IOException("internet probe returned HTTP $status")
 
-class InternetProbe(context: Context) : TunnelHttpProbe {
-    private val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
+class InternetProbe(private val ownedNetwork: () -> Network?) : TunnelHttpProbe {
 
     override suspend fun verify(): InternetProbeResult {
         val started = SystemClock.elapsedRealtime()
@@ -89,14 +85,14 @@ class InternetProbe(context: Context) : TunnelHttpProbe {
         )
     }
 
-    private fun currentVpnNetwork(): Network? =
-        connectivityManager.allNetworks.firstOrNull { network ->
-            connectivityManager.getNetworkCapabilities(network)
-                ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
-        }
+    private fun currentVpnNetwork(): Network? = ownedNetwork()
 
     private suspend fun probe(network: Network, endpoint: String) = withContext(Dispatchers.IO) {
-        val connection = (network.openConnection(URL(endpoint)) as HttpURLConnection).apply {
+        withProbeResource(
+            open = { network.openConnection(URL(endpoint)) as HttpURLConnection },
+            close = HttpURLConnection::disconnect,
+        ) { connection ->
+        connection.apply {
             requestMethod = "GET"
             connectTimeout = REQUEST_TIMEOUT_MS
             readTimeout = REQUEST_TIMEOUT_MS
@@ -105,14 +101,11 @@ class InternetProbe(context: Context) : TunnelHttpProbe {
             setRequestProperty("Cache-Control", "no-cache")
         }
 
-        try {
             val status = connection.responseCode
             if (!acceptsHttpStatus(status)) {
                 throw InternetProbeHttpStatusException(status)
             }
             connection.inputStream.use { input -> input.read() }
-        } finally {
-            connection.disconnect()
         }
     }
 

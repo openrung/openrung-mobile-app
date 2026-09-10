@@ -356,6 +356,10 @@ aar_path, classes_path = sys.argv[1:]
 required_classes = [
     "io/nekohasekai/libbox/OpenRungEngine.class",
     "io/nekohasekai/libbox/OpenRungEngineListener.class",
+    "io/nekohasekai/libbox/OpenRungMobileHost.class",
+    "io/nekohasekai/libbox/OpenRungMobileRun.class",
+    "io/nekohasekai/libbox/OpenRungRunTelemetry.class",
+    "io/nekohasekai/libbox/OpenRungEngineOperation.class",
     "io/nekohasekai/libbox/OpenRungBrokerOperation.class",
     "io/nekohasekai/libbox/OpenRungBrokerResult.class",
     "io/nekohasekai/libbox/OpenRungBrokerRelayResult.class",
@@ -395,6 +399,10 @@ javap_output="$(
     io.nekohasekai.libbox.Libbox \
     io.nekohasekai.libbox.OpenRungEngine \
     io.nekohasekai.libbox.OpenRungEngineListener \
+    io.nekohasekai.libbox.OpenRungMobileHost \
+    io.nekohasekai.libbox.OpenRungMobileRun \
+    io.nekohasekai.libbox.OpenRungRunTelemetry \
+    io.nekohasekai.libbox.OpenRungEngineOperation \
     io.nekohasekai.libbox.OpenRungBrokerOperation \
     io.nekohasekai.libbox.OpenRungBrokerResult \
     io.nekohasekai.libbox.OpenRungBrokerRelayResult \
@@ -421,6 +429,18 @@ for generated_symbol in \
   'resume();' \
   'networkChanged(boolean, java.lang.String, java.lang.String) throws java.lang.Exception;' \
   'stateJSON();' \
+  'teardownComplete();' \
+  'newOpenRungMobileEngineForAndroid(java.lang.String, io.nekohasekai.libbox.OpenRungWSSProtector, io.nekohasekai.libbox.OpenRungMobileHost, io.nekohasekai.libbox.OpenRungEngineListener) throws java.lang.Exception;' \
+  'openRungTunName(int) throws java.lang.Exception;' \
+  'settingsJSON() throws java.lang.Exception;' \
+  'attributesJSON();' \
+  'newRun(io.nekohasekai.libbox.OpenRungRunTelemetry) throws java.lang.Exception;' \
+  'platform();' \
+  'waitReady(io.nekohasekai.libbox.OpenRungEngineOperation) throws java.lang.Exception;' \
+  'verifyPath(io.nekohasekai.libbox.OpenRungEngineOperation, java.lang.String);' \
+  'close() throws java.lang.Exception;' \
+  'recordApplicationConnections(java.lang.String, int, long);' \
+  'isCancelled();' \
   'onEvent(java.lang.String);' \
   'newOpenRungBrokerOperationForAndroid(java.lang.String, java.lang.String);' \
   'newOpenRungBrokerOperationForIOS(java.lang.String, java.lang.String);' \

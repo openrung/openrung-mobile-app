@@ -9,7 +9,6 @@ import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.os.Process
 import android.util.Log
-import com.openrung.telemetry.TelemetryManager
 import io.nekohasekai.libbox.ConnectionOwner
 import io.nekohasekai.libbox.InterfaceUpdateListener
 import io.nekohasekai.libbox.Libbox
@@ -33,12 +32,13 @@ import io.nekohasekai.libbox.NetworkInterface as BoxNetworkInterface
 
 internal class OpenRungLibboxPlatform(
     private val vpnService: VpnService,
-    private val onTunOpened: (ParcelFileDescriptor) -> Unit,
+    private val onTunOpened: (ParcelFileDescriptor, String) -> Unit,
+    private val recordConnection: (Int, List<String>, Int) -> Unit,
 ) : PlatformInterface {
     override fun usePlatformAutoDetectInterfaceControl(): Boolean = true
 
     override fun autoDetectInterfaceControl(fd: Int) {
-        vpnService.protect(fd)
+        check(vpnService.protect(fd)) { "android: socket protection refused" }
     }
 
     override fun openTun(options: TunOptions): Int {
@@ -91,7 +91,7 @@ internal class OpenRungLibboxPlatform(
         }
 
         val fd = builder.establish() ?: error("android: the VPN tunnel could not be established")
-        onTunOpened(fd)
+        try { onTunOpened(fd, Libbox.openRungTunName(fd.fd)) } catch (error: Throwable) { fd.close(); throw error }
         return fd.fd
     }
 
@@ -117,11 +117,7 @@ internal class OpenRungLibboxPlatform(
             if (uid == Process.INVALID_UID) return@runCatching ConnectionOwner()
 
             val packages = vpnService.packageManager.getPackagesForUid(uid)?.toList().orEmpty()
-            TelemetryManager.recordApplicationConnection(
-                uid = uid,
-                packages = packages,
-                destinationPort = destinationPort,
-            )
+            recordConnection(uid, packages, destinationPort)
             ConnectionOwner().apply {
                 userId = uid
                 userName = uid.toString()
@@ -148,11 +144,21 @@ internal class OpenRungLibboxPlatform(
 
     override fun systemCertificates(): StringIterator = EmptyStringIterator
 
+    // libbox starts/closes monitors on Go workers; observations arrive on the
+    // host queue. Serialize delivery and join it before retiring the listener.
+    private val monitorLock = Any()
+    private val interfaceListeners = LinkedHashSet<InterfaceUpdateListener>()
     override fun startDefaultInterfaceMonitor(listener: InterfaceUpdateListener?) {
-        updateDefaultInterface(listener)
+        synchronized(monitorLock) {
+            if (listener != null) { interfaceListeners.add(listener); updateDefaultInterface(listener) }
+        }
     }
-
-    override fun closeDefaultInterfaceMonitor(listener: InterfaceUpdateListener?) = Unit
+    override fun closeDefaultInterfaceMonitor(listener: InterfaceUpdateListener?) {
+        synchronized(monitorLock) { interfaceListeners.remove(listener) }
+    }
+    fun refreshInterfaces() {
+        synchronized(monitorLock) { interfaceListeners.forEach(::updateDefaultInterface) }
+    }
 
     override fun startNeighborMonitor(listener: NeighborUpdateListener?) = Unit
 

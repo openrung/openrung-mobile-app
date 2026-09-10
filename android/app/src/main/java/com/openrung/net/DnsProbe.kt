@@ -2,7 +2,6 @@ package com.openrung.net
 
 import android.content.Context
 import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.os.SystemClock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -37,7 +36,6 @@ class DnsProbe(
     // Injected so hostless JVM tests can drive the deadline (SystemClock is a stub off-device).
     private val elapsedRealtime: () -> Long = SystemClock::elapsedRealtime,
 ) {
-    constructor(context: Context) : this(VpnNetworkDnsTransport(context))
 
     /** Bounded-retry verification used at startup. */
     suspend fun verify(): DnsProbeResult {
@@ -165,14 +163,11 @@ internal object DnsProbeMessage {
  * Timeouts are socket-level ([DatagramSocket.setSoTimeout]) and surface as
  * [java.net.SocketTimeoutException], which the remote-failure allow-list already recognizes.
  */
-class VpnNetworkDnsTransport(context: Context) : TunnelDnsTransport {
+class VpnNetworkDnsTransport(context: Context, private val ownedNetwork: () -> android.net.Network?) : TunnelDnsTransport {
     private val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
 
     override suspend fun exchange(query: ByteArray): ByteArray = withContext(Dispatchers.IO) {
-        val vpnNetwork = connectivityManager.allNetworks.firstOrNull { network ->
-            connectivityManager.getNetworkCapabilities(network)
-                ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
-        } ?: throw IOException("VPN network is unavailable")
+        val vpnNetwork = ownedNetwork() ?: throw IOException("VPN network is unavailable")
 
         // A public-resolver address here would match no hijack tag, fall to the TCP-only proxy
         // outbound, and be dropped — failing the probe on every healthy tunnel.
@@ -180,7 +175,7 @@ class VpnNetworkDnsTransport(context: Context) : TunnelDnsTransport {
             ?.dnsServers?.firstOrNull { it is Inet4Address }
             ?: InetAddress.getByName(SingBoxConfiguration.DEFAULT_TUNNEL_DNS_ADDRESS)
 
-        DatagramSocket().use { socket ->
+        withProbeResource(::DatagramSocket, DatagramSocket::close) { socket ->
             vpnNetwork.bindSocket(socket)
             socket.soTimeout = DnsProbe.ATTEMPT_TIMEOUT_MS.toInt()
             socket.connect(InetSocketAddress(hijackedResolver, DNS_PORT))

@@ -1,8 +1,5 @@
 package com.openrung.vpn
 
-import com.openrung.model.RelayConstants
-import com.openrung.model.RelayDescriptor
-import com.openrung.model.WssFrontDescriptor
 import com.openrung.net.DnsProbe
 import com.openrung.net.InternetProbeResult
 import com.openrung.net.ProbeTargets
@@ -10,7 +7,6 @@ import com.openrung.net.SingBoxBindingFixtures
 import com.openrung.net.TunnelDnsTransport
 import com.openrung.net.TunnelHttpProbe
 import com.openrung.net.TunnelPathProbe
-import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.serialization.json.jsonArray
@@ -22,63 +18,33 @@ import org.junit.Assert.fail
 import org.junit.Test
 import java.net.SocketTimeoutException
 
-/**
- * Integration-style startup tests for the confirmed China-bypass regression: geosite-cn contains
- * www.gstatic.com, so before the probe pins a dead proxy still yielded a passing probe over the
- * direct path and the app published CONNECTED.
- *
- * These run the REAL seams — the WSS fallback ladder, the startup guard race, the startup
- * classification ([verifyStartupTunnelPath], which alone authorizes success), the composite
- * fresh-DNS + HTTPS probe, resolver failover, and the real cn-bypass configuration. Fakes exist
- * only at the two socket boundaries, which is precisely what a dead or working proxy controls:
- * with the emitted config, ALL probe DNS and HTTPS flows traverse the proxy (asserted below and
- * in SingBoxConfigurationDnsTest), so "proxy dead + direct internet fine" means both boundaries
- * time out, and "proxy working" means both answer.
+/** Shipping China-bypass requirements retained from mobile main at 53e03d9.
+ * Kotlin proves native DNS/HTTPS and route pins. Go mobile parity tests own
+ * the CONNECTED gate and recovery policy after this cutover.
  */
 class StartupProbeChinaBypassTest {
-    @Test
-    fun `dead proxy with china bypass and working direct internet never connects`() = runBlocking {
-        val connected = mutableListOf<String>()
-        val events = mutableListOf<String>()
-
-        var thrown: RelayFailureAlreadyRecordedException? = null
-        try {
-            connectLadder(
-                relay = relay(),
-                dnsTransport = deadProxyDnsTransport(),
-                httpProbe = deadProxyHttpProbe(),
-                onConnected = { connected.add(it) },
-                events = events,
-            )
-            fail("startup must fail when every probe path is proxied and the proxy is dead")
-        } catch (error: RelayFailureAlreadyRecordedException) {
-            thrown = error
-        }
-
-        // CONNECTED must never have been published, on any transport rung. Resolver failover
-        // happens inside the emitted DNS rule chain, so a dns_probe-stage failure here means no
-        // configured resolver answered through the dead proxy.
-        assertTrue(connected.isEmpty())
-        assertEquals(STARTUP_STAGE_DNS_PROBE, thrown!!.directFailure.stage)
-        assertEquals(listOf("direct", "fallback", "wss:front-a", "wss:front-b"), events)
+    @Test fun `dead proxy with china bypass cannot attest a working path`() = runBlocking {
+        val clock = AtomicLong(0)
+        var httpCalls = 0
+        val probe = TunnelPathProbe(
+            DnsProbe(deadProxyDnsTransport(), elapsedRealtime = { clock.getAndAdd(2_000) }),
+            object : TunnelHttpProbe {
+                override suspend fun verify(): InternetProbeResult { httpCalls++; return workingProxyHttpProbe().verify() }
+                override suspend fun verifyOnce() = verify()
+            },
+        )
+        try { probe.verify(); fail("dead proxy must fail fresh DNS") }
+        catch (error: com.openrung.net.DnsPathUnverifiedException) { assertTrue(isGenuineRemoteDataPathFailure(error)) }
+        assertEquals(0, httpCalls)
     }
 
-    @Test
-    fun `working proxy with china bypass connects exactly once`() = runBlocking {
-        val connected = mutableListOf<String>()
-        val events = mutableListOf<String>()
-
-        val result = connectLadder(
-            relay = relay(),
-            dnsTransport = workingProxyDnsTransport(),
-            httpProbe = workingProxyHttpProbe(),
-            onConnected = { connected.add(it) },
-            events = events,
-        )
-
-        assertEquals("direct", result)
-        assertEquals(listOf("direct"), connected)
-        assertEquals(listOf("direct"), events)
+    @Test fun `working proxy with china bypass attests both stages`() = runBlocking {
+        val clock = AtomicLong(0)
+        val result = TunnelPathProbe(
+            DnsProbe(workingProxyDnsTransport(), elapsedRealtime = { clock.getAndIncrement() }),
+            workingProxyHttpProbe(),
+        ).verify()
+        assertEquals(ProbeTargets.TUNNEL_PROBE_URLS.first(), result.endpoint)
     }
 
     @Test
@@ -111,54 +77,6 @@ class StartupProbeChinaBypassTest {
         assertTrue(probeRouteIndex in 1 until bypassIndex)
     }
 
-    /**
-     * The service's connect rung for one relay, on the production seams: the WSS fallback policy
-     * drives direct → WSS attempts; each attempt races the composite probe against engine stop
-     * via [verifyStartupTunnelPath] and only a returned probe result reaches [onConnected] — the
-     * exact gate in front of OpenRungStatusStore.setStatus(CONNECTED).
-     */
-    private suspend fun connectLadder(
-        relay: RelayDescriptor,
-        dnsTransport: TunnelDnsTransport,
-        httpProbe: TunnelHttpProbe,
-        onConnected: (String) -> Unit,
-        events: MutableList<String>,
-    ): String {
-        val policy = WssFallbackPolicy(WssFrontSetValidator { it.toList() })
-
-        suspend fun verifyRung(transport: String, frontId: String?): String {
-            // The clock must advance per look or DnsProbe.verify()'s real deadline never
-            // expires against a dead transport (the runTest/SystemClock pitfall, inverted).
-            val clock = AtomicLong(0)
-            verifyStartupTunnelPath(
-                probe = {
-                    TunnelPathProbe(
-                        DnsProbe(dnsTransport, elapsedRealtime = { clock.getAndAdd(2_000) }),
-                        httpProbe,
-                    ).verify()
-                },
-                awaitUnexpectedEngineStop = { awaitCancellation() },
-                wssFrontId = frontId,
-            )
-            onConnected(transport)
-            return transport
-        }
-
-        return policy.connect(
-            relay = relay,
-            attemptDirect = {
-                events += "direct"
-                verifyRung("direct", frontId = null)
-            },
-            attemptWss = { front ->
-                events += "wss:${front.id}"
-                verifyRung("wss", frontId = front.id)
-            },
-            onDirectFallback = { events += "fallback" },
-            onWssFailure = { _, _ -> },
-        )
-    }
-
     /** Dead proxy: probe DNS is pinned through the proxied DoH resolver, so nothing answers. */
     private fun deadProxyDnsTransport() = TunnelDnsTransport {
         throw SocketTimeoutException("no DNS response through the tunnel")
@@ -183,28 +101,4 @@ class StartupProbeChinaBypassTest {
         override suspend fun verifyOnce(): InternetProbeResult = verify()
     }
 
-    private fun relay(): RelayDescriptor = RelayDescriptor(
-        id = "relay-1",
-        publicHost = "203.0.113.10",
-        publicPort = 443,
-        relayProtocol = RelayConstants.PROTOCOL_VLESS_REALITY_VISION,
-        clientId = "e6b1a1de-9f0f-4c1a-8bb1-1f2b3c4d5e6f",
-        realityPublicKey = "reality-key",
-        shortId = "abcd",
-        serverName = "www.example.com",
-        flow = RelayConstants.FLOW_VISION,
-        exitMode = RelayConstants.EXIT_MODE_DIRECT,
-        maxSessions = 8,
-        maxMbps = 100,
-        relayVersion = "1.0.0",
-        nodeClass = RelayConstants.NODE_CLASS_FOUNDATION,
-        transport = "",
-        wssFronts = listOf(
-            WssFrontDescriptor(id = "front-a", url = "opaque-front-a", protocolVersion = 1),
-            WssFrontDescriptor(id = "front-b", url = "opaque-front-b", protocolVersion = 1),
-        ),
-        registeredAt = "2026-01-01T00:00:00Z",
-        lastHeartbeatAt = "2026-01-01T00:00:00Z",
-        expiresAt = "2027-01-01T00:00:00Z",
-    )
 }

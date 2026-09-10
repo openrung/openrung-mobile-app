@@ -266,9 +266,7 @@ const forbiddenBrokerReferences =
   /broker\.openrung\.org|d2r7mdpyevvs1m\.cloudfront\.net|\/api\/v1\/(?:relays|telemetry|speed|app-manifest|wss-ticket)|DEFAULT_BROKER|brokerUrl|BrokerEndpoint|OpenRungDefaultBroker/i;
 
 const androidHttpAllowlist = new Set([
-  'android/app/src/main/java/com/openrung/net/GeoIpClient.kt',
   'android/app/src/main/java/com/openrung/net/InternetProbe.kt',
-  'android/app/src/main/java/com/openrung/vpn/PhysicalNetworkProbe.kt',
 ]);
 const androidFiles = walk('android/app/src/main/java', ['.kt', '.java']);
 const androidHttpSites = androidFiles.filter(relativePath =>
@@ -292,46 +290,21 @@ for (const relativePath of androidHttpAllowlist) {
   );
 }
 
-const physicalProbePath =
-  'android/app/src/main/java/com/openrung/vpn/PhysicalNetworkProbe.kt';
-const physicalProbe = stripComments(read(physicalProbePath));
-const physicalUrls = Array.from(
-  physicalProbe.matchAll(/"(https:\/\/[^"]+)"/g),
-  match => match[1],
-).sort();
+// Android B2 delegates physical liveness and broker traffic to connectcore.
+// The remaining native HTTP implementation proves the owned VPN path only.
+const androidProbe = stripComments(read('android/app/src/main/java/com/openrung/net/InternetProbe.kt'));
 requirePolicy(
-  JSON.stringify(physicalUrls) ===
-    JSON.stringify(
-      [
-        'https://cp.cloudflare.com/generate_204',
-        'https://www.gstatic.com/generate_204',
-      ].sort(),
-    ),
-  `${physicalProbePath}: endpoint list must be exactly gstatic and Cloudflare generate_204`,
+  /network\.openConnection\s*\(/.test(androidProbe) &&
+    /connectTimeout\s*=/.test(androidProbe) && /readTimeout\s*=/.test(androidProbe) &&
+    /instanceFollowRedirects\s*=\s*false/.test(androidProbe) && /useCaches\s*=\s*false/.test(androidProbe) &&
+    /currentVpnNetwork\(\): Network\? = ownedNetwork\(\)/.test(androidProbe),
+  'InternetProbe.kt: retain owned VPN Network, timeouts, and disabled redirects/cache',
 );
+const androidRun = stripComments(read('android/app/src/main/java/com/openrung/vpn/AndroidEngineRun.kt'));
 requirePolicy(
-  /network\.openConnection\s*\(/.test(physicalProbe) &&
-    /connectTimeout\s*=/.test(physicalProbe) &&
-    /readTimeout\s*=/.test(physicalProbe) &&
-    /instanceFollowRedirects\s*=\s*false/.test(physicalProbe) &&
-    /useCaches\s*=\s*false/.test(physicalProbe) &&
-    !/setRequestProperty\s*\(/.test(physicalProbe),
-  `${physicalProbePath}: preserve physical-network routing, short timeouts, disabled redirects/caches, and no headers`,
-);
-
-const vpnServicePath =
-  'android/app/src/main/java/com/openrung/vpn/OpenRungVpnService.kt';
-const vpnService = stripComments(read(vpnServicePath));
-const physicalMethod =
-  vpnService.match(
-    /private suspend fun physicalNetworkAlive\(\): Boolean\s*\{([\s\S]*?)\n\s*private suspend fun awaitPhysicalNetworkAlive/,
-  )?.[1] ?? '';
-requirePolicy(
-  physicalMethod.includes('PhysicalNetworkProbe.ENDPOINTS') &&
-    physicalMethod.includes('PhysicalNetworkProbe.isReachable') &&
-    !/\bHttpURLConnection\b/.test(vpnService) &&
-    !/physicalProbeBrokerFronts|broker|AppConfig|DEFAULT_BROKER/i.test(physicalMethod),
-  `${vpnServicePath}: physicalNetworkAlive must use only PhysicalNetworkProbe endpoints`,
+  androidRun.includes('VpnNetworkDnsTransport(service, ::ownedNetwork)') &&
+    androidRun.includes('InternetProbe(::ownedNetwork)'),
+  'AndroidEngineRun.kt: DNS and HTTPS must use the same per-run VPN Network owner',
 );
 
 const iosUrlSessionAllowlist = new Set(['ios/Shared/GeoIpClient.swift']);

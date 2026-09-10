@@ -3,6 +3,12 @@ apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "org.jetbrains.kotlin.plugin.serialization"
 apply plugin: "com.facebook.react"
 
+// Test JNI artifacts have a separate output tree, so switching their AAR or
+// application ID cannot reuse production packaging's incremental state.
+if (project.hasProperty('openrungEngineContractAar')) {
+    layout.buildDirectory = file("$projectDir/build-engine-contract")
+}
+
 react {
     autolinkLibrariesWithApp()
 }
@@ -45,6 +51,7 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 14
         versionName appVersionName
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
         debug {
@@ -70,6 +77,9 @@ android {
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
+            if (project.hasProperty('openrungEngineContractAar')) {
+                applicationIdSuffix ".enginecontract"
+            }
         }
         // Note: the release signingConfig is chosen fail-closed just below; the
         // taskGraph guard after this android { } block aborts a keyless release build.
@@ -115,6 +125,10 @@ android {
     }
 
     sourceSets {
+        if (project.hasProperty('openrungEngineContractAar')) {
+            androidTest.java.srcDirs += 'src/engineContractAndroidTest/java'
+            androidTest.assets.srcDirs += "${rootDir}/../testdata/contract"
+        }
         main {
             // Split-tunneling rule sets ride along as generated assets (copyOpenRungRuleSets
             // below) so the committed source tree carries them once, at rulesets/dist.
@@ -163,6 +177,11 @@ androidComponents {
 // for this module is actually scheduled, so debug builds and `./gradlew tasks` are
 // unaffected. Opt out for a throwaway local build with -PopenrungAllowDebugSignedRelease.
 gradle.taskGraph.whenReady { graph ->
+    if (project.hasProperty('openrungEngineContractAar') && graph.allTasks.any {
+        it.project == project && it.name.toLowerCase().contains('release')
+    }) {
+        throw new GradleException("The engine contract AAR contains test seams and cannot build a release")
+    }
     boolean assemblingRelease = graph.allTasks.any { task ->
         task.project == project && task.name ==~ /(?i)(assemble|bundle|package).*Release/
     }
@@ -184,11 +203,10 @@ dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 
-    // vpn/ProxyEngine.kt compiles directly against the libbox AAR (io.nekohasekai.libbox.*).
-    // The AAR is git-ignored and copied in locally; the dependency is conditional like the
-    // production app's, so a checkout without libs/libbox.aar fails only when compiling the
-    // com.openrung.vpn package (ProxyEngineFactory's StubProxyEngine covers runtime absence).
-    def libboxAar = file("libs/libbox.aar")
+    // The Android service links the generated libbox engine/host interfaces directly.
+    // CI rebuilds the ignored release AAR; the isolated JNI vector runner supplies
+    // a test-only AAR under an explicit, release-forbidden Gradle property.
+    def libboxAar = file(project.findProperty('openrungEngineContractAar') ?: "libs/libbox.aar")
     if (libboxAar.exists()) {
         implementation(files(libboxAar))
     }
@@ -211,4 +229,6 @@ dependencies {
     testImplementation("org.robolectric:robolectric:4.14.1")
     // Deterministic virtual-time control for coroutine retry, recovery, and lifecycle tests.
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }

@@ -21,13 +21,13 @@ libbox_dest="$2"
 package_json="$3"
 
 # Engine lifecycle and in-process runtime share the existing libbox package.
-for engine_source in engine_binding.go engine_runtime.go; do
+for engine_source in engine_binding.go engine_runtime.go engine_mobile_punch.go; do
   cp "$binding_source/$engine_source" "$libbox_dest/openrung_$engine_source"
 done
 # The build constraint excludes these files from the standalone binding module.
 # The graft provides PlatformInterface/CommandServer and always includes them:
 # strip exactly the constraint line and the blank line after it, nothing else.
-for constrained in engine_libbox.go engine_libbox_test.go; do
+for constrained in engine_libbox.go engine_libbox_test.go engine_mobile_libbox.go engine_mobile_libbox_test.go; do
   if [ "$(head -n 1 "$binding_source/$constrained")" != '//go:build openrung_libbox' ] ||
     [ -n "$(sed -n 2p "$binding_source/$constrained")" ]; then
     echo "error: $constrained graft constraint changed" >&2

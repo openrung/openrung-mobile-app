@@ -154,6 +154,10 @@
         "protocol": "dns"
       },
       {
+        "action": "hijack-dns",
+        "port": 53
+      },
+      {
         "ip_is_private": true,
         "outbound": "direct"
       },

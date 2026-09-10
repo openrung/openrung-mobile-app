@@ -20,7 +20,9 @@ recording, status/log persistence.
 ADR-003 B1 adds the shared engine lifecycle binding under
 `android/punchbridge/engine_binding.go`, the per-run runtime in
 `engine_runtime.go`, and the concrete libbox graft in `engine_libbox.go`.
-The shipping native orchestrators remain in use until their B2/B3 cutovers.
+B2 makes connectcore v0.6.0 Android's sole orchestrator through its mobile host
+API; Kotlin retains OS lifecycle and platform mechanics. Swift keeps its native
+orchestrator until B3.
 See [ENGINE_BINDING.md](ENGINE_BINDING.md) for the callback/lifetime contract,
 memory measurements, validation, and resolved divergences introduced by the
 connectcore pin (including the shared builder's explicit tunneled-QUIC rejection).
@@ -469,21 +471,27 @@ request time, and a bounded HTTP response head. A `URLSession` created by the
 packet-tunnel provider bypasses that provider's TUN and therefore MUST NOT be
 used as evidence that Reality or WSS carried end-to-end traffic.
 
-- `vpn/OpenRungVpnService.kt`, `vpn/ProxyEngine.kt` — connect flow including
-  Android NAT-punch-first/RelayHub and direct-first WSS/CDN fallback,
-  connection-failure handling,
-  notification id 2001 channel `openrung_vpn`, heartbeat 50–70s.
-- `vpn/OpenRungLibboxPlatform.kt` — Android TUN fd creation, socket protection,
-  connection ownership, and interface enumeration, extracted from `ProxyEngine`.
-  B2 preparation adds `vpn/EngineEventDispatcher.kt` for queued gomobile events
-  with service-owner isolation. The service cutover is still pending the shared
-  API prerequisites and acceptance checks in [ANDROID_ENGINE_CUTOVER.md](ANDROID_ENGINE_CUTOVER.md).
-- `net/` BrokerClient, GeoIpClient, InternetProbe, RelayReachability,
-  SingBoxConfiguration, NatPunchClient, WssTicketClient, WssClient,
-  PhysicalNetworkEpochMonitor; `model/` RelayDescriptor, RelaySelector, CountryGeo,
-  RecentNode; `telemetry/` all four files (since diverged: `application_connection`
-  events are aggregated client-side by the added `ApplicationConnectionAggregator.kt`,
-  and the schema dropped destination ip/port/protocol); `config/AppConfig.kt`.
+- `vpn/OpenRungVpnService.kt` — Android foreground-service/consent lifecycle,
+  notification id 2001/channel `openrung_vpn`, and effective split settings.
+- `vpn/ConnectcoreProcessHost.kt` — one process-lifetime engine and durable
+  outbox, ordered service commands, coherent relay/session projection into RN.
+  `EngineEventDispatcher.kt` queues Go callbacks and drops retired-owner work.
+- `vpn/AndroidEngineRun.kt`, `OpenRungLibboxPlatform.kt` — one native TUN owner
+  per engine attempt, exact-fd interface resolution, protect(), connection
+  attribution, readiness, and VPN-Network-bound DNS/HTTPS verification.
+  `EngineNetworkObserver.kt` publishes physical network/DNS snapshots; connectcore
+  owns epochs, recovery and retry policy.
+- `net/` retains BrokerClient for native/RN directory operations,
+  SingBoxConfiguration for builder inputs/budgets, DnsProbe, InternetProbe,
+  ProbeResource, TunnelPathProbe, and probe targets. `model/` retains
+  RelayDescriptor, CountryGeo and RecentNode. `telemetry/` retains ClientIdentity,
+  ApplicationConnectionAggregator and RunApplicationConnections; session events,
+  traffic totals, heartbeat and uploads belong to connectcore.
+- The Android ProxyEngine, native connect ladder, WssFallbackPolicy,
+  WssTicketClient, WssClient, NatPunchClient, RelayRanker, RelaySelector,
+  PunchRecoveryCircuitBreaker, native startup/recovery guards and telemetry
+  manager/outbox wrappers are removed. See [ANDROID_ENGINE_CUTOVER.md](ANDROID_ENGINE_CUTOVER.md)
+  for parity sources, resolved divergences and remaining device gates.
 - `state/ConnectionStatus.kt`, `state/OpenRungStatusStore.kt` — trimmed: drop
   directory fields/refresh (TS owns), keep status/relay/error/logs/recents +
   SharedPreferences persistence (`openrung_status`).
@@ -634,40 +642,24 @@ used as evidence that Reality or WSS carried end-to-end traffic.
   self-signed coordinators are accepted only when their exact certificate SHA-256
   appears in `AppConfig.PUNCH_COORDINATOR_CERT_SHA256_BY_HOST`; hostname endpoints
   use normal public-CA validation. Redirects and cleartext are always rejected.
-- After a direct connection reaches CONNECTED, Android races native QUIC closure
-  against a jittered end-to-end health monitor. Startup and health sweeps verify
-  fresh DNS first (a nonce-labelled raw query for
-  `<nonce>.probe.openrung.org` through the TUN, answered only via the proxied
-  DoH resolver; any well-formed response counts) and then HTTPS to
-  `probe.openrung.org/generate_204` with `cp.cloudflare.com/generate_204` as
-  fallback — both rule-pinned through the proxy ahead of country bypass.
-  Resolver failover happens inside the emitted DNS rule chain, so a
-  `dns_probe`-stage failure means no configured resolver answered through
-  that transport. Three failed tunnel
-  sweeps plus a successful physical-network connectivity probe trigger fresh
-  discovery/re-punch and RelayHub fallback. Native path loss waits for a
-  reachable physical network, so a local outage leaves the foreground service
-  CONNECTING instead of failing it. The PHYSICAL probe stays bound to
-  `Network.openConnection` but targets only `www.gstatic.com/generate_204`
-  and `cp.cloudflare.com/generate_204`; any HTTP response proves
-  connectivity, and no OpenRung identity/broker header is sent.
-- A transport-independent engine monitor watches libbox during direct, punched,
-  and WSS sessions. Unexpected engine exit is a terminal local failure and never
-  starts reladdering or ticket acquisition. WSS network, adapter, and end-to-end
-  path-health recovery cancels that monitor, stops the engine first, closes the
-  physical-network epoch monitor, and then closes the WSS adapter. It waits for
-  a usable physical network before fresh signed discovery and a direct-first
-  attempt with a fresh ticket only if another eligible remote failure occurs.
-- Direct-path recovery is bounded per relay. Losses before five minutes use
-  jittered exponential backoff; the third rapid loss opens a circuit for the
-  current user connection, so fresh discovery still runs but that relay is
-  reached through RelayHub. A real physical-network outage does not increment the
-  breaker, and an explicit connect/disconnect resets it.
-- `ProxyEngineFactory` returns a `StubProxyEngine` (throws "engine not linked")
-  when libbox is absent at runtime — compile-time guarded the same way the
-  original handles a missing AAR (reflection-free: source set always compiled,
-  AAR always present locally; the stub protects CI checkouts without the AAR —
-  see build.gradle comment).
+- Android's sole orchestrator is published `connectcore/v0.6.0` via the
+  in-process libbox graft. It owns punch/RelayHub/direct/WSS selection, circuit
+  breaking, health cadence, network recovery, session telemetry and terminal
+  flushing. Kotlin supplies OS mechanics and explicit fresh-DNS plus pinned-HTTPS
+  evidence from the run's VPN Network; physical-network success cannot establish
+  CONNECTED. Unclassified native failures are local, including during health.
+- A canceled native probe closes its blocking socket and joins its worker before
+  TUN release. Stop joins the old engine before another service owner attaches.
+  Incomplete libbox teardown retains its native owner and refuses another run;
+  a telemetry flush timeout alone keeps the persistent backlog and permits reuse.
+- Each run drains reduced per-app counts and final libbox traffic before its Go
+  reporter retires. The process host preserves the install UUID, existing
+  `openrung_telemetry_outbox.jsonl`, and durable SharedPreferences migration.
+  Engine sessions carry app/platform/engine identity for Track C comparisons.
+- A sticky restart without a stored connect intent returns to DISCONNECTED;
+  service recreation during the same process reuses the engine. Missing native
+  linkage reports a startup failure. Physical-device cutover acceptance remains
+  separate from the passing emulator/JVM suites (see the B2 evidence document).
 
 ## 7. iOS native
 

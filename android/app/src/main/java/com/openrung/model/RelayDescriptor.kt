@@ -197,7 +197,7 @@ data class RelayDescriptor(
             RelayConstants.NODE_CLASS_VOLUNTEER
         }
 
-    private companion object {
+    internal companion object {
         const val MAX_DISPLAY_NAME_CODE_POINTS = 24
         const val ID_FALLBACK_CODE_POINTS = 12
 

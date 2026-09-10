@@ -82,7 +82,7 @@ internal class ApplicationConnectionAggregator(
         /**
          * The broker treats a `connection_count` above its own 100,000 per-app-per-batch cap as a
          * malformed value and falls back to weight 1 (openrung PR #88), so every emitted chunk
-         * stays at or below that limit. TelemetryManager also separates chunks for the same app
+         * stays at or below that limit. The connectcore outbox also separates chunks for the same app
          * across upload batches so the broker can count all of them.
          */
         const val MAX_REPORTED_FLOWS = 100_000L

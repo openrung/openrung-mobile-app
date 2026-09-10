@@ -8,6 +8,8 @@ on:
       - 'package-lock.json'
       - 'SINGBOX_VERSION'
       - 'testdata/contract/**'
+      - 'scripts/graft-engine-binding.sh'
+      - 'scripts/*engine*'
       - '.github/workflows/android-unit-test.yml'
   push:
     branches: [main]
@@ -17,6 +19,8 @@ on:
       - 'package-lock.json'
       - 'SINGBOX_VERSION'
       - 'testdata/contract/**'
+      - 'scripts/graft-engine-binding.sh'
+      - 'scripts/*engine*'
       - '.github/workflows/android-unit-test.yml'
   workflow_dispatch:
 
@@ -52,7 +56,6 @@ jobs:
           path: android/app/libs/libbox.aar
           key: libbox-${{ hashFiles('SINGBOX_VERSION', 'package.json', 'android/build-libbox-release.sh', 'scripts/graft-engine-binding.sh', 'android/punchbridge/**/*.go', 'android/punchbridge/go.mod', 'android/punchbridge/go.sum') }}
       - name: Install gomobile
-        if: steps.libbox.outputs.cache-hit != 'true'
         run: |
           go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.12
           go install github.com/sagernet/gomobile/cmd/gobind@v0.1.12
@@ -66,3 +69,23 @@ jobs:
       - name: Compile app and run Android unit tests
         working-directory: android
         run: ./gradlew --no-daemon :app:testDebugUnitTest --stacktrace
+
+      - name: Boot emulator for bound-engine Kotlin vectors
+        run: |
+          sdkmanager "system-images;android-35;google_apis;x86_64"
+          echo no | avdmanager create avd --force --name openrung-contract --package "system-images;android-35;google_apis;x86_64"
+          sudo chmod a+rw /dev/kvm
+          "$ANDROID_HOME/emulator/emulator" -avd openrung-contract -no-window -no-audio -no-snapshot -gpu swiftshader_indirect > /tmp/openrung-emulator.log 2>&1 &
+          adb wait-for-device
+          timeout 180 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 2; done'
+      - name: Run A4 through Kotlin and JNI
+        run: python3 scripts/test-android-engine-vectors.py
+      - name: Upload native test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-engine-tests
+          path: |
+            android/app/build/reports/tests/
+            android/app/build-engine-contract/reports/androidTests/
+            android/app/build-engine-contract/outputs/androidTest-results/

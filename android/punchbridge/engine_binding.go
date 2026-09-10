@@ -41,6 +41,7 @@ type OpenRungEngine interface {
 	Resume()
 	NetworkChanged(up bool, fingerprint, dnsServersJSON string) error
 	StateJSON() string
+	TeardownComplete() bool
 }
 
 // Construction is deliberately separate from connect arguments. The native
@@ -55,8 +56,9 @@ type openRungEngineConfig struct {
 }
 
 type openRungEngine struct {
-	engine  *connectcore.Engine
-	runtime *openRungEngineRuntime
+	networkDNS func([]string)
+	engine     *connectcore.Engine
+	runtime    *openRungEngineRuntime
 	// Orders whole lifecycle calls, including Start versus Stop. The engine
 	// has its own connect lock; this lock also orders Pause/Resume with them.
 	mu sync.Mutex
@@ -162,6 +164,9 @@ func (e *openRungEngine) NetworkChanged(up bool, fingerprint, dnsServersJSON str
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.engine.SetDNSServers(servers)
+	if e.networkDNS != nil {
+		e.networkDNS(servers)
+	}
 	e.engine.UpdateNetworkState(connectcore.NetworkState{Up: up, Fingerprint: fingerprint})
 	return nil
 }
@@ -224,3 +229,5 @@ func openRungEnginePunchEstablisher(protector OpenRungWSSProtector, allowUnprote
 type openRungEnginePunchBridge struct{ *openrungpunch.Establishment }
 
 func (b openRungEnginePunchBridge) Serve(ctx context.Context) error { return b.Bridge.Serve(ctx) }
+
+func (e *openRungEngine) TeardownComplete() bool { return e.runtime.shutdownError() == nil }

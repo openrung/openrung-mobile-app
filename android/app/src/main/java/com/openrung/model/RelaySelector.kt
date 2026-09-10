@@ -1,8 +1,0 @@
-package com.openrung.model
-
-import java.time.Instant
-
-class RelaySelector {
-    fun orderedCandidates(relays: List<RelayDescriptor>, now: Instant): List<RelayDescriptor> =
-        relays.filter { it.isUsable(now) }
-}

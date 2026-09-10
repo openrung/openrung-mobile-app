@@ -404,6 +404,7 @@ for slice in ios-arm64 ios-arm64_x86_64-simulator; do
     ')resume;' \
     ')networkChanged:' \
     ')stateJSON;' \
+    ')teardownComplete;' \
     ')onEvent:'; do
     if ! grep -Fq "$engine_symbol" "$header"; then
       echo "error: Apple build is missing engine API in $slice: $engine_symbol" >&2

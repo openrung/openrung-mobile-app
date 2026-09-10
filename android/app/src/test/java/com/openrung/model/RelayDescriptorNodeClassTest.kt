@@ -7,7 +7,7 @@ import org.junit.Test
 /**
  * The connect-time stamp's two-value collapse (contract §3: anything but "foundation" is a
  * volunteer relay). Decode defaults for an ABSENT node_class are covered by
- * WssFallbackPolicyTest; this pins the normalization of present-but-unknown values.
+ * the connectcore transport tests; this pins the normalization of present-but-unknown values.
  */
 class RelayDescriptorNodeClassTest {
     private val json = Json { ignoreUnknownKeys = true }

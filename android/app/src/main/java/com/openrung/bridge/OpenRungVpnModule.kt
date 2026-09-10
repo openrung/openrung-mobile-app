@@ -20,7 +20,7 @@ import com.openrung.state.ConnectionStatus
 import com.openrung.state.OpenRungStatusStore
 import com.openrung.state.OpenRungUiState
 import com.openrung.telemetry.ClientIdentity
-import com.openrung.telemetry.TelemetryManager
+import com.openrung.vpn.ConnectcoreProcessHost
 import com.openrung.vpn.OpenRungVpnService
 import com.openrung.vpn.SplitTunnelStore
 import kotlinx.coroutines.CoroutineScope
@@ -46,7 +46,6 @@ class OpenRungVpnModule(
     init {
         reactContext.addActivityEventListener(this)
         OpenRungStatusStore.initialize(reactContext.applicationContext)
-        TelemetryManager.initialize(reactContext.applicationContext)
         moduleScope.launch {
             // Log-append storms (relay ladder, recovery) coalesce into one trailing emit per
             // window; every payload is the full latest snapshot, so nothing is lost. Any change
@@ -181,7 +180,7 @@ class OpenRungVpnModule(
     fun getIdentity(promise: Promise) {
         val identity = Arguments.createMap()
         identity.putString("clientId", ClientIdentity.getOrCreate(reactContext.applicationContext))
-        val sessionId = TelemetryManager.activeSession()?.id
+        val sessionId = ConnectcoreProcessHost.sessionId
         if (sessionId != null) identity.putString("sessionId", sessionId) else identity.putNull("sessionId")
         promise.resolve(identity)
     }

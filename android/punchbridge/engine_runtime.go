@@ -24,6 +24,10 @@ type openRungEngineRuntime struct {
 }
 
 func (r *openRungEngineRuntime) Run(ctx context.Context, configJSON []byte) (connectcore.TunnelRun, error) {
+	return r.runWithService(ctx, configJSON, r.newService)
+}
+
+func (r *openRungEngineRuntime) runWithService(ctx context.Context, configJSON []byte, factory func() (openRungEngineService, error)) (connectcore.TunnelRun, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if err := ctx.Err(); err != nil {
@@ -32,7 +36,7 @@ func (r *openRungEngineRuntime) Run(ctx context.Context, configJSON []byte) (con
 	if r.active != nil {
 		return nil, errors.New("previous libbox service has not finished teardown")
 	}
-	service, err := r.newService()
+	service, err := factory()
 	if err != nil {
 		return nil, err
 	}

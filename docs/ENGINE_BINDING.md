@@ -1,9 +1,11 @@
 # ADR-003 B1: engine lifecycle binding
 
-B1 binds connectcore v0.5.0 inside the existing libbox Go runtime. Android and
-iOS still use their shipping native orchestrators until B2 and B3 respectively.
-There is no runtime engine-selection flag. This document records the binding
-contract, validation evidence, and the integration work owned by those cutovers.
+B1 introduced the lifecycle binding; B2 now pins connectcore v0.6.0 and uses
+its mobile host API as Android's sole orchestrator. iOS remains on its native
+orchestrator until B3. The original B1 APIs and measurements below are retained
+for compatibility and historical evidence. The current Android constructor,
+parity checks and device gates are documented in [ANDROID_ENGINE_CUTOVER.md](ANDROID_ENGINE_CUTOVER.md).
+There is no runtime engine selector.
 
 ## Native API
 
@@ -50,6 +52,7 @@ before any engine goroutine runs.
 | `Pause()` / `Resume()` | Suspend/resume engine monitoring, heartbeats, and recovery. The data plane remains under the OS/libbox lifecycle. |
 | `NetworkChanged(up, fingerprint, dnsServersJSON)` | Publish physical-network state plus IP-literal DNS servers (`[]` clears them). Invalid DNS input changes neither DNS nor epoch state. |
 | `StateJSON()` | Current connectcore state snapshot. |
+| `TeardownComplete()` | Whether the in-process runtime has released its active service, independently of telemetry flush failure. |
 
 Whole lifecycle mutations are serialized. Native callers should use an IO queue.
 Publish the current physical DNS servers with `NetworkChanged` before the first
@@ -107,14 +110,16 @@ JSON, the binding's actual `TunnelRuntime`, and a local telemetry collector.
 Only the libbox service/network outcomes are simulated. Whole projected status,
 notice, and telemetry streams must equal the upstream vector expectations.
 
-connectcore v0.5.0 exposes its deterministic network/probe seams only to its own
+connectcore v0.6.0 exposes its deterministic network/probe seams only to its own
 package tests. The runner copies that exact tagged module to a temporary test
 workspace and changes only those existing identifiers' visibility. It does not
 change engine logic, modify the module cache, regenerate expectations, or ship
-test hooks in either artifact. The script rejects a different tag or local
+test hooks in either release artifact. Kotlin runs the same seven scenarios
+through JNI and EngineEventDispatcher using `scripts/test-android-engine-vectors.py`;
+its isolated test AAR and application ID cannot be used in a release build. The script rejects a different tag or local
 replacement until the adapter is reviewed. This is engine-contract validation;
-shipping-native parity and Kotlin/Swift vector runners belong to B2/B3 and remain
-listed as pending in `testdata/contract/pin.json`.
+shipping-native parity remains separately reviewed. Kotlin is local in
+`testdata/contract/pin.json`; Swift remains pending until B3.
 
 Both release scripts also run the concrete graft's libbox launch-failure and
 constructor tests under Go's race detector, then verify generated ABI symbols.
@@ -175,7 +180,7 @@ suite, all seven A4 scenarios under the race detector, both release builds and
 their concrete libbox race tests, both Apple ABI links, 227 Android unit tests
 against the rebuilt AAR, and 167 iOS unit tests with Thread Sanitizer.
 
-B1 passes engine-generated configs through unchanged. v0.5.0's orchestrator
+Historical B1 scope: B1 passed engine-generated configs through unchanged. v0.5.0's orchestrator
 still selects its default config/probe shapes; its engine API does not yet expose
 all inputs accepted by the separate mobile config builder. B2/B3 must wire the
 mobile DoH/split-tunnel/protected-bridge shape and platform TUN readiness before

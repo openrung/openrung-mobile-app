@@ -28,6 +28,7 @@ int main(void) {
     (void)[engine stateJSON];
     [engine disconnect:&engineError];
     [engine stop:1000 error:&engineError];
+    (void)[engine teardownComplete];
   }
   return 0;
 }

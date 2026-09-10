@@ -1,6 +1,5 @@
 package com.openrung.net
 
-import android.content.Context
 import kotlinx.coroutines.CancellationException
 import java.io.IOException
 
@@ -28,7 +27,6 @@ class TunnelPathProbe(
     private val dnsProbe: DnsProbe,
     private val httpProbe: TunnelHttpProbe,
 ) {
-    constructor(context: Context) : this(DnsProbe(context), InternetProbe(context))
 
     suspend fun verify(): InternetProbeResult {
         runDnsStage { dnsProbe.verify() }
