@@ -3,10 +3,8 @@ package libbox
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"os"
@@ -92,16 +90,8 @@ func OpenRungFailureDetail(text string) string {
 
 func decodeOpenRungFailureInput(inputJSON string) (openRungFailureInput, error) {
 	var input openRungFailureInput
-	decoder := json.NewDecoder(strings.NewReader(inputJSON))
-	// The adapters ship in the same bundle as this binding, so an unknown
-	// field is drift, not forward compatibility.
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&input); err != nil {
+	if err := decodeOpenRungObject(inputJSON, &input); err != nil {
 		return openRungFailureInput{}, err
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		return openRungFailureInput{}, errors.New("trailing data after failure input")
 	}
 	return input, nil
 }

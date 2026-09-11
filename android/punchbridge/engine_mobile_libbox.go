@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"sync"
 	"time"
 
@@ -70,7 +69,7 @@ type openRungMobileConfig struct {
 // while a durability failure rejects construction so the host retains its source.
 func NewOpenRungMobileEngineForAndroid(configJSON string, protector OpenRungWSSProtector, host OpenRungMobileHost, listener OpenRungEngineListener) (OpenRungEngine, error) {
 	var cfg openRungMobileConfig
-	if err := decodeOpenRungMobileJSON(configJSON, &cfg); err != nil {
+	if err := decodeOpenRungObject(configJSON, &cfg); err != nil {
 		return nil, err
 	}
 	if host == nil || listener == nil || protector == nil || !clienttelemetry.ValidInstallID(cfg.InstallID) || cfg.Directory == "" || cfg.AppVersion == "" {
@@ -128,14 +127,11 @@ func NewOpenRungMobileEngineForAndroid(configJSON string, protector OpenRungWSSP
 				return connectcore.MobileTunnelSettings{}, err
 			}
 			var input openRungSingBoxInput
-			if err := decodeOpenRungMobileJSON(raw, &input); err != nil {
+			if err := decodeOpenRungObject(raw, &input); err != nil {
 				return connectcore.MobileTunnelSettings{}, err
 			}
 			settings := connectcore.MobileTunnelSettings{TunnelIPv4Address: input.TunnelIPv4Address, TunnelIPv6Address: input.TunnelIPv6Address, MTU: input.MTU, LogLevel: input.LogLevel, ProbeDomainSuffixes: input.ProbeDomainSuffixes, RouteFindProcess: input.RouteFindProcess, ClashAPI: true}
-			if input.SplitTunnel != nil {
-				r := input.SplitTunnel
-				settings.SplitTunnel = &client.SplitTunnelRules{BypassLAN: r.BypassLAN, BypassCountries: r.BypassCountries, ExcludedPackages: r.ExcludedPackages, RuleSetDirectory: r.RuleSetDirectory}
-			}
+			settings.SplitTunnel = input.SplitTunnel.rules()
 			return settings, ctx.Err()
 		}, Attributes: func() map[string]string {
 			attrs := map[string]string{}
@@ -319,20 +315,3 @@ func (*openRungMobileStats) RecvMsg(any) error            { return errors.New("s
 
 // OpenRungTunName resolves the exact descriptor opened by Android's VpnService.
 func OpenRungTunName(fd int32) (string, error) { return getTunnelName(fd) }
-
-// Host JSON is one object, with no unknown fields or trailing values.
-func decodeOpenRungMobileJSON(raw string, target any) error {
-	if !strings.HasPrefix(strings.TrimSpace(raw), "{") {
-		return errors.New("mobile JSON object required")
-	}
-	d := json.NewDecoder(strings.NewReader(raw))
-	d.DisallowUnknownFields()
-	if err := d.Decode(target); err != nil {
-		return err
-	}
-	var extra any
-	if err := d.Decode(&extra); err != io.EOF {
-		return errors.New("trailing mobile JSON data")
-	}
-	return nil
-}

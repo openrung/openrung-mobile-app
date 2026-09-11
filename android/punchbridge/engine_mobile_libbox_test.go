@@ -139,12 +139,12 @@ func TestOpenRungLibboxMobileEvidenceAndErrorClassification(t *testing.T) {
 func TestOpenRungLibboxMobileJSONRejectsInvalidEnvelopes(t *testing.T) {
 	for _, raw := range []string{"null", "[]", "{} {}", "{\"unknown\":1}"} {
 		var cfg openRungMobileConfig
-		if err := decodeOpenRungMobileJSON(raw, &cfg); err == nil {
+		if err := decodeOpenRungObject(raw, &cfg); err == nil {
 			t.Fatalf("accepted %s", raw)
 		}
 	}
 	var cfg openRungMobileConfig
-	if err := decodeOpenRungMobileJSON(`{"install_id":"abc"}`, &cfg); err != nil || cfg.InstallID != "abc" {
+	if err := decodeOpenRungObject(`{"install_id":"abc"}`, &cfg); err != nil || cfg.InstallID != "abc" {
 		t.Fatal(err)
 	}
 }

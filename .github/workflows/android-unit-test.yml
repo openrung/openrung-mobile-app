@@ -48,7 +48,10 @@ jobs:
           cache-dependency-path: android/punchbridge/go.sum
       - uses: android-actions/setup-android@v3
       - name: Install Android NDKs
-        run: sdkmanager "ndk;29.0.14206865" "ndk;27.1.12297006"
+        run: |
+          sdkmanager "ndk;29.0.14206865" "ndk;27.1.12297006"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/29.0.14206865" >> "$GITHUB_ENV"
       - name: Cache combined libbox AAR
         id: libbox
         uses: actions/cache@v4
@@ -71,15 +74,23 @@ jobs:
         run: ./gradlew --no-daemon :app:testDebugUnitTest --stacktrace
 
       - name: Boot emulator for bound-engine Kotlin vectors
+        timeout-minutes: 8
         run: |
-          sdkmanager "system-images;android-35;google_apis;x86_64"
+          sdkmanager "emulator" "system-images;android-35;google_apis;x86_64"
           echo no | avdmanager create avd --force --name openrung-contract --package "system-images;android-35;google_apis;x86_64"
           sudo chmod a+rw /dev/kvm
-          "$ANDROID_HOME/emulator/emulator" -avd openrung-contract -no-window -no-audio -no-snapshot -gpu swiftshader_indirect > /tmp/openrung-emulator.log 2>&1 &
-          adb wait-for-device
-          timeout 180 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = 1 ]; do sleep 2; done'
+          bash scripts/boot-android-engine-emulator.sh
+      - name: Upload emulator diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-emulator-log
+          path: /tmp/openrung-emulator.log
       - name: Run A4 through Kotlin and JNI
         run: python3 scripts/test-android-engine-vectors.py
+      - name: Stop contract emulator
+        if: always()
+        run: timeout 10 adb -s emulator-5554 emu kill || true
       - name: Upload native test reports
         if: always()
         uses: actions/upload-artifact@v4

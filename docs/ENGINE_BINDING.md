@@ -188,3 +188,8 @@ cutover, preserve the existing install identity/outbox migration, translate rela
 metadata into RN state, and arrange OS service recreation, data-plane pause,
 traffic accounting, and memory enforcement. This PR does not claim real-device
 VPN validation, native-parity acceptance, or completion of either cutover.
+
+Android B2 treats an incomplete runtime teardown as a process-fatal condition.
+It detaches network/event callbacks, publishes failure, stops the foreground
+service, and terminates the process so the OS closes every duplicated TUN fd.
+No subsequent command may start another run while termination is pending.

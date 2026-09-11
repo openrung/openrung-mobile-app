@@ -26,9 +26,10 @@ class EngineProcessHostTest {
     private class Engine : OpenRungEngine {
         val calls = mutableListOf<String>()
         var complete = true
+        var onStop: () -> Unit = {}
         lateinit var listener: OpenRungEngineListener
         override fun start(url: String?, country: String?, relay: String?) { calls.add("start:$relay") }
-        override fun stop(budget: Long) { calls.add("stop") }
+        override fun stop(budget: Long) { calls.add("stop"); onStop() }
         override fun teardownComplete() = complete
         override fun disconnect() { calls.add("disconnect") }
         override fun pause() { calls.add("pause") }
@@ -69,28 +70,41 @@ class EngineProcessHostTest {
         host.stop(service, 3); queue.drain()
     }
 
-    @Test fun `incomplete teardown refuses successor and retains original protector owner`() {
-        val queue = Queue(); val engine = Engine()
-        val service = Robolectric.buildService(OpenRungVpnService::class.java).create().get()
-        val host = EngineProcessHost(queue) { _, _, listener -> engine.apply { this.listener = listener } }
-        host.connect(service, 1, "https://example.org", null, "relay-a"); queue.drain()
-        engine.complete = false
-        host.connect(service, 2, "https://example.org", null, "relay-b"); queue.drain()
-        assertEquals(listOf("start:relay-a"), engine.calls.filter { it.startsWith("start:") })
-        assertEquals(ConnectionStatus.FAILED, OpenRungStatusStore.uiState.value.status)
-        engine.complete = true
-        host.stop(service, 3); queue.drain()
+    @Test fun `incomplete teardown terminates process and refuses all queued successors`() {
+        for (trigger in listOf("stop", "connect", "failed")) {
+            val queue = Queue(); val engine = Engine()
+            val service = Robolectric.buildService(OpenRungVpnService::class.java).create().get()
+            var terminated = 0
+            val host = EngineProcessHost(queue, { terminated++ }) { _, _, listener -> engine.apply { this.listener = listener } }
+            host.connect(service, 1, "https://example.org", null, "relay-a"); queue.drain()
+            engine.complete = false
+            when (trigger) {
+                "stop" -> host.stop(service, 2)
+                "connect" -> host.connect(service, 2, "https://example.org", null, "relay-b")
+                else -> engine.state(1, "failed")
+            }
+            queue.drain()
+            assertEquals(trigger, 1, terminated)
+            assertEquals(ConnectionStatus.FAILED, OpenRungStatusStore.uiState.value.status)
+            assertTrue(service.networkAttributes().isEmpty()) // Observer was detached before termination.
+            assertNull(host.sessionId)
+            engine.complete = true // Even a late close cannot revive a process scheduled to die.
+            host.connect(service, 3, "https://example.org", null, "relay-c")
+            host.stop(service, 4); queue.drain()
+            assertEquals(listOf("start:relay-a"), engine.calls.filter { it.startsWith("start:") })
+            assertEquals(1, terminated)
+        }
     }
 
-    @Test fun `wake publishes current network before resuming engine`() {
+    @Test fun `disconnecting is visible during the blocking stop`() {
         val queue = Queue(); val engine = Engine()
         val service = Robolectric.buildService(OpenRungVpnService::class.java).create().get()
         val host = EngineProcessHost(queue) { _, _, listener -> engine.apply { this.listener = listener } }
         host.connect(service, 1, "https://example.org", null, null); queue.drain()
-        engine.calls.clear()
-        host.pause(service, true); host.pause(service, false); queue.drain()
-        assertEquals(listOf("pause", "network", "resume"), engine.calls)
+        engine.state(1, "connected"); queue.drain()
+        engine.onStop = { assertEquals(ConnectionStatus.DISCONNECTING, OpenRungStatusStore.uiState.value.status) }
         host.stop(service, 2); queue.drain()
+        assertEquals(ConnectionStatus.DISCONNECTED, OpenRungStatusStore.uiState.value.status)
     }
 
     @Test fun `missing native artifact reports startup failure instead of crashing service`() {
@@ -139,4 +153,45 @@ class EngineProcessHostTest {
         val refreshed = Json.parseToJsonElement(service.settingsJSON()).jsonObject
         assertEquals(true, refreshed["split_tunnel"]!!.jsonObject["bypass_lan"]!!.jsonPrimitive.boolean)
     }
+    @Test fun `connected location is sanitized localized and restored in notification`() {
+        val queue = Queue(); val engine = Engine()
+        val service = Robolectric.buildService(OpenRungVpnService::class.java).create().get()
+        val host = EngineProcessHost(queue) { _, _, listener -> engine.apply { this.listener = listener } }
+        host.connect(service, 1, "https://example.org", null, null); queue.drain()
+        fun emit(sequence: Int, id: String, location: String) {
+            val payload = buildJsonObject {
+                put("Status", "connected"); put("RelayLabel", "\u202eevil legacy label")
+                putJsonObject("Details") { put("RelayID", id); put("RelayName", "\u202efalcon"); put("LocationLabel", location) }
+                putJsonArray("Recents") { add(buildJsonObject {
+                    put("RelayID", "relay_a"); put("CountryCode", "JP"); put("Label", "\u202eunsafe recent")
+                }) }
+            }
+            engine.listener.onEvent("""{"version":1,"sequence":$sequence,"kind":"state","payload":$payload}""")
+            queue.drain()
+        }
+        emit(1, "relay_a", "\u202eTokyo, Japan")
+        assertEquals("Tokyo, Japan", OpenRungStatusStore.uiState.value.relayLabel)
+        assertEquals("falcon", OpenRungStatusStore.uiState.value.relayName)
+        assertEquals("Tokyo, Japan", OpenRungStatusStore.uiState.value.recentRegions.first().label)
+        val manager = service.getSystemService(android.app.NotificationManager::class.java)
+        val notification = org.robolectric.Shadows.shadowOf(manager).getNotification(2001)
+        assertEquals("Connected through Tokyo, Japan", notification.extras.getCharSequence(android.app.Notification.EXTRA_TEXT).toString())
+        emit(2, "relay_b", "")
+        assertEquals("Unknown location", OpenRungStatusStore.uiState.value.relayLabel)
+        assertFalse(OpenRungStatusStore.uiState.value.recentRegions.any { it.relayId == "relay_b" })
+        host.stop(service, 2); queue.drain()
+    }
+
+    @Test fun `candidate settings do not copy rule sets again`() {
+        val service = Robolectric.buildService(OpenRungVpnService::class.java).create().get()
+        SplitTunnelStore.writeAndReportEffectiveChange(service,
+            """{"version":1,"enabled":true,"bypass_lan":true,"bypass_countries":[],"country_source":"manual","excluded_packages":[]}""")
+        service.settingsJSON()
+        val asset = java.io.File(service.filesDir, "libbox/rulesets/geosite-cn.srs")
+        assertTrue(asset.isFile)
+        assertTrue(asset.setLastModified(1000))
+        repeat(10) { service.settingsJSON() }
+        assertEquals(1000L, asset.lastModified())
+    }
+
 }

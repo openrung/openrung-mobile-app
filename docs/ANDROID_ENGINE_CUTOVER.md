@@ -34,7 +34,10 @@ DNS/HTTPS failures produce `RemotePathError`; cancellation remains cancellation.
 
 Shutdown cancels/joins native operations, stops libbox, reads final traffic,
 drains reduced application counts and releases the original TUN fd. A failed
-core close retains its native owner and prevents overlap. `TeardownComplete`
+core close prevents overlap and triggers Android process termination: the OS
+reclaims both the native fd and libbox duplicate, restoring routing. Observer
+callbacks are detached first; the service cancels sticky restart and removes
+its foreground notification before termination. `TeardownComplete`
 distinguishes incomplete runtime teardown from an upload failure: the latter
 retains its backlog without permanently poisoning the engine.
 
@@ -58,7 +61,7 @@ in either release artifact.
 | Mobile TUN/DoH, country/LAN/package bypass, probe priority | Existing Kotlin/Swift config-input and golden suites; retained China-bypass DNS/HTTPS regression checks; Go mobile preflight tests |
 | Stop during launch; FATAL Start already closed its instance | Existing concrete libbox graft restart/teardown race tests |
 | Ordered reapply/disconnect, old callbacks, service recreation | `EngineProcessHostTest`, `EngineEventDispatcherTest` |
-| Pause/wake publishes current network before resume | Native host ordering test and tagged Go lifecycle/network suites |
+| Screen-off does not pause recovery; stable best physical interface and cached attributes | No screen receiver; API 28/34 `EngineNetworkObserverTest`, including VPN activeNetwork, duplicate callbacks, and metering changes |
 | Native probe cancellation and join before TUN release | `ProbeResourceTest`, `engine_mobile_libbox_test.go` |
 | HTTPS-only coordinators, exact app pins, protected dialer, no redirects | `engine_mobile_punch_test.go`; existing leaf pin/validity tests |
 | Stable install ID, shared store and legacy durability | Mobile constructor graft tests and retained Go outbox migration/locking tests |
@@ -99,11 +102,12 @@ ABI guards, and 167 iOS tests with Thread Sanitizer. CI uses Go 1.25.
 - The pin includes upstream's explicit port-53 DNS hijack ahead of bypass rules.
   Both platform golden suites assert that extra rule; the original DNS protocol
   match, probe priority and UDP/443 rejection remain.
-- Physical liveness during recovery now follows connectcore's protected TCP
-  checks of broker fronts, replacing Android's neutral gstatic/Cloudflare HTTP
-  probes. Recovery waits until a front is reachable; broker blocking can therefore
-  hold recovery even if unrelated internet traffic works. This is an explicit
-  review point for censored-network beta validation, not tunnel-health evidence.
+- Neutral physical liveness and location-only state metadata require upstream
+  [core PR #181](https://github.com/openrung/openrung/pull/181), which publishes
+  `connectcore/v0.6.1` on merge. The current v0.6.0 pin still blocks B2 landing;
+  broker-front liveness is a correctness defect, not an accepted divergence.
+  Android already consumes the new atomic location field and safely localizes
+  missing locations. Pin the published release before merging this PR.
 - Unusable/non-HTTPS/unpinned-IP punch endpoints are rejected by the transport
   adapter before dialing. Go may record a failed punch attempt before RelayHub
   fallback where the old Kotlin wrapper silently skipped constructing a client.
@@ -124,10 +128,10 @@ these checks, and the PR remains draft until their evidence is recorded:
 
 - Stop during real TUN startup; rapid disconnect/reconnect with stale callbacks.
 - protect() refusal and protected socket ownership while the VPN is active.
-- Wi-Fi/cellular handover, paused epoch changes, sleep/wake and service restart.
+- Wi-Fi/cellular handover while the screen is off, sleep/wake and service restart.
 - Pending telemetry across teardown and process restart, including final byte and
   per-app flow counts on a real VPN session.
-- Representative restricted networks for the changed physical-liveness gate.
+- Representative restricted networks with blocked broker fronts and reachable neutral probes.
 
 Record device/OS, build SHA, network, steps, logs and expected/observed results.
 Track C beta/public promotion and B3's running-iOS memory budget remain separate.

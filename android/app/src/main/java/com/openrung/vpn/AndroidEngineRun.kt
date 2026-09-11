@@ -61,14 +61,12 @@ internal class AndroidEngineRun(
     }
 
     override fun verifyPath(operation: OpenRungEngineOperation, phase: String?): String {
-        var dnsComplete = false
         return try {
             operation(operation) {
                 val dns = DnsProbe(VpnNetworkDnsTransport(service, ::ownedNetwork))
                 val http = InternetProbe(::ownedNetwork)
-                if (phase == "startup") dns.verify() else dns.verifyOnce()
-                dnsComplete = true
-                if (phase == "startup") http.verify() else http.verifyOnce()
+                val probe = TunnelPathProbe(dns, http)
+                if (phase == "startup") probe.verify() else probe.verifyOnce()
                 check(ownedNetwork() != null) { "Run's VPN Network disappeared" }
             }
             """{"path":"android_vpn_network","fresh_dns":true,"pinned_https":true}"""
@@ -76,7 +74,7 @@ internal class AndroidEngineRun(
             buildJsonObject {
                 put("error", error.message ?: "VPN path verification failed")
                 if (!operation.isCancelled && ownedNetwork() != null && error !is CancellationException && isGenuineRemoteDataPathFailure(error)) {
-                    put("remote_stage", if (dnsComplete) "internet_probe" else "dns_probe")
+                    put("remote_stage", if (error is DnsPathUnverifiedException) "dns_probe" else "internet_probe")
                 }
             }.toString()
         }

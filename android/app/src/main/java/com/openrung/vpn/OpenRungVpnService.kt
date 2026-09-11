@@ -23,18 +23,12 @@ import java.io.File
 /** Android lifecycle and platform mechanics. Connect/recovery policy lives in connectcore. */
 class OpenRungVpnService : VpnService() {
     @Volatile private var lastStartId = -1
-    private var observer: EngineNetworkObserver? = null
+    @Volatile private var observer: EngineNetworkObserver? = null
     private val runs = java.util.concurrent.CopyOnWriteArraySet<AndroidEngineRun>()
-    private val screen = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            ConnectcoreProcessHost.pause(this@OpenRungVpnService, intent?.action == Intent.ACTION_SCREEN_OFF)
-        }
-    }
     override fun onCreate() {
         super.onCreate()
         OpenRungStatusStore.initialize(applicationContext)
         createNotificationChannel()
-        registerReceiver(screen, IntentFilter().apply { addAction(Intent.ACTION_SCREEN_ON); addAction(Intent.ACTION_SCREEN_OFF) })
     }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         lastStartId = startId
@@ -52,7 +46,6 @@ class OpenRungVpnService : VpnService() {
     }
     override fun onRevoke() { ConnectcoreProcessHost.stop(this, lastStartId); super.onRevoke() }
     override fun onDestroy() {
-        unregisterReceiver(screen)
         ConnectcoreProcessHost.destroyed(this, lastStartId)
         super.onDestroy()
     }
@@ -60,12 +53,26 @@ class OpenRungVpnService : VpnService() {
         // Only remove the foreground notification if this command still owns the service.
         if (id == lastStartId && stopSelfResult(id)) stopForeground(STOP_FOREGROUND_REMOVE)
     }
+    internal fun terminateAfterFailedTeardown() {
+        Handler(Looper.getMainLooper()).post {
+            try {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf() // Cancel START_STICKY resurrection before killing both TUN fd owners.
+            } finally {
+                android.os.Process.killProcess(android.os.Process.myPid())
+            }
+        }
+    }
     internal fun reportFailure(message: String) { OpenRungStatusStore.fail(message); showStatus(ConnectionStatus.FAILED) }
-    internal fun showStatus(status: ConnectionStatus) = updateNotification(getString(status.labelResId))
+    internal fun showStatus(status: ConnectionStatus, location: String? = null) = updateNotification(
+        if (status == ConnectionStatus.CONNECTED) getString(R.string.vpn_notification_connected,
+            location ?: getString(R.string.relay_location_unknown)) else getString(status.labelResId),
+    )
     internal fun observe(changed: (EngineNetworkSnapshot) -> Unit) { closeObservation(); observer = EngineNetworkObserver(this, changed) }
     internal fun closeObservation() { observer?.close(); observer = null }
-    internal fun networkSnapshot(): EngineNetworkSnapshot = EngineNetworkObserver.snapshot(this)
-    internal fun networkAttributes(): Map<String,String> = networkSnapshot().attributes
+    internal fun networkSnapshot(): EngineNetworkSnapshot = observer?.current ?: EngineNetworkObserver.snapshot(this)
+    internal fun networkAttributes(): Map<String,String> = observer?.current?.attributes.orEmpty()
+    internal fun physicalNetwork(): Network? = observer?.current?.defaultNetwork
     internal fun newRun(telemetry: OpenRungRunTelemetry): AndroidEngineRun = AndroidEngineRun(this, telemetry) { runs.remove(it) }.also { runs.add(it) }
     internal fun refreshRunInterfaces() { runs.forEach { it.refreshInterfaces() } }
     internal fun settingsJSON(): String = buildJsonObject {
@@ -81,10 +88,12 @@ class OpenRungVpnService : VpnService() {
             put("rule_set_directory", rules.ruleSetDirectory)
         } }
     }.toString()
+    private val stagedRuleSetDirectory by lazy { stageRuleSetAssets() }
+
     private fun currentSplitTunnelRules(): SplitTunnelRules? {
         val config = SplitTunnelStore.read(applicationContext) ?: return null
         if (!config.enabled) return null
-        val ruleSetDirectory = stageRuleSetAssets()
+        val ruleSetDirectory = stagedRuleSetDirectory
         // An automatic country selection is re-derived from the device's CURRENT time zone here,
         // not taken from the stored snapshot. This method runs on every connect attempt including
         // the recovery reconnects that follow a physical-network change, so a phone that
@@ -122,8 +131,8 @@ class OpenRungVpnService : VpnService() {
     }
 
     /**
-     * Copies the bundled .srs rule sets from APK assets into libbox's working directory. Always
-     * overwrites — the four files total ~437 KB, so unconditional copies are simple and correct.
+     * Copies the bundled .srs rule sets once per service owner, shared by all
+     * candidates and recovery attempts. A new owner refreshes assets after app updates.
      * Each copy is best-effort; a missing file just drops that country above.
      */
     private fun stageRuleSetAssets(): File {

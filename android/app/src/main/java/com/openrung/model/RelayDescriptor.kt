@@ -180,9 +180,7 @@ data class RelayDescriptor(
      * Keep in sync with the Swift `RelayDescriptor.displayName()` and the TS
      * `sanitizeRelayName()` in `src/model/exitNode.ts`.
      */
-    fun displayName(): String = sanitizeDisplayName(label).ifEmpty {
-        sanitizeDisplayName(id.removePrefix("relay_"), ID_FALLBACK_CODE_POINTS)
-    }
+    fun displayName(): String = displayName(label, id)
 
     /**
      * Relay class collapsed to the two-value bridge taxonomy: anything but foundation (unknown
@@ -197,11 +195,15 @@ data class RelayDescriptor(
             RelayConstants.NODE_CLASS_VOLUNTEER
         }
 
-    internal companion object {
-        const val MAX_DISPLAY_NAME_CODE_POINTS = 24
-        const val ID_FALLBACK_CODE_POINTS = 12
+    companion object {
+        private const val MAX_DISPLAY_NAME_CODE_POINTS = 24
+        private const val ID_FALLBACK_CODE_POINTS = 12
 
-        fun sanitizeDisplayName(raw: String, maxCodePoints: Int = MAX_DISPLAY_NAME_CODE_POINTS): String {
+        internal fun displayName(name: String?, id: String?): String = sanitizeDisplayName(name.orEmpty()).ifEmpty {
+            sanitizeDisplayName(id.orEmpty().removePrefix("relay_"), ID_FALLBACK_CODE_POINTS)
+        }
+
+        internal fun sanitizeDisplayName(raw: String, maxCodePoints: Int = MAX_DISPLAY_NAME_CODE_POINTS): String {
             // Iterate code points, not chars, so astral-plane format characters
             // (e.g. U+E00xx tags) are classified whole rather than as surrogates. After the
             // control/format strip the only whitespace left is the space separators

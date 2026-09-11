@@ -7,8 +7,8 @@ package com.openrung.net
  * probe hostname (geosite-cn ships www.gstatic.com) can never route the probe onto the direct
  * path and prove nothing about the tunnel.
  *
- * [PhysicalNetworkProbe][com.openrung.vpn.PhysicalNetworkProbe] deliberately does NOT use these:
- * off-tunnel liveness probes must stay free of OpenRung-identifying hostnames.
+ * Off-tunnel physical liveness belongs to connectcore and uses separate neutral endpoints.
+ * Those probes must stay free of OpenRung-identifying hostnames.
  */
 object ProbeTargets {
     /** Dedicated probe hostname on OpenRung infrastructure; used for nothing but probing. */

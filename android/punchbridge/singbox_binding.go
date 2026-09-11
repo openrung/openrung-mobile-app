@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/openrung/openrung/brokerapi"
@@ -109,17 +108,8 @@ func OpenRungBuildSingBoxConfig(inputJSON string) *OpenRungSingBoxConfigResult {
 
 func decodeOpenRungSingBoxInput(inputJSON string) (openRungSingBoxInput, error) {
 	var input openRungSingBoxInput
-	decoder := json.NewDecoder(strings.NewReader(inputJSON))
-	// The adapters ship in the same bundle as this binding, so an unknown
-	// field is drift, not forward compatibility. The relay sub-object is
-	// decoded against brokerapi's canonical descriptor below instead.
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&input); err != nil {
+	if err := decodeOpenRungObject(inputJSON, &input); err != nil {
 		return openRungSingBoxInput{}, fmt.Errorf("invalid sing-box build input: %w", err)
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		return openRungSingBoxInput{}, errors.New("trailing data after sing-box build input")
 	}
 	return input, nil
 }
@@ -179,17 +169,22 @@ func openRungSingBoxBuilderInput(input openRungSingBoxInput) (client.SingBoxConf
 		// openRungSingBoxInput.BridgeHost.
 		BridgeOwnsOuterSocket: hasBridgeHost,
 	}
-	if input.SplitTunnel != nil {
-		builderInput.SplitTunnel = &client.SplitTunnelRules{
-			BypassLAN:        input.SplitTunnel.BypassLAN,
-			BypassCountries:  input.SplitTunnel.BypassCountries,
-			ExcludedPackages: input.SplitTunnel.ExcludedPackages,
-			RuleSetDirectory: input.SplitTunnel.RuleSetDirectory,
-		}
-	}
+	builderInput.SplitTunnel = input.SplitTunnel.rules()
 	return builderInput, nil
 }
 
 func failedOpenRungSingBoxConfigResult(err error) *OpenRungSingBoxConfigResult {
 	return &OpenRungSingBoxConfigResult{errorText: err.Error()}
+}
+
+func (input *openRungSplitTunnelInput) rules() *client.SplitTunnelRules {
+	if input == nil {
+		return nil
+	}
+	return &client.SplitTunnelRules{
+		BypassLAN:        input.BypassLAN,
+		BypassCountries:  input.BypassCountries,
+		ExcludedPackages: input.ExcludedPackages,
+		RuleSetDirectory: input.RuleSetDirectory,
+	}
 }

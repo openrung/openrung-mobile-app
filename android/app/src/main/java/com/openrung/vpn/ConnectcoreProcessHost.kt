@@ -2,6 +2,7 @@ package com.openrung.vpn
 
 import android.net.VpnService
 import android.os.Build
+import com.openrung.R
 import com.openrung.BuildConfig
 import com.openrung.config.AppConfig
 import com.openrung.model.RelayDescriptor
@@ -29,10 +30,12 @@ internal object ConnectcoreProcessHost : EngineProcessHost()
 
 internal open class EngineProcessHost(
     private val queue: Executor = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "OpenRungEngine") },
+    private val terminateProcess: (OpenRungVpnService) -> Unit = { it.terminateAfterFailedTeardown() },
     private val factory: ((OpenRungVpnService, OpenRungMobileHost, OpenRungEngineListener) -> OpenRungEngine)? = null,
 ) : OpenRungMobileHost {
     private val events = EngineEventDispatcher(::post) { OpenRungStatusStore.appendLog(it) }
     private var engine: OpenRungEngine? = null
+    private var terminating = false
     @Volatile private var owner: OpenRungVpnService? = null
     @Volatile var sessionId: String? = null
         private set
@@ -49,10 +52,10 @@ internal open class EngineProcessHost(
     }
 
     private fun connectOnQueue(service: OpenRungVpnService, id: Int, url: String, targetCountry: String?, targetRelay: String?) {
+        if (terminating) return
         try {
-            if (!stopEngine()) { service.reportFailure("Previous VPN teardown is incomplete"); return }
-            owner?.closeObservation()
-            events.detach()
+            if (!stopEngine()) { finishOwner(service, id, false); return }
+            releaseOwner()
             owner = service
             sessionId = null
             val currentLease = Any().also { lease = it }
@@ -73,7 +76,7 @@ internal open class EngineProcessHost(
         } catch (error: Throwable) {
             if (error !is Exception && error !is LinkageError) throw error
             OpenRungStatusStore.fail(error.message ?: "VPN startup failed")
-            if (stopEngine()) { service.closeObservation(); events.detach(); owner = null; sessionId = null; service.finish(id) }
+            finishOwner(service, id, stopEngine())
         }
     }
 
@@ -94,25 +97,37 @@ internal open class EngineProcessHost(
     }
 
     private fun stopOnQueue(service: OpenRungVpnService, id: Int) {
+        if (terminating) return
         if (owner !== service) {
             if (owner == null) OpenRungStatusStore.setStatus(ConnectionStatus.DISCONNECTED, relayLabel = null, lastError = null)
             service.finish(id)
             return
         }
         events.detach()
-        if (!stopEngine()) { service.reportFailure("VPN teardown is incomplete; restart the app process"); return }
-        service.closeObservation(); owner = null; sessionId = null
-        OpenRungStatusStore.setStatus(ConnectionStatus.DISCONNECTED, relayLabel = null, lastError = null)
-        service.finish(id)
+        OpenRungStatusStore.setStatus(ConnectionStatus.DISCONNECTING)
+        val complete = stopEngine()
+        if (complete) OpenRungStatusStore.setStatus(ConnectionStatus.DISCONNECTED, relayLabel = null, lastError = null)
+        finishOwner(service, id, complete)
     }
 
-    fun pause(service: OpenRungVpnService, paused: Boolean) = post {
-        if (owner === service) {
-            if (paused) engine?.pause() else {
-                val state = service.networkSnapshot()
-                engine?.networkChanged(state.up, state.fingerprint, state.dnsJSON)
-                engine?.resume()
-            }
+    private fun releaseOwner() {
+        events.detach()
+        owner?.closeObservation()
+        owner = null
+        sessionId = null
+    }
+
+    private fun finishOwner(service: OpenRungVpnService, id: Int, complete: Boolean) {
+        releaseOwner()
+        service.closeObservation()
+        if (complete) {
+            service.finish(id)
+        } else {
+            // libbox may still hold its duplicated TUN fd. Releasing only Kotlin's
+            // descriptor cannot restore routing; the OS must reclaim the process.
+            terminating = true
+            service.reportFailure("VPN teardown failed; restarting the app is required")
+            terminateProcess(service)
         }
     }
 
@@ -180,30 +195,33 @@ internal open class EngineProcessHost(
                 val status = runCatching { ConnectionStatus.valueOf(p.text("Status")!!.uppercase(Locale.ROOT)) }.getOrNull() ?: return
                 val details = p["Details"] as? JsonObject
                 sessionId = details?.text("SessionID")?.takeIf(String::isNotEmpty)
-                OpenRungStatusStore.setStatus(status, relayLabel = p.text("RelayLabel"),
-                    relayName = if (status == ConnectionStatus.CONNECTED) sanitizeEngineRelayName(details?.text("RelayName"), details?.text("RelayID")) else null,
+                // Legacy RelayLabel can be an operator name or raw relay ID. Only
+                // the atomic location field is suitable for the location UI.
+                val location = if (status == ConnectionStatus.CONNECTED) {
+                    RelayDescriptor.sanitizeDisplayName(details?.text("LocationLabel").orEmpty(), 128)
+                        .ifEmpty { service.getString(R.string.relay_location_unknown) }
+                } else null
+                OpenRungStatusStore.setStatus(status, relayLabel = location,
+                    relayName = if (status == ConnectionStatus.CONNECTED) RelayDescriptor.displayName(details?.text("RelayName"), details?.text("RelayID")) else null,
                     relayClass = if (status == ConnectionStatus.CONNECTED) details?.text("RelayClass") else null,
                     lastError = p.text("LastError"))
                 if (status == ConnectionStatus.CONNECTED) {
                     (p["Recents"] as? JsonArray)?.firstOrNull()?.let { raw ->
                         val recent = raw.jsonObject
+                        // A relay without geo adds no recent; the first row may
+                        // still describe the previous connection.
+                        if (recent.text("RelayID") != details?.text("RelayID")) return@let
                         OpenRungStatusStore.recordRecent(RecentNode(
                             countryCode = recent.text("CountryCode").orEmpty(), relayId = details?.text("RelayID").orEmpty(),
-                            label = recent.text("Label").orEmpty(), relayName = sanitizeEngineRelayName(details?.text("RelayName"), details?.text("RelayID")),
+                            label = location.orEmpty(), relayName = RelayDescriptor.displayName(details?.text("RelayName"), details?.text("RelayID")),
                             latitude = recent["Latitude"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
                             longitude = recent["Longitude"]?.jsonPrimitive?.doubleOrNull ?: 0.0))
                     }
                 }
-                service.showStatus(status)
-                if (status == ConnectionStatus.FAILED && stopEngine()) {
-                    events.detach(); service.closeObservation(); owner = null; sessionId = null; service.finish(startId)
-                }
+                service.showStatus(status, location)
+                if (status == ConnectionStatus.FAILED) finishOwner(service, startId, stopEngine())
             }
         }
     }
 }
 internal fun JsonObject.text(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
-internal fun sanitizeEngineRelayName(name: String?, id: String?): String =
-    RelayDescriptor.sanitizeDisplayName(name.orEmpty()).ifEmpty {
-        RelayDescriptor.sanitizeDisplayName(id.orEmpty().removePrefix("relay_"), 12)
-    }

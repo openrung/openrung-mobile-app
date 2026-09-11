@@ -401,46 +401,35 @@ production app:
 
 ## Android native (§6)
 
-The production connect-path packages are ported with only the package rename
-(`com.openrung.client.*` → `com.openrung.*`); Compose UI and directory code
-are not ported (TS owns them). Key pieces:
+Android's connection ladder, session, recovery, and telemetry orchestration run
+in the published connectcore module (ADR-003 B2). Kotlin owns OS mechanics:
 
-- `vpn/OpenRungVpnService.kt` + `vpn/ProxyEngine.kt` — the whole connect
-  flow, NAT-punch-first/RelayHub-fallback ladder, connection-failure handling,
-  notification id 2001 on channel `openrung_vpn`, heartbeat every 50–70 s.
-- `net/NatPunchClient.kt` + `android/punchbridge/` — a cancelable gomobile
-  binding over the shared `github.com/openrung/openrung/punchcore` module
-  (pinned in `punchbridge/go.mod`), compiled into the same AAR/Go runtime as
-  libbox. It protects the retained UDP fd with `VpnService.protect`, then
-  exposes a loopback TCP bridge that sing-box uses without changing the relay's
-  Reality identity.
-- `net/WssTicketClient.kt`, `net/WssClient.kt`, and
-  `net/PhysicalNetworkEpochMonitor.kt` — ticket control-plane policy, the thin
-  Android adapter over wsscore, and network-epoch retirement. WebSocket/TLS,
-  yamux, copying, and transport bounds remain entirely in the pinned wsscore Go
-  module compiled into the combined AAR.
-- `android/punchbridge/broker_binding.go` — the single-use gomobile foundation
-  over `brokerapi`, pinned in `android/punchbridge/go.mod` (currently v0.5.0)
-  and compiled into that same AAR/Go runtime.
-  `NativeBrokerTransport` confines generated objects and serves both the
-  Android VPN clients and the separate `OpenRungBroker` module through
-  constructor-specific factories.
-- `net/`, `model/`, `config/AppConfig.kt` — verbatim. `telemetry/` — ported,
-  then diverged: `application_connection` flow events are aggregated
-  client-side (see "Telemetry transport" above) via the new
-  `ApplicationConnectionAggregator.kt`, and the telemetry schema no longer
-  carries destination ip/port/protocol.
-- `state/OpenRungStatusStore.kt` — trimmed to status/relay/error/logs/recents
-  (directory state removed), still persisted in SharedPreferences
-  (`openrung_status`).
-- `bridge/OpenRungVpnModule.kt` — implements the contract; collects the
-  status store's flow, maps it to a WritableMap, emits events.
-- `bridge/OpenRungApkShareModule.kt` + `share/InstalledApkProvider.kt` —
-  Android-only sharesheet integration for streaming the installed monolithic
-  APK through a narrowly scoped, temporary URI grant.
-- libbox arrives as a git-ignored local AAR (`app/libs/libbox.aar`,
-  conditional Gradle file dependency); a `StubProxyEngine` that throws
-  "engine not linked" protects checkouts without the AAR.
+- `vpn/ConnectcoreProcessHost.kt` retains one engine and outbox per process,
+  orders commands, and projects queued engine events into the native status store.
+- `vpn/OpenRungVpnService.kt` owns consent, foreground notification, effective
+  persisted split settings, and service termination. Failed libbox teardown
+  terminates the process so Android reclaims both copies of the TUN descriptor.
+- `vpn/AndroidEngineRun.kt` and `vpn/OpenRungLibboxPlatform.kt` own each TUN fd,
+  its VPN Network, socket protection, interface updates, and native flow counts.
+  `TunnelPathProbe` verifies fresh DNS and HTTPS through that exact VPN Network.
+- `vpn/EngineNetworkObserver.kt` observes Android's best non-VPN network,
+  deduplicates snapshots, and caches telemetry attributes. Screen-off never
+  pauses VPN recovery.
+- `android/punchbridge/engine_mobile_libbox.go` adapts the public `MobileHost`
+  APIs. The combined libbox AAR contains one Go runtime for connectcore,
+  brokerapi, punchcore, and wsscore; module versions are pinned in `go.mod`.
+- `telemetry/RunApplicationConnections.kt` reduces per-app flow counts and
+  drains the tail before retiring a run. Go owns uploads and session telemetry.
+- `state/OpenRungStatusStore.kt` persists status, relay metadata, errors, logs,
+  and recents. `bridge/OpenRungVpnModule.kt` exposes that state to React Native.
+- The separate directory/map broker module uses `NativeBrokerTransport` and
+  the shared brokerapi binding. It does not orchestrate VPN sessions.
+- `bridge/OpenRungApkShareModule.kt` and `share/InstalledApkProvider.kt` expose
+  the installed monolithic APK through a temporary URI grant.
+
+The AAR remains a git-ignored build artifact (`app/libs/libbox.aar`). Build it
+before compiling Android. Missing native linkage is reported as a startup
+failure by the process host.
 
 ## iOS native (§7)
 
