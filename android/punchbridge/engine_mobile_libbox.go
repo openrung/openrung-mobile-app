@@ -13,7 +13,6 @@ import (
 
 	"github.com/openrung/openrung/brokerapi"
 	"github.com/openrung/openrung/connectcore"
-	"github.com/openrung/openrung/connectcore/client"
 	"github.com/openrung/openrung/connectcore/clienttelemetry"
 	"github.com/openrung/openrung/wsscore"
 	"github.com/sagernet/sing-box/daemon"
