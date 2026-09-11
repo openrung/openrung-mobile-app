@@ -73,6 +73,7 @@ class OpenRungVpnService : VpnService() {
     internal fun networkSnapshot(): EngineNetworkSnapshot = observer?.current ?: EngineNetworkObserver.snapshot(this)
     internal fun networkAttributes(): Map<String,String> = observer?.current?.attributes.orEmpty()
     internal fun physicalNetwork(): Network? = observer?.current?.defaultNetwork
+    internal fun physicalInterface(): EnginePhysicalInterface? = observer?.current?.defaultInterface
     internal fun newRun(telemetry: OpenRungRunTelemetry): AndroidEngineRun = AndroidEngineRun(this, telemetry) { runs.remove(it) }.also { runs.add(it) }
     internal fun refreshRunInterfaces() { runs.forEach { it.refreshInterfaces() } }
     internal fun settingsJSON(): String = buildJsonObject {

@@ -194,4 +194,16 @@ class EngineProcessHostTest {
         assertEquals(1000L, asset.lastModified())
     }
 
+    @Test fun `failed teardown stops sticky service and notification before process termination`() {
+        val service = Robolectric.buildService(OpenRungVpnService::class.java).create().get()
+        service.startForeground(2001, android.app.Notification())
+        service.terminateAfterFailedTeardown()
+        org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
+        val shadow = org.robolectric.Shadows.shadowOf(service)
+        assertTrue(shadow.isStoppedBySelf)
+        assertTrue(shadow.isForegroundStopped)
+        assertTrue(shadow.notificationShouldRemoved)
+        assertTrue(org.robolectric.shadows.ShadowProcess.wasKilled(android.os.Process.myPid()))
+    }
+
 }

@@ -136,7 +136,10 @@ internal open class EngineProcessHost(
         runCatching { current.stop(5_000) }.onFailure {
             OpenRungStatusStore.appendLog("Engine shutdown: ${it.message}")
         }
-        return current.teardownComplete()
+        return runCatching { current.teardownComplete() }.getOrElse {
+            OpenRungStatusStore.appendLog("Engine teardown status unavailable: ${it.message}")
+            false
+        }
     }
 
     private fun createEngine(service: OpenRungVpnService): OpenRungEngine {

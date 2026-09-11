@@ -13,7 +13,10 @@ internal data class EngineNetworkSnapshot(
     val dnsJSON: String,
     val attributes: Map<String, String>,
     val defaultNetwork: Network? = null,
+    val defaultInterface: EnginePhysicalInterface? = null,
 )
+
+internal data class EnginePhysicalInterface(val name: String, val metered: Boolean, val constrained: Boolean)
 
 /** Observe Android's best physical network, even while activeNetwork is our VPN. */
 internal class EngineNetworkObserver(context: Context, private val changed: (EngineNetworkSnapshot) -> Unit) : AutoCloseable {
@@ -104,7 +107,11 @@ internal class EngineNetworkObserver(context: Context, private val changed: (Eng
                 "network_transport" to transport,
                 "network_metered" to (activeCaps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) != true).toString(),
                 "network_roaming" to (activeCaps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_ROAMING) != true).toString(),
-            ), physical)
+            ), physical, if (physical == null || links?.interfaceName == null) null else EnginePhysicalInterface(
+                links.interfaceName!!,
+                activeCaps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) != true,
+                activeCaps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED) != true,
+            ))
         }
     }
 }

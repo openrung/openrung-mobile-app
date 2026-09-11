@@ -211,12 +211,12 @@ internal class OpenRungLibboxPlatform(
     private data class DefaultInterface(val name: String, val index: Int, val metered: Boolean, val constrained: Boolean)
 
     private fun updateDefaultInterface(listener: InterfaceUpdateListener) {
-        val defaultNetwork = discoverAndroidNetworks().firstOrNull { it.network == vpnService.physicalNetwork() }
-        val javaInterface = defaultNetwork?.let { JavaNetworkInterface.getByName(it.interfaceName) }
+        val defaultNetwork = vpnService.physicalInterface()
+        val javaInterface = defaultNetwork?.let { JavaNetworkInterface.getByName(it.name) }
         val next = if (defaultNetwork == null || javaInterface == null || !javaInterface.isUsableUnderlyingInterface()) {
             DefaultInterface("", -1, false, false)
         } else {
-            DefaultInterface(defaultNetwork.interfaceName, javaInterface.index, defaultNetwork.isMetered, defaultNetwork.isConstrained)
+            DefaultInterface(defaultNetwork.name, javaInterface.index, defaultNetwork.metered, defaultNetwork.constrained)
         }
         // Go refreshes all interfaces and may reset every connection before its own
         // dedup. Only notify it when the complete platform default tuple changes.

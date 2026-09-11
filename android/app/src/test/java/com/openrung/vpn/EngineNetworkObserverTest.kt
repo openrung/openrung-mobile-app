@@ -17,6 +17,7 @@ import io.nekohasekai.libbox.InterfaceUpdateListener
 import java.net.InetAddress
 import java.net.NetworkInterface
 
+@Suppress("DEPRECATION") // Legacy network fixtures also run on the API 28 fallback.
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [28, 34], application = Application::class)
 class EngineNetworkObserverTest {
