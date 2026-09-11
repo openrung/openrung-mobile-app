@@ -5,8 +5,8 @@ from pathlib import Path
 def prepare_contract_module(binding, temporary):
     module = json.loads(subprocess.check_output(
         ["go", "list", "-m", "-json", "github.com/openrung/openrung/connectcore"], cwd=binding))
-    if module.get("Replace") or module["Version"] != "v0.6.0":
-        sys.exit("Review the test seam adapter when changing the connectcore pin; tagged v0.6.0 required")
+    if module.get("Replace") or module["Version"] != "v0.6.1":
+        sys.exit("Review the test seam adapter when changing the connectcore pin; tagged v0.6.1 required")
     source = Path(module["Dir"])
     names = ["probeTunnel", "healthProbe", "dialRelay", "fetchRelays", "tunnelReady",
              "requestWSSTicket", "dialWSS", "checkNetworkAlive", "lookupGeo",

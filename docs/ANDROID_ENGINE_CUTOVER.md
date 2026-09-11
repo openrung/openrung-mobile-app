@@ -1,6 +1,6 @@
 # ADR-003 B2: Android connectcore cutover
 
-Android now runs published `connectcore/v0.6.0` as its sole connection
+Android now runs published `connectcore/v0.6.1` as its sole connection
 orchestrator. This is the actual B2 implementation after preparation PR #112
 (mobile main `53e03d9`) and core API PR #179. There is no engine-selection flag.
 Physical-device acceptance below remains pending; this is not release promotion.
@@ -102,12 +102,14 @@ ABI guards, and 167 iOS tests with Thread Sanitizer. CI uses Go 1.25.
 - The pin includes upstream's explicit port-53 DNS hijack ahead of bypass rules.
   Both platform golden suites assert that extra rule; the original DNS protocol
   match, probe priority and UDP/443 rejection remain.
-- Neutral physical liveness and location-only state metadata require upstream
-  [core PR #181](https://github.com/openrung/openrung/pull/181), which publishes
-  `connectcore/v0.6.1` on merge. The current v0.6.0 pin still blocks B2 landing;
-  broker-front liveness is a correctness defect, not an accepted divergence.
-  Android already consumes the new atomic location field and safely localizes
-  missing locations. Pin the published release before merging this PR.
+- Published `connectcore/v0.6.1` includes the fixes from
+  [core PR #181](https://github.com/openrung/openrung/pull/181): neutral HTTPS or
+  broker-front TCP can permit recovery, observed-down paths skip physical probes,
+  and outage polling backs off within a shared two-minute recovery budget.
+  A failed ladder after expiry terminates consistently across direct/punch/WSS;
+  sustained outages require manual reconnect after that terminal failure.
+  Android consumes the atomic geographic location field, sanitizes it, and
+  localizes missing locations. Screen-off does not pause engine recovery.
 - Unusable/non-HTTPS/unpinned-IP punch endpoints are rejected by the transport
   adapter before dialing. Go may record a failed punch attempt before RelayHub
   fallback where the old Kotlin wrapper silently skipped constructing a client.

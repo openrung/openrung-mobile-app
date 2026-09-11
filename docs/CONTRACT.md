@@ -20,7 +20,7 @@ recording, status/log persistence.
 ADR-003 B1 adds the shared engine lifecycle binding under
 `android/punchbridge/engine_binding.go`, the per-run runtime in
 `engine_runtime.go`, and the concrete libbox graft in `engine_libbox.go`.
-B2 makes connectcore v0.6.0 Android's sole orchestrator through its mobile host
+B2 makes connectcore v0.6.1 Android's sole orchestrator through its mobile host
 API; Kotlin retains OS lifecycle and platform mechanics. Swift keeps its native
 orchestrator until B3.
 See [ENGINE_BINDING.md](ENGINE_BINDING.md) for the callback/lifetime contract,
@@ -642,7 +642,7 @@ used as evidence that Reality or WSS carried end-to-end traffic.
   self-signed coordinators are accepted only when their exact certificate SHA-256
   appears in `AppConfig.PUNCH_COORDINATOR_CERT_SHA256_BY_HOST`; hostname endpoints
   use normal public-CA validation. Redirects and cleartext are always rejected.
-- Android's sole orchestrator is published `connectcore/v0.6.0` via the
+- Android's sole orchestrator is published `connectcore/v0.6.1` via the
   in-process libbox graft. It owns punch/RelayHub/direct/WSS selection, circuit
   breaking, health cadence, network recovery, session telemetry and terminal
   flushing. Kotlin supplies OS mechanics and explicit fresh-DNS plus pinned-HTTPS
