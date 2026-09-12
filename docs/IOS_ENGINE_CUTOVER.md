@@ -13,7 +13,10 @@ and uses attachment identities to discard buffered callbacks and observations
 from retired providers. Go callbacks only enqueue; synchronous host callbacks
 borrow the provider under a separate lock so shutdown cannot deadlock on the
 control queue. Start completion is delivered once, after either verified
-connection or joined cancellation/failure.
+connection or joined cancellation/failure. Failure state is persisted before
+that completion can let NE suspend the extension. A pending start reports its
+error through completion; only an established tunnel uses cancelTunnelWithError.
+Repeated OS stop callbacks after poisoned teardown only complete the OS callback.
 
 `NewOpenRungMobileEngineForIOS` installs Apple's provider-socket ownership,
 mobile host settings, concrete libbox runtime, and the pinned/published punch
@@ -34,8 +37,11 @@ Stop cancels/joins operations, stops libbox, reads final aggregate traffic,
 and clears NE settings during candidate replacement. Once `stopTunnel` begins,
 NetworkExtension owns settings withdrawal and can reject a late explicit clear
 with `NEAgentErrorDomain`; that rejection must not poison an already closed
-libbox run. Other native settings/close failures still fail closed. Incomplete
-teardown retains the provider, permanently
+libbox run. A rejected clear during active-provider candidate replacement is
+also logged and treated as best effort: libbox has already closed its fd, and
+the next candidate must successfully apply fresh settings before readiness.
+A genuine libbox close failure still fails closed. Incomplete teardown retains
+the provider, permanently
 rejects reuse in that process and calls `cancelTunnelWithError`; NetworkExtension
 owns final process/resource reclamation. A telemetry upload timeout alone keeps
 the backlog and permits reuse. iOS continues to omit per-application attribution.
@@ -85,14 +91,18 @@ retains only historical error fixtures outside shipping targets.
 - The initial NWPath observation is now sent before the first engine Start;
   absence for five seconds fails locally instead of starting with unknown
   physical state. Cost/capability/interface changes retain their fingerprint
-  semantics. Native settings are refreshed per engine candidate.
+  semantics. Native settings are refreshed per engine candidate. Libbox retains
+  interfaces for `.requiresConnection` paths so outbound dials can activate
+  dormant cellular/on-demand service; only `.unsatisfied` removes interfaces.
+  This is distinct from reporting a path as already up to connectcore.
 - Invalid/unpinned punch coordinators are rejected in the shared transport;
   an attempted punch may be recorded before RelayHub fallback where the old
   Swift wrapper skipped constructing a client. App certificate pins remain.
 - NetworkExtension owns settings removal after its stop callback. Candidate
-  replacement explicitly clears settings; only an actual OS-stop handoff can
-  suppress a concurrently rejected settings request. This fixes the physical
-  device teardown regression exposed by the B3 test.
+  replacement attempts an explicit clear, but a rejected clear is diagnostic
+  only because libbox already closed the TUN. Fresh settings are required for
+  each successor. This fixes both OS-stop and active-recovery false teardown
+  failures without hiding actual libbox close errors.
 - Incomplete native close is surfaced instead of ignored. The extension asks
   NetworkExtension to end the tunnel and cannot attach another owner until a
   new process. Historical relay/config error adapters are test fixtures only.
@@ -176,6 +186,13 @@ the 30 MiB short-session check (see
 including failed teardown runs, reached 27.50 MiB. These short direct-path
 samples are below the 30 MiB gate, but do not establish a pass across all
 transports/network conditions. No iOS CI or field-soak pass is claimed.
+
+Review follow-up: 109 Swift tests passed with Thread Sanitizer after fixing
+active-provider settings-clear rejection, local failure persistence before start
+completion, dormant-interface availability, and repeated stop after poisoned
+teardown. The production iOS PacketTunnel target also compiles successfully.
+The earlier physical memory traces describe the initial build, not additional
+physical coverage of these review fixes.
 
 ## Acceptance still requiring evidence
 

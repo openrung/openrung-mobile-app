@@ -1,6 +1,12 @@
 import Foundation
 import Network
 
+/// A dormant on-demand/cellular path can be activated by an outbound dial.
+/// It is not yet an observed-up path, but libbox must retain its interfaces.
+enum EngineInterfaceAvailability {
+    static func canDial(_ status: NWPath.Status) -> Bool { status != .unsatisfied }
+}
+
 struct EngineNetworkSnapshot: Equatable {
     let up: Bool
     let fingerprint: String

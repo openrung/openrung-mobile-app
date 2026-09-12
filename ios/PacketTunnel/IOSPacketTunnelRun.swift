@@ -58,7 +58,7 @@ final class IOSPacketTunnelRun: NSObject, LibboxOpenRungMobileRunProtocol, @unch
         ready = false
         lock.unlock()
         nativePlatform.reset()
-        try settingsCleanup.clearAfterRun {
+        settingsCleanup.clearAfterRun {
             try EngineOperationRunner.run(cancelled: { false }) { [provider] in
                 try await provider.setTunnelNetworkSettings(nil)
             }

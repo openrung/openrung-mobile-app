@@ -14,8 +14,8 @@ protocol PacketTunnelEngineOwner: AnyObject {
     func closeNetworkObservation()
     func receiveEngineEvent(_ event: EngineEvent)
     func engineStopping()
-    func engineStopped(error: Error?)
-    func engineTeardownFailed(_ error: Error)
+    func engineStopped(error: Error?, startPending: Bool)
+    func engineTeardownFailed(_ error: Error, startPending: Bool)
 }
 
 enum PacketTunnelEngineError: LocalizedError {
@@ -68,8 +68,8 @@ final class PacketTunnelEngineHost {
             guard !terminating else { completion(PacketTunnelEngineError.teardown); return }
             events.detach()
             if !stopEngine() {
-                finishStart(PacketTunnelEngineError.teardown)
                 failTeardown()
+                finishStart(PacketTunnelEngineError.teardown)
                 completion(PacketTunnelEngineError.teardown)
                 return
             }
@@ -107,13 +107,13 @@ final class PacketTunnelEngineHost {
 
     func stop(owner: any PacketTunnelEngineOwner, completion: @escaping () -> Void) {
         queue.async { [self] in
-            guard currentOwner() === owner else { completion(); return }
+            guard !terminating, currentOwner() === owner else { completion(); return }
             events.detach()
             waitingForNetwork = false
             owner.engineStopping()
-            if terminating || !stopEngine() { finishStart(PacketTunnelEngineError.teardown); failTeardown(); completion(); return }
+            if !stopEngine() { failTeardown(); finishStart(PacketTunnelEngineError.teardown); completion(); return }
+            owner.engineStopped(error: nil, startPending: startCompletion != nil)
             finishStart(CancellationError())
-            owner.engineStopped(error: nil)
             releaseOwner()
             completion()
         }
@@ -149,18 +149,21 @@ final class PacketTunnelEngineHost {
         events.detach()
         waitingForNetwork = false
         let complete = stopEngine()
+        if !complete { failTeardown(); finishStart(error); return }
+        // NE may suspend the extension as soon as completion fires. Persist
+        // terminal state first and tell the owner which NE failure signal to use.
+        currentOwner()?.engineStopped(error: error, startPending: startCompletion != nil)
         finishStart(error)
-        if !complete { failTeardown(); return }
-        currentOwner()?.engineStopped(error: error)
         releaseOwner()
     }
 
     private func failTeardown() {
+        guard !terminating else { return }
         terminating = true
         waitingForNetwork = false
         events.detach()
         currentOwner()?.closeNetworkObservation()
-        currentOwner()?.engineTeardownFailed(PacketTunnelEngineError.teardown)
+        currentOwner()?.engineTeardownFailed(PacketTunnelEngineError.teardown, startPending: startCompletion != nil)
         // Retain the owner and reject reuse while libbox may hold its TUN.
     }
 

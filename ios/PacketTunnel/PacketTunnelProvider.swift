@@ -5,7 +5,7 @@ import NetworkExtension
 /// orchestrator; this provider never selects a relay, retries a ticket or runs a
 /// health/recovery loop. All mutations below arrive on the process host queue.
 final class PacketTunnelProvider: NEPacketTunnelProvider, PacketTunnelEngineOwner {
-    let settingsCleanup = EngineTunnelSettingsCleanup()
+    let settingsCleanup = EngineTunnelSettingsCleanup(diagnostic: SharedConnectionState.appendLog)
     private let memory = EngineMemoryMonitor()
     private var networkObserver: EngineNetworkObserver?
     private var hasConnected = false
@@ -76,23 +76,25 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, PacketTunnelEngineOwne
         SharedConnectionState.setStatus(.disconnecting)
     }
 
-    func engineStopped(error: Error?) {
+    func engineStopped(error: Error?, startPending: Bool) {
         memory.stop()
         reasserting = false
         TelemetrySessionStore.save(nil)
         if let error {
             terminalError = error
             SharedConnectionState.fail(error.localizedDescription)
-            cancelTunnelWithError(error)
+            // An outstanding start completion reports the failure to NE.
+            // Cancel only after that completion has already succeeded.
+            if !startPending { cancelTunnelWithError(error) }
         } else if terminalError == nil {
             SharedConnectionState.setStatus(.disconnected, clearRelayLabel: true, clearError: true)
         }
     }
 
-    func engineTeardownFailed(_ error: Error) {
+    func engineTeardownFailed(_ error: Error, startPending: Bool) {
         // The process host retains this provider and refuses another run. Asking
         // NetworkExtension to end the tunnel lets the OS reclaim duplicated fds.
-        engineStopped(error: error)
+        engineStopped(error: error, startPending: startPending)
     }
 
     func settingsJSON() throws -> String {

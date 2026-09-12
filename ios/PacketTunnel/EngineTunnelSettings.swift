@@ -1,21 +1,25 @@
 import Foundation
 
 /// During stopTunnel, NetworkExtension withdraws settings and may reject further
-/// settings requests. A candidate close while the provider is active still must
-/// clear its settings and surface failures. The lock covers stop racing an
-/// already dispatched settings completion, without holding it across NE calls.
+/// settings requests. After libbox closes, settings removal is best effort:
+/// rejection does not mean its duplicated TUN fd is still alive. Every new
+/// candidate must apply fresh settings before it can become ready. The lock
+/// guards the OS-stop handoff without being held across NE calls.
 final class EngineTunnelSettingsCleanup {
     private let lock = NSLock()
     private var osStopping = false
+    private let diagnostic: (String) -> Void
+
+    init(diagnostic: @escaping (String) -> Void = { _ in }) { self.diagnostic = diagnostic }
 
     func beginProviderStart() { lock.lock(); osStopping = false; lock.unlock() }
     func beginProviderStop() { lock.lock(); osStopping = true; lock.unlock() }
     private var handledByOS: Bool { lock.lock(); defer { lock.unlock() }; return osStopping }
 
-    func clearAfterRun(_ clear: () throws -> Void) throws {
+    func clearAfterRun(_ clear: () throws -> Void) {
         guard !handledByOS else { return }
         do { try clear() }
-        catch { if !handledByOS { throw error } }
+        catch { diagnostic("Unable to clear retired tunnel settings: \(error.localizedDescription)") }
     }
 }
 

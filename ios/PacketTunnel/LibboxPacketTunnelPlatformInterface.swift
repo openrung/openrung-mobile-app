@@ -195,7 +195,7 @@ final class LibboxPacketTunnelPlatformInterface: NSObject, LibboxPlatformInterfa
     func closeDefaultInterfaceMonitor(_: LibboxInterfaceUpdateListenerProtocol?) throws { reset() }
 
     private func publishDefaultInterface(_ path: Network.NWPath, to listener: LibboxInterfaceUpdateListenerProtocol) {
-        guard path.status == .satisfied, let defaultInterface = path.availableInterfaces.first(where: { path.usesInterfaceType($0.type) }) else {
+        guard EngineInterfaceAvailability.canDial(path.status), let defaultInterface = path.availableInterfaces.first(where: { path.usesInterfaceType($0.type) }) else {
             listener.updateDefaultInterface("", interfaceIndex: -1, isExpensive: false, isConstrained: false)
             return
         }
@@ -212,7 +212,7 @@ final class LibboxPacketTunnelPlatformInterface: NSObject, LibboxPlatformInterfa
         pathLock.lock()
         let path = currentPath
         pathLock.unlock()
-        guard let path, path.status == .satisfied else {
+        guard let path, EngineInterfaceAvailability.canDial(path.status) else {
             return LibboxNetworkInterfaceArray([])
         }
 

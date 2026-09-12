@@ -2,20 +2,31 @@ import Foundation
 import XCTest
 
 final class EngineAdapterTests: XCTestCase {
-    func testSettingsCleanupRespectsOSStopAndPreservesCandidateFailures() throws {
-        let settings = EngineTunnelSettingsCleanup()
+    func testRejectedSettingsClearDoesNotFailTeardownOrPreventNextCandidate() {
+        var diagnostics: [String] = []
+        let settings = EngineTunnelSettingsCleanup(diagnostic: { diagnostics.append($0) })
         let failure = NSError(domain: "NEAgentErrorDomain", code: 1)
-        XCTAssertThrowsError(try settings.clearAfterRun { throw failure })
-        settings.beginProviderStop()
-        try settings.clearAfterRun { XCTFail("Requested settings after OS stop") }
-        settings.beginProviderStart()
+        // libbox has already closed; an NE clear rejection must not reach Go's
+        // close error and poison its runtime for later candidates.
+        settings.clearAfterRun { throw failure }
+        XCTAssertEqual(diagnostics.count, 1)
+        XCTAssertTrue(diagnostics[0].contains("Unable to clear retired tunnel settings"))
         var cleared = false
-        try settings.clearAfterRun { cleared = true }
+        settings.clearAfterRun { cleared = true }
         XCTAssertTrue(cleared)
-        // An NE stop can arrive while setTunnelNetworkSettings is awaiting its
-        // completion. Only that explicit handoff makes the rejected clear safe.
-        try settings.clearAfterRun { settings.beginProviderStop(); throw failure }
+        settings.beginProviderStop()
+        settings.clearAfterRun { XCTFail("Requested settings after OS stop") }
+        settings.beginProviderStart()
+        settings.clearAfterRun { settings.beginProviderStop(); throw failure }
+        XCTAssertEqual(diagnostics.count, 2)
     }
+
+    func testDormantPathRetainsDialableInterfaces() {
+        XCTAssertTrue(EngineInterfaceAvailability.canDial(.satisfied))
+        XCTAssertTrue(EngineInterfaceAvailability.canDial(.requiresConnection))
+        XCTAssertFalse(EngineInterfaceAvailability.canDial(.unsatisfied))
+    }
+
     func testDispatcherIsAsynchronousOrdersAndDropsReplacedOwners() {
         var queued: [() -> Void] = []
         var old: [UInt64] = [], new: [UInt64] = []

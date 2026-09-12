@@ -676,14 +676,18 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   mobile engine once. Its serialized control queue joins Stop before replacing
   an owner. `EngineEventDispatcher.swift` captures attachments before enqueueing
   Go callbacks and drops events from retired owners. No callback reenters Go inline.
+  Failure state is durable before a pending start completion fires; established
+  failures use cancellation instead. A poisoned host ignores repeated OS stops.
 - `IOSPacketTunnelRun.swift` owns one provider and
   `LibboxPacketTunnelPlatformInterface.swift` per attempt. Readiness requires
   applied NE network settings and the provider's TUN fd. NE owns the original
   fd; libbox duplicates it. Go cancels/joins operations, closes libbox, captures
   final traffic, then calls the run's Close to remove settings during candidate
   replacement. Once `stopTunnel` begins, NetworkExtension owns settings removal;
-  its rejection of a racing clear is no longer treated as a live TUN. Failed teardown
-  retains the owner, rejects reuse and asks NetworkExtension to terminate the tunnel.
+  rejected clears are logged and do not poison a closed libbox run, even during
+  active recovery. Each new candidate must apply fresh settings before readiness.
+  Actual libbox teardown failure retains the owner, rejects reuse and asks
+  NetworkExtension to terminate the tunnel.
 - `PacketTunnelDnsProbe.swift` and `PacketTunnelInternetProbe.swift` remain OS
   hooks: fresh nonce DNS and priority-pinned HTTPS use Apple's explicit
   `createUDPSessionThroughTunnel` / `createTCPConnectionThroughTunnel` APIs.
@@ -691,7 +695,9 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   socket cleanup. `EngineProbeFailure.swift` passes native error facts to Go's
   classifier; unknown/platform failures cannot authorize remote recovery.
 - `EngineNetworkObserver.swift` sends initial and changed NWPath fingerprints,
-  including down/up, interface capabilities and cost. Sleep pauses connectcore
+  including down/up, interface capabilities and cost. Libbox keeps interfaces
+  for `.requiresConnection` paths so a dial can activate them; only an
+  `.unsatisfied` path removes them. Sleep pauses connectcore
   and libbox; observations continue while asleep. Wake resumes the data plane
   before connectcore monitoring, using the latest observed epoch. Wake alone
   and duplicate paths do not request recovery.

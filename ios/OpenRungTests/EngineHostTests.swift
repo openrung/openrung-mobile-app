@@ -130,6 +130,7 @@ final class EngineHostTests: XCTestCase {
         host.stop(owner: owner) {}; queue.sync {}
         XCTAssertEqual(completions, 1)
         XCTAssertNotNil(owner.stoppedError)
+        XCTAssertEqual(owner.stoppedStartPending, false, "Established tunnel failure must use cancellation")
         XCTAssertNil(host.currentOwner())
     }
 
@@ -146,6 +147,60 @@ final class EngineHostTests: XCTestCase {
         XCTAssertTrue(native.starts.isEmpty)
     }
 
+    func testLocalStartFailuresPersistBeforeCompletingWithoutCancellationSignal() {
+        for failurePoint in ["factory", "start", "missingNetwork"] {
+            let queue = DispatchQueue(label: "test.failure-order")
+            let native = FakeEngine()
+            let failure = PacketTunnelEngineError.unavailable
+            if failurePoint == "start" { native.startError = failure }
+            let host = PacketTunnelEngineHost(queue: queue) { _ in
+                if failurePoint == "factory" { throw failure }
+                return native
+            }
+            let owner = FakeOwner()
+            let completed = expectation(description: failurePoint)
+            host.start(owner: owner, broker: "broker", country: "", relay: "") { error in
+                XCTAssertNotNil(error)
+                XCTAssertNotNil(owner.stoppedError, "Failure must be durable before NE completion")
+                XCTAssertEqual(owner.stoppedStartPending, true, "Use completion, not cancelTunnelWithError")
+                XCTAssertEqual(owner.notifications, ["stopped"])
+                completed.fulfill()
+            }
+            queue.sync {}
+            if failurePoint == "start" { owner.network?(wifi) }
+            wait(for: [completed], timeout: 7)
+            queue.sync {}
+            XCTAssertNil(host.currentOwner())
+        }
+    }
+
+    func testTeardownFailurePrecedesCompletionAndRepeatedOSStopIsHarmless() {
+        let queue = DispatchQueue(label: "test.poison-order")
+        let native = FakeEngine()
+        let host = PacketTunnelEngineHost(queue: queue) { _ in native }
+        let owner = FakeOwner()
+        let completed = expectation(description: "failed startup completed")
+        host.start(owner: owner, broker: "broker", country: "", relay: "") { error in
+            XCTAssertNotNil(error)
+            XCTAssertEqual(owner.notifications, ["stopping", "teardown"])
+            XCTAssertEqual(owner.teardownStartPending, true)
+            completed.fulfill()
+        }
+        queue.sync {}; owner.network?(wifi); queue.sync {}
+        native.teardownComplete = false
+        host.stop(owner: owner) {}
+        wait(for: [completed], timeout: 2)
+        queue.sync {}
+        let stops = native.stopCalls
+        let osStopped = expectation(description: "follow-up OS stop completed")
+        host.stop(owner: owner) { osStopped.fulfill() }
+        wait(for: [osStopped], timeout: 2)
+        queue.sync {}
+        XCTAssertEqual(native.stopCalls, stops)
+        XCTAssertEqual(owner.notifications, ["stopping", "teardown"])
+        XCTAssertTrue(host.currentOwner() === owner, "Keep the potentially live TUN owner")
+    }
+
     private func event(_ sequence: Int, _ status: String) -> String {
         "{\"version\":1,\"sequence\":\(sequence),\"kind\":\"state\",\"payload\":{\"Status\":\"\(status)\",\"LastError\":\"test failure\"}}"
     }
@@ -157,12 +212,23 @@ private final class FakeOwner: PacketTunnelEngineOwner {
     var observationClosed = false
     var stoppedError: Error?
     var teardownFailed = false
+    var stoppedStartPending: Bool?
+    var teardownStartPending: Bool?
+    var notifications: [String] = []
     func observeNetwork(_ receive: @escaping (EngineNetworkSnapshot) -> Void) { network = receive }
     func closeNetworkObservation() { observationClosed = true; network = nil }
     func receiveEngineEvent(_ event: EngineEvent) { events.append(event) }
-    func engineStopping() {}
-    func engineStopped(error: Error?) { stoppedError = error }
-    func engineTeardownFailed(_ error: Error) { teardownFailed = true }
+    func engineStopping() { notifications.append("stopping") }
+    func engineStopped(error: Error?, startPending: Bool) {
+        stoppedError = error
+        stoppedStartPending = startPending
+        notifications.append("stopped")
+    }
+    func engineTeardownFailed(_ error: Error, startPending: Bool) {
+        teardownFailed = true
+        teardownStartPending = startPending
+        notifications.append("teardown")
+    }
 }
 
 private final class FakeEngine: PacketTunnelEngine {
@@ -172,9 +238,11 @@ private final class FakeEngine: PacketTunnelEngine {
     var stopped = false
     var onStop: (() -> Void)?
     var stopError: Error?
+    var startError: Error?
+    var stopCalls = 0
     var teardownComplete = true
-    func start(broker: String, country: String, relay: String) throws { stopped = false; starts.append("\(broker)|\(country)|\(relay)") }
-    func stop() throws { onStop?(); stopped = true; if let stopError { throw stopError } }
+    func start(broker: String, country: String, relay: String) throws { stopped = false; starts.append("\(broker)|\(country)|\(relay)"); if let startError { throw startError } }
+    func stop() throws { stopCalls += 1; onStop?(); stopped = true; if let stopError { throw stopError } }
     func pause() { commands.append("pause") }
     func resume() { commands.append("resume") }
     func networkChanged(_ snapshot: EngineNetworkSnapshot) throws { networks.append(snapshot); commands.append("network:\(snapshot.fingerprint)") }
