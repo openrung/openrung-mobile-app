@@ -97,6 +97,21 @@ enum SharedConnectionState {
         }
     }
 
+    static func applyEngineState(_ state: EngineStateProjection) {
+        mutate { snapshot in
+            snapshot.status = state.status
+            snapshot.relayLabel = state.location
+            snapshot.relayName = state.relayName
+            snapshot.relayClass = state.relayClass
+            snapshot.lastError = state.error
+            if let node = state.recent {
+                snapshot.recentRegions = Array(([node] + snapshot.recentRegions.filter {
+                    $0.relayId != node.relayId && !($0.relayId == nil && $0.countryCode == node.countryCode)
+                }).prefix(AppConfig.maxRecents))
+            }
+        }
+    }
+
     // MARK: - Persistence + notification
 
     private static func mutate(

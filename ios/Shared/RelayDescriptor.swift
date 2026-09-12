@@ -288,10 +288,10 @@ public extension RelayDescriptor {
             : RelayConstants.nodeClassVolunteer
     }
 
-    private static let maxDisplayNameCodePoints = 24
+    static let maxDisplayNameCodePoints = 24
     private static let idFallbackCodePoints = 12
 
-    private static func sanitizeDisplayName(
+    static func sanitizeDisplayName(
         _ raw: String,
         maxCodePoints: Int = maxDisplayNameCodePoints
     ) -> String {

@@ -55,24 +55,12 @@ targets:
       # App sources incl. the OpenRungVpn native module, LaunchScreen, assets, privacy manifest.
       - path: OpenRung
       # Shared layer is compiled into both targets (the module reads SharedConnectionState etc.),
-      # EXCEPT the tunnel-only broker/relay/config stack below, which nothing in OpenRung/
-      # references. Excluding it keeps those files (and their source closure) out of the app
-      # binary; the PacketTunnel and OpenRungTests targets still compile all of them.
+      # EXCEPT the tunnel-only probe/config inputs below. The app reads only
+      # shared state/identity; PacketTunnel and logic tests compile these inputs.
       - path: Shared
         excludes:
-          - BrokerClient.swift
-          - BrokerClientError.swift
           - InternetProbe.swift
-          - LibboxBrokerTransport+Tunnel.swift
-          - PunchFallbackPolicy.swift
-          - RelayDescriptor.swift
-          - RelayRanker.swift
-          - RelayReachability.swift
-          - RelayReachabilityError.swift
-          - RelaySelector.swift
           - SingBoxConfiguration.swift
-          - WssFallbackPolicy.swift
-          - WssTicketClient.swift
     dependencies:
       # Embeds the PacketTunnel appex into PlugIns/.
       - target: PacketTunnel
@@ -203,37 +191,27 @@ targets:
           - "-ObjC"
           - "-Wl,-all_load"
 
-  # Hostless logic-test bundle. It compiles the units under test and their source closure directly
-  # into the test module (rather than @testable-importing the app/extension), so the suites build and
-  # run without the app, CocoaPods, or Libbox. The source closure also includes the pure WSS policy,
-  # ticket policy, native broker runner, React-free broker request coordinator, bridge config,
-  # network-epoch tracker, and the exact production EngineStopSignal so cancellation/re-wait
-  # behavior is exercised under Thread Sanitizer.
-  #   - FailureClassifierTests: FailureClassifier + the small error types it maps.
-  #   - BrokerClientTests: native discovery argument forwarding and verified-result decoding.
-  #   - RelayRankerTests: the latency-bucket ladder reorder (RelayRanker + RelayReachability,
-  #     which its default probe closure references).
-  # All sources are Foundation/UIKit/Network only (no CocoaPods, no Libbox).
+  # Hostless logic tests compile the production lifecycle queue, dispatcher,
+  # settings projection and provider probes without React or Libbox. Legacy
+  # error fixtures retain ADR-001 vector coverage without shipping dead policy.
+  # The real Swift/Go A4 suite builds an isolated test framework via
+  # scripts/test-ios-engine-vectors.py; no test hooks enter release artifacts.
   OpenRungTests:
     type: bundle.unit-test
     platform: iOS
     sources:
       - path: OpenRungTests
       - path: OpenRung/OpenRungBrokerCoordinator.swift
-      - path: PacketTunnel/EngineStopSignal.swift
-      - path: PacketTunnel/FailureClassifier.swift
-      - path: PacketTunnel/PhysicalNetworkEpochMonitor.swift
-      - path: PacketTunnel/PunchRecoveryCircuitBreaker.swift
-      - path: PacketTunnel/PacketTunnelError.swift
+      - path: PacketTunnel/PacketTunnelEngineHost.swift
+      - path: PacketTunnel/EngineNetworkObserver.swift
+      - path: PacketTunnel/EngineOperationRunner.swift
+      - path: PacketTunnel/EngineProbeFailure.swift
+      - path: PacketTunnel/EngineTunnelSettings.swift
+      - path: Shared/EngineEventDispatcher.swift
+      - path: Shared/EngineStateProjection.swift
       - path: PacketTunnel/PacketTunnelDnsProbe.swift
       - path: PacketTunnel/PacketTunnelInternetProbe.swift
-      - path: PacketTunnel/PacketTunnelProxyEngineError.swift
-      - path: PacketTunnel/PunchNativeClient.swift
-      - path: PacketTunnel/StartupPathVerification.swift
-      - path: PacketTunnel/WssNativeClient.swift
       - path: Shared/AppConfig.swift
-      - path: Shared/BrokerClient.swift
-      - path: Shared/BrokerClientError.swift
       # ConnectionStateSnapshot (ConnectionStateSnapshotTests) + the RecentNode type it embeds.
       - path: Shared/ConnectionStatus.swift
       - path: Shared/CountryGeo.swift
@@ -243,21 +221,30 @@ targets:
       - path: Shared/ProbeTargets.swift
       - path: Shared/NetworkPathMonitor.swift
       - path: Shared/NativeBrokerTransport.swift
-      - path: Shared/PunchFallbackPolicy.swift
       - path: Shared/RelayDescriptor.swift
-      - path: Shared/RelayRanker.swift
-      - path: Shared/RelayReachability.swift
-      - path: Shared/RelayReachabilityError.swift
       - path: Shared/SingBoxConfiguration.swift
       - path: Shared/SplitTunnelConfig.swift
-      - path: Shared/TelemetryClient.swift
-      - path: Shared/WssFallbackPolicy.swift
-      - path: Shared/WssTicketClient.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.openrung.app.OpenRungTests
         GENERATE_INFOPLIST_FILE: "YES"
         CODE_SIGNING_ALLOWED: "NO"
+
+  # Explicit opt-in physical-device tests, hosted inside the signed app so they
+  # can exercise its existing VPN profile and read app-group state/memory.
+  EngineDeviceTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: EngineDeviceTests
+    dependencies:
+      - target: OpenRung
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.openrung.app.EngineDeviceTests
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/OpenRung.app/OpenRung"
+        BUNDLE_LOADER: "$(TEST_HOST)"
 
 schemes:
   # Explicit so the scheme name stays `OpenRung` for the Podfile target + xcodebuild -scheme.
@@ -281,3 +268,12 @@ schemes:
     build:
       targets:
         PacketTunnel: all
+  EngineDeviceTests:
+    build:
+      targets:
+        OpenRung: all
+        EngineDeviceTests: [test]
+    test:
+      config: Release
+      targets:
+        - EngineDeviceTests

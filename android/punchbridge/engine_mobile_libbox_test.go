@@ -6,11 +6,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/openrung/openrung/brokerapi"
 	"github.com/openrung/openrung/connectcore"
+	"github.com/openrung/openrung/connectcore/clienttelemetry"
 )
 
 type mobileTestNative struct {
@@ -29,9 +33,17 @@ func (n *mobileTestNative) Close() error {
 	return nil
 }
 
-type mobileTestCore struct{ closeFn func() error }
+type mobileTestCore struct {
+	startFn func() error
+	closeFn func() error
+}
 
-func (*mobileTestCore) start(string) error { return nil }
+func (c *mobileTestCore) start(string) error {
+	if c.startFn != nil {
+		return c.startFn()
+	}
+	return nil
+}
 func (*mobileTestCore) done() <-chan error { return nil }
 func (c *mobileTestCore) close() error {
 	if c.closeFn != nil {
@@ -177,5 +189,116 @@ func TestOpenRungLibboxMobileBorrowsExistingIdentityAndDurableOutbox(t *testing.
 	}
 	if _, err := NewOpenRungMobileEngineForAndroid(string(raw), mobileTestProtector{}, mobileTestHost{}, mobileTestListener{}); err == nil {
 		t.Fatal("second owner acquired the same outbox")
+	}
+}
+
+func TestOpenRungLibboxMobileIOSConstructorAndIdentity(t *testing.T) {
+	if iosConstructorRequiresSocketProtector() {
+		if _, err := NewOpenRungMobileEngineForIOS("{}", mobileTestHost{}, mobileTestListener{}); err == nil {
+			t.Fatal("iOS constructor allowed non-iOS runtime")
+		}
+	}
+	cfg := openRungMobileConfig{InstallID: "E6B1A1DE-9F0F-4C1A-8BB1-1F2B3C4D5E6F", AppVersion: "0.3.8", PlatformVersion: "26.5", Directory: t.TempDir()}
+	// Shipping Swift uses outbox.json in the app group, including the old
+	// JSON-array representation. A new filename would silently strand backlog.
+	legacy := `[{"event_id":"ios-old","event":"connection_ended","client_id":"old-client","session_id":"old-session","timestamp":"2026-09-01T00:00:00Z"}]`
+	if err := os.WriteFile(filepath.Join(cfg.Directory, "outbox.json"), []byte(legacy), 0600); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(cfg)
+	e, err := newOpenRungMobileEngine(string(raw), brokerapi.PlatformIOS, nil, mobileTestHost{}, mobileTestListener{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer e.engine.Mobile.Outbox.Close()
+	defer e.Stop(1)
+	if err := e.engine.Mobile.Runtime.Preflight(context.Background(), []byte("{}")); err != nil {
+		t.Fatal(err)
+	}
+	if e.engine.Platform != brokerapi.PlatformIOS || e.engine.SocketProtector != nil || e.engine.PunchEstablisher == nil || e.pauseDataPlane == nil {
+		t.Fatal("iOS platform hooks missing")
+	}
+	if e.engine.Mobile.Outbox.PendingCount() != 1 {
+		t.Fatal("iOS persisted telemetry was stranded")
+	}
+	if _, err := os.Stat(filepath.Join(cfg.Directory, "openrung_telemetry_outbox.jsonl")); !os.IsNotExist(err) {
+		t.Fatal("opened Android outbox on iOS")
+	}
+	if e.engine.Mobile.InstallID != cfg.InstallID {
+		t.Fatal("iOS install identity replaced")
+	}
+	e.Pause()
+	if !e.runtime.paused {
+		t.Fatal("sleep did not pause libbox")
+	}
+	e.Resume()
+	if e.runtime.paused {
+		t.Fatal("wake did not resume libbox")
+	}
+}
+
+func TestOpenRungLibboxMobileIOSProbeFactsReachSharedClassifier(t *testing.T) {
+	s := mobileTestService(&mobileTestNative{evidence: `{"error":"The operation could not be completed","remote_stage":"dns_probe","failure_facts":{"timeout":true}}`})
+	defer s.cancel()
+	_, err := (&openRungMobileTunnel{service: s}).VerifyPath(context.Background(), connectcore.VerificationStartup)
+	if got := clienttelemetry.ClassifyError(err); got != "timeout" {
+		t.Fatalf("lost native error facts: %s (%v)", got, err)
+	}
+}
+
+func TestOpenRungLibboxMobileSleepWakeAndRetiredService(t *testing.T) {
+	oldWorking, oldTemp, oldUID, oldGID := sWorkingPath, sTempPath, sUserID, sGroupID
+	sWorkingPath, sTempPath = t.TempDir(), t.TempDir()
+	sUserID, sGroupID = os.Getuid(), os.Getgid()
+	t.Cleanup(func() { sWorkingPath, sTempPath, sUserID, sGroupID = oldWorking, oldTemp, oldUID, oldGID })
+	core, err := newOpenRungLibboxRuntime(engineLibboxStartTestPlatform{}).newService()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := mobileTestService(&mobileTestNative{})
+	s.openRungEngineService = core
+	s.server = core.(*openRungLibboxService).server
+	s.statsInterval = time.Minute
+	// Pause can arrive before launch. No native TUN is needed for this test.
+	s.setPaused(true)
+	if err := s.start(`{"outbounds":[{"type":"direct","tag":"direct"}]}`); err != nil {
+		t.Fatal(err)
+	}
+	pm := s.server.Instance().PauseManager()
+	if !pm.IsDevicePaused() {
+		t.Fatal("launch ignored sleep")
+	}
+	s.setPaused(false)
+	if pm.IsDevicePaused() {
+		t.Fatal("data plane still paused while engine resumed")
+	}
+	s.setPaused(true)
+	if err := s.close(); err != nil {
+		t.Fatal(err)
+	}
+	s.setPaused(false)
+	if !pm.IsDevicePaused() {
+		t.Fatal("late wake reached retired service")
+	}
+}
+
+func TestOpenRungLibboxMobileSleepDoesNotBlockOnNativeStartup(t *testing.T) {
+	entered, release, completed := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	s := mobileTestService(&mobileTestNative{})
+	defer s.cancel()
+	s.openRungEngineService = &mobileTestCore{startFn: func() error {
+		close(entered)
+		<-release
+		return nil
+	}}
+	go func() { _ = s.start("{}"); close(completed) }()
+	defer func() { close(release); <-completed }()
+	<-entered
+	paused := make(chan struct{})
+	go func() { s.setPaused(true); close(paused) }()
+	select {
+	case <-paused:
+	case <-time.After(time.Second):
+		t.Fatal("sleep blocked the host queue behind native startup")
 	}
 }

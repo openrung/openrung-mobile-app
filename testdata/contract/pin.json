@@ -34,7 +34,7 @@
       ],
       "pending_suites": {
         "kotlin": "Kotlin RelayDescriptor still decodes directory rows for native display/model tests; engine-owned filtering no longer uses RelaySelector. Wiring the Kotlin decoder to these vectors remains follow-up work.",
-        "swift": "Same for RelayDescriptor.swift and RelaySelector.swift."
+        "swift": "Swift retains RelayDescriptor for config/model tests and display sanitization; engine-owned filtering no longer uses RelaySelector. Wiring its decoder to these vectors remains follow-up work."
       }
     },
     "broker_fronts.json": {
@@ -63,11 +63,10 @@
       ],
       "local_suites": [
         "go",
-        "kotlin"
+        "kotlin",
+        "swift"
       ],
-      "pending_suites": {
-        "swift": "ADR-003 B3 runs these vectors through the Swift adapter after direct cutover."
-      }
+      "pending_suites": {}
     }
   }
 }

@@ -201,7 +201,7 @@ private final class ProviderThroughTunnelDatagramTransport: ThroughTunnelDatagra
             // cancels the session — without this observation the continuation would never
             // resume and the probe (and the startup ladder behind it) would hang forever.
             // ContinuationGate is one-shot, so the extra resumption source is race-safe.
-            let token = session.observe(\.state, options: [.new]) { observed, _ in
+            let token = session.observe(\.state, options: [.initial, .new]) { observed, _ in
                 switch observed.state {
                 case .cancelled:
                     gate.resume(throwing: CancellationError())

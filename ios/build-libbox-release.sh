@@ -395,6 +395,17 @@ for slice in ios-arm64 ios-arm64_x86_64-simulator; do
   for engine_symbol in \
     'LibboxNewOpenRungEngineForAndroid' \
     'LibboxNewOpenRungEngineForIOS' \
+    'LibboxNewOpenRungMobileEngineForIOS' \
+    'LibboxNewOpenRungMobileEngineForAndroid' \
+    '@protocol LibboxOpenRungMobileHost <NSObject>' \
+    '@protocol LibboxOpenRungMobileRun <NSObject>' \
+    ')settingsJSON:' \
+    ')attributesJSON;' \
+    ')newRun:' \
+    ')platform;' \
+    ')waitReady:' \
+    ')verifyPath:' \
+    ')isCancelled;' \
     '@protocol LibboxOpenRungEngine <NSObject>' \
     '@protocol LibboxOpenRungEngineListener <NSObject>' \
     ')start:' \

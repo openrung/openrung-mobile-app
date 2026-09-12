@@ -1,0 +1,181 @@
+import Foundation
+import XCTest
+
+/// Expectations come from the shipping provider on e1dc94c: stop joins launch,
+/// callbacks cannot resurrect a retired provider, wake alone is not an epoch,
+/// and pending session telemetry survives a bounded upload failure.
+final class EngineHostTests: XCTestCase {
+    private let wifi = EngineNetworkSnapshot(up: true, fingerprint: "wifi")
+
+    func testStopDuringStartJoinsBeforeCompletingAndDiscardsBufferedConnected() {
+        let queue = DispatchQueue(label: "test.host")
+        let native = FakeEngine()
+        var dispatcher: EngineEventDispatcher!
+        let host = PacketTunnelEngineHost(queue: queue) { dispatcher = $0; return native }
+        let owner = FakeOwner()
+        let started = expectation(description: "start completed once")
+        var calls = 0
+        host.start(owner: owner, broker: "https://broker", country: "IR", relay: "relay-id") { error in
+            calls += 1
+            XCTAssertTrue(error is CancellationError)
+            XCTAssertTrue(native.stopped)
+            started.fulfill()
+        }
+        queue.sync {}
+        owner.network?(wifi)
+        queue.sync {}
+        XCTAssertEqual(native.starts, ["https://broker|IR|relay-id"])
+        let stopped = expectation(description: "stop completed")
+        host.stop(owner: owner) { stopped.fulfill() }
+        // Captured attachment is retired before this event can be delivered.
+        dispatcher.onEvent(event(1, "connected"))
+        wait(for: [started, stopped], timeout: 2)
+        queue.sync {}
+        XCTAssertEqual(calls, 1)
+        XCTAssertTrue(owner.events.isEmpty)
+        XCTAssertNil(host.currentOwner())
+    }
+
+    func testBlockedTeardownKeepsOldOwnerUntilStopReturns() {
+        let queue = DispatchQueue(label: "test.host")
+        let native = FakeEngine()
+        let host = PacketTunnelEngineHost(queue: queue) { _ in native }
+        let first = FakeOwner(), second = FakeOwner()
+        let entered = DispatchSemaphore(value: 0), release = DispatchSemaphore(value: 0)
+        host.start(owner: first, broker: "one", country: "", relay: "") { _ in }
+        queue.sync {}; first.network?(wifi); queue.sync {}
+        native.onStop = { entered.signal(); release.wait() }
+        host.start(owner: second, broker: "two", country: "", relay: "") { _ in }
+        XCTAssertEqual(entered.wait(timeout: .now() + 2), .success)
+        XCTAssertTrue(host.currentOwner() === first)
+        XCTAssertFalse(first.observationClosed)
+        release.signal()
+        queue.sync {}
+        XCTAssertTrue(host.currentOwner() === second)
+        native.onStop = nil
+        host.stop(owner: second) {}; queue.sync {}
+    }
+
+    func testReconnectReusesEngineAndRejectsOldOwnerNetworkAndStop() {
+        let queue = DispatchQueue(label: "test.host")
+        let native = FakeEngine()
+        var creates = 0
+        let host = PacketTunnelEngineHost(queue: queue) { _ in creates += 1; return native }
+        let first = FakeOwner(), second = FakeOwner()
+        host.start(owner: first, broker: "one", country: "", relay: "") { _ in }
+        queue.sync {}
+        first.network?(wifi); queue.sync {}
+        let oldNetwork = first.network
+        host.start(owner: second, broker: "two", country: "", relay: "") { _ in }
+        queue.sync {}
+        second.network?(wifi); queue.sync {}
+        oldNetwork?(EngineNetworkSnapshot(up: false, fingerprint: "stale"))
+        host.stop(owner: first) {}
+        queue.sync {}
+        XCTAssertEqual(creates, 1)
+        XCTAssertEqual(native.starts, ["one||", "two||"])
+        XCTAssertEqual(native.networks.map(\.fingerprint), ["wifi", "wifi"])
+        XCTAssertTrue(host.currentOwner() === second)
+        XCTAssertTrue(first.observationClosed)
+        host.stop(owner: second) {}; queue.sync {}
+    }
+
+    func testSleepChangedEpochThenWakePreservesCommandOrder() {
+        let queue = DispatchQueue(label: "test.host")
+        let native = FakeEngine()
+        let host = PacketTunnelEngineHost(queue: queue) { _ in native }
+        let owner = FakeOwner()
+        host.start(owner: owner, broker: "broker", country: "", relay: "") { _ in }
+        queue.sync {}; owner.network?(wifi); queue.sync {}
+        host.sleep(owner: owner) {}
+        owner.network?(EngineNetworkSnapshot(up: true, fingerprint: "cell"))
+        host.wake(owner: owner)
+        queue.sync {}
+        XCTAssertEqual(Array(native.commands.suffix(3)), ["pause", "network:cell", "resume"])
+        XCTAssertEqual(native.starts.count, 1)
+        host.stop(owner: owner) {}; queue.sync {}
+    }
+
+    func testUploadTimeoutAllowsReuseButIncompleteTeardownPoisonsHost() {
+        for incomplete in [false, true] {
+            let queue = DispatchQueue(label: "test.host")
+            let native = FakeEngine()
+            let host = PacketTunnelEngineHost(queue: queue) { _ in native }
+            let owner = FakeOwner(), replacement = FakeOwner()
+            host.start(owner: owner, broker: "one", country: "", relay: "") { _ in }
+            queue.sync {}; owner.network?(wifi); queue.sync {}
+            native.stopError = URLError(.timedOut)
+            native.teardownComplete = !incomplete
+            host.stop(owner: owner) {}; queue.sync {}
+            host.start(owner: replacement, broker: "two", country: "", relay: "") { _ in }
+            queue.sync {}
+            replacement.network?(wifi); queue.sync {}
+            XCTAssertEqual(native.starts.count, incomplete ? 1 : 2)
+            XCTAssertEqual(owner.teardownFailed, incomplete)
+            if !incomplete { host.stop(owner: replacement) {}; queue.sync {} }
+        }
+    }
+
+    func testFailurePersistsAndCannotCompleteStartTwice() {
+        let queue = DispatchQueue(label: "test.host")
+        let native = FakeEngine()
+        var dispatcher: EngineEventDispatcher!
+        let host = PacketTunnelEngineHost(queue: queue) { dispatcher = $0; return native }
+        let owner = FakeOwner()
+        var completions = 0
+        host.start(owner: owner, broker: "broker", country: "", relay: "") { _ in completions += 1 }
+        queue.sync {}; owner.network?(wifi); queue.sync {}
+        dispatcher.onEvent(event(1, "connected")); queue.sync {}
+        dispatcher.onEvent(event(2, "failed")); queue.sync {}
+        host.stop(owner: owner) {}; queue.sync {}
+        XCTAssertEqual(completions, 1)
+        XCTAssertNotNil(owner.stoppedError)
+        XCTAssertNil(host.currentOwner())
+    }
+
+    func testStopBeforeInitialNetworkNeverStartsEngine() {
+        let queue = DispatchQueue(label: "test.host")
+        let native = FakeEngine()
+        let host = PacketTunnelEngineHost(queue: queue) { _ in native }
+        let owner = FakeOwner()
+        host.start(owner: owner, broker: "broker", country: "", relay: "") { _ in }
+        queue.sync {}
+        let delayed = owner.network
+        host.stop(owner: owner) {}; queue.sync {}
+        delayed?(wifi); queue.sync {}
+        XCTAssertTrue(native.starts.isEmpty)
+    }
+
+    private func event(_ sequence: Int, _ status: String) -> String {
+        "{\"version\":1,\"sequence\":\(sequence),\"kind\":\"state\",\"payload\":{\"Status\":\"\(status)\",\"LastError\":\"test failure\"}}"
+    }
+}
+
+private final class FakeOwner: PacketTunnelEngineOwner {
+    var network: ((EngineNetworkSnapshot) -> Void)?
+    var events: [EngineEvent] = []
+    var observationClosed = false
+    var stoppedError: Error?
+    var teardownFailed = false
+    func observeNetwork(_ receive: @escaping (EngineNetworkSnapshot) -> Void) { network = receive }
+    func closeNetworkObservation() { observationClosed = true; network = nil }
+    func receiveEngineEvent(_ event: EngineEvent) { events.append(event) }
+    func engineStopping() {}
+    func engineStopped(error: Error?) { stoppedError = error }
+    func engineTeardownFailed(_ error: Error) { teardownFailed = true }
+}
+
+private final class FakeEngine: PacketTunnelEngine {
+    var starts: [String] = []
+    var commands: [String] = []
+    var networks: [EngineNetworkSnapshot] = []
+    var stopped = false
+    var onStop: (() -> Void)?
+    var stopError: Error?
+    var teardownComplete = true
+    func start(broker: String, country: String, relay: String) throws { stopped = false; starts.append("\(broker)|\(country)|\(relay)") }
+    func stop() throws { onStop?(); stopped = true; if let stopError { throw stopError } }
+    func pause() { commands.append("pause") }
+    func resume() { commands.append("resume") }
+    func networkChanged(_ snapshot: EngineNetworkSnapshot) throws { networks.append(snapshot); commands.append("network:\(snapshot.fingerprint)") }
+}

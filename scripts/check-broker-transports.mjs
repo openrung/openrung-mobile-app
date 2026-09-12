@@ -307,7 +307,9 @@ requirePolicy(
   'AndroidEngineRun.kt: DNS and HTTPS must use the same per-run VPN Network owner',
 );
 
-const iosUrlSessionAllowlist = new Set(['ios/Shared/GeoIpClient.swift']);
+// B3 delegates physical networking and geo to connectcore. Swift only opens
+// explicit provider-through-tunnel probes.
+const iosUrlSessionAllowlist = new Set();
 const iosFiles = ['ios/OpenRung', 'ios/PacketTunnel', 'ios/Shared'].flatMap(directory =>
   walk(directory, ['.swift', '.m', '.mm']),
 );
@@ -333,6 +335,18 @@ for (const relativePath of iosUrlSessionAllowlist) {
     `${relativePath}: approved ordinary-HTTP code must not reference a broker endpoint`,
   );
 }
+
+const iosRun = stripComments(read('ios/PacketTunnel/IOSPacketTunnelRun.swift'));
+requirePolicy(
+  iosRun.includes('PacketTunnelDnsProbe(tunnelProvider: provider)') &&
+    iosRun.includes('PacketTunnelInternetProbe(tunnelProvider: provider)'),
+  'IOSPacketTunnelRun.swift: DNS and HTTPS must use the same per-run provider',
+);
+requirePolicy(
+  stripComments(read('ios/PacketTunnel/PacketTunnelDnsProbe.swift')).includes('createUDPSessionThroughTunnel(') &&
+    stripComments(read('ios/PacketTunnel/PacketTunnelInternetProbe.swift')).includes('createTCPConnectionThroughTunnel('),
+  'iOS path verification requires explicit through-tunnel provider transports',
+);
 
 if (failures.length > 0) {
   console.error('Broker transport regression guard failed:\n');

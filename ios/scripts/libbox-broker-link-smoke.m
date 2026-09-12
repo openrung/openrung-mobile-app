@@ -21,6 +21,8 @@ int main(void) {
     id<LibboxOpenRungEngine> engine =
         LibboxNewOpenRungEngineForIOS(@"{}", nil, nil, &engineError);
     (void)LibboxNewOpenRungEngineForAndroid(@"{}", nil, nil, nil, &engineError);
+    (void)LibboxNewOpenRungMobileEngineForIOS(@"{}", nil, nil, &engineError);
+    (void)LibboxNewOpenRungMobileEngineForAndroid(@"{}", nil, nil, nil, &engineError);
     [engine start:@"https://broker.invalid" country:@"" relayID:@"" error:&engineError];
     [engine pause];
     [engine resume];

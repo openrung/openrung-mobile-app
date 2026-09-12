@@ -19,6 +19,7 @@ type openRungEngineService interface {
 }
 type openRungEngineRuntime struct {
 	mu         sync.Mutex
+	paused     bool
 	active     *openRungEngineRun
 	newService func() (openRungEngineService, error)
 }
@@ -39,6 +40,9 @@ func (r *openRungEngineRuntime) runWithService(ctx context.Context, configJSON [
 	service, err := factory()
 	if err != nil {
 		return nil, err
+	}
+	if pausable, ok := service.(interface{ setPaused(bool) }); ok {
+		pausable.setPaused(r.paused)
 	}
 	run := &openRungEngineRun{service: service, doneCh: make(chan error, 1), stopped: make(chan struct{}), stop: make(chan struct{})}
 	r.active = run
@@ -95,7 +99,10 @@ func (r *openRungEngineRuntime) shutdownError() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.active != nil {
-		return errors.New("libbox teardown is incomplete; the platform must retain its TUN owner")
+		r.active.mu.Lock()
+		closeErr := r.active.stopErr
+		r.active.mu.Unlock()
+		return errors.Join(errors.New("libbox teardown is incomplete; the platform must retain its TUN owner"), closeErr)
 	}
 	return nil
 }
@@ -128,5 +135,17 @@ func (r *openRungEngineRun) Stop(grace time.Duration) error {
 		// Go cannot safely kill an in-process goroutine. Retain the active
 		// handle until cleanup really completes, and report the missed budget.
 		return errors.New("libbox teardown exceeded its deadline")
+	}
+}
+
+func (r *openRungEngineRuntime) setPaused(paused bool) {
+	r.mu.Lock()
+	r.paused = paused
+	active := r.active
+	r.mu.Unlock()
+	if active != nil {
+		if service, ok := active.service.(interface{ setPaused(bool) }); ok {
+			service.setPaused(paused)
+		}
 	}
 }

@@ -75,8 +75,8 @@ collected telemetry streams to the vendored vectors. Deterministic network,
 clock and tunnel-process seams are exposed only in a temporary copy of the tag;
 the shared harness is excluded from release grafts. These preserve A4's original
 proxy-mode engine contract; the mobile host, real TUN and platform mechanics
-have separate tests and device gates. Kotlin is now `local_suites`; Swift A4
-integration remains B3 work.
+have separate tests and device gates. Kotlin is now `local_suites`; B3 adds the Swift A4 suite described in
+[IOS_ENGINE_CUTOVER.md](IOS_ENGINE_CUTOVER.md).
 
 Reproduce with one booted adb device (or set ANDROID_SERIAL):
 

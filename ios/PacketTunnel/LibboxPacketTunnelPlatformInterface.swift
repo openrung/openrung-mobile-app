@@ -5,18 +5,20 @@ import Network
 import NetworkExtension
 import OSLog
 
-final class LibboxPacketTunnelPlatformInterface: NSObject, LibboxPlatformInterfaceProtocol, LibboxCommandServerHandlerProtocol {
+final class LibboxPacketTunnelPlatformInterface: NSObject, LibboxPlatformInterfaceProtocol {
     private let tunnelProvider: NEPacketTunnelProvider
-    private let onUnexpectedServiceStop: @Sendable () -> Void
+    private let onReady: @Sendable () -> Void
     private let logger = Logger(subsystem: AppConfig.loggingSubsystem, category: "LibboxPlatformInterface")
+    private let pathLock = NSRecursiveLock()
     private var pathMonitor: NWPathMonitor?
+    private var currentPath: Network.NWPath?
 
     init(
         tunnelProvider: NEPacketTunnelProvider,
-        onUnexpectedServiceStop: @escaping @Sendable () -> Void = {}
+        onReady: @escaping @Sendable () -> Void
     ) {
         self.tunnelProvider = tunnelProvider
-        self.onUnexpectedServiceStop = onUnexpectedServiceStop
+        self.onReady = onReady
     }
 
     func openTun(_ options: LibboxTunOptionsProtocol?, ret0_: UnsafeMutablePointer<Int32>?) throws {
@@ -28,10 +30,10 @@ final class LibboxPacketTunnelPlatformInterface: NSObject, LibboxPlatformInterfa
     private func openTunAsync(_ options: LibboxTunOptionsProtocol?, _ ret0_: UnsafeMutablePointer<Int32>?) async throws {
         logger.info("libbox requested TUN open")
         guard let options else {
-            throw PacketTunnelProxyEngineError.engineStartFailed("Missing libbox TUN options.")
+            throw NSError(domain: "OpenRungTUN", code: 1, userInfo: [NSLocalizedDescriptionKey: "Missing libbox TUN options."])
         }
         guard let ret0_ else {
-            throw PacketTunnelProxyEngineError.engineStartFailed("Missing libbox TUN return pointer.")
+            throw NSError(domain: "OpenRungTUN", code: 1, userInfo: [NSLocalizedDescriptionKey: "Missing libbox TUN return pointer."])
         }
 
         let settings = try makeNetworkSettings(options)
@@ -40,17 +42,20 @@ final class LibboxPacketTunnelPlatformInterface: NSObject, LibboxPlatformInterfa
 
         if let tunFd = tunnelProvider.packetFlow.value(forKeyPath: "socket.fileDescriptor") as? Int32 {
             logger.info("Resolved packet tunnel file descriptor via packetFlow")
+            guard tunFd >= 0 else { throw PacketTunnelEngineError.noOwner }
             ret0_.pointee = tunFd
+            onReady()
             return
         }
 
         let fallbackFd = LibboxGetTunnelFileDescriptor()
         guard fallbackFd != -1 else {
-            throw PacketTunnelProxyEngineError.engineStartFailed("Unable to resolve packet tunnel file descriptor.")
+            throw NSError(domain: "OpenRungTUN", code: 1, userInfo: [NSLocalizedDescriptionKey: "Unable to resolve packet tunnel file descriptor."])
         }
 
         logger.info("Resolved packet tunnel file descriptor via libbox fallback")
         ret0_.pointee = fallbackFd
+        onReady()
     }
 
     private func makeNetworkSettings(_ options: LibboxTunOptionsProtocol) throws -> NEPacketTunnelNetworkSettings {
@@ -160,7 +165,7 @@ final class LibboxPacketTunnelPlatformInterface: NSObject, LibboxPlatformInterfa
     }
 
     func findConnectionOwner(_: Int32, sourceAddress _: String?, sourcePort _: Int32, destinationAddress _: String?, destinationPort _: Int32) throws -> LibboxConnectionOwner {
-        throw PacketTunnelProxyEngineError.engineStartFailed("Connection owner lookup is not implemented on iOS.")
+        throw NSError(domain: "OpenRungTUN", code: 1, userInfo: [NSLocalizedDescriptionKey: "Connection owner lookup is not implemented on iOS."])
     }
 
     func startDefaultInterfaceMonitor(_ listener: LibboxInterfaceUpdateListenerProtocol?) throws {
@@ -169,26 +174,28 @@ final class LibboxPacketTunnelPlatformInterface: NSObject, LibboxPlatformInterfa
         }
 
         let monitor = NWPathMonitor()
-        pathMonitor = monitor
+        pathLock.lock(); pathMonitor = monitor; pathLock.unlock()
         let semaphore = DispatchSemaphore(value: 0)
-        monitor.pathUpdateHandler = { path in
+        monitor.pathUpdateHandler = { [weak self, weak monitor] path in
+            guard let self, let monitor else { return }
+            self.pathLock.lock()
+            defer { self.pathLock.unlock() }
+            guard self.pathMonitor === monitor else { return }
+            self.currentPath = path
             self.publishDefaultInterface(path, to: listener)
             semaphore.signal()
-            monitor.pathUpdateHandler = { path in
-                self.publishDefaultInterface(path, to: listener)
-            }
         }
-        monitor.start(queue: DispatchQueue.global(qos: .utility))
-        semaphore.wait()
+        monitor.start(queue: DispatchQueue(label: "com.openrung.app.libbox-interface"))
+        guard semaphore.wait(timeout: .now() + 5) == .success else {
+            reset()
+            throw PacketTunnelEngineError.missingNetwork
+        }
     }
 
-    func closeDefaultInterfaceMonitor(_: LibboxInterfaceUpdateListenerProtocol?) throws {
-        pathMonitor?.cancel()
-        pathMonitor = nil
-    }
+    func closeDefaultInterfaceMonitor(_: LibboxInterfaceUpdateListenerProtocol?) throws { reset() }
 
     private func publishDefaultInterface(_ path: Network.NWPath, to listener: LibboxInterfaceUpdateListenerProtocol) {
-        guard path.status != .unsatisfied, let defaultInterface = path.availableInterfaces.first else {
+        guard path.status == .satisfied, let defaultInterface = path.availableInterfaces.first(where: { path.usesInterfaceType($0.type) }) else {
             listener.updateDefaultInterface("", interfaceIndex: -1, isExpensive: false, isConstrained: false)
             return
         }
@@ -202,8 +209,10 @@ final class LibboxPacketTunnelPlatformInterface: NSObject, LibboxPlatformInterfa
     }
 
     func getInterfaces() throws -> LibboxNetworkInterfaceIteratorProtocol {
-        let path = pathMonitor?.currentPath
-        guard let path, path.status != .unsatisfied else {
+        pathLock.lock()
+        let path = currentPath
+        pathLock.unlock()
+        guard let path, path.status == .satisfied else {
             return LibboxNetworkInterfaceArray([])
         }
 
@@ -227,37 +236,13 @@ final class LibboxPacketTunnelPlatformInterface: NSObject, LibboxPlatformInterfa
         return LibboxNetworkInterfaceArray(interfaces)
     }
 
-    func serviceStop() throws {
-        onUnexpectedServiceStop()
-    }
-    func serviceReload() throws {}
-
-    func getSystemProxyStatus() throws -> LibboxSystemProxyStatus {
-        LibboxSystemProxyStatus()
-    }
-
-    func setSystemProxyEnabled(_: Bool) throws {}
-
-    func triggerNativeCrash() throws {
-        DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(200)) {
-            fatalError("Triggered native crash for diagnostics")
-        }
-    }
-
-    func writeDebugMessage(_ message: String?) {
-        guard let message else {
-            return
-        }
-        logger.debug("\(message, privacy: .public)")
-    }
-
     func send(_: LibboxNotification?) throws {}
     func startNeighborMonitor(_: LibboxNeighborUpdateListenerProtocol?) throws {}
     func registerMyInterface(_: String?) {}
     func closeNeighborMonitor(_: LibboxNeighborUpdateListenerProtocol?) throws {}
 
     func openShellSession(_: LibboxPlatformUser?, command _: String?, environ _: (any LibboxStringIteratorProtocol)?, term _: String?, rows _: Int32, cols _: Int32) throws -> any LibboxShellSessionProtocol {
-        throw PacketTunnelProxyEngineError.engineStartFailed("Shell sessions are not supported by OpenRung.")
+        throw NSError(domain: "OpenRungTUN", code: 1, userInfo: [NSLocalizedDescriptionKey: "Shell sessions are not supported by OpenRung."])
     }
 
     func lookupUser(_ username: String?) throws -> LibboxPlatformUser {
@@ -271,8 +256,11 @@ final class LibboxPacketTunnelPlatformInterface: NSObject, LibboxPlatformInterfa
     }
 
     func reset() {
+        pathLock.lock()
+        defer { pathLock.unlock() }
         pathMonitor?.cancel()
         pathMonitor = nil
+        currentPath = nil
     }
 }
 

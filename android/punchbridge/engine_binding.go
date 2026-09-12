@@ -56,9 +56,10 @@ type openRungEngineConfig struct {
 }
 
 type openRungEngine struct {
-	networkDNS func([]string)
-	engine     *connectcore.Engine
-	runtime    *openRungEngineRuntime
+	networkDNS     func([]string)
+	pauseDataPlane func(bool)
+	engine         *connectcore.Engine
+	runtime        *openRungEngineRuntime
 	// Orders whole lifecycle calls, including Start versus Stop. The engine
 	// has its own connect lock; this lock also orders Pause/Resume with them.
 	mu sync.Mutex
@@ -145,8 +146,22 @@ func (e *openRungEngine) Stop(flushBudgetMillis int64) error {
 	// errors. Mobile must still tell its OS owner when a TUN failed to close.
 	return errors.Join(err, e.runtime.shutdownError())
 }
-func (e *openRungEngine) Pause()  { e.mu.Lock(); defer e.mu.Unlock(); e.engine.Pause() }
-func (e *openRungEngine) Resume() { e.mu.Lock(); defer e.mu.Unlock(); e.engine.Resume() }
+func (e *openRungEngine) Pause() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.engine.Pause()
+	if e.pauseDataPlane != nil {
+		e.pauseDataPlane(true)
+	}
+}
+func (e *openRungEngine) Resume() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.pauseDataPlane != nil {
+		e.pauseDataPlane(false)
+	}
+	e.engine.Resume()
+}
 func (e *openRungEngine) StateJSON() string {
 	data, _ := json.Marshal(e.engine.State())
 	return string(data)

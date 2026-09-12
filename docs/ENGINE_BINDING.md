@@ -1,8 +1,8 @@
 # ADR-003 B1: engine lifecycle binding
 
 B1 introduced the lifecycle binding; B2 now pins connectcore v0.6.1 and uses
-its mobile host API as Android's sole orchestrator. iOS remains on its native
-orchestrator until B3. The original B1 APIs and measurements below are retained
+its mobile host API as Android's sole orchestrator. B3 uses that API on iOS,
+as documented in [IOS_ENGINE_CUTOVER.md](IOS_ENGINE_CUTOVER.md). The original B1 APIs and measurements below are retained
 for compatibility and historical evidence. The current Android constructor,
 parity checks and device gates are documented in [ANDROID_ENGINE_CUTOVER.md](ANDROID_ENGINE_CUTOVER.md).
 There is no runtime engine selector.
@@ -119,7 +119,8 @@ through JNI and EngineEventDispatcher using `scripts/test-android-engine-vectors
 its isolated test AAR and application ID cannot be used in a release build. The script rejects a different tag or local
 replacement until the adapter is reviewed. This is engine-contract validation;
 shipping-native parity remains separately reviewed. Kotlin is local in
-`testdata/contract/pin.json`; Swift remains pending until B3.
+`testdata/contract/pin.json`; B3 also runs Swift through an isolated generated
+framework with `python3 scripts/test-ios-engine-vectors.py`. Both are local suites.
 
 Both release scripts also run the concrete graft's libbox launch-failure and
 constructor tests under Go's race detector, then verify generated ABI symbols.
@@ -175,7 +176,7 @@ libbox, network changes, and teardown against the maintainer's agreed limit.
 
 ## Validation and cutover scope
 
-Passed locally: TypeScript, 25 Jest suites / 300 tests, the standalone Go race
+Historical B1 validation: TypeScript, 25 Jest suites / 300 tests, the standalone Go race
 suite, all seven A4 scenarios under the race detector, both release builds and
 their concrete libbox race tests, both Apple ABI links, 227 Android unit tests
 against the rebuilt AAR, and 167 iOS unit tests with Thread Sanitizer.
@@ -186,10 +187,32 @@ all inputs accepted by the separate mobile config builder. B2/B3 must wire the
 mobile DoH/split-tunnel/protected-bridge shape and platform TUN readiness before
 cutover, preserve the existing install identity/outbox migration, translate relay
 metadata into RN state, and arrange OS service recreation, data-plane pause,
-traffic accounting, and memory enforcement. This PR does not claim real-device
+traffic accounting, and memory enforcement. B1 did not claim real-device
 VPN validation, native-parity acceptance, or completion of either cutover.
+Current platform evidence is in [ANDROID_ENGINE_CUTOVER.md](ANDROID_ENGINE_CUTOVER.md)
+and [IOS_ENGINE_CUTOVER.md](IOS_ENGINE_CUTOVER.md).
 
 Android B2 treats an incomplete runtime teardown as a process-fatal condition.
 It detaches network/event callbacks, publishes failure, stops the foreground
 service, and terminates the process so the OS closes every duplicated TUN fd.
 No subsequent command may start another run while termination is pending.
+
+## B3 mobile iOS API
+
+`NewOpenRungMobileEngineForIOS(configJSON, OpenRungMobileHost, listener)`
+uses the B2 mobile configuration and callbacks with Apple socket ownership.
+It opens the existing app-group `outbox.json`; Android continues using
+`openrung_telemetry_outbox.jsonl`. Both retain a process-lifetime outbox lock.
+No Swift outbox instance may be opened alongside the engine.
+
+The mobile iOS Pause/Resume path serializes libbox data-plane sleep/wake with
+launch and close. It explicitly wakes the pause manager before resuming engine
+monitoring: pinned libbox's `CommandServer.Wake` is a no-op on iOS. The original
+one-minute libbox auto-wake timer is retained during sleep and canceled on
+explicit wake or retirement. Native aggregate traffic is sampled once a minute
+on iOS and read again after libbox closes; Android keeps its one-second cadence.
+
+`VerifyPath` may include `failure_facts` using the existing classifier input
+schema. The binding reconstructs the typed Go error chain; Swift-localized
+error text alone does not lose a timeout/DNS/TLS/errno classification. This is
+additive; the Kotlin callback envelope remains compatible.

@@ -8,151 +8,125 @@
 
 /* Begin PBXBuildFile section */
 		006F36ED698121FA8DA045C3 /* ConnectionStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 584A04475F28B3CAC39B501E /* ConnectionStatus.swift */; };
-		01C5EA0362C5AAB18ED81859 /* PacketTunnelError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C3C1158F41CEF59BEB36FEB /* PacketTunnelError.swift */; };
 		01FB4615E4C3105E861CBAA4 /* DeviceAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4E77D10C22E8939116D44BD /* DeviceAttributes.swift */; };
 		02421CE533C162FF7D211D9A /* LibboxKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = AB8C9F2F42E47E0E9E9AA47E /* LibboxKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		024B9A8C62881E530EB591B4 /* RelaySelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD9B5CA88D770C6F0A9597FE /* RelaySelector.swift */; };
 		02A118A7025D0906AAA606E1 /* NetworkPathMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C127CAD14278743A1BD298 /* NetworkPathMonitor.swift */; };
-		0483F1444764AB1812DC4A79 /* GeoIpClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 135777353E0B842A0E8E1A49 /* GeoIpClient.swift */; };
-		064EE332A9DA0543E819E36C /* EngineStopSignal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 007F9F5B484B9408D05F255E /* EngineStopSignal.swift */; };
 		069A422F72032F6301328723 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4783169BE46FEE9B0472504 /* AppConfig.swift */; };
+		07C76E6AA8C6D025BC7EF514 /* EngineEventDispatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 017DD573ECE8D78A567BF132 /* EngineEventDispatcher.swift */; };
 		08F12A1BB6BE2540FEF05AEB /* ContractBrokerFrontsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77C0ADAE13A64A7038DFE0A6 /* ContractBrokerFrontsTests.swift */; };
-		0B175E07B730475C0746D9DA /* libPods-OpenRung.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A44B257CAC6A81F279C2854E /* libPods-OpenRung.a */; };
 		0EDBAE2EAFCBE31BD3D98EC9 /* NativeBrokerTransportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11E1EF79FDA717F2ED5A32F0 /* NativeBrokerTransportTests.swift */; };
 		1001D8102F7EA1A694366DFF /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A9B3E3F0BA7E28C5D05A1731 /* Images.xcassets */; };
 		101812ACF2D87E69B666B516 /* DeviceAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4E77D10C22E8939116D44BD /* DeviceAttributes.swift */; };
 		1184B9B71AB9E1AFDD657EE4 /* PacketTunnelInternetProbeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAC6D89892DE900192CBBBA5 /* PacketTunnelInternetProbeTests.swift */; };
-		12D3D6D42C26B9A43E8E2682 /* StartupPathVerificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A67786D43A1A748C219A1C39 /* StartupPathVerificationTests.swift */; };
-		14A31DB460F1128BDFCECBE9 /* RelayReachability.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5AFE2F1F1556F9E70F0AC99 /* RelayReachability.swift */; };
 		1688E26406D6F8E93575AFCA /* CountryGeo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2570C01745DA49558877810 /* CountryGeo.swift */; };
-		1E94BFE81511EAABC9E46ABA /* PunchRecoveryCircuitBreaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2A2060BBC10DA73835172CD /* PunchRecoveryCircuitBreaker.swift */; };
-		204FDB07D7F8B62605E2D8EE /* WssTicketClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D46D3FA76F350A6A10D55AC1 /* WssTicketClientTests.swift */; };
+		19FBB7FC7291C722918F5A8E /* BrokerClientError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F84EC23AF9FEB7F7DADBB1 /* BrokerClientError.swift */; };
 		21FE1A3D627446ABB0D038FA /* LibboxKit.m in Sources */ = {isa = PBXBuildFile; fileRef = 950A6D203D0D99231E812DF9 /* LibboxKit.m */; };
 		2226FA02DA3CF06280AA3D27 /* CountryGeo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2570C01745DA49558877810 /* CountryGeo.swift */; };
 		2367D4EBC8213B6D57E65A0E /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A07146C137269D283F062DB /* AppDelegate.swift */; };
-		27D1C74BA3413782534C860E /* TelemetryClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4254868EF5882AD951E8D23B /* TelemetryClient.swift */; };
 		2809AA415FE496DE7FF7A72C /* DnsProbeMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D55BA84C5D35B80DFF05F1A /* DnsProbeMessage.swift */; };
-		293B5AB965931E683887D8F4 /* TelemetryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA18FA5754E54F0ADC5189F0 /* TelemetryManager.swift */; };
-		29A7BF19A333B864CE602B12 /* TelemetryClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4254868EF5882AD951E8D23B /* TelemetryClient.swift */; };
+		286ECE0BFC324EBCF884B342 /* EngineEventDispatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 017DD573ECE8D78A567BF132 /* EngineEventDispatcher.swift */; };
 		2A5E5581CC1AAE9FBB88A343 /* OpenRungBrokerCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B04CC982440EBB0C449CA5A /* OpenRungBrokerCoordinator.swift */; };
-		2C3222CCA8C27C06BBA68F85 /* FailureClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9F3B6378B98E464A9F306E7 /* FailureClassifier.swift */; };
-		2DD5AA78BC939B28ED0EEED5 /* WssFallbackPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F4DB9A32A2B929C586861C2 /* WssFallbackPolicyTests.swift */; };
+		2CDCA0FED6BDD8CC2C4F4D43 /* PacketTunnelDeviceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C86E239B778F6D082F7A9603 /* PacketTunnelDeviceTests.swift */; };
 		2E0156D4F82558FA780E5EFD /* ClientIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD4088394FB9EBCF808F81C2 /* ClientIdentity.swift */; };
 		304A2FEF600E1876E02BB428 /* OpenRungBrokerModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5941A8CF4A810D424C4147 /* OpenRungBrokerModule.swift */; };
 		319DAB39FFB8E6FA40C411B9 /* CountryGeo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2570C01745DA49558877810 /* CountryGeo.swift */; };
-		3211CE2D43E97CFA91D9E7FF /* BrokerClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9771BD2BC7057921FF185C4C /* BrokerClientTests.swift */; };
 		33C2943725973D77742264FD /* PacketTunnelDnsProbeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECC225DFB311B748621B135B /* PacketTunnelDnsProbeTests.swift */; };
-		352F6CA320938DBB039664C2 /* GeoIpClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 135777353E0B842A0E8E1A49 /* GeoIpClient.swift */; };
 		36CB8CEB6F2E0530F9D82FEA /* ProbeTargets.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C369738D2565177A979FAC /* ProbeTargets.swift */; };
-		39331D5AF76FB94FA1EB09CA /* PacketTunnelProxyEngineError.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A0014BD8DAE8D1AB0AA819 /* PacketTunnelProxyEngineError.swift */; };
 		395673F4F22F8D43200B404C /* ConnectionStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 584A04475F28B3CAC39B501E /* ConnectionStatus.swift */; };
 		39DC9ED8F1825AD63630611E /* geosite-ir.srs in Resources */ = {isa = PBXBuildFile; fileRef = 8E7518B2A5F26BA00BA159E1 /* geosite-ir.srs */; };
-		3CCF2F1EFD201AD5A17B3998 /* BrokerClientError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 683F07997A392045B7540E47 /* BrokerClientError.swift */; };
-		3CD18F293222260B71D429B1 /* TelemetryClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F2C000CBB239AC6AD0AD566 /* TelemetryClientTests.swift */; };
 		3CF707854EB1FBBCFC3E354F /* ConnectionStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 584A04475F28B3CAC39B501E /* ConnectionStatus.swift */; };
-		3D8CFD33EED8FE7AE1FB3299 /* TelemetryEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49C9C9695B7E93F7A4F5460B /* TelemetryEvent.swift */; };
 		3E600B1A4A0F6A075AB8D6E7 /* FailureClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E89C58EA730C659109459911 /* FailureClassifierTests.swift */; };
 		401088D78629F49BDF35BF3D /* SplitTunnelConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88FBD70740FE33FC9CC6564B /* SplitTunnelConfig.swift */; };
-		40CA497FDECDFAE03EA534AF /* WssLifecycleAndConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31A10C67D3636F8903463D9E /* WssLifecycleAndConfigurationTests.swift */; };
 		4363B566B4DCDF04E2E7455C /* PacketTunnelDnsProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F02C36295E0BF915B4B9736 /* PacketTunnelDnsProbe.swift */; };
+		468C4693D9D5CFC60054F987 /* EngineHostTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D31D432475D7CD185403F2F1 /* EngineHostTests.swift */; };
+		4848380AF5BAABE5EC7A73DB /* EngineAdapterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6F95759BC1B006D4A82F4A5 /* EngineAdapterTests.swift */; };
 		4AF8C7F150317AC00E8B27FA /* PacketTunnel.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1EAA8B2F5746A87534F0C87B /* PacketTunnel.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		4B33639315FF6460341572DA /* RelayRanker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69D27334571CA6F3A5CEB1BD /* RelayRanker.swift */; };
-		4F5E5D33E5E0532AB1153B1C /* PacketTunnelProxyEngineError.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3A0014BD8DAE8D1AB0AA819 /* PacketTunnelProxyEngineError.swift */; };
+		4F53F9504D1A3BB9A20A7766 /* EngineNetworkObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1644E952F567CEDFA15E98D /* EngineNetworkObserver.swift */; };
 		523936029217C10BD01D40DC /* ActivityLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C27022D3D9D7FEEC839F406 /* ActivityLog.swift */; };
-		528C84F7B1A49BA2C326F13A /* PunchNativeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80ADBA548D57C01CAE8FA99B /* PunchNativeClient.swift */; };
-		55DDC0684EEF4379E436524F /* PhysicalNetworkEpochMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28019235E34D443A26534186 /* PhysicalNetworkEpochMonitor.swift */; };
+		536944876A7078C70A1B3B8E /* BridgeConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB2E1916E6A3CA0FF658975C /* BridgeConfigurationTests.swift */; };
+		54D85793856E78B8DF9B1629 /* PacketTunnelEngineHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 687FF2AE15E31BCE38EF9073 /* PacketTunnelEngineHost.swift */; };
 		5773648FA4FA3BB89AC47684 /* geoip-ir.srs in Resources */ = {isa = PBXBuildFile; fileRef = 921594E8D4D0BD552D35698C /* geoip-ir.srs */; };
 		582566C8B59E519B2D10CD5B /* DnsProbeMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D55BA84C5D35B80DFF05F1A /* DnsProbeMessage.swift */; };
-		598ABF6F03F652193C9D5B96 /* TelemetryEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49C9C9695B7E93F7A4F5460B /* TelemetryEvent.swift */; };
+		5BC1C25A08BB1C6251F13E66 /* LegacyTransportErrors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CEF7AC19807D31530F4594B /* LegacyTransportErrors.swift */; };
+		5C4A433E28CC9B6A79E0C065 /* EngineTunnelSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A690E6E33BDDACFBD9C3FF32 /* EngineTunnelSettings.swift */; };
+		5C5B44700D206EF4735FCBE2 /* EngineTunnelSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A690E6E33BDDACFBD9C3FF32 /* EngineTunnelSettings.swift */; };
 		5F356E51FDABB4808B9DDC24 /* geoip-cn.srs in Resources */ = {isa = PBXBuildFile; fileRef = 693B17B81972486FA17A7D41 /* geoip-cn.srs */; };
 		5F7D90BE5F101E0C8681DF70 /* TelemetrySessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42FBF71585756F18035DA71D /* TelemetrySessionStore.swift */; };
-		60F22B6A9A9C2E8398560EC5 /* PunchNativeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80ADBA548D57C01CAE8FA99B /* PunchNativeClient.swift */; };
 		62AE36E16F5E162B6C7921DF /* SingBoxConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = D156734F7F68151301FEF878 /* SingBoxConfiguration.swift */; };
 		63F4601CF297170FC3EA5408 /* NetworkPathMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C127CAD14278743A1BD298 /* NetworkPathMonitor.swift */; };
 		6531CAFFDE106455D238BF18 /* OpenRungBrokerCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 069A5BBA8E1C40AC3EABFD68 /* OpenRungBrokerCoordinatorTests.swift */; };
-		662019FD66D0F3A9572970F8 /* BrokerClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0CE1F672D5FAD1FBB511D5B /* BrokerClient.swift */; };
+		6E5B5403BAEE8ABB107291FE /* EngineOperationRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 721B540194A297878ADC76BE /* EngineOperationRunner.swift */; };
 		6F79A2D91A14A48D88AB7A99 /* PacketTunnelDnsProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F02C36295E0BF915B4B9736 /* PacketTunnelDnsProbe.swift */; };
 		709A9385BBD22960A6922F77 /* PacketTunnelInternetProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BEE51EC45A891A7FD184DFB /* PacketTunnelInternetProbe.swift */; };
 		73D8BDE378B63443C918F178 /* TelemetrySession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A5299A99DA8ED8C75B1E25B /* TelemetrySession.swift */; };
 		767680B070BBDB21811EA1F0 /* LibboxKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AB8C9F2F42E47E0E9E9AA47E /* LibboxKit.framework */; };
-		794747220E38522FACAC57B2 /* TelemetryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA18FA5754E54F0ADC5189F0 /* TelemetryManager.swift */; };
+		7AD3CF8197D457CDDC3CCBCE /* RelayDescriptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC6AEF8D510DD407C368119F /* RelayDescriptor.swift */; };
 		7B4D3DC05BA1AE1A2F069C94 /* LibboxKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AB8C9F2F42E47E0E9E9AA47E /* LibboxKit.framework */; };
 		7BA2BB158A3143887B1DE5BC /* LibboxBrokerTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 274F2564F2D6019FBBD3B92A /* LibboxBrokerTransport.swift */; };
 		7CB2622B1AF9054F3A3CC5EA /* OpenRungBrokerModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 9AA34278398F5C3F677BC7A6 /* OpenRungBrokerModule.m */; };
 		81C2338B54BA856645F46A5E /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9D3B66E26E617B7B00140A4 /* PacketTunnelProvider.swift */; };
+		8364D4D656EF87E013D2E0CE /* FailureClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = D53FA4E1D545CEBEDEB9E926 /* FailureClassifier.swift */; };
 		837E14040DB7B0414964DCFC /* InternetProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 005F1F59591EC44366AC6B21 /* InternetProbe.swift */; };
 		84468A6D600DC1F02F4A0E08 /* SplitTunnelConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88FBD70740FE33FC9CC6564B /* SplitTunnelConfig.swift */; };
+		85D8BA91A05244BEAAC60A24 /* IOSConnectcore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88418ED16021B1DB4B15A07C /* IOSConnectcore.swift */; };
 		89009F889ABE5BCFA7F125B2 /* TelemetrySessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42FBF71585756F18035DA71D /* TelemetrySessionStore.swift */; };
 		8B1D40AA78408CC3BF775618 /* OpenRungBrokerCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B04CC982440EBB0C449CA5A /* OpenRungBrokerCoordinator.swift */; };
 		8D1616AEAACF90DD9E955B23 /* PacketTunnelInternetProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BEE51EC45A891A7FD184DFB /* PacketTunnelInternetProbe.swift */; };
-		8F139A6318A8DFB7DD1F9E1B /* EngineStopSignal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 007F9F5B484B9408D05F255E /* EngineStopSignal.swift */; };
+		8D46C1405D94CC96AFBC54A4 /* PacketTunnelEngineHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 687FF2AE15E31BCE38EF9073 /* PacketTunnelEngineHost.swift */; };
+		909819E0FC7B3C1E78EA3128 /* PacketTunnelProxyEngineError.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA782A58E2F91FD89168D480 /* PacketTunnelProxyEngineError.swift */; };
 		91DF94A8B176C8B90DCFF6A5 /* EngineDirectories.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25CB8E64CF645C0DD1375294 /* EngineDirectories.swift */; };
+		929CFA1B533CC91BEAF124F9 /* EngineEventDispatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 017DD573ECE8D78A567BF132 /* EngineEventDispatcher.swift */; };
 		930BA1FF73C751F1D80AF335 /* Network.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 091BB47D3F7E77446C73342D /* Network.framework */; };
-		94D05989D726F0125FC4CBDA /* WssFallbackPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6778C7AC035DF5A9549A7A2D /* WssFallbackPolicy.swift */; };
 		952EFF368D06083B89F5EE8D /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4783169BE46FEE9B0472504 /* AppConfig.swift */; };
 		95BF75EED69904C3B224E0BF /* NativeBrokerTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66C3AC37AF7128A85A7F7CC7 /* NativeBrokerTransport.swift */; };
 		9604E15625FCE8C234279160 /* InternetProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 005F1F59591EC44366AC6B21 /* InternetProbe.swift */; };
 		9806DF1AA177A05D22FA2708 /* ProbeTargets.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C369738D2565177A979FAC /* ProbeTargets.swift */; };
 		982E14D3077355EF8F7F3DB5 /* ProbeTargets.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C369738D2565177A979FAC /* ProbeTargets.swift */; };
-		990A59F55F64D829C9DF9CAB /* PunchFallbackPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814744A51A1FB277327DD215 /* PunchFallbackPolicy.swift */; };
-		99A7C25018C3380ECB1C01AF /* StartupPathVerification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23D668BED08950120483C704 /* StartupPathVerification.swift */; };
+		99B702F68572D5E1569A623C /* EngineProbeFailure.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14A9747132FEF5151EC8466B /* EngineProbeFailure.swift */; };
 		9B19065CFCC93684ADE3C707 /* WssTestFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3DFA10EE6C65833EE32289D /* WssTestFixtures.swift */; };
 		9B3097DAD33017F59D7B0774 /* SplitTunnelConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 293D5236C6FC627E5993262E /* SplitTunnelConfigurationTests.swift */; };
 		9E3FE5CDA11DD5EEC1F54942 /* SharedConnectionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11601E153A60E8B30351E20 /* SharedConnectionState.swift */; };
 		A2BD7C4271FDE1F796CA7E77 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4783169BE46FEE9B0472504 /* AppConfig.swift */; };
+		A30C4D9B86CF8E4E964FFFB6 /* RelayReachabilityError.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9DA82823FD2FFAB9A9FCFF0 /* RelayReachabilityError.swift */; };
+		A36F33BD19B983F5B0A002A7 /* PacketTunnelError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C3E8FDFC0B8620CADC8123F /* PacketTunnelError.swift */; };
 		A456EFF327FBA312F10D2DDA /* ActivityLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C27022D3D9D7FEEC839F406 /* ActivityLog.swift */; };
-		A8F913880F45765F628CA0BE /* RelayRanker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69D27334571CA6F3A5CEB1BD /* RelayRanker.swift */; };
-		AB96391CC76AF367EFC71A23 /* PunchRecoveryCircuitBreakerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FE575C8C524F31D6CD8423C /* PunchRecoveryCircuitBreakerTests.swift */; };
-		AD065EDAA7E707087D40585B /* WssNativeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EC4D45896D45D90A17A3E83 /* WssNativeClient.swift */; };
 		B399CE98F2A1BE3D97D45856 /* NativeBrokerTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66C3AC37AF7128A85A7F7CC7 /* NativeBrokerTransport.swift */; };
 		B434A0C0E679EE9A6A8ED7AE /* NativeBrokerTestDoubles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44DD4C9CB725E92B8F423EC7 /* NativeBrokerTestDoubles.swift */; };
-		B483D0418D53CDA277FC58A0 /* PhysicalNetworkEpochMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28019235E34D443A26534186 /* PhysicalNetworkEpochMonitor.swift */; };
-		BB0CE4474A9BF517F57AA4E8 /* BrokerClientError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 683F07997A392045B7540E47 /* BrokerClientError.swift */; };
-		BF18951369CEC4EA7C3627F7 /* WssNativeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EC4D45896D45D90A17A3E83 /* WssNativeClient.swift */; };
 		BF55D9C9334181B84F1D36EC /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 83209B5DF847F742A280CD21 /* LaunchScreen.storyboard */; };
-		BF67256F0E4E976654DB9E4D /* WssTicketClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4D8011970829712F59E5141 /* WssTicketClient.swift */; };
-		C1A6F6AC896E2EE68FCD7AC9 /* RelayReachability.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5AFE2F1F1556F9E70F0AC99 /* RelayReachability.swift */; };
 		C27D37D3F725F36D253CEB88 /* DnsProbeMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D55BA84C5D35B80DFF05F1A /* DnsProbeMessage.swift */; };
 		C30EDE383463DB3F401D317E /* SharedConnectionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11601E153A60E8B30351E20 /* SharedConnectionState.swift */; };
+		C3DBDB098B9DF367D32E369D /* EngineNetworkObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1644E952F567CEDFA15E98D /* EngineNetworkObserver.swift */; };
 		C434209DCAFA9B2D3BA91E84 /* DeviceAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4E77D10C22E8939116D44BD /* DeviceAttributes.swift */; };
 		C4B31101802A2AE5B0E26703 /* LibboxPacketTunnelPlatformInterface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97D23B885595CDD6DD259A85 /* LibboxPacketTunnelPlatformInterface.swift */; };
 		C6FCD962AA91B42B888ADC16 /* DnsProbeMessageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9657758A00C98E294119901 /* DnsProbeMessageTests.swift */; };
 		C98C9E042E602DF887F4B995 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A025739761D97ABD7227B8DA /* PrivacyInfo.xcprivacy */; };
-		CA3379CA0C7E8B6506A3861C /* RelayRankerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE70163A0AFAFED70BA816C7 /* RelayRankerTests.swift */; };
-		CCB2C474FEDC465EA9762C71 /* TelemetryClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4254868EF5882AD951E8D23B /* TelemetryClient.swift */; };
 		CE26B8D6344D51017EAD7EC8 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 81CC00C2F7324111F25D07A0 /* UIKit.framework */; };
-		CE5FF08F60EA9B59A3FAD581 /* RelayReachabilityError.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8FF4517B34B4819F6DCD4D1 /* RelayReachabilityError.swift */; };
 		D095482C735B4750F9AC99BB /* RelayDescriptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC6AEF8D510DD407C368119F /* RelayDescriptor.swift */; };
 		D0EC8BC0E4FEC43CA1316B2D /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = EC15DA1827B19848080D3452 /* libresolv.tbd */; };
 		D2021049A4947FDF31F8DB88 /* ConnectionStateSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC60C417C2C56A9F45E90C8D /* ConnectionStateSnapshotTests.swift */; };
 		D222D8CD2611D57559062B89 /* NetworkPathMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C127CAD14278743A1BD298 /* NetworkPathMonitor.swift */; };
+		D2C1FC7BD898957136C5BFD4 /* EngineStateProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE547651E9653919D1996F25 /* EngineStateProjection.swift */; };
 		D3F68267EBF9F65D35224383 /* Libbox.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = F19AE6300C331CB6C7B2B9E8 /* Libbox.xcframework */; };
 		D420784479B66EB7456E650F /* LibboxBrokerTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 274F2564F2D6019FBBD3B92A /* LibboxBrokerTransport.swift */; };
-		D868A91B4331D74B2D35D5CF /* PunchFallbackPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814744A51A1FB277327DD215 /* PunchFallbackPolicy.swift */; };
-		D960E08274E0601026BCA275 /* PunchNativeClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0C2DC3997620B7904DF0937 /* PunchNativeClientTests.swift */; };
+		D84C0C11DA660ACF848B6F34 /* libPods-OpenRung.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 8282A6F0A24AE7C955445330 /* libPods-OpenRung.a */; };
+		D9C12055B37783B2F772A5A6 /* EngineStateProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE547651E9653919D1996F25 /* EngineStateProjection.swift */; };
 		DA63F6EDE23966103B89E919 /* DnsConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF68A64E6FB095B8FD6A3F3F /* DnsConfigurationTests.swift */; };
-		DA7F413E3D63AC3050CE4A6B /* BrokerClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0CE1F672D5FAD1FBB511D5B /* BrokerClient.swift */; };
 		DB776EA0CB28A8D6A698A6D7 /* SingBoxConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = D156734F7F68151301FEF878 /* SingBoxConfiguration.swift */; };
-		DD3B9D8275BC1F711FAA7D19 /* LibboxBrokerTransport+Tunnel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 587496AEAFA29034F07181E9 /* LibboxBrokerTransport+Tunnel.swift */; };
-		E11F61893E71E26974AF879B /* WssTicketClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4D8011970829712F59E5141 /* WssTicketClient.swift */; };
-		E23AB43D1F262132DECB88F3 /* PacketTunnelProxyEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D65DF435DF84A90675DAFD54 /* PacketTunnelProxyEngine.swift */; };
+		DF53A82708136D7117C3492F /* EngineProbeFailure.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14A9747132FEF5151EC8466B /* EngineProbeFailure.swift */; };
 		E2C945F0A942AE0E937369EC /* OpenRungVpnModule.m in Sources */ = {isa = PBXBuildFile; fileRef = ED28831CA960E8B89D5D7D04 /* OpenRungVpnModule.m */; };
-		E6799BE42347DC306ADF2213 /* RelayReachabilityError.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8FF4517B34B4819F6DCD4D1 /* RelayReachabilityError.swift */; };
-		E934E6591F0F72952629EE42 /* StartupPathVerification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23D668BED08950120483C704 /* StartupPathVerification.swift */; };
-		EAD1DFA9AB52E6A93CB60890 /* FailureClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9F3B6378B98E464A9F306E7 /* FailureClassifier.swift */; };
 		EB4BB9C6B76C65809224DF35 /* RelayDescriptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC6AEF8D510DD407C368119F /* RelayDescriptor.swift */; };
 		ED0AA86BCFC9211195B7081E /* ClientIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD4088394FB9EBCF808F81C2 /* ClientIdentity.swift */; };
+		ED256E8323D2EFE2BF410311 /* EngineStateProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE547651E9653919D1996F25 /* EngineStateProjection.swift */; };
+		F24CCDAB26257BD7D24DF4A4 /* EngineMemoryMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CC98A48B39730FB55671728 /* EngineMemoryMonitor.swift */; };
 		F394E6F8661ECC0CFB89B18F /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 81CC00C2F7324111F25D07A0 /* UIKit.framework */; };
+		F4A85CA2F691B7FEB1634174 /* EngineOperationRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 721B540194A297878ADC76BE /* EngineOperationRunner.swift */; };
+		F4E9943576D50ADF2D118398 /* IOSPacketTunnelRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = F408CCF94A5AD4266D0675A9 /* IOSPacketTunnelRun.swift */; };
 		F6D4EDF154A64B658BBAA677 /* TelemetrySession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A5299A99DA8ED8C75B1E25B /* TelemetrySession.swift */; };
-		F7CB06F189A040EFBFCC13B0 /* WssFallbackPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6778C7AC035DF5A9549A7A2D /* WssFallbackPolicy.swift */; };
 		F82F4E03FAD0D3DFDB106718 /* OpenRungVpnModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 719ACF45718CBF52773FCD6C /* OpenRungVpnModule.swift */; };
-		F86A7ADA4A7D12D83097E59C /* PunchFallbackPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1997F12E9E5BEAC8521C7D78 /* PunchFallbackPolicyTests.swift */; };
 		F9E733A69CC079063D275F8E /* ContractClassificationVectorsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76DC959804E5611F0EA09267 /* ContractClassificationVectorsTests.swift */; };
 		FBB5A1494BB10EC5CC265A5C /* geosite-cn.srs in Resources */ = {isa = PBXBuildFile; fileRef = F68B4299B0EAD00601A47FF2 /* geosite-cn.srs */; };
 		FDD249EAC97CC2DF789CBCE6 /* SplitTunnelConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88FBD70740FE33FC9CC6564B /* SplitTunnelConfig.swift */; };
-		FE4024439B637E56ABC50688 /* PunchRecoveryCircuitBreaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2A2060BBC10DA73835172CD /* PunchRecoveryCircuitBreaker.swift */; };
 		FE46CA9BB747203298E45D6F /* NativeBrokerTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66C3AC37AF7128A85A7F7CC7 /* NativeBrokerTransport.swift */; };
-		FE8C2A7A69C2E15601117C9F /* PacketTunnelError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C3C1158F41CEF59BEB36FEB /* PacketTunnelError.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -169,6 +143,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 008A07C80B8C5B8E7AC13818;
 			remoteInfo = PacketTunnel;
+		};
+		C45FFF8CCA256DBCCD49BF82 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 146F6B38E4A347A28C649EC1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = ADBDEA07895981C3C202875A;
+			remoteInfo = OpenRung;
 		};
 		E6D5811F919DB235C009799B /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -206,104 +187,91 @@
 
 /* Begin PBXFileReference section */
 		005F1F59591EC44366AC6B21 /* InternetProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InternetProbe.swift; sourceTree = "<group>"; };
-		007F9F5B484B9408D05F255E /* EngineStopSignal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineStopSignal.swift; sourceTree = "<group>"; };
+		017DD573ECE8D78A567BF132 /* EngineEventDispatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineEventDispatcher.swift; sourceTree = "<group>"; };
 		03703C68A02344020716751A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		069A5BBA8E1C40AC3EABFD68 /* OpenRungBrokerCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRungBrokerCoordinatorTests.swift; sourceTree = "<group>"; };
 		091BB47D3F7E77446C73342D /* Network.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Network.framework; path = System/Library/Frameworks/Network.framework; sourceTree = SDKROOT; };
+		0CEF7AC19807D31530F4594B /* LegacyTransportErrors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyTransportErrors.swift; sourceTree = "<group>"; };
 		11E1EF79FDA717F2ED5A32F0 /* NativeBrokerTransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeBrokerTransportTests.swift; sourceTree = "<group>"; };
-		135777353E0B842A0E8E1A49 /* GeoIpClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeoIpClient.swift; sourceTree = "<group>"; };
+		14A9747132FEF5151EC8466B /* EngineProbeFailure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineProbeFailure.swift; sourceTree = "<group>"; };
 		174E944F053F54F691E59C74 /* OpenRungTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = OpenRungTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		1997F12E9E5BEAC8521C7D78 /* PunchFallbackPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PunchFallbackPolicyTests.swift; sourceTree = "<group>"; };
 		1EAA8B2F5746A87534F0C87B /* PacketTunnel.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = PacketTunnel.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		1FE575C8C524F31D6CD8423C /* PunchRecoveryCircuitBreakerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PunchRecoveryCircuitBreakerTests.swift; sourceTree = "<group>"; };
-		23D668BED08950120483C704 /* StartupPathVerification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupPathVerification.swift; sourceTree = "<group>"; };
 		25CB8E64CF645C0DD1375294 /* EngineDirectories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineDirectories.swift; sourceTree = "<group>"; };
 		274F2564F2D6019FBBD3B92A /* LibboxBrokerTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibboxBrokerTransport.swift; sourceTree = "<group>"; };
-		28019235E34D443A26534186 /* PhysicalNetworkEpochMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicalNetworkEpochMonitor.swift; sourceTree = "<group>"; };
-		2925A6CA9CDE63A1865E53D8 /* Pods-OpenRung.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OpenRung.release.xcconfig"; path = "Target Support Files/Pods-OpenRung/Pods-OpenRung.release.xcconfig"; sourceTree = "<group>"; };
 		293D5236C6FC627E5993262E /* SplitTunnelConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitTunnelConfigurationTests.swift; sourceTree = "<group>"; };
 		2D55BA84C5D35B80DFF05F1A /* DnsProbeMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DnsProbeMessage.swift; sourceTree = "<group>"; };
-		31A10C67D3636F8903463D9E /* WssLifecycleAndConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WssLifecycleAndConfigurationTests.swift; sourceTree = "<group>"; };
 		3B04CC982440EBB0C449CA5A /* OpenRungBrokerCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRungBrokerCoordinator.swift; sourceTree = "<group>"; };
 		3BEE51EC45A891A7FD184DFB /* PacketTunnelInternetProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelInternetProbe.swift; sourceTree = "<group>"; };
-		4254868EF5882AD951E8D23B /* TelemetryClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryClient.swift; sourceTree = "<group>"; };
+		426E39F9341055FCE902A3B0 /* Pods-OpenRung.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OpenRung.release.xcconfig"; path = "Target Support Files/Pods-OpenRung/Pods-OpenRung.release.xcconfig"; sourceTree = "<group>"; };
 		42FBF71585756F18035DA71D /* TelemetrySessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetrySessionStore.swift; sourceTree = "<group>"; };
 		44DD4C9CB725E92B8F423EC7 /* NativeBrokerTestDoubles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeBrokerTestDoubles.swift; sourceTree = "<group>"; };
-		49C9C9695B7E93F7A4F5460B /* TelemetryEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryEvent.swift; sourceTree = "<group>"; };
 		584A04475F28B3CAC39B501E /* ConnectionStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStatus.swift; sourceTree = "<group>"; };
-		587496AEAFA29034F07181E9 /* LibboxBrokerTransport+Tunnel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibboxBrokerTransport+Tunnel.swift"; sourceTree = "<group>"; };
 		5A5941A8CF4A810D424C4147 /* OpenRungBrokerModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRungBrokerModule.swift; sourceTree = "<group>"; };
-		5F4DB9A32A2B929C586861C2 /* WssFallbackPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WssFallbackPolicyTests.swift; sourceTree = "<group>"; };
 		66C3AC37AF7128A85A7F7CC7 /* NativeBrokerTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeBrokerTransport.swift; sourceTree = "<group>"; };
-		6778C7AC035DF5A9549A7A2D /* WssFallbackPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WssFallbackPolicy.swift; sourceTree = "<group>"; };
-		683F07997A392045B7540E47 /* BrokerClientError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrokerClientError.swift; sourceTree = "<group>"; };
+		687FF2AE15E31BCE38EF9073 /* PacketTunnelEngineHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelEngineHost.swift; sourceTree = "<group>"; };
 		693B17B81972486FA17A7D41 /* geoip-cn.srs */ = {isa = PBXFileReference; path = "geoip-cn.srs"; sourceTree = "<group>"; };
-		69D27334571CA6F3A5CEB1BD /* RelayRanker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayRanker.swift; sourceTree = "<group>"; };
 		6A5299A99DA8ED8C75B1E25B /* TelemetrySession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetrySession.swift; sourceTree = "<group>"; };
-		6F2C000CBB239AC6AD0AD566 /* TelemetryClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryClientTests.swift; sourceTree = "<group>"; };
 		719ACF45718CBF52773FCD6C /* OpenRungVpnModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRungVpnModule.swift; sourceTree = "<group>"; };
+		721B540194A297878ADC76BE /* EngineOperationRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineOperationRunner.swift; sourceTree = "<group>"; };
+		74F84EC23AF9FEB7F7DADBB1 /* BrokerClientError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrokerClientError.swift; sourceTree = "<group>"; };
 		76DC959804E5611F0EA09267 /* ContractClassificationVectorsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContractClassificationVectorsTests.swift; sourceTree = "<group>"; };
 		77C0ADAE13A64A7038DFE0A6 /* ContractBrokerFrontsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContractBrokerFrontsTests.swift; sourceTree = "<group>"; };
 		7A07146C137269D283F062DB /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		7EC4D45896D45D90A17A3E83 /* WssNativeClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WssNativeClient.swift; sourceTree = "<group>"; };
-		80ADBA548D57C01CAE8FA99B /* PunchNativeClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PunchNativeClient.swift; sourceTree = "<group>"; };
-		814744A51A1FB277327DD215 /* PunchFallbackPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PunchFallbackPolicy.swift; sourceTree = "<group>"; };
+		7CC98A48B39730FB55671728 /* EngineMemoryMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineMemoryMonitor.swift; sourceTree = "<group>"; };
 		81B10868A3F7FA99A84696A4 /* OpenRung.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = OpenRung.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		81CC00C2F7324111F25D07A0 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
+		8282A6F0A24AE7C955445330 /* libPods-OpenRung.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-OpenRung.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		83209B5DF847F742A280CD21 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		88418ED16021B1DB4B15A07C /* IOSConnectcore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSConnectcore.swift; sourceTree = "<group>"; };
 		88FBD70740FE33FC9CC6564B /* SplitTunnelConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitTunnelConfig.swift; sourceTree = "<group>"; };
+		8C3E8FDFC0B8620CADC8123F /* PacketTunnelError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelError.swift; sourceTree = "<group>"; };
 		8E7518B2A5F26BA00BA159E1 /* geosite-ir.srs */ = {isa = PBXFileReference; path = "geosite-ir.srs"; sourceTree = "<group>"; };
+		90B81EBD6EB3B24EBE741D16 /* EngineDeviceTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = EngineDeviceTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		921594E8D4D0BD552D35698C /* geoip-ir.srs */ = {isa = PBXFileReference; path = "geoip-ir.srs"; sourceTree = "<group>"; };
 		950A6D203D0D99231E812DF9 /* LibboxKit.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LibboxKit.m; sourceTree = "<group>"; };
-		9771BD2BC7057921FF185C4C /* BrokerClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrokerClientTests.swift; sourceTree = "<group>"; };
 		97D23B885595CDD6DD259A85 /* LibboxPacketTunnelPlatformInterface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibboxPacketTunnelPlatformInterface.swift; sourceTree = "<group>"; };
 		9AA34278398F5C3F677BC7A6 /* OpenRungBrokerModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = OpenRungBrokerModule.m; sourceTree = "<group>"; };
 		9C27022D3D9D7FEEC839F406 /* ActivityLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityLog.swift; sourceTree = "<group>"; };
-		9C3C1158F41CEF59BEB36FEB /* PacketTunnelError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelError.swift; sourceTree = "<group>"; };
 		9F02C36295E0BF915B4B9736 /* PacketTunnelDnsProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelDnsProbe.swift; sourceTree = "<group>"; };
 		A025739761D97ABD7227B8DA /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		A44B257CAC6A81F279C2854E /* libPods-OpenRung.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-OpenRung.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		A67786D43A1A748C219A1C39 /* StartupPathVerificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupPathVerificationTests.swift; sourceTree = "<group>"; };
+		A690E6E33BDDACFBD9C3FF32 /* EngineTunnelSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineTunnelSettings.swift; sourceTree = "<group>"; };
+		A6F95759BC1B006D4A82F4A5 /* EngineAdapterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineAdapterTests.swift; sourceTree = "<group>"; };
 		A9B3E3F0BA7E28C5D05A1731 /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Images.xcassets; sourceTree = "<group>"; };
+		A9DA82823FD2FFAB9A9FCFF0 /* RelayReachabilityError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayReachabilityError.swift; sourceTree = "<group>"; };
+		AA782A58E2F91FD89168D480 /* PacketTunnelProxyEngineError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProxyEngineError.swift; sourceTree = "<group>"; };
 		AAC6D89892DE900192CBBBA5 /* PacketTunnelInternetProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelInternetProbeTests.swift; sourceTree = "<group>"; };
 		AB117725DF8A60D9A23412CC /* PacketTunnel.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PacketTunnel.entitlements; sourceTree = "<group>"; };
 		AB8C9F2F42E47E0E9E9AA47E /* LibboxKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = LibboxKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		AE70163A0AFAFED70BA816C7 /* RelayRankerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayRankerTests.swift; sourceTree = "<group>"; };
+		AE4D2774EFF34BE32983633D /* Pods-OpenRung.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OpenRung.debug.xcconfig"; path = "Target Support Files/Pods-OpenRung/Pods-OpenRung.debug.xcconfig"; sourceTree = "<group>"; };
+		AE547651E9653919D1996F25 /* EngineStateProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineStateProjection.swift; sourceTree = "<group>"; };
 		B0C127CAD14278743A1BD298 /* NetworkPathMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkPathMonitor.swift; sourceTree = "<group>"; };
-		B3A0014BD8DAE8D1AB0AA819 /* PacketTunnelProxyEngineError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProxyEngineError.swift; sourceTree = "<group>"; };
 		B9D3B66E26E617B7B00140A4 /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
-		BA18FA5754E54F0ADC5189F0 /* TelemetryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryManager.swift; sourceTree = "<group>"; };
 		C28E2B488D1B810BD0BB8AA1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C3DFA10EE6C65833EE32289D /* WssTestFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WssTestFixtures.swift; sourceTree = "<group>"; };
 		C4E77D10C22E8939116D44BD /* DeviceAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceAttributes.swift; sourceTree = "<group>"; };
+		C86E239B778F6D082F7A9603 /* PacketTunnelDeviceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelDeviceTests.swift; sourceTree = "<group>"; };
 		C9657758A00C98E294119901 /* DnsProbeMessageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DnsProbeMessageTests.swift; sourceTree = "<group>"; };
-		C9F3B6378B98E464A9F306E7 /* FailureClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FailureClassifier.swift; sourceTree = "<group>"; };
 		CC60C417C2C56A9F45E90C8D /* ConnectionStateSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStateSnapshotTests.swift; sourceTree = "<group>"; };
 		CF68A64E6FB095B8FD6A3F3F /* DnsConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DnsConfigurationTests.swift; sourceTree = "<group>"; };
-		D0CE1F672D5FAD1FBB511D5B /* BrokerClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrokerClient.swift; sourceTree = "<group>"; };
 		D11601E153A60E8B30351E20 /* SharedConnectionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedConnectionState.swift; sourceTree = "<group>"; };
 		D156734F7F68151301FEF878 /* SingBoxConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SingBoxConfiguration.swift; sourceTree = "<group>"; };
-		D46D3FA76F350A6A10D55AC1 /* WssTicketClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WssTicketClientTests.swift; sourceTree = "<group>"; };
-		D5AFE2F1F1556F9E70F0AC99 /* RelayReachability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayReachability.swift; sourceTree = "<group>"; };
-		D65DF435DF84A90675DAFD54 /* PacketTunnelProxyEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProxyEngine.swift; sourceTree = "<group>"; };
-		D8FF4517B34B4819F6DCD4D1 /* RelayReachabilityError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayReachabilityError.swift; sourceTree = "<group>"; };
-		D9DD5A61842429ACF2A05EB4 /* Pods-OpenRung.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OpenRung.debug.xcconfig"; path = "Target Support Files/Pods-OpenRung/Pods-OpenRung.debug.xcconfig"; sourceTree = "<group>"; };
+		D1644E952F567CEDFA15E98D /* EngineNetworkObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineNetworkObserver.swift; sourceTree = "<group>"; };
+		D31D432475D7CD185403F2F1 /* EngineHostTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineHostTests.swift; sourceTree = "<group>"; };
+		D53FA4E1D545CEBEDEB9E926 /* FailureClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FailureClassifier.swift; sourceTree = "<group>"; };
+		DB2E1916E6A3CA0FF658975C /* BridgeConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeConfigurationTests.swift; sourceTree = "<group>"; };
 		DC6AEF8D510DD407C368119F /* RelayDescriptor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayDescriptor.swift; sourceTree = "<group>"; };
 		DD4088394FB9EBCF808F81C2 /* ClientIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientIdentity.swift; sourceTree = "<group>"; };
 		E015EBBA482879150C779611 /* OpenRung.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = OpenRung.entitlements; sourceTree = "<group>"; };
-		E0C2DC3997620B7904DF0937 /* PunchNativeClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PunchNativeClientTests.swift; sourceTree = "<group>"; };
 		E2570C01745DA49558877810 /* CountryGeo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountryGeo.swift; sourceTree = "<group>"; };
-		E2A2060BBC10DA73835172CD /* PunchRecoveryCircuitBreaker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PunchRecoveryCircuitBreaker.swift; sourceTree = "<group>"; };
 		E4783169BE46FEE9B0472504 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
-		E4D8011970829712F59E5141 /* WssTicketClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WssTicketClient.swift; sourceTree = "<group>"; };
 		E89C58EA730C659109459911 /* FailureClassifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FailureClassifierTests.swift; sourceTree = "<group>"; };
 		EC15DA1827B19848080D3452 /* libresolv.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libresolv.tbd; path = usr/lib/libresolv.tbd; sourceTree = SDKROOT; };
 		ECC225DFB311B748621B135B /* PacketTunnelDnsProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelDnsProbeTests.swift; sourceTree = "<group>"; };
 		ED28831CA960E8B89D5D7D04 /* OpenRungVpnModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = OpenRungVpnModule.m; sourceTree = "<group>"; };
 		F19AE6300C331CB6C7B2B9E8 /* Libbox.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Libbox.xcframework; path = ThirdParty/Libbox.xcframework; sourceTree = "<group>"; };
+		F408CCF94A5AD4266D0675A9 /* IOSPacketTunnelRun.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSPacketTunnelRun.swift; sourceTree = "<group>"; };
 		F68B4299B0EAD00601A47FF2 /* geosite-cn.srs */ = {isa = PBXFileReference; path = "geosite-cn.srs"; sourceTree = "<group>"; };
 		F9C369738D2565177A979FAC /* ProbeTargets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProbeTargets.swift; sourceTree = "<group>"; };
-		FD9B5CA88D770C6F0A9597FE /* RelaySelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelaySelector.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -332,7 +300,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				767680B070BBDB21811EA1F0 /* LibboxKit.framework in Frameworks */,
-				0B175E07B730475C0746D9DA /* libPods-OpenRung.a in Frameworks */,
+				D84C0C11DA660ACF848B6F34 /* libPods-OpenRung.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -362,36 +330,24 @@
 			children = (
 				9C27022D3D9D7FEEC839F406 /* ActivityLog.swift */,
 				E4783169BE46FEE9B0472504 /* AppConfig.swift */,
-				D0CE1F672D5FAD1FBB511D5B /* BrokerClient.swift */,
-				683F07997A392045B7540E47 /* BrokerClientError.swift */,
 				DD4088394FB9EBCF808F81C2 /* ClientIdentity.swift */,
 				584A04475F28B3CAC39B501E /* ConnectionStatus.swift */,
 				E2570C01745DA49558877810 /* CountryGeo.swift */,
 				C4E77D10C22E8939116D44BD /* DeviceAttributes.swift */,
 				2D55BA84C5D35B80DFF05F1A /* DnsProbeMessage.swift */,
-				135777353E0B842A0E8E1A49 /* GeoIpClient.swift */,
+				017DD573ECE8D78A567BF132 /* EngineEventDispatcher.swift */,
+				AE547651E9653919D1996F25 /* EngineStateProjection.swift */,
 				005F1F59591EC44366AC6B21 /* InternetProbe.swift */,
 				274F2564F2D6019FBBD3B92A /* LibboxBrokerTransport.swift */,
-				587496AEAFA29034F07181E9 /* LibboxBrokerTransport+Tunnel.swift */,
 				66C3AC37AF7128A85A7F7CC7 /* NativeBrokerTransport.swift */,
 				B0C127CAD14278743A1BD298 /* NetworkPathMonitor.swift */,
 				F9C369738D2565177A979FAC /* ProbeTargets.swift */,
-				814744A51A1FB277327DD215 /* PunchFallbackPolicy.swift */,
 				DC6AEF8D510DD407C368119F /* RelayDescriptor.swift */,
-				69D27334571CA6F3A5CEB1BD /* RelayRanker.swift */,
-				D5AFE2F1F1556F9E70F0AC99 /* RelayReachability.swift */,
-				D8FF4517B34B4819F6DCD4D1 /* RelayReachabilityError.swift */,
-				FD9B5CA88D770C6F0A9597FE /* RelaySelector.swift */,
 				D11601E153A60E8B30351E20 /* SharedConnectionState.swift */,
 				D156734F7F68151301FEF878 /* SingBoxConfiguration.swift */,
 				88FBD70740FE33FC9CC6564B /* SplitTunnelConfig.swift */,
-				4254868EF5882AD951E8D23B /* TelemetryClient.swift */,
-				49C9C9695B7E93F7A4F5460B /* TelemetryEvent.swift */,
-				BA18FA5754E54F0ADC5189F0 /* TelemetryManager.swift */,
 				6A5299A99DA8ED8C75B1E25B /* TelemetrySession.swift */,
 				42FBF71585756F18035DA71D /* TelemetrySessionStore.swift */,
-				6778C7AC035DF5A9549A7A2D /* WssFallbackPolicy.swift */,
-				E4D8011970829712F59E5141 /* WssTicketClient.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -407,29 +363,23 @@
 		837FBBD5687C0AB326CC593E /* OpenRungTests */ = {
 			isa = PBXGroup;
 			children = (
-				9771BD2BC7057921FF185C4C /* BrokerClientTests.swift */,
+				DB2E1916E6A3CA0FF658975C /* BridgeConfigurationTests.swift */,
 				CC60C417C2C56A9F45E90C8D /* ConnectionStateSnapshotTests.swift */,
 				77C0ADAE13A64A7038DFE0A6 /* ContractBrokerFrontsTests.swift */,
 				76DC959804E5611F0EA09267 /* ContractClassificationVectorsTests.swift */,
 				CF68A64E6FB095B8FD6A3F3F /* DnsConfigurationTests.swift */,
 				C9657758A00C98E294119901 /* DnsProbeMessageTests.swift */,
+				A6F95759BC1B006D4A82F4A5 /* EngineAdapterTests.swift */,
+				D31D432475D7CD185403F2F1 /* EngineHostTests.swift */,
 				E89C58EA730C659109459911 /* FailureClassifierTests.swift */,
 				44DD4C9CB725E92B8F423EC7 /* NativeBrokerTestDoubles.swift */,
 				11E1EF79FDA717F2ED5A32F0 /* NativeBrokerTransportTests.swift */,
 				069A5BBA8E1C40AC3EABFD68 /* OpenRungBrokerCoordinatorTests.swift */,
 				ECC225DFB311B748621B135B /* PacketTunnelDnsProbeTests.swift */,
 				AAC6D89892DE900192CBBBA5 /* PacketTunnelInternetProbeTests.swift */,
-				1997F12E9E5BEAC8521C7D78 /* PunchFallbackPolicyTests.swift */,
-				E0C2DC3997620B7904DF0937 /* PunchNativeClientTests.swift */,
-				1FE575C8C524F31D6CD8423C /* PunchRecoveryCircuitBreakerTests.swift */,
-				AE70163A0AFAFED70BA816C7 /* RelayRankerTests.swift */,
 				293D5236C6FC627E5993262E /* SplitTunnelConfigurationTests.swift */,
-				A67786D43A1A748C219A1C39 /* StartupPathVerificationTests.swift */,
-				6F2C000CBB239AC6AD0AD566 /* TelemetryClientTests.swift */,
-				5F4DB9A32A2B929C586861C2 /* WssFallbackPolicyTests.swift */,
-				31A10C67D3636F8903463D9E /* WssLifecycleAndConfigurationTests.swift */,
 				C3DFA10EE6C65833EE32289D /* WssTestFixtures.swift */,
-				D46D3FA76F350A6A10D55AC1 /* WssTicketClientTests.swift */,
+				CA844B9D41B3605D8572DFE1 /* LegacyClassificationFixtures */,
 			);
 			path = OpenRungTests;
 			sourceTree = "<group>";
@@ -453,7 +403,7 @@
 				EC15DA1827B19848080D3452 /* libresolv.tbd */,
 				091BB47D3F7E77446C73342D /* Network.framework */,
 				81CC00C2F7324111F25D07A0 /* UIKit.framework */,
-				A44B257CAC6A81F279C2854E /* libPods-OpenRung.a */,
+				8282A6F0A24AE7C955445330 /* libPods-OpenRung.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -462,29 +412,59 @@
 			isa = PBXGroup;
 			children = (
 				25CB8E64CF645C0DD1375294 /* EngineDirectories.swift */,
-				007F9F5B484B9408D05F255E /* EngineStopSignal.swift */,
-				C9F3B6378B98E464A9F306E7 /* FailureClassifier.swift */,
+				7CC98A48B39730FB55671728 /* EngineMemoryMonitor.swift */,
+				D1644E952F567CEDFA15E98D /* EngineNetworkObserver.swift */,
+				721B540194A297878ADC76BE /* EngineOperationRunner.swift */,
+				14A9747132FEF5151EC8466B /* EngineProbeFailure.swift */,
+				A690E6E33BDDACFBD9C3FF32 /* EngineTunnelSettings.swift */,
 				C28E2B488D1B810BD0BB8AA1 /* Info.plist */,
+				88418ED16021B1DB4B15A07C /* IOSConnectcore.swift */,
+				F408CCF94A5AD4266D0675A9 /* IOSPacketTunnelRun.swift */,
 				97D23B885595CDD6DD259A85 /* LibboxPacketTunnelPlatformInterface.swift */,
 				AB117725DF8A60D9A23412CC /* PacketTunnel.entitlements */,
 				9F02C36295E0BF915B4B9736 /* PacketTunnelDnsProbe.swift */,
-				9C3C1158F41CEF59BEB36FEB /* PacketTunnelError.swift */,
+				687FF2AE15E31BCE38EF9073 /* PacketTunnelEngineHost.swift */,
 				3BEE51EC45A891A7FD184DFB /* PacketTunnelInternetProbe.swift */,
 				B9D3B66E26E617B7B00140A4 /* PacketTunnelProvider.swift */,
-				D65DF435DF84A90675DAFD54 /* PacketTunnelProxyEngine.swift */,
-				B3A0014BD8DAE8D1AB0AA819 /* PacketTunnelProxyEngineError.swift */,
-				28019235E34D443A26534186 /* PhysicalNetworkEpochMonitor.swift */,
-				80ADBA548D57C01CAE8FA99B /* PunchNativeClient.swift */,
-				E2A2060BBC10DA73835172CD /* PunchRecoveryCircuitBreaker.swift */,
-				23D668BED08950120483C704 /* StartupPathVerification.swift */,
-				7EC4D45896D45D90A17A3E83 /* WssNativeClient.swift */,
 			);
 			path = PacketTunnel;
+			sourceTree = "<group>";
+		};
+		CA844B9D41B3605D8572DFE1 /* LegacyClassificationFixtures */ = {
+			isa = PBXGroup;
+			children = (
+				74F84EC23AF9FEB7F7DADBB1 /* BrokerClientError.swift */,
+				D53FA4E1D545CEBEDEB9E926 /* FailureClassifier.swift */,
+				0CEF7AC19807D31530F4594B /* LegacyTransportErrors.swift */,
+				8C3E8FDFC0B8620CADC8123F /* PacketTunnelError.swift */,
+				AA782A58E2F91FD89168D480 /* PacketTunnelProxyEngineError.swift */,
+				A9DA82823FD2FFAB9A9FCFF0 /* RelayReachabilityError.swift */,
+			);
+			path = LegacyClassificationFixtures;
+			sourceTree = "<group>";
+		};
+		D1AA992BDFB3BF63FDEA2705 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				AE4D2774EFF34BE32983633D /* Pods-OpenRung.debug.xcconfig */,
+				426E39F9341055FCE902A3B0 /* Pods-OpenRung.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
+			sourceTree = "<group>";
+		};
+		DF0B8D29EE157F18B114D908 /* EngineDeviceTests */ = {
+			isa = PBXGroup;
+			children = (
+				C86E239B778F6D082F7A9603 /* PacketTunnelDeviceTests.swift */,
+			);
+			path = EngineDeviceTests;
 			sourceTree = "<group>";
 		};
 		E73A5155909F9EFE9F13A6A1 /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				90B81EBD6EB3B24EBE741D16 /* EngineDeviceTests.xctest */,
 				AB8C9F2F42E47E0E9E9AA47E /* LibboxKit.framework */,
 				81B10868A3F7FA99A84696A4 /* OpenRung.app */,
 				174E944F053F54F691E59C74 /* OpenRungTests.xctest */,
@@ -497,6 +477,7 @@
 			isa = PBXGroup;
 			children = (
 				9494D959B10039E32D9B5B6A /* dist */,
+				DF0B8D29EE157F18B114D908 /* EngineDeviceTests */,
 				41B28D7DB0BD943259F87364 /* LibboxKit */,
 				2407F79AC36C68D7F2761D5C /* OpenRung */,
 				837FBBD5687C0AB326CC593E /* OpenRungTests */,
@@ -504,18 +485,8 @@
 				3F24A472F75132572E2891A1 /* Shared */,
 				A1C815B9A63C637692C1C541 /* Frameworks */,
 				E73A5155909F9EFE9F13A6A1 /* Products */,
-				F970B96DD9E08575D19C7137 /* Pods */,
+				D1AA992BDFB3BF63FDEA2705 /* Pods */,
 			);
-			sourceTree = "<group>";
-		};
-		F970B96DD9E08575D19C7137 /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				D9DD5A61842429ACF2A05EB4 /* Pods-OpenRung.debug.xcconfig */,
-				2925A6CA9CDE63A1865E53D8 /* Pods-OpenRung.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -559,16 +530,16 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = F19D0D1C8CB7FB1B6B178E82 /* Build configuration list for PBXNativeTarget "OpenRung" */;
 			buildPhases = (
-				86E678890F91FA0F635E32B7 /* [CP] Check Pods Manifest.lock */,
+				D83480F2EB06DED5853CC646 /* [CP] Check Pods Manifest.lock */,
 				BC3282E3662088C7CF8F8BC7 /* Sources */,
 				7272F5C7D4F2765DAB69942D /* Resources */,
 				6E9C330AAB907426FF017F77 /* Frameworks */,
 				141D130B421160859A220937 /* Embed Foundation Extensions */,
 				E5A73D1935A290882F2E847C /* Embed Frameworks */,
 				7645E65DA025354651549041 /* Bundle React Native code and images */,
-				05BBE1BEB169819F4319BC98 /* [MapLibre React Native] Remove MapLibre.xcframework-ios.signature */,
-				06EAEC5BDE4F7EA0B0719F8B /* [CP] Embed Pods Frameworks */,
-				E4FCCA0B8ED38177551F84D9 /* [CP] Copy Pods Resources */,
+				98BED2B2424243DA39C43C4B /* [MapLibre React Native] Remove MapLibre.xcframework-ios.signature */,
+				DF68E7EE96D0209F99F893E3 /* [CP] Embed Pods Frameworks */,
+				7DA143BFC4CDEEC87B2B535A /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -578,7 +549,7 @@
 			);
 			name = OpenRung;
 			packageProductDependencies = (
-				2DD99C03003230BD13C12608 /* MapLibre */,
+				65C96B137F8D9E0481042239 /* MapLibre */,
 			);
 			productName = OpenRung;
 			productReference = 81B10868A3F7FA99A84696A4 /* OpenRung.app */;
@@ -597,6 +568,22 @@
 			name = OpenRungTests;
 			productName = OpenRungTests;
 			productReference = 174E944F053F54F691E59C74 /* OpenRungTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		F53FA47A16BADE493AAC7E7D /* EngineDeviceTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 653E4D4E479E734E923D64BC /* Build configuration list for PBXNativeTarget "EngineDeviceTests" */;
+			buildPhases = (
+				2117A702ECFCF2851C82A119 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				465ACA1A9BFE81D1843EDAA6 /* PBXTargetDependency */,
+			);
+			name = EngineDeviceTests;
+			productName = EngineDeviceTests;
+			productReference = 90B81EBD6EB3B24EBE741D16 /* EngineDeviceTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
@@ -624,6 +611,10 @@
 						DevelopmentTeam = 9VLV9A7KS9;
 						ProvisioningStyle = Automatic;
 					};
+					F53FA47A16BADE493AAC7E7D = {
+						DevelopmentTeam = 9VLV9A7KS9;
+						ProvisioningStyle = Automatic;
+					};
 				};
 			};
 			buildConfigurationList = BE5FEF582D9F4428CE70CE8B /* Build configuration list for PBXProject "OpenRung" */;
@@ -636,13 +627,14 @@
 			mainGroup = F4646C7E57CBAA9E0DF5661F;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				B4FCE78CB8E08EB70534C3AC /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */,
+				DED31410BA162F031A8B6DCC /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E73A5155909F9EFE9F13A6A1 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
+				F53FA47A16BADE493AAC7E7D /* EngineDeviceTests */,
 				918ED55B0C2DB461BD7DBE0E /* LibboxKit */,
 				ADBDEA07895981C3C202875A /* OpenRung */,
 				F015EA6D6BDCBE1C4CAF2180 /* OpenRungTests */,
@@ -676,42 +668,6 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		05BBE1BEB169819F4319BC98 /* [MapLibre React Native] Remove MapLibre.xcframework-ios.signature */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			name = "[MapLibre React Native] Remove MapLibre.xcframework-ios.signature";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "rm -rf \"$CONFIGURATION_BUILD_DIR/MapLibre.xcframework-ios.signature\"";
-		};
-		06EAEC5BDE4F7EA0B0719F8B /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-frameworks-${CONFIGURATION}-input-files.xcfilelist",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
 		7645E65DA025354651549041 /* Bundle React Native code and images */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -732,7 +688,43 @@
 			shellPath = /bin/sh;
 			shellScript = "set -e\n\nWITH_ENVIRONMENT=\"$REACT_NATIVE_PATH/scripts/xcode/with-environment.sh\"\nREACT_NATIVE_XCODE=\"$REACT_NATIVE_PATH/scripts/react-native-xcode.sh\"\n\n/bin/sh -c \"\\\"$WITH_ENVIRONMENT\\\" \\\"$REACT_NATIVE_XCODE\\\"\"\n";
 		};
-		86E678890F91FA0F635E32B7 /* [CP] Check Pods Manifest.lock */ = {
+		7DA143BFC4CDEEC87B2B535A /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-resources-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		98BED2B2424243DA39C43C4B /* [MapLibre React Native] Remove MapLibre.xcframework-ios.signature */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "[MapLibre React Native] Remove MapLibre.xcframework-ios.signature";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "rm -rf \"$CONFIGURATION_BUILD_DIR/MapLibre.xcframework-ios.signature\"";
+		};
+		D83480F2EB06DED5853CC646 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -754,77 +746,71 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		E4FCCA0B8ED38177551F84D9 /* [CP] Copy Pods Resources */ = {
+		DF68E7EE96D0209F99F893E3 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-resources-${CONFIGURATION}-input-files.xcfilelist",
+				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			name = "[CP] Copy Pods Resources";
+			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-resources-${CONFIGURATION}-output-files.xcfilelist",
+				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-frameworks-${CONFIGURATION}-output-files.xcfilelist",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-resources.sh\"\n";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		2117A702ECFCF2851C82A119 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2CDCA0FED6BDD8CC2C4F4D43 /* PacketTunnelDeviceTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		6EC51947FEAC8844868F9EAC /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				523936029217C10BD01D40DC /* ActivityLog.swift in Sources */,
 				952EFF368D06083B89F5EE8D /* AppConfig.swift in Sources */,
-				662019FD66D0F3A9572970F8 /* BrokerClient.swift in Sources */,
-				BB0CE4474A9BF517F57AA4E8 /* BrokerClientError.swift in Sources */,
 				2E0156D4F82558FA780E5EFD /* ClientIdentity.swift in Sources */,
 				395673F4F22F8D43200B404C /* ConnectionStatus.swift in Sources */,
 				2226FA02DA3CF06280AA3D27 /* CountryGeo.swift in Sources */,
 				01FB4615E4C3105E861CBAA4 /* DeviceAttributes.swift in Sources */,
 				C27D37D3F725F36D253CEB88 /* DnsProbeMessage.swift in Sources */,
 				91DF94A8B176C8B90DCFF6A5 /* EngineDirectories.swift in Sources */,
-				064EE332A9DA0543E819E36C /* EngineStopSignal.swift in Sources */,
-				EAD1DFA9AB52E6A93CB60890 /* FailureClassifier.swift in Sources */,
-				352F6CA320938DBB039664C2 /* GeoIpClient.swift in Sources */,
+				07C76E6AA8C6D025BC7EF514 /* EngineEventDispatcher.swift in Sources */,
+				F24CCDAB26257BD7D24DF4A4 /* EngineMemoryMonitor.swift in Sources */,
+				4F53F9504D1A3BB9A20A7766 /* EngineNetworkObserver.swift in Sources */,
+				6E5B5403BAEE8ABB107291FE /* EngineOperationRunner.swift in Sources */,
+				99B702F68572D5E1569A623C /* EngineProbeFailure.swift in Sources */,
+				D2C1FC7BD898957136C5BFD4 /* EngineStateProjection.swift in Sources */,
+				5C5B44700D206EF4735FCBE2 /* EngineTunnelSettings.swift in Sources */,
+				85D8BA91A05244BEAAC60A24 /* IOSConnectcore.swift in Sources */,
+				F4E9943576D50ADF2D118398 /* IOSPacketTunnelRun.swift in Sources */,
 				9604E15625FCE8C234279160 /* InternetProbe.swift in Sources */,
-				DD3B9D8275BC1F711FAA7D19 /* LibboxBrokerTransport+Tunnel.swift in Sources */,
 				D420784479B66EB7456E650F /* LibboxBrokerTransport.swift in Sources */,
 				C4B31101802A2AE5B0E26703 /* LibboxPacketTunnelPlatformInterface.swift in Sources */,
 				FE46CA9BB747203298E45D6F /* NativeBrokerTransport.swift in Sources */,
 				02A118A7025D0906AAA606E1 /* NetworkPathMonitor.swift in Sources */,
 				6F79A2D91A14A48D88AB7A99 /* PacketTunnelDnsProbe.swift in Sources */,
-				FE8C2A7A69C2E15601117C9F /* PacketTunnelError.swift in Sources */,
+				8D46C1405D94CC96AFBC54A4 /* PacketTunnelEngineHost.swift in Sources */,
 				709A9385BBD22960A6922F77 /* PacketTunnelInternetProbe.swift in Sources */,
 				81C2338B54BA856645F46A5E /* PacketTunnelProvider.swift in Sources */,
-				E23AB43D1F262132DECB88F3 /* PacketTunnelProxyEngine.swift in Sources */,
-				4F5E5D33E5E0532AB1153B1C /* PacketTunnelProxyEngineError.swift in Sources */,
-				55DDC0684EEF4379E436524F /* PhysicalNetworkEpochMonitor.swift in Sources */,
 				36CB8CEB6F2E0530F9D82FEA /* ProbeTargets.swift in Sources */,
-				990A59F55F64D829C9DF9CAB /* PunchFallbackPolicy.swift in Sources */,
-				60F22B6A9A9C2E8398560EC5 /* PunchNativeClient.swift in Sources */,
-				FE4024439B637E56ABC50688 /* PunchRecoveryCircuitBreaker.swift in Sources */,
 				D095482C735B4750F9AC99BB /* RelayDescriptor.swift in Sources */,
-				A8F913880F45765F628CA0BE /* RelayRanker.swift in Sources */,
-				C1A6F6AC896E2EE68FCD7AC9 /* RelayReachability.swift in Sources */,
-				CE5FF08F60EA9B59A3FAD581 /* RelayReachabilityError.swift in Sources */,
-				024B9A8C62881E530EB591B4 /* RelaySelector.swift in Sources */,
 				C30EDE383463DB3F401D317E /* SharedConnectionState.swift in Sources */,
 				62AE36E16F5E162B6C7921DF /* SingBoxConfiguration.swift in Sources */,
 				401088D78629F49BDF35BF3D /* SplitTunnelConfig.swift in Sources */,
-				99A7C25018C3380ECB1C01AF /* StartupPathVerification.swift in Sources */,
-				CCB2C474FEDC465EA9762C71 /* TelemetryClient.swift in Sources */,
-				3D8CFD33EED8FE7AE1FB3299 /* TelemetryEvent.swift in Sources */,
-				794747220E38522FACAC57B2 /* TelemetryManager.swift in Sources */,
 				F6D4EDF154A64B658BBAA677 /* TelemetrySession.swift in Sources */,
 				89009F889ABE5BCFA7F125B2 /* TelemetrySessionStore.swift in Sources */,
-				94D05989D726F0125FC4CBDA /* WssFallbackPolicy.swift in Sources */,
-				AD065EDAA7E707087D40585B /* WssNativeClient.swift in Sources */,
-				BF67256F0E4E976654DB9E4D /* WssTicketClient.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -841,9 +827,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				069A422F72032F6301328723 /* AppConfig.swift in Sources */,
-				DA7F413E3D63AC3050CE4A6B /* BrokerClient.swift in Sources */,
-				3CCF2F1EFD201AD5A17B3998 /* BrokerClientError.swift in Sources */,
-				3211CE2D43E97CFA91D9E7FF /* BrokerClientTests.swift in Sources */,
+				536944876A7078C70A1B3B8E /* BridgeConfigurationTests.swift in Sources */,
+				19FBB7FC7291C722918F5A8E /* BrokerClientError.swift in Sources */,
 				D2021049A4947FDF31F8DB88 /* ConnectionStateSnapshotTests.swift in Sources */,
 				006F36ED698121FA8DA045C3 /* ConnectionStatus.swift in Sources */,
 				08F12A1BB6BE2540FEF05AEB /* ContractBrokerFrontsTests.swift in Sources */,
@@ -853,10 +838,18 @@
 				DA63F6EDE23966103B89E919 /* DnsConfigurationTests.swift in Sources */,
 				2809AA415FE496DE7FF7A72C /* DnsProbeMessage.swift in Sources */,
 				C6FCD962AA91B42B888ADC16 /* DnsProbeMessageTests.swift in Sources */,
-				8F139A6318A8DFB7DD1F9E1B /* EngineStopSignal.swift in Sources */,
-				2C3222CCA8C27C06BBA68F85 /* FailureClassifier.swift in Sources */,
+				4848380AF5BAABE5EC7A73DB /* EngineAdapterTests.swift in Sources */,
+				286ECE0BFC324EBCF884B342 /* EngineEventDispatcher.swift in Sources */,
+				468C4693D9D5CFC60054F987 /* EngineHostTests.swift in Sources */,
+				C3DBDB098B9DF367D32E369D /* EngineNetworkObserver.swift in Sources */,
+				F4A85CA2F691B7FEB1634174 /* EngineOperationRunner.swift in Sources */,
+				DF53A82708136D7117C3492F /* EngineProbeFailure.swift in Sources */,
+				ED256E8323D2EFE2BF410311 /* EngineStateProjection.swift in Sources */,
+				5C4A433E28CC9B6A79E0C065 /* EngineTunnelSettings.swift in Sources */,
+				8364D4D656EF87E013D2E0CE /* FailureClassifier.swift in Sources */,
 				3E600B1A4A0F6A075AB8D6E7 /* FailureClassifierTests.swift in Sources */,
 				837E14040DB7B0414964DCFC /* InternetProbe.swift in Sources */,
+				5BC1C25A08BB1C6251F13E66 /* LegacyTransportErrors.swift in Sources */,
 				B434A0C0E679EE9A6A8ED7AE /* NativeBrokerTestDoubles.swift in Sources */,
 				95BF75EED69904C3B224E0BF /* NativeBrokerTransport.swift in Sources */,
 				0EDBAE2EAFCBE31BD3D98EC9 /* NativeBrokerTransportTests.swift in Sources */,
@@ -865,37 +858,18 @@
 				6531CAFFDE106455D238BF18 /* OpenRungBrokerCoordinatorTests.swift in Sources */,
 				4363B566B4DCDF04E2E7455C /* PacketTunnelDnsProbe.swift in Sources */,
 				33C2943725973D77742264FD /* PacketTunnelDnsProbeTests.swift in Sources */,
-				01C5EA0362C5AAB18ED81859 /* PacketTunnelError.swift in Sources */,
+				54D85793856E78B8DF9B1629 /* PacketTunnelEngineHost.swift in Sources */,
+				A36F33BD19B983F5B0A002A7 /* PacketTunnelError.swift in Sources */,
 				8D1616AEAACF90DD9E955B23 /* PacketTunnelInternetProbe.swift in Sources */,
 				1184B9B71AB9E1AFDD657EE4 /* PacketTunnelInternetProbeTests.swift in Sources */,
-				39331D5AF76FB94FA1EB09CA /* PacketTunnelProxyEngineError.swift in Sources */,
-				B483D0418D53CDA277FC58A0 /* PhysicalNetworkEpochMonitor.swift in Sources */,
+				909819E0FC7B3C1E78EA3128 /* PacketTunnelProxyEngineError.swift in Sources */,
 				9806DF1AA177A05D22FA2708 /* ProbeTargets.swift in Sources */,
-				D868A91B4331D74B2D35D5CF /* PunchFallbackPolicy.swift in Sources */,
-				F86A7ADA4A7D12D83097E59C /* PunchFallbackPolicyTests.swift in Sources */,
-				528C84F7B1A49BA2C326F13A /* PunchNativeClient.swift in Sources */,
-				D960E08274E0601026BCA275 /* PunchNativeClientTests.swift in Sources */,
-				1E94BFE81511EAABC9E46ABA /* PunchRecoveryCircuitBreaker.swift in Sources */,
-				AB96391CC76AF367EFC71A23 /* PunchRecoveryCircuitBreakerTests.swift in Sources */,
 				EB4BB9C6B76C65809224DF35 /* RelayDescriptor.swift in Sources */,
-				4B33639315FF6460341572DA /* RelayRanker.swift in Sources */,
-				CA3379CA0C7E8B6506A3861C /* RelayRankerTests.swift in Sources */,
-				14A31DB460F1128BDFCECBE9 /* RelayReachability.swift in Sources */,
-				E6799BE42347DC306ADF2213 /* RelayReachabilityError.swift in Sources */,
+				A30C4D9B86CF8E4E964FFFB6 /* RelayReachabilityError.swift in Sources */,
 				DB776EA0CB28A8D6A698A6D7 /* SingBoxConfiguration.swift in Sources */,
 				84468A6D600DC1F02F4A0E08 /* SplitTunnelConfig.swift in Sources */,
 				9B3097DAD33017F59D7B0774 /* SplitTunnelConfigurationTests.swift in Sources */,
-				E934E6591F0F72952629EE42 /* StartupPathVerification.swift in Sources */,
-				12D3D6D42C26B9A43E8E2682 /* StartupPathVerificationTests.swift in Sources */,
-				29A7BF19A333B864CE602B12 /* TelemetryClient.swift in Sources */,
-				3CD18F293222260B71D429B1 /* TelemetryClientTests.swift in Sources */,
-				F7CB06F189A040EFBFCC13B0 /* WssFallbackPolicy.swift in Sources */,
-				2DD5AA78BC939B28ED0EEED5 /* WssFallbackPolicyTests.swift in Sources */,
-				40CA497FDECDFAE03EA534AF /* WssLifecycleAndConfigurationTests.swift in Sources */,
-				BF18951369CEC4EA7C3627F7 /* WssNativeClient.swift in Sources */,
 				9B19065CFCC93684ADE3C707 /* WssTestFixtures.swift in Sources */,
-				E11F61893E71E26974AF879B /* WssTicketClient.swift in Sources */,
-				204FDB07D7F8B62605E2D8EE /* WssTicketClientTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -911,7 +885,8 @@
 				1688E26406D6F8E93575AFCA /* CountryGeo.swift in Sources */,
 				101812ACF2D87E69B666B516 /* DeviceAttributes.swift in Sources */,
 				582566C8B59E519B2D10CD5B /* DnsProbeMessage.swift in Sources */,
-				0483F1444764AB1812DC4A79 /* GeoIpClient.swift in Sources */,
+				929CFA1B533CC91BEAF124F9 /* EngineEventDispatcher.swift in Sources */,
+				D9C12055B37783B2F772A5A6 /* EngineStateProjection.swift in Sources */,
 				7BA2BB158A3143887B1DE5BC /* LibboxBrokerTransport.swift in Sources */,
 				B399CE98F2A1BE3D97D45856 /* NativeBrokerTransport.swift in Sources */,
 				63F4601CF297170FC3EA5408 /* NetworkPathMonitor.swift in Sources */,
@@ -921,11 +896,9 @@
 				E2C945F0A942AE0E937369EC /* OpenRungVpnModule.m in Sources */,
 				F82F4E03FAD0D3DFDB106718 /* OpenRungVpnModule.swift in Sources */,
 				982E14D3077355EF8F7F3DB5 /* ProbeTargets.swift in Sources */,
+				7AD3CF8197D457CDDC3CCBCE /* RelayDescriptor.swift in Sources */,
 				9E3FE5CDA11DD5EEC1F54942 /* SharedConnectionState.swift in Sources */,
 				FDD249EAC97CC2DF789CBCE6 /* SplitTunnelConfig.swift in Sources */,
-				27D1C74BA3413782534C860E /* TelemetryClient.swift in Sources */,
-				598ABF6F03F652193C9D5B96 /* TelemetryEvent.swift in Sources */,
-				293B5AB965931E683887D8F4 /* TelemetryManager.swift in Sources */,
 				73D8BDE378B63443C918F178 /* TelemetrySession.swift in Sources */,
 				5F7D90BE5F101E0C8681DF70 /* TelemetrySessionStore.swift in Sources */,
 			);
@@ -938,6 +911,11 @@
 			isa = PBXTargetDependency;
 			target = 008A07C80B8C5B8E7AC13818 /* PacketTunnel */;
 			targetProxy = AB68B74D0A2AF7F55BDEAFB4 /* PBXContainerItemProxy */;
+		};
+		465ACA1A9BFE81D1843EDAA6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = ADBDEA07895981C3C202875A /* OpenRung */;
+			targetProxy = C45FFF8CCA256DBCCD49BF82 /* PBXContainerItemProxy */;
 		};
 		D384349DAD2D4DBB30CDC13E /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -954,7 +932,7 @@
 /* Begin XCBuildConfiguration section */
 		0D953B3D127C0BB08E644293 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 2925A6CA9CDE63A1865E53D8 /* Pods-OpenRung.release.xcconfig */;
+			baseConfigurationReference = 426E39F9341055FCE902A3B0 /* Pods-OpenRung.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = OpenRung/OpenRung.entitlements;
@@ -1151,7 +1129,7 @@
 				);
 				PODFILE_DIR = "$(SRCROOT)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				REACT_NATIVE_PATH = "${PODS_ROOT}/../../../../../../../../../opt/projects/openrung-mobile-app/node_modules/react-native";
+				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
 				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
@@ -1161,9 +1139,26 @@
 			};
 			name = Debug;
 		};
+		696B7CD74F913386836F0144 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.openrung.app.EngineDeviceTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OpenRung.app/OpenRung";
+			};
+			name = Debug;
+		};
 		73BE8C16CB91640112F4357A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = D9DD5A61842429ACF2A05EB4 /* Pods-OpenRung.debug.xcconfig */;
+			baseConfigurationReference = AE4D2774EFF34BE32983633D /* Pods-OpenRung.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = OpenRung/OpenRung.entitlements;
@@ -1190,6 +1185,23 @@
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Debug;
+		};
+		988A8451F8648C7A704468F3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.openrung.app.EngineDeviceTests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OpenRung.app/OpenRung";
+			};
+			name = Release;
 		};
 		D9763941706511C8F6084FFA /* Release */ = {
 			isa = XCBuildConfiguration;
@@ -1306,7 +1318,7 @@
 				);
 				PODFILE_DIR = "$(SRCROOT)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				REACT_NATIVE_PATH = "${PODS_ROOT}/../../../../../../../../../opt/projects/openrung-mobile-app/node_modules/react-native";
+				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
@@ -1359,6 +1371,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		653E4D4E479E734E923D64BC /* Build configuration list for PBXNativeTarget "EngineDeviceTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				696B7CD74F913386836F0144 /* Debug */,
+				988A8451F8648C7A704468F3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		BE5FEF582D9F4428CE70CE8B /* Build configuration list for PBXProject "OpenRung" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -1389,7 +1410,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		B4FCE78CB8E08EB70534C3AC /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */ = {
+		DED31410BA162F031A8B6DCC /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/maplibre/maplibre-gl-native-distribution";
 			requirement = {
@@ -1400,9 +1421,9 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		2DD99C03003230BD13C12608 /* MapLibre */ = {
+		65C96B137F8D9E0481042239 /* MapLibre */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = B4FCE78CB8E08EB70534C3AC /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */;
+			package = DED31410BA162F031A8B6DCC /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */;
 			productName = MapLibre;
 		};
 /* End XCSwiftPackageProductDependency section */

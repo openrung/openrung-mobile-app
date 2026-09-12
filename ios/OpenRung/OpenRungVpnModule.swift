@@ -242,7 +242,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
         Task { @MainActor in
             resolve([
                 "clientId": ClientIdentity.getOrCreate(),
-                "sessionId": TelemetryManager.activeSession()?.id ?? NSNull(),
+                "sessionId": TelemetrySessionStore.current()?.id ?? NSNull(),
             ] as [String: Any])
         }
     }

@@ -194,8 +194,10 @@ reason. `contract:check` fails on a declared consumer that is neither.
 
 ADR-003 B1's engine lifecycle API, runtime ownership, validation, and measured
 idle memory delta are recorded in [ENGINE_BINDING.md](docs/ENGINE_BINDING.md).
-The platform orchestrator cutovers and platform event-vector runners follow in
-B2/B3.
+The engine is the sole orchestrator on both platforms. See
+[Android cutover](docs/ANDROID_ENGINE_CUTOVER.md) and
+[iOS cutover](docs/IOS_ENGINE_CUTOVER.md) for parity evidence, platform vector
+runners and the remaining real-device/release acceptance gates.
 
 ## Building
 

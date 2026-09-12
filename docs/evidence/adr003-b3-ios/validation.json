@@ -1,0 +1,22 @@
+{
+  "budget_mib": 30,
+  "comparison": "Applied to the saved reports from the successful unchanged physical Release build; no runtime memory cap is configured.",
+  "device_model": "iPhone 17 Pro Max",
+  "os_version": "27.0 beta (24A5418b)",
+  "app_version": "0.3.8 (14)",
+  "engine_version": "connectcore/v0.6.1",
+  "cases": "stop during start, two direct TUN connections, 20-second holds, clean disconnect/reconnect, state/session cleanup, stable identity",
+  "reports": [
+    {
+      "report": "cycle-1-memory.json",
+      "sampled_peak_mib": 15.783,
+      "passes_30_mib": true
+    },
+    {
+      "report": "cycle-2-memory.json",
+      "sampled_peak_mib": 15.908,
+      "passes_30_mib": true
+    }
+  ],
+  "full_transport_network_and_soak_acceptance": false
+}

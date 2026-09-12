@@ -430,6 +430,7 @@ for generated_symbol in \
   'networkChanged(boolean, java.lang.String, java.lang.String) throws java.lang.Exception;' \
   'stateJSON();' \
   'teardownComplete();' \
+  'newOpenRungMobileEngineForIOS(java.lang.String, io.nekohasekai.libbox.OpenRungMobileHost, io.nekohasekai.libbox.OpenRungEngineListener) throws java.lang.Exception;' \
   'newOpenRungMobileEngineForAndroid(java.lang.String, io.nekohasekai.libbox.OpenRungWSSProtector, io.nekohasekai.libbox.OpenRungMobileHost, io.nekohasekai.libbox.OpenRungEngineListener) throws java.lang.Exception;' \
   'openRungTunName(int) throws java.lang.Exception;' \
   'settingsJSON() throws java.lang.Exception;' \

@@ -20,9 +20,11 @@ recording, status/log persistence.
 ADR-003 B1 adds the shared engine lifecycle binding under
 `android/punchbridge/engine_binding.go`, the per-run runtime in
 `engine_runtime.go`, and the concrete libbox graft in `engine_libbox.go`.
-B2 makes connectcore v0.6.1 Android's sole orchestrator through its mobile host
-API; Kotlin retains OS lifecycle and platform mechanics. Swift keeps its native
-orchestrator until B3.
+B2/B3 make connectcore v0.6.1 the sole orchestrator on both platforms through
+its mobile host API. Kotlin and Swift retain OS lifecycle, tunnel ownership,
+network observation, and explicit through-tunnel verification. See
+[IOS_ENGINE_CUTOVER.md](IOS_ENGINE_CUTOVER.md) for Swift parity evidence and
+physical-device/memory gates.
 See [ENGINE_BINDING.md](ENGINE_BINDING.md) for the callback/lifetime contract,
 memory measurements, validation, and resolved divergences introduced by the
 connectcore pin (including the shared builder's explicit tunneled-QUIC rejection).
@@ -669,34 +671,48 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
 `PacketTunnel` app-extension target. `scripts/generate-project.sh` runs
 `xcodegen generate` + `pod install`. Podfile target stays `OpenRung`.
 
-- `ios/PacketTunnel/` — ported verbatim from production
-  (`PacketTunnelProvider.swift`, `PacketTunnelProxyEngine.swift`,
-  `LibboxPacketTunnelPlatformInterface.swift`, `EngineDirectories.swift`,
-  Info.plist, entitlements) with the §2 identifiers substituted.
-- `ios/Shared/` — ported `Shared/` + the OpenRungKit sources the tunnel and
-  module need (BrokerClient, RelayDescriptor, RelaySelector, SingBoxConfiguration,
-  GeoIpClient, CountryGeo, RelayReachability, InternetProbe, Telemetry*,
-  ActivityLog, ConnectionStatus/Snapshot, SharedConnectionState, AppConfig …)
-  flattened into one directory compiled into BOTH targets (no SPM package).
-- `ios/Shared/WssTicketClient.swift` and `WssFallbackPolicy.swift` implement
-  the shared §6 ticket and direct-first classification contract. PacketTunnel
-  owns `WssNativeClient.swift`, the exact-front validator, and
-  `PhysicalNetworkEpochMonitor.swift`: adapter loss, the health-failure
-  threshold, or a changed `NWPath` fingerprint stops Reality before the
-  adapter, then performs fresh signed discovery, direct Reality first, and a
-  fresh ticket only if another eligible remote failure occurs. An identical
-  `NWPath` callback is ignored, and wake only resumes the engine; neither event
-  alone retires a healthy WSS session.
-- `ios/PacketTunnel/PunchNativeClient.swift` and
-  `PunchRecoveryCircuitBreaker.swift`, plus
-  `ios/Shared/PunchFallbackPolicy.swift`, implement the punch-first same-relay
-  ladder. Only broker-signed `punch_capable` descriptors with a strict HTTPS
-  endpoint are eligible. Bare-IP coordinators require an exact leaf pin;
-  hostname endpoints retain normal CA/hostname verification. The native result
-  must expose a literal loopback bridge. Adapter, changed-`NWPath`, and
-  end-to-end health loss stop Reality before QUIC, wait for a usable physical
-  path, then perform fresh signed discovery. Three rapid direct losses open the
-  per-relay circuit for the current user connection and select RelayHub.
+- `PacketTunnelProvider.swift` delegates lifecycle to the process-lifetime
+  `PacketTunnelEngineHost.swift`; `IOSConnectcore.swift` constructs the bound
+  mobile engine once. Its serialized control queue joins Stop before replacing
+  an owner. `EngineEventDispatcher.swift` captures attachments before enqueueing
+  Go callbacks and drops events from retired owners. No callback reenters Go inline.
+- `IOSPacketTunnelRun.swift` owns one provider and
+  `LibboxPacketTunnelPlatformInterface.swift` per attempt. Readiness requires
+  applied NE network settings and the provider's TUN fd. NE owns the original
+  fd; libbox duplicates it. Go cancels/joins operations, closes libbox, captures
+  final traffic, then calls the run's Close to remove settings during candidate
+  replacement. Once `stopTunnel` begins, NetworkExtension owns settings removal;
+  its rejection of a racing clear is no longer treated as a live TUN. Failed teardown
+  retains the owner, rejects reuse and asks NetworkExtension to terminate the tunnel.
+- `PacketTunnelDnsProbe.swift` and `PacketTunnelInternetProbe.swift` remain OS
+  hooks: fresh nonce DNS and priority-pinned HTTPS use Apple's explicit
+  `createUDPSessionThroughTunnel` / `createTCPConnectionThroughTunnel` APIs.
+  `EngineOperationRunner.swift` propagates Go cancellation into Swift and joins
+  socket cleanup. `EngineProbeFailure.swift` passes native error facts to Go's
+  classifier; unknown/platform failures cannot authorize remote recovery.
+- `EngineNetworkObserver.swift` sends initial and changed NWPath fingerprints,
+  including down/up, interface capabilities and cost. Sleep pauses connectcore
+  and libbox; observations continue while asleep. Wake resumes the data plane
+  before connectcore monitoring, using the latest observed epoch. Wake alone
+  and duplicate paths do not request recovery.
+- `EngineTunnelSettings.swift` supplies only native TUN, log, probe and fresh
+  effective split settings. The shared engine owns all ladder, ranking,
+  punching, WSS ticket, health, recovery, configuration and session policy.
+  PacketTunnelProxyEngine, WssFallbackPolicy/WssTicketClient, RelayRanker/
+  RelaySelector, PunchRecoveryCircuitBreaker, native startup/recovery guards,
+  discovery/geo wrappers, and TelemetryManager were removed. Historical error
+  shapes live only in `OpenRungTests/LegacyClassificationFixtures` for the
+  ADR-001 vectors; no selectable native orchestrator remains.
+- `Shared/EngineStateProjection.swift` translates atomic Details into the
+  existing app-group state: sanitized geographic location, display name, class,
+  matching recents and session ID. `TelemetrySessionStore` keeps its prior
+  storage format for the app's getIdentity call. Go opens the existing
+  app-group `outbox.json`, including its array-to-NDJSON migration, and retains
+  the install UUID. Sessions include app version, platform and engine identity.
+  There is no second Swift uploader or heartbeat loop.
+- `EngineMemoryMonitor.swift` optionally records physical footprint when a
+  Release internal build defines `OPENRUNG_MEMORY_DIAGNOSTICS`. This diagnostic
+  does not select an engine or establish memory acceptance; see the B3 evidence.
 - `ios/OpenRung/OpenRungVpnModule.swift` + `OpenRungVpnModule.m`
   (RCT_EXTERN_MODULE) — implements §3 over NETunnelProviderManager +
   SharedConnectionState (Darwin observer + NEVPNStatusDidChange), including the
@@ -733,27 +749,17 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   §1). iOS has no per-app bypass: `excluded_packages` is parsed and ignored,
   so a config whose only effective content is excluded packages yields nil
   rules.
-- Both targets: packet-tunnel-provider entitlement + app group; no ATS exceptions —
-  default App Transport Security is enforced because every production endpoint
-  is HTTPS (see ARCHITECTURE.md § "Network transport"). The OpenRung host and
-  PacketTunnel extension each link the same static
-  `ThirdParty/Libbox.xcframework` (`embed:false`) plus `libresolv.tbd`;
-  PacketTunnel sets `APPLICATION_EXTENSION_API_ONLY=YES` and compiles without
-  the xcframework via the existing `#if canImport(Libbox)` stub.
-- `ios/build-libbox-release.sh` generates that one device+simulator
-  `Libbox.xcframework` by grafting the shared punch binding/session/bridge,
-  `broker_binding.go`, and `wss_binding.go` into the pinned sing-box libbox
-  package and resolving the brokerapi, punchcore, and wsscore versions pinned
-  in `android/punchbridge/go.mod`. PacketTunnel calls the generated
-  `LibboxNewOpenRungPunchClientForIOS(baseURL,relayID,insecureTLS,certSHA256,listener)`
-  export. Its nil protector is Apple-specific: provider-created sockets are
-  outside PacketTunnel's own TUN, while the Android constructor remains
-  fail-closed on a missing/rejected protector. PacketTunnel also calls the
-  generated
-  `LibboxNewOpenRungWSSClientForIOS(frontURL,ticket,listener)` export, whose
-  nil `SocketProtector` deliberately selects wsscore's Apple nil-protector
-  path. A second gomobile framework/runtime or an artifact built with
-  `BROKERAPI_SRC`, `PUNCHCORE_SRC`, or `WSSCORE_SRC` is not releasable.
+- Both targets retain the packet-tunnel-provider/app-group entitlements and
+  ATS defaults. The app and extension import the same generated Libbox headers
+  and link the single dynamic `LibboxKit` wrapper, which carries the static Go
+  archive once in the app's Frameworks directory.
+- `ios/build-libbox-release.sh` builds device/simulator slices from the pinned
+  sing-box and module tags, including the shared mobile engine graft. Swift
+  calls `LibboxNewOpenRungMobileEngineForIOS(config, host, listener, error)`.
+  The constructor rejects non-iOS runtimes. Its nil protector is Apple-specific:
+  ordinary provider sockets are outside its own TUN, while probes explicitly
+  opt into that TUN. Android still requires a protector. Both release scripts
+  pin the mobile host/run ABI. Local module overrides remain development-only.
 
 The exact direct-broker and CloudFront manifest candidates use
 `fetchManifestCandidate`; the GitHub release asset remains the narrowly allowed

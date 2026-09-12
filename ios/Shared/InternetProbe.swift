@@ -62,9 +62,6 @@ func isGenuineRemoteDataPathFailure(_ error: Error, depth: Int = 0) -> Bool {
         guard let underlying = probeError.underlyingError else { return false }
         return isGenuineRemoteDataPathFailure(underlying, depth: depth + 1)
     }
-    if let reachabilityError = error as? RelayReachabilityError {
-        return reachabilityError == .timeout
-    }
     if let urlError = error as? URLError {
         switch urlError.code {
         case .timedOut, .cannotFindHost, .cannotConnectToHost, .networkConnectionLost,
@@ -92,12 +89,9 @@ func isGenuineRemoteDataPathFailure(_ error: Error, depth: Int = 0) -> Bool {
             return false
         }
     }
-    if let posixError = error as? POSIXError {
-        return isRemotePOSIXFailure(posixError.code)
-    }
     let nsError = error as NSError
     if nsError.domain == NSPOSIXErrorDomain,
-       let code = POSIXErrorCode(rawValue: Int32(nsError.code)) {
+       let raw = Int32(exactly: nsError.code), let code = POSIXErrorCode(rawValue: raw) {
         return isRemotePOSIXFailure(code)
     }
     if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? Error {
@@ -113,25 +107,5 @@ private func isRemotePOSIXFailure(_ code: POSIXErrorCode) -> Bool {
         return true
     default:
         return false
-    }
-}
-
-/// Pure threshold state used by the active WSS health loop and hostless tests.
-struct TunnelHealthFailureThreshold: Equatable, Sendable {
-    let requiredFailures: Int
-    private(set) var consecutiveFailures = 0
-
-    init(requiredFailures: Int = 3) {
-        precondition(requiredFailures > 0)
-        self.requiredFailures = requiredFailures
-    }
-
-    mutating func recordSuccess() {
-        consecutiveFailures = 0
-    }
-
-    mutating func recordRemoteFailure() -> Bool {
-        consecutiveFailures = min(consecutiveFailures + 1, requiredFailures)
-        return consecutiveFailures >= requiredFailures
     }
 }

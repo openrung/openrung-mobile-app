@@ -123,9 +123,10 @@ func TestOpenRungEngineRuntimeLaunchFailureAndPoisonedClose(t *testing.T) {
 	for _, closeFails := range []bool{false, true} {
 		t.Run(map[bool]string{false: "launch", true: "close"}[closeFails], func(t *testing.T) {
 			launchErr := errors.New("libbox config rejected")
+			closeErr := errors.New("TUN close failed")
 			s := &engineTestService{startFn: func(string) error { return launchErr }}
 			if closeFails {
-				s.closeFn = func() error { return errors.New("TUN close failed") }
+				s.closeFn = func() error { return closeErr }
 			}
 			rt := engineTestRuntime(s)
 			run, err := rt.Run(context.Background(), nil)
@@ -139,6 +140,9 @@ func TestOpenRungEngineRuntimeLaunchFailureAndPoisonedClose(t *testing.T) {
 				t.Fatalf("close outcome %v", err)
 			}
 			if closeFails {
+				if !errors.Is(rt.shutdownError(), closeErr) {
+					t.Fatal("shutdown hid the native teardown cause")
+				}
 				if _, err := rt.Run(context.Background(), nil); err == nil {
 					t.Fatal("poisoned runtime restarted")
 				}

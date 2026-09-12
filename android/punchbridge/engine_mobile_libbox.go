@@ -67,12 +67,37 @@ type openRungMobileConfig struct {
 // Legacy decoding matches the shipping outbox: corrupt rows are discarded,
 // while a durability failure rejects construction so the host retains its source.
 func NewOpenRungMobileEngineForAndroid(configJSON string, protector OpenRungWSSProtector, host OpenRungMobileHost, listener OpenRungEngineListener) (OpenRungEngine, error) {
+	if protector == nil {
+		return nil, errors.New("VPN socket protector is required")
+	}
+	engine, err := newOpenRungMobileEngine(configJSON, brokerapi.PlatformAndroid, protector, host, listener)
+	if err != nil {
+		return nil, err
+	}
+	return engine, nil
+}
+
+// NewOpenRungMobileEngineForIOS is valid only inside the authorized packet tunnel
+// extension. Provider-owned outer sockets bypass its own TUN; probes must use
+// the provider's explicit through-tunnel APIs and attest that path separately.
+func NewOpenRungMobileEngineForIOS(configJSON string, host OpenRungMobileHost, listener OpenRungEngineListener) (OpenRungEngine, error) {
+	if iosConstructorRequiresSocketProtector() {
+		return nil, errors.New("iOS mobile engine requires the iOS runtime")
+	}
+	engine, err := newOpenRungMobileEngine(configJSON, brokerapi.PlatformIOS, nil, host, listener)
+	if err != nil {
+		return nil, err
+	}
+	return engine, nil
+}
+
+func newOpenRungMobileEngine(configJSON string, platform brokerapi.Platform, protector OpenRungWSSProtector, host OpenRungMobileHost, listener OpenRungEngineListener) (*openRungEngine, error) {
 	var cfg openRungMobileConfig
 	if err := decodeOpenRungObject(configJSON, &cfg); err != nil {
 		return nil, err
 	}
-	if host == nil || listener == nil || protector == nil || !clienttelemetry.ValidInstallID(cfg.InstallID) || cfg.Directory == "" || cfg.AppVersion == "" {
-		return nil, errors.New("mobile host, protector, listener, install UUID, version and outbox directory required")
+	if host == nil || listener == nil || !clienttelemetry.ValidInstallID(cfg.InstallID) || cfg.Directory == "" || cfg.AppVersion == "" {
+		return nil, errors.New("mobile host, listener, install UUID, version and outbox directory required")
 	}
 	var legacy []clienttelemetry.Event
 	if cfg.LegacyBatch != "" {
@@ -89,13 +114,20 @@ func NewOpenRungMobileEngineForAndroid(configJSON string, protector OpenRungWSSP
 	// Outbox uploads use exactly the same protected broker route as engine traffic.
 	var dnsMu sync.RWMutex
 	var dnsServers []string
-	outbox, err := clienttelemetry.NewOutbox(cfg.Directory, "openrung_telemetry_outbox.jsonl", func(ctx context.Context, url string, events []clienttelemetry.Event) error {
+	filename := "openrung_telemetry_outbox.jsonl"
+	if platform == brokerapi.PlatformIOS {
+		filename = "outbox.json"
+	}
+	outbox, err := clienttelemetry.NewOutbox(cfg.Directory, filename, func(ctx context.Context, url string, events []clienttelemetry.Event) error {
 		dnsMu.RLock()
 		dns := append([]string(nil), dnsServers...)
 		dnsMu.RUnlock()
-		httpClient := brokerapi.NewHTTPClientWithDialControl(0, wsscore.SocketControl(protected), wsscore.ProtectedResolver(protected, dns))
+		httpClient := brokerapi.NewHTTPClientWithDialControl(0, nil, nil)
+		if protector != nil {
+			httpClient = brokerapi.NewHTTPClientWithDialControl(0, wsscore.SocketControl(protected), wsscore.ProtectedResolver(protected, dns))
+		}
 		defer httpClient.CloseIdleConnections()
-		err := (clienttelemetry.HTTPClient{BaseURL: url, HTTP: httpClient, AppVersion: cfg.AppVersion, Platform: brokerapi.PlatformAndroid, PlatformVersion: cfg.PlatformVersion}).Send(ctx, events)
+		err := (clienttelemetry.HTTPClient{BaseURL: url, HTTP: httpClient, AppVersion: cfg.AppVersion, Platform: platform, PlatformVersion: cfg.PlatformVersion}).Send(ctx, events)
 		var status *brokerapi.BrokerStatusError
 		if errors.As(err, &status) && status.StatusCode >= 400 && status.StatusCode < 500 && status.StatusCode != 408 && status.StatusCode != 429 {
 			return fmt.Errorf("%w: %w", clienttelemetry.ErrBatchRejected, err)
@@ -109,13 +141,18 @@ func NewOpenRungMobileEngineForAndroid(configJSON string, protector OpenRungWSSP
 		outbox.Close()
 		return nil, errors.New("legacy telemetry import incomplete; retain source")
 	}
-	runtime := &openRungMobileRuntime{host: host, base: &openRungEngineRuntime{}}
+	runtime := &openRungMobileRuntime{host: host, base: &openRungEngineRuntime{}, statsInterval: time.Second}
+	if platform == brokerapi.PlatformIOS {
+		runtime.statsInterval = time.Minute
+	}
 	engine := connectcore.New()
-	engine.Platform = brokerapi.PlatformAndroid
-	engine.SocketProtector = protected
+	engine.Platform = platform
+	if protector != nil {
+		engine.SocketProtector = protected
+	}
 	engine.Sink = &openRungEngineSink{listener: listener}
 	engine.Elevation = openRungMobileElevation{}
-	engine.PunchEstablisher = openRungMobilePunchEstablisher(cfg.CoordinatorPins, openRungEnginePunchEstablisher(protector, false, dialOpenRungPunch))
+	engine.PunchEstablisher = openRungMobilePunchEstablisher(cfg.CoordinatorPins, openRungEnginePunchEstablisher(protector, platform == brokerapi.PlatformIOS, dialOpenRungPunch))
 	engine.Mobile = &connectcore.MobileHost{InstallID: cfg.InstallID, AppVersion: cfg.AppVersion, PlatformVersion: cfg.PlatformVersion, Runtime: runtime, Outbox: outbox,
 		Settings: func(ctx context.Context) (connectcore.MobileTunnelSettings, error) {
 			if err := ctx.Err(); err != nil {
@@ -143,12 +180,17 @@ func NewOpenRungMobileEngineForAndroid(configJSON string, protector OpenRungWSSP
 		return nil, err
 	}
 	engine.Start()
-	return &openRungEngine{engine: engine, runtime: runtime.base, networkDNS: func(servers []string) { dnsMu.Lock(); dnsServers = append([]string(nil), servers...); dnsMu.Unlock() }}, nil
+	var pauseDataPlane func(bool)
+	if platform == brokerapi.PlatformIOS {
+		pauseDataPlane = runtime.base.setPaused
+	}
+	return &openRungEngine{engine: engine, runtime: runtime.base, pauseDataPlane: pauseDataPlane, networkDNS: func(servers []string) { dnsMu.Lock(); dnsServers = append([]string(nil), servers...); dnsMu.Unlock() }}, nil
 }
 
 type openRungMobileRuntime struct {
-	host OpenRungMobileHost
-	base *openRungEngineRuntime
+	host          OpenRungMobileHost
+	base          *openRungEngineRuntime
+	statsInterval time.Duration
 }
 
 func (r *openRungMobileRuntime) Preflight(ctx context.Context, config []byte) error {
@@ -177,7 +219,7 @@ func (r *openRungMobileRuntime) Run(ctx context.Context, config []byte, telemetr
 			return nil, errors.Join(err, native.Close())
 		}
 		ownCtx, cancel := context.WithCancel(ctx)
-		service = &openRungMobileService{openRungEngineService: core, server: core.(*openRungLibboxService).server, native: native, ctx: ownCtx, cancel: cancel, telemetry: telemetry}
+		service = &openRungMobileService{openRungEngineService: core, server: core.(*openRungLibboxService).server, native: native, ctx: ownCtx, cancel: cancel, telemetry: telemetry, statsInterval: r.statsInterval}
 		return service, nil
 	})
 	if err != nil {
@@ -188,28 +230,40 @@ func (r *openRungMobileRuntime) Run(ctx context.Context, config []byte, telemetr
 
 type openRungMobileService struct {
 	openRungEngineService
-	server    *CommandServer
-	native    OpenRungMobileRun
-	ctx       context.Context
-	cancel    context.CancelFunc
-	telemetry *connectcore.RunTelemetry
-	opsMu     sync.Mutex
-	closed    bool
-	ops       sync.WaitGroup
-	statsDone chan struct{}
+	server        *CommandServer
+	native        OpenRungMobileRun
+	ctx           context.Context
+	cancel        context.CancelFunc
+	telemetry     *connectcore.RunTelemetry
+	lifecycleMu   sync.Mutex
+	paused        bool
+	retired       bool
+	opsMu         sync.Mutex
+	closed        bool
+	ops           sync.WaitGroup
+	statsDone     chan struct{}
+	statsInterval time.Duration
 }
 
 func (s *openRungMobileService) start(config string) error {
+	// The run worker calls start then close sequentially. Do not hold the
+	// lifecycle lock across native TUN setup: sleep must be able to record its
+	// state promptly so the host queue can still deliver a following Stop.
 	if err := s.openRungEngineService.start(config); err != nil {
 		return err
 	}
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
 	if s.server == nil {
 		return nil
+	}
+	if s.paused {
+		s.server.Pause()
 	}
 	s.statsDone = make(chan struct{})
 	go func() {
 		defer close(s.statsDone)
-		_ = s.server.SubscribeStatus(&daemon.SubscribeStatusRequest{Interval: int64(time.Second)}, &openRungMobileStats{service: s})
+		_ = s.server.SubscribeStatus(&daemon.SubscribeStatusRequest{Interval: int64(s.statsInterval)}, &openRungMobileStats{service: s})
 	}()
 	return nil
 }
@@ -222,7 +276,13 @@ func (s *openRungMobileService) close() error {
 	if s.statsDone != nil {
 		<-s.statsDone
 	}
+	s.lifecycleMu.Lock()
+	s.retired = true
+	if s.server != nil && s.server.endPauseTimer != nil {
+		s.server.endPauseTimer.Stop()
+	}
 	err := s.openRungEngineService.close()
+	s.lifecycleMu.Unlock()
 	// Never release the native TUN owner if Go teardown did not finish.
 	if err != nil {
 		return err
@@ -234,6 +294,30 @@ func (s *openRungMobileService) close() error {
 	}
 	return s.native.Close()
 }
+
+// Pause and close never race the libbox service; a pause during launch is
+// applied once startup completes, and a retired service cannot be woken.
+func (s *openRungMobileService) setPaused(paused bool) {
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	s.paused = paused
+	if s.retired || s.server == nil || s.statsDone == nil {
+		return
+	}
+	if paused {
+		s.server.Pause()
+	} else {
+		// Pinned libbox's Wake deliberately does nothing on iOS. Resume the
+		// device explicitly before connectcore restarts health/recovery work.
+		if s.server.endPauseTimer != nil {
+			s.server.endPauseTimer.Stop()
+		}
+		if instance := s.server.Instance(); instance != nil && instance.PauseManager() != nil {
+			instance.PauseManager().DeviceWake()
+		}
+	}
+}
+
 func (s *openRungMobileService) operation(ctx context.Context, call func(*OpenRungEngineOperation) error) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -269,17 +353,21 @@ func (r *openRungMobileTunnel) VerifyPath(ctx context.Context, phase connectcore
 	var evidence connectcore.TunnelPathEvidence
 	err := r.service.operation(ctx, func(op *OpenRungEngineOperation) error {
 		var result struct {
-			Path     string `json:"path"`
-			FreshDNS bool   `json:"fresh_dns"`
-			HTTPS    bool   `json:"pinned_https"`
-			Stage    string `json:"remote_stage"`
-			Error    string `json:"error"`
+			Path     string                `json:"path"`
+			FreshDNS bool                  `json:"fresh_dns"`
+			HTTPS    bool                  `json:"pinned_https"`
+			Stage    string                `json:"remote_stage"`
+			Error    string                `json:"error"`
+			Facts    *openRungFailureInput `json:"failure_facts"`
 		}
 		if err := json.Unmarshal([]byte(r.service.native.VerifyPath(op, string(phase))), &result); err != nil {
 			return err
 		}
 		if result.Error != "" {
-			err := errors.New(result.Error)
+			var err error = errors.New(result.Error)
+			if result.Facts != nil {
+				err = fmt.Errorf("%s: %w", result.Error, openRungFailureError(*result.Facts))
+			}
 			if result.Stage != "" {
 				return &connectcore.RemotePathError{Stage: result.Stage, Err: err}
 			}
@@ -297,7 +385,7 @@ type openRungMobileStats struct {
 }
 
 func (s *openRungMobileStats) Send(status *daemon.Status) error {
-	if status.TrafficAvailable {
+	if status.TrafficAvailable && s.service.telemetry != nil {
 		s.service.telemetry.UpdateTraffic(status.UplinkTotal, status.DownlinkTotal)
 	}
 	if s.once {
