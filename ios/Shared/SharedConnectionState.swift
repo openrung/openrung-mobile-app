@@ -43,24 +43,6 @@ enum SharedConnectionState {
         mutate { $0.brokerURL = url }
     }
 
-    static func setRelayLabel(_ label: String?) {
-        mutate { $0.relayLabel = label }
-    }
-
-    static func recordRecent(_ node: RecentNode) {
-        mutate { snapshot in
-            snapshot.recentRegions = (
-                [node] +
-                    snapshot.recentRegions.filter { recent in
-                        recent.relayId != node.relayId &&
-                            !(recent.relayId == nil && recent.countryCode == node.countryCode)
-                    }
-            )
-                .prefix(AppConfig.maxRecents)
-                .map { $0 }
-        }
-    }
-
     static func clearError() {
         mutate { $0.lastError = nil }
     }

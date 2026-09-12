@@ -47,8 +47,10 @@ owns final process/resource reclamation. A telemetry upload timeout alone keeps
 the backlog and permits reuse. iOS continues to omit per-application attribution.
 The original app-group install UUID and `outbox.json` (including array-format
 migration) are retained. The follow-up cleanup carries only the engine session ID
-in `ConnectionStateSnapshot`, atomically with connection status, for `getIdentity()`;
-new snapshot writes remove the obsolete `telemetry_session` record. There is no
+in `ConnectionStateSnapshot`, atomically with connection status. The app mirrors
+that ID in memory, initially nil on cold launch; `getIdentity()` and state reloads
+reconcile it with OS tunnel status so a down/invalid tunnel never exposes a stale
+ID. New snapshot writes remove the obsolete `telemetry_session` record. There is no
 second Swift outbox/heartbeat manager. Engine telemetry carries app version,
 platform and connectcore identity for Track C; older native sessions remain
 identifiable by known release versions.

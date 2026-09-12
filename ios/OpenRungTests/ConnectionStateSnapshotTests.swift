@@ -97,6 +97,63 @@ final class ConnectionStateSnapshotTests: XCTestCase {
         XCTAssertNil(snapshot.sessionID)
     }
 
+    func testSystemTunnelReconciliationRejectsCrashedSessionAndLateReloads() {
+        let persisted = ConnectionStateSnapshot(status: .connected, sessionID: "engine-session",
+            relayLabel: "Tokyo", relayName: "Relay 7", relayClass: "volunteer")
+        var app = persisted.sanitizedForColdStart()
+        XCTAssertNil(app.sessionID)
+        // Loading a still-live VPN restores identity without a new extension event.
+        app = persisted
+        app.reconcileSystemTunnel(isDown: false)
+        XCTAssertEqual(app.sessionID, "engine-session")
+        // A crash and then a delayed shared-state reload both consult the OS.
+        for _ in 0..<2 {
+            app = persisted
+            app.reconcileSystemTunnel(isDown: true)
+            XCTAssertNil(app.sessionID)
+            XCTAssertEqual(app.status, .disconnected)
+            XCTAssertNil(app.relayName)
+            XCTAssertNil(app.relayClass)
+            XCTAssertNil(app.relayLabel)
+        }
+        for status: ConnectionStatus in [.preparing, .connecting, .disconnecting, .disconnected, .failed] {
+            app = ConnectionStateSnapshot(status: status, sessionID: "stale", lastError: "keep error")
+            app.reconcileSystemTunnel(isDown: true)
+            XCTAssertNil(app.sessionID)
+            XCTAssertEqual(app.lastError, "keep error")
+        }
+    }
+
+    func testEngineRecentsPromoteDedupeReplaceLegacyAndCap() throws {
+        func node(_ id: String?, _ country: String = "JP") -> RecentNode {
+            RecentNode(countryCode: country, relayId: id, label: "old", relayName: nil, latitude: 0, longitude: 0)
+        }
+        var snapshot = ConnectionStateSnapshot(recentRegions:
+            [node(nil), node(""), node(" \t"), node("other"), node(nil, "US"), node("current")]
+            + (0..<10).map { node("tail-\($0)", "DE") })
+        let event = EngineEvent(sequence: 1, kind: "state", payload: ["Status": "connected",
+            "Details": ["RelayID": "current", "RelayName": "New name", "LocationLabel": "Tokyo"],
+            "Recents": [["RelayID": "current", "CountryCode": "JP", "Latitude": 35.0, "Longitude": 139.0]]])
+        snapshot.applyEngineState(try XCTUnwrap(EngineStateProjection(event)))
+        XCTAssertEqual(snapshot.recentRegions.count, AppConfig.maxRecents)
+        XCTAssertEqual(snapshot.recentRegions.prefix(3).map(\.relayId), ["current", "other", nil])
+        XCTAssertEqual(snapshot.recentRegions[2].countryCode, "US")
+        XCTAssertEqual(snapshot.recentRegions[0].label, "Tokyo")
+        XCTAssertEqual(snapshot.recentRegions[0].relayName, "New name")
+        XCTAssertEqual(snapshot.recentRegions[0].latitude, 35)
+        XCTAssertEqual(snapshot.recentRegions.last?.relayId, "tail-4")
+    }
+
+    func testEngineBuiltBlankRecentIsReplacedByPinnedRelay() throws {
+        var snapshot = ConnectionStateSnapshot()
+        for id in ["", "relay-new"] {
+            let event = EngineEvent(sequence: 1, kind: "state", payload: ["Status": "connected",
+                "Details": ["RelayID": id], "Recents": [["RelayID": id, "CountryCode": "JP"]]])
+            snapshot.applyEngineState(try XCTUnwrap(EngineStateProjection(event)))
+        }
+        XCTAssertEqual(snapshot.recentRegions.map(\.relayId), ["relay-new"])
+    }
+
     // MARK: - Pure lifecycle transitions (the rules SharedConnectionState persists)
 
     func testApplyKeepsRelayIdentityWhileConnectedAndClearsOnAnyOtherStatus() {

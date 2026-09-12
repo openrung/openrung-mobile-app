@@ -7,6 +7,7 @@ let wssTestFronts = [
 
 func makeWssTestRelay(
     id: String = "relay-wss",
+    label: String? = nil,
     nodeClass: String = RelayConstants.nodeClassFoundation,
     transport: String = RelayConstants.transportDirect,
     exitMode: String = RelayConstants.exitModeDirect,
@@ -17,6 +18,7 @@ func makeWssTestRelay(
 ) -> RelayDescriptor {
     RelayDescriptor(
         id: id,
+        label: label,
         publicHost: "203.0.113.10",
         publicPort: publicPort,
         relayProtocol: RelayConstants.protocolVLESSRealityVision,

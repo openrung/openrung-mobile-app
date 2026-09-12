@@ -64,14 +64,12 @@ final class EngineAdapterTests: XCTestCase {
         XCTAssertNil(recovery.relayClass)
     }
 
-    // Paired with EngineProcessHostTest on Android: core's ID sentinel, missing
-    // and unsafe labels all use the directory's compact handle, including recents.
+    // Engine-specific absent-label encodings use the directory's compact handle,
+    // including recents. Sanitizer coverage lives in RelayDescriptorDisplayNameTests.
     func testEngineRelayNamesMatchAndroidForConnectionAndRecents() throws {
         let id = "relay_123456789012345678901234"
         let cases: [(String?, String)] = [
             (id, "123456789012"), (nil, "123456789012"), ("", "123456789012"),
-            ("\u{202E}\n", "123456789012"), ("  North   Star  ", "North Star"),
-            ("abcdefghijklmnopqrstuvwxyz", "abcdefghijklmnopqrstuvwx"),
         ]
         for (name, expected) in cases {
             var details: [String: Any] = ["RelayID": id]

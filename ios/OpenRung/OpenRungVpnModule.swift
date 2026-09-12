@@ -14,6 +14,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
     private var manager: NETunnelProviderManager?
     private var vpnStatus: NEVPNStatus = .invalid
     private var status: ConnectionStatus = .disconnected
+    private var sessionID: String?
     private var relayLabel: String?
     private var relayName: String?
     private var relayClass: String?
@@ -240,9 +241,10 @@ final class OpenRungVpnModule: RCTEventEmitter {
     @objc(getIdentity:rejecter:)
     func getIdentity(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
         Task { @MainActor in
+            self.refreshVPNStatus(emit: false)
             resolve([
                 "clientId": ClientIdentity.getOrCreate(),
-                "sessionId": SharedConnectionState.snapshot().sessionID ?? NSNull(),
+                "sessionId": self.sessionID ?? NSNull(),
             ] as [String: Any])
         }
     }
@@ -344,27 +346,21 @@ final class OpenRungVpnModule: RCTEventEmitter {
 
     @MainActor
     private func reloadSharedState() {
-        apply(SharedConnectionState.snapshot())
+        // A delayed Darwin notification must not restore a crashed tunnel's identity.
+        refreshVPNStatus()
     }
 
     @MainActor
-    private func refreshVPNStatus() {
+    private func refreshVPNStatus(emit: Bool = true) {
         vpnStatus = manager?.connection.status ?? .invalid
-        apply(SharedConnectionState.snapshot(), emit: false)
-        // If the OS reports the tunnel is fully down but the extension's last write was optimistic
-        // (e.g. it was killed without recording a terminal state), reflect disconnected.
-        if vpnStatus == .disconnected || vpnStatus == .invalid,
-           status == .connected || status == .connecting || status == .preparing {
-            status = .disconnected
-            relayLabel = nil
-            relayName = nil
-            relayClass = nil
-        }
-        emitStateChanged()
+        var snapshot = SharedConnectionState.snapshot()
+        snapshot.reconcileSystemTunnel(isDown: vpnStatus == .disconnected || vpnStatus == .invalid)
+        apply(snapshot, emit: emit)
     }
 
     private func apply(_ snapshot: ConnectionStateSnapshot, emit: Bool = true) {
         status = snapshot.status
+        sessionID = snapshot.sessionID
         relayLabel = snapshot.relayLabel
         relayName = snapshot.relayName
         relayClass = snapshot.relayClass

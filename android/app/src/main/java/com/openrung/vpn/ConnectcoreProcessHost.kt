@@ -208,11 +208,9 @@ internal open class EngineProcessHost(
                 // Apply the same compact fallback as iOS and the directory UI.
                 val relayId = details?.text("RelayID")
                 val rawName = details?.text("RelayName")
-                val relayName = if (status == ConnectionStatus.CONNECTED) {
-                    RelayDescriptor.displayName(rawName?.takeUnless { it == relayId }, relayId)
-                } else null
+                val relayName = RelayDescriptor.displayName(rawName?.takeUnless { it == relayId }, relayId)
                 OpenRungStatusStore.setStatus(status, relayLabel = location,
-                    relayName = relayName,
+                    relayName = if (status == ConnectionStatus.CONNECTED) relayName else null,
                     relayClass = if (status == ConnectionStatus.CONNECTED) details?.text("RelayClass") else null,
                     lastError = p.text("LastError"))
                 if (status == ConnectionStatus.CONNECTED) {
@@ -220,10 +218,10 @@ internal open class EngineProcessHost(
                         val recent = raw.jsonObject
                         // A relay without geo adds no recent; the first row may
                         // still describe the previous connection.
-                        if (recent.text("RelayID") != details?.text("RelayID")) return@let
+                        if (recent.text("RelayID") != relayId) return@let
                         OpenRungStatusStore.recordRecent(RecentNode(
-                            countryCode = recent.text("CountryCode").orEmpty(), relayId = details?.text("RelayID").orEmpty(),
-                            label = location.orEmpty(), relayName = relayName.orEmpty(),
+                            countryCode = recent.text("CountryCode").orEmpty(), relayId = relayId.orEmpty(),
+                            label = location.orEmpty(), relayName = relayName,
                             latitude = recent["Latitude"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
                             longitude = recent["Longitude"]?.jsonPrimitive?.doubleOrNull ?: 0.0))
                     }

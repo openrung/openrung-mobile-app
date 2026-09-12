@@ -191,8 +191,6 @@ class EngineProcessHostTest {
         val id = "relay_123456789012345678901234"
         val cases = listOf(
             id to "123456789012", null to "123456789012", "" to "123456789012",
-            "\u202e\n" to "123456789012", "  North   Star  " to "North Star",
-            "abcdefghijklmnopqrstuvwxyz" to "abcdefghijklmnopqrstuvwx",
         )
         cases.forEachIndexed { index, (name, expected) ->
             val payload = buildJsonObject {

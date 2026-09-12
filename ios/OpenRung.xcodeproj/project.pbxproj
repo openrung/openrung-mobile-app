@@ -11,6 +11,7 @@
 		01FB4615E4C3105E861CBAA4 /* DeviceAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4E77D10C22E8939116D44BD /* DeviceAttributes.swift */; };
 		02421CE533C162FF7D211D9A /* LibboxKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = AB8C9F2F42E47E0E9E9AA47E /* LibboxKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		02A118A7025D0906AAA606E1 /* NetworkPathMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C127CAD14278743A1BD298 /* NetworkPathMonitor.swift */; };
+		04E6EC731317368212246134 /* RelayDescriptorDisplayNameTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B2084F9963200D23BD750AC /* RelayDescriptorDisplayNameTests.swift */; };
 		069A422F72032F6301328723 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4783169BE46FEE9B0472504 /* AppConfig.swift */; };
 		07C76E6AA8C6D025BC7EF514 /* EngineEventDispatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 017DD573ECE8D78A567BF132 /* EngineEventDispatcher.swift */; };
 		08F12A1BB6BE2540FEF05AEB /* ContractBrokerFrontsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77C0ADAE13A64A7038DFE0A6 /* ContractBrokerFrontsTests.swift */; };
@@ -191,6 +192,7 @@
 		11E1EF79FDA717F2ED5A32F0 /* NativeBrokerTransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeBrokerTransportTests.swift; sourceTree = "<group>"; };
 		14A9747132FEF5151EC8466B /* EngineProbeFailure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineProbeFailure.swift; sourceTree = "<group>"; };
 		174E944F053F54F691E59C74 /* OpenRungTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = OpenRungTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		1B2084F9963200D23BD750AC /* RelayDescriptorDisplayNameTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelayDescriptorDisplayNameTests.swift; sourceTree = "<group>"; };
 		1EAA8B2F5746A87534F0C87B /* PacketTunnel.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = PacketTunnel.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		25CB8E64CF645C0DD1375294 /* EngineDirectories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineDirectories.swift; sourceTree = "<group>"; };
 		274F2564F2D6019FBBD3B92A /* LibboxBrokerTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibboxBrokerTransport.swift; sourceTree = "<group>"; };
@@ -369,6 +371,7 @@
 				069A5BBA8E1C40AC3EABFD68 /* OpenRungBrokerCoordinatorTests.swift */,
 				ECC225DFB311B748621B135B /* PacketTunnelDnsProbeTests.swift */,
 				AAC6D89892DE900192CBBBA5 /* PacketTunnelInternetProbeTests.swift */,
+				1B2084F9963200D23BD750AC /* RelayDescriptorDisplayNameTests.swift */,
 				293D5236C6FC627E5993262E /* SplitTunnelConfigurationTests.swift */,
 				C3DFA10EE6C65833EE32289D /* WssTestFixtures.swift */,
 				CA844B9D41B3605D8572DFE1 /* LegacyClassificationFixtures */,
@@ -855,6 +858,7 @@
 				909819E0FC7B3C1E78EA3128 /* PacketTunnelProxyEngineError.swift in Sources */,
 				9806DF1AA177A05D22FA2708 /* ProbeTargets.swift in Sources */,
 				EB4BB9C6B76C65809224DF35 /* RelayDescriptor.swift in Sources */,
+				04E6EC731317368212246134 /* RelayDescriptorDisplayNameTests.swift in Sources */,
 				A30C4D9B86CF8E4E964FFFB6 /* RelayReachabilityError.swift in Sources */,
 				DB776EA0CB28A8D6A698A6D7 /* SingBoxConfiguration.swift in Sources */,
 				84468A6D600DC1F02F4A0E08 /* SplitTunnelConfig.swift in Sources */,

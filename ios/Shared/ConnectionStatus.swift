@@ -142,6 +142,19 @@ extension ConnectionStateSnapshot {
         relayClass = nil
     }
 
+    /// OS state arbitrates persisted identity after an extension crash. Preserve
+    /// terminal errors, but never return a session for a tunnel the OS says is down.
+    public mutating func reconcileSystemTunnel(isDown: Bool) {
+        guard isDown else { return }
+        sessionID = nil
+        if [.connected, .connecting, .preparing].contains(status) {
+            status = .disconnected
+            relayLabel = nil
+            relayName = nil
+            relayClass = nil
+        }
+    }
+
     /// What the app may show on a cold launch: a stale CONNECTED never survives, and relay
     /// details (which could leak a prior relay) are dropped until re-resolved.
     public func sanitizedForColdStart() -> ConnectionStateSnapshot {
