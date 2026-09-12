@@ -204,8 +204,15 @@ internal open class EngineProcessHost(
                     RelayDescriptor.sanitizeDisplayName(details?.text("LocationLabel").orEmpty(), 128)
                         .ifEmpty { service.getString(R.string.relay_location_unknown) }
                 } else null
+                // connectcore substitutes the full ID for an absent signed label.
+                // Apply the same compact fallback as iOS and the directory UI.
+                val relayId = details?.text("RelayID")
+                val rawName = details?.text("RelayName")
+                val relayName = if (status == ConnectionStatus.CONNECTED) {
+                    RelayDescriptor.displayName(rawName?.takeUnless { it == relayId }, relayId)
+                } else null
                 OpenRungStatusStore.setStatus(status, relayLabel = location,
-                    relayName = if (status == ConnectionStatus.CONNECTED) RelayDescriptor.displayName(details?.text("RelayName"), details?.text("RelayID")) else null,
+                    relayName = relayName,
                     relayClass = if (status == ConnectionStatus.CONNECTED) details?.text("RelayClass") else null,
                     lastError = p.text("LastError"))
                 if (status == ConnectionStatus.CONNECTED) {
@@ -216,7 +223,7 @@ internal open class EngineProcessHost(
                         if (recent.text("RelayID") != details?.text("RelayID")) return@let
                         OpenRungStatusStore.recordRecent(RecentNode(
                             countryCode = recent.text("CountryCode").orEmpty(), relayId = details?.text("RelayID").orEmpty(),
-                            label = location.orEmpty(), relayName = RelayDescriptor.displayName(details?.text("RelayName"), details?.text("RelayID")),
+                            label = location.orEmpty(), relayName = relayName.orEmpty(),
                             latitude = recent["Latitude"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
                             longitude = recent["Longitude"]?.jsonPrimitive?.doubleOrNull ?: 0.0))
                     }

@@ -99,16 +99,7 @@ enum SharedConnectionState {
 
     static func applyEngineState(_ state: EngineStateProjection) {
         mutate { snapshot in
-            snapshot.status = state.status
-            snapshot.relayLabel = state.location
-            snapshot.relayName = state.relayName
-            snapshot.relayClass = state.relayClass
-            snapshot.lastError = state.error
-            if let node = state.recent {
-                snapshot.recentRegions = Array(([node] + snapshot.recentRegions.filter {
-                    $0.relayId != node.relayId && !($0.relayId == nil && $0.countryCode == node.countryCode)
-                }).prefix(AppConfig.maxRecents))
-            }
+            snapshot.applyEngineState(state)
         }
     }
 
@@ -159,6 +150,8 @@ enum SharedConnectionState {
         pendingSnapshot = nil
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
         defaults?.set(data, forKey: key)
+        // Retire the pre-connectcore session shadow after publishing its replacement.
+        defaults?.removeObject(forKey: "telemetry_session")
         postDarwinNotification()
     }
 

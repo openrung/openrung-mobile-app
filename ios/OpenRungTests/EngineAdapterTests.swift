@@ -64,6 +64,26 @@ final class EngineAdapterTests: XCTestCase {
         XCTAssertNil(recovery.relayClass)
     }
 
+    // Paired with EngineProcessHostTest on Android: core's ID sentinel, missing
+    // and unsafe labels all use the directory's compact handle, including recents.
+    func testEngineRelayNamesMatchAndroidForConnectionAndRecents() throws {
+        let id = "relay_123456789012345678901234"
+        let cases: [(String?, String)] = [
+            (id, "123456789012"), (nil, "123456789012"), ("", "123456789012"),
+            ("\u{202E}\n", "123456789012"), ("  North   Star  ", "North Star"),
+            ("abcdefghijklmnopqrstuvwxyz", "abcdefghijklmnopqrstuvwx"),
+        ]
+        for (name, expected) in cases {
+            var details: [String: Any] = ["RelayID": id]
+            if let name { details["RelayName"] = name }
+            let projection = try XCTUnwrap(EngineStateProjection(EngineEvent(sequence: 1, kind: "state",
+                payload: ["Status": "connected", "Details": details,
+                    "Recents": [["RelayID": id, "CountryCode": "JP"]]])))
+            XCTAssertEqual(projection.relayName, expected)
+            XCTAssertEqual(projection.recent?.relayName, expected)
+        }
+    }
+
     func testSettingsKeepShippingIOSShapeAndProbePins() throws {
         let rules = SplitTunnelRules(bypassLan: true, bypassCountries: ["cn"], ruleSetDirectory: "/rules")
         let input = try JSONSerialization.jsonObject(with: Data(EngineTunnelSettings.json(rules: rules, debug: false).utf8)) as! [String: Any]

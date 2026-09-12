@@ -272,7 +272,11 @@ public extension RelayDescriptor {
     /// sync with the Kotlin `RelayDescriptor.displayName()` and the TS `sanitizeRelayName()`
     /// in `src/model/exitNode.ts`.
     func displayName() -> String {
-        let cleaned = Self.sanitizeDisplayName(label ?? "")
+        Self.displayName(label, id: id)
+    }
+
+    static func displayName(_ name: String?, id: String) -> String {
+        let cleaned = Self.sanitizeDisplayName(name ?? "")
         if cleaned.isEmpty == false { return cleaned }
         let bareID = id.hasPrefix("relay_") ? String(id.dropFirst("relay_".count)) : id
         return Self.sanitizeDisplayName(bareID, maxCodePoints: Self.idFallbackCodePoints)

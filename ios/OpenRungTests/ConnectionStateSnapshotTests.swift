@@ -54,6 +54,49 @@ final class ConnectionStateSnapshotTests: XCTestCase {
         XCTAssertEqual(decoded, snapshot)
     }
 
+    func testSessionIdentityDecodesLegacyAndRoundTrips() throws {
+        let legacy = try JSONDecoder().decode(ConnectionStateSnapshot.self,
+            from: Data(#"{"status":"connected","relayName":"Relay 7"}"#.utf8))
+        XCTAssertNil(legacy.sessionID)
+        XCTAssertEqual(legacy.relayName, "Relay 7")
+        let active = ConnectionStateSnapshot(status: .connected, sessionID: "engine-session")
+        XCTAssertEqual(try JSONDecoder().decode(ConnectionStateSnapshot.self,
+            from: JSONEncoder().encode(active)), active)
+        XCTAssertNil(active.sanitizedForColdStart().sessionID)
+    }
+
+    func testSessionIdentityFollowsEngineRecoveryAndClearsOnTerminalTransitions() throws {
+        var snapshot = ConnectionStateSnapshot()
+        for (index, status) in ["connecting", "connected", "connecting", "connected"].enumerated() {
+            let projection = try XCTUnwrap(EngineStateProjection(EngineEvent(sequence: UInt64(index + 1),
+                kind: "state", payload: ["Status": status, "Details": ["SessionID": "engine-session"]])))
+            snapshot.applyEngineState(projection)
+            XCTAssertEqual(snapshot.sessionID, "engine-session")
+            XCTAssertEqual(snapshot.status.rawValue, status)
+        }
+        snapshot.apply(status: .disconnecting)
+        XCTAssertEqual(snapshot.sessionID, "engine-session")
+        for status: ConnectionStatus in [.preparing, .disconnected, .failed] {
+            var copy = snapshot
+            copy.apply(status: status)
+            XCTAssertNil(copy.sessionID)
+        }
+        var failure = snapshot
+        failure.applyFailure("local start failure")
+        XCTAssertNil(failure.sessionID)
+        for status in ["disconnected", "failed"] {
+            let terminal = try XCTUnwrap(EngineStateProjection(EngineEvent(sequence: 5, kind: "state",
+                payload: ["Status": status, "Details": ["SessionID": "stale-session"]])))
+            snapshot.applyEngineState(terminal)
+            XCTAssertNil(snapshot.sessionID)
+        }
+        let noSession = try XCTUnwrap(EngineStateProjection(EngineEvent(sequence: 6, kind: "state",
+            payload: ["Status": "connecting"])))
+        snapshot.sessionID = "old-session"
+        snapshot.applyEngineState(noSession)
+        XCTAssertNil(snapshot.sessionID)
+    }
+
     // MARK: - Pure lifecycle transitions (the rules SharedConnectionState persists)
 
     func testApplyKeepsRelayIdentityWhileConnectedAndClearsOnAnyOtherStatus() {

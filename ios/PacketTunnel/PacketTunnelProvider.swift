@@ -41,7 +41,6 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, PacketTunnelEngineOwne
         hasConnected = false
         terminalError = nil
         reasserting = false
-        TelemetrySessionStore.save(nil)
         SharedConnectionState.setBrokerURL(resolveBrokerURL().absoluteString)
         SharedConnectionState.setStatus(.preparing, clearRelayLabel: true, clearError: true)
         networkObserver = EngineNetworkObserver(receive: receive)
@@ -59,16 +58,6 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, PacketTunnelEngineOwne
         if projection.status == .connected { hasConnected = true; reasserting = false }
         memory.mark(projection.status.rawValue)
         SharedConnectionState.applyEngineState(projection)
-        // Preserve the existing cross-process session storage format for getIdentity.
-        if let id = projection.sessionID {
-            let previous = TelemetrySessionStore.current()
-            let same = previous?.id == id
-            TelemetrySessionStore.save(TelemetrySession(id: id, clientId: ClientIdentity.getOrCreate(),
-                brokerURL: resolveBrokerURL().absoluteString,
-                startedElapsedMs: same ? previous!.startedElapsedMs : MonotonicClock.nowMs(),
-                relayId: projection.relayID,
-                connectedElapsedMs: projection.status == .connected ? (same ? previous?.connectedElapsedMs : nil) ?? MonotonicClock.nowMs() : nil))
-        } else { TelemetrySessionStore.save(nil) }
     }
 
     func engineStopping() {
@@ -79,7 +68,6 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, PacketTunnelEngineOwne
     func engineStopped(error: Error?, startPending: Bool) {
         memory.stop()
         reasserting = false
-        TelemetrySessionStore.save(nil)
         if let error {
             terminalError = error
             SharedConnectionState.fail(error.localizedDescription)

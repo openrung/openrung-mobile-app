@@ -74,15 +74,15 @@ final class PacketTunnelDeviceTests: XCTestCase {
             XCTAssertFalse((state["relayName"] as? String ?? "").isEmpty)
             XCTAssertNotNil(state["relayClass"] as? String)
             XCTAssertEqual(defaults.string(forKey: "client_id"), installID)
-            let session = try XCTUnwrap(defaults.data(forKey: "telemetry_session"))
-            let identity = try JSONSerialization.jsonObject(with: session) as! [String: Any]
-            XCTAssertFalse((identity["id"] as? String ?? "").isEmpty)
+            XCTAssertFalse((state["sessionID"] as? String ?? "").isEmpty)
+            XCTAssertNil(defaults.data(forKey: "telemetry_session"), "Legacy session shadow must be removed")
             // Let Go monitoring and traffic accounting run on the actual TUN.
             try await Task.sleep(nanoseconds: 20_000_000_000)
             XCTAssertEqual(manager.connection.status, .connected)
             manager.connection.stopVPNTunnel()
             try await waitFor("cycle \(cycle) stopped") { manager.connection.status == .disconnected }
             XCTAssertEqual(snapshot(defaults)["status"] as? String, "disconnected")
+            XCTAssertNil(snapshot(defaults)["sessionID"])
             XCTAssertNil(defaults.data(forKey: "telemetry_session"))
             if let directory = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.openrung.app"),
                let data = try? Data(contentsOf: directory.appendingPathComponent("engine-memory.json")) {

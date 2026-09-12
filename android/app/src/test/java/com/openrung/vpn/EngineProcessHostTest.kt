@@ -182,6 +182,32 @@ class EngineProcessHostTest {
         host.stop(service, 2); queue.drain()
     }
 
+    // Paired with EngineAdapterTests on iOS, through the actual state consumer.
+    @Test fun `engine relay names match iOS for connection and recents`() {
+        val queue = Queue(); val engine = Engine()
+        val service = Robolectric.buildService(OpenRungVpnService::class.java).create().get()
+        val host = EngineProcessHost(queue) { _, _, listener -> engine.apply { this.listener = listener } }
+        host.connect(service, 1, "https://example.org", null, null); queue.drain()
+        val id = "relay_123456789012345678901234"
+        val cases = listOf(
+            id to "123456789012", null to "123456789012", "" to "123456789012",
+            "\u202e\n" to "123456789012", "  North   Star  " to "North Star",
+            "abcdefghijklmnopqrstuvwxyz" to "abcdefghijklmnopqrstuvwx",
+        )
+        cases.forEachIndexed { index, (name, expected) ->
+            val payload = buildJsonObject {
+                put("Status", "connected")
+                putJsonObject("Details") { put("RelayID", id); if (name != null) put("RelayName", name) }
+                putJsonArray("Recents") { add(buildJsonObject { put("RelayID", id); put("CountryCode", "JP") }) }
+            }
+            engine.listener.onEvent("""{"version":1,"sequence":${index + 1},"kind":"state","payload":$payload}""")
+            queue.drain()
+            assertEquals(expected, OpenRungStatusStore.uiState.value.relayName)
+            assertEquals(expected, OpenRungStatusStore.uiState.value.recentRegions.first().relayName)
+        }
+        host.stop(service, 2); queue.drain()
+    }
+
     @Test fun `candidate settings do not copy rule sets again`() {
         val service = Robolectric.buildService(OpenRungVpnService::class.java).create().get()
         SplitTunnelStore.writeAndReportEffectiveChange(service,

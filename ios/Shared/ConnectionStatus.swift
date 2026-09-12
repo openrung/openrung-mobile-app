@@ -35,6 +35,8 @@ public enum ConnectionStatus: String, Codable, Sendable {
 public struct ConnectionStateSnapshot: Codable, Sendable, Equatable {
     public var status: ConnectionStatus
     public var brokerURL: String
+    /// Engine-owned active session identity; no duplicate native telemetry session.
+    public var sessionID: String?
     public var relayLabel: String?
     public var relayName: String?
     /// Node class of the connected relay ("foundation" / "volunteer"); follows relayName's
@@ -47,6 +49,7 @@ public struct ConnectionStateSnapshot: Codable, Sendable, Equatable {
     public init(
         status: ConnectionStatus = .disconnected,
         brokerURL: String = "",
+        sessionID: String? = nil,
         relayLabel: String? = nil,
         relayName: String? = nil,
         relayClass: String? = nil,
@@ -56,6 +59,7 @@ public struct ConnectionStateSnapshot: Codable, Sendable, Equatable {
     ) {
         self.status = status
         self.brokerURL = brokerURL
+        self.sessionID = sessionID
         self.relayLabel = relayLabel
         self.relayName = relayName
         self.relayClass = relayClass
@@ -67,6 +71,7 @@ public struct ConnectionStateSnapshot: Codable, Sendable, Equatable {
     enum CodingKeys: String, CodingKey {
         case status
         case brokerURL
+        case sessionID
         case relayLabel
         case relayName
         case relayClass
@@ -79,6 +84,7 @@ public struct ConnectionStateSnapshot: Codable, Sendable, Equatable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         status = try container.decodeIfPresent(ConnectionStatus.self, forKey: .status) ?? .disconnected
         brokerURL = try container.decodeIfPresent(String.self, forKey: .brokerURL) ?? ""
+        sessionID = try container.decodeIfPresent(String.self, forKey: .sessionID)
         relayLabel = try container.decodeIfPresent(String.self, forKey: .relayLabel)
         relayName = try container.decodeIfPresent(String.self, forKey: .relayName)
         relayClass = try container.decodeIfPresent(String.self, forKey: .relayClass)
@@ -91,6 +97,7 @@ public struct ConnectionStateSnapshot: Codable, Sendable, Equatable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(status, forKey: .status)
         try container.encode(brokerURL, forKey: .brokerURL)
+        try container.encodeIfPresent(sessionID, forKey: .sessionID)
         try container.encodeIfPresent(relayLabel, forKey: .relayLabel)
         try container.encodeIfPresent(relayName, forKey: .relayName)
         try container.encodeIfPresent(relayClass, forKey: .relayClass)
@@ -117,6 +124,7 @@ extension ConnectionStateSnapshot {
         clearError: Bool = false
     ) {
         self.status = status
+        if [.preparing, .disconnected, .failed].contains(status) { sessionID = nil }
         self.relayName = status == .connected ? (relayName ?? self.relayName) : nil
         self.relayClass = status == .connected ? (relayClass ?? self.relayClass) : nil
         if clearRelayLabel { relayLabel = nil }
@@ -127,6 +135,7 @@ extension ConnectionStateSnapshot {
     /// name, class) never survives a failure.
     public mutating func applyFailure(_ message: String) {
         status = .failed
+        sessionID = nil
         lastError = message
         relayLabel = nil
         relayName = nil
@@ -137,6 +146,7 @@ extension ConnectionStateSnapshot {
     /// details (which could leak a prior relay) are dropped until re-resolved.
     public func sanitizedForColdStart() -> ConnectionStateSnapshot {
         var snapshot = self
+        snapshot.sessionID = nil
         if snapshot.status == .connected {
             snapshot.status = .disconnected
         }

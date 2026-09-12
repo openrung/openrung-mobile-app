@@ -97,7 +97,9 @@ export interface NativeVpnState {
   relayName: string | null;    // connected relay's display name: native sanitizes the
                                // operator-supplied label (control/bidi-format characters
                                // stripped, whitespace collapsed, clamped to 24 code points) and
-                               // falls back to the id, `relay_` prefix dropped, <=12 code points
+                               // falls back to the id, `relay_` prefix dropped, <=12 code points.
+                               // Engine RelayName == RelayID means an absent label on both
+                               // platforms; connected state and matching recents use this fallback.
   relayClass: 'foundation' | 'volunteer' | null;
                                // connected relay's node class: native normalizes the signed
                                // descriptor's node_class (anything but "foundation" collapses
@@ -711,8 +713,13 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   ADR-001 vectors; no selectable native orchestrator remains.
 - `Shared/EngineStateProjection.swift` translates atomic Details into the
   existing app-group state: sanitized geographic location, display name, class,
-  matching recents and session ID. `TelemetrySessionStore` keeps its prior
-  storage format for the app's getIdentity call. Go opens the existing
+  matching recents and session ID. The engine session ID is persisted atomically
+  with status in `ConnectionStateSnapshot.sessionID`; `getIdentity()` reads it
+  directly. Legacy snapshots decode with a nil session ID. New engine events
+  supply it through connection/recovery; local fresh starts, failure, disconnect
+  and cold-start sanitization clear it. The obsolete full `TelemetrySession`
+  and separate store are removed; snapshot writes delete the retired
+  `telemetry_session` key. Go opens the existing
   app-group `outbox.json`, including its array-to-NDJSON migration, and retains
   the install UUID. Sessions include app version, platform and engine identity.
   There is no second Swift uploader or heartbeat loop.

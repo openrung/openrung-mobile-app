@@ -51,14 +51,12 @@
 		5C4A433E28CC9B6A79E0C065 /* EngineTunnelSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A690E6E33BDDACFBD9C3FF32 /* EngineTunnelSettings.swift */; };
 		5C5B44700D206EF4735FCBE2 /* EngineTunnelSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A690E6E33BDDACFBD9C3FF32 /* EngineTunnelSettings.swift */; };
 		5F356E51FDABB4808B9DDC24 /* geoip-cn.srs in Resources */ = {isa = PBXBuildFile; fileRef = 693B17B81972486FA17A7D41 /* geoip-cn.srs */; };
-		5F7D90BE5F101E0C8681DF70 /* TelemetrySessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42FBF71585756F18035DA71D /* TelemetrySessionStore.swift */; };
 		62AE36E16F5E162B6C7921DF /* SingBoxConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = D156734F7F68151301FEF878 /* SingBoxConfiguration.swift */; };
 		63F4601CF297170FC3EA5408 /* NetworkPathMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C127CAD14278743A1BD298 /* NetworkPathMonitor.swift */; };
 		6531CAFFDE106455D238BF18 /* OpenRungBrokerCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 069A5BBA8E1C40AC3EABFD68 /* OpenRungBrokerCoordinatorTests.swift */; };
 		6E5B5403BAEE8ABB107291FE /* EngineOperationRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 721B540194A297878ADC76BE /* EngineOperationRunner.swift */; };
 		6F79A2D91A14A48D88AB7A99 /* PacketTunnelDnsProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F02C36295E0BF915B4B9736 /* PacketTunnelDnsProbe.swift */; };
 		709A9385BBD22960A6922F77 /* PacketTunnelInternetProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BEE51EC45A891A7FD184DFB /* PacketTunnelInternetProbe.swift */; };
-		73D8BDE378B63443C918F178 /* TelemetrySession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A5299A99DA8ED8C75B1E25B /* TelemetrySession.swift */; };
 		767680B070BBDB21811EA1F0 /* LibboxKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AB8C9F2F42E47E0E9E9AA47E /* LibboxKit.framework */; };
 		7AD3CF8197D457CDDC3CCBCE /* RelayDescriptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC6AEF8D510DD407C368119F /* RelayDescriptor.swift */; };
 		7B4D3DC05BA1AE1A2F069C94 /* LibboxKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AB8C9F2F42E47E0E9E9AA47E /* LibboxKit.framework */; };
@@ -69,7 +67,6 @@
 		837E14040DB7B0414964DCFC /* InternetProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 005F1F59591EC44366AC6B21 /* InternetProbe.swift */; };
 		84468A6D600DC1F02F4A0E08 /* SplitTunnelConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88FBD70740FE33FC9CC6564B /* SplitTunnelConfig.swift */; };
 		85D8BA91A05244BEAAC60A24 /* IOSConnectcore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88418ED16021B1DB4B15A07C /* IOSConnectcore.swift */; };
-		89009F889ABE5BCFA7F125B2 /* TelemetrySessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42FBF71585756F18035DA71D /* TelemetrySessionStore.swift */; };
 		8B1D40AA78408CC3BF775618 /* OpenRungBrokerCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B04CC982440EBB0C449CA5A /* OpenRungBrokerCoordinator.swift */; };
 		8D1616AEAACF90DD9E955B23 /* PacketTunnelInternetProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BEE51EC45A891A7FD184DFB /* PacketTunnelInternetProbe.swift */; };
 		8D46C1405D94CC96AFBC54A4 /* PacketTunnelEngineHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 687FF2AE15E31BCE38EF9073 /* PacketTunnelEngineHost.swift */; };
@@ -121,7 +118,6 @@
 		F394E6F8661ECC0CFB89B18F /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 81CC00C2F7324111F25D07A0 /* UIKit.framework */; };
 		F4A85CA2F691B7FEB1634174 /* EngineOperationRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 721B540194A297878ADC76BE /* EngineOperationRunner.swift */; };
 		F4E9943576D50ADF2D118398 /* IOSPacketTunnelRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = F408CCF94A5AD4266D0675A9 /* IOSPacketTunnelRun.swift */; };
-		F6D4EDF154A64B658BBAA677 /* TelemetrySession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A5299A99DA8ED8C75B1E25B /* TelemetrySession.swift */; };
 		F82F4E03FAD0D3DFDB106718 /* OpenRungVpnModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 719ACF45718CBF52773FCD6C /* OpenRungVpnModule.swift */; };
 		F9E733A69CC079063D275F8E /* ContractClassificationVectorsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76DC959804E5611F0EA09267 /* ContractClassificationVectorsTests.swift */; };
 		FBB5A1494BB10EC5CC265A5C /* geosite-cn.srs in Resources */ = {isa = PBXBuildFile; fileRef = F68B4299B0EAD00601A47FF2 /* geosite-cn.srs */; };
@@ -203,14 +199,12 @@
 		3B04CC982440EBB0C449CA5A /* OpenRungBrokerCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRungBrokerCoordinator.swift; sourceTree = "<group>"; };
 		3BEE51EC45A891A7FD184DFB /* PacketTunnelInternetProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelInternetProbe.swift; sourceTree = "<group>"; };
 		426E39F9341055FCE902A3B0 /* Pods-OpenRung.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OpenRung.release.xcconfig"; path = "Target Support Files/Pods-OpenRung/Pods-OpenRung.release.xcconfig"; sourceTree = "<group>"; };
-		42FBF71585756F18035DA71D /* TelemetrySessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetrySessionStore.swift; sourceTree = "<group>"; };
 		44DD4C9CB725E92B8F423EC7 /* NativeBrokerTestDoubles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeBrokerTestDoubles.swift; sourceTree = "<group>"; };
 		584A04475F28B3CAC39B501E /* ConnectionStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStatus.swift; sourceTree = "<group>"; };
 		5A5941A8CF4A810D424C4147 /* OpenRungBrokerModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRungBrokerModule.swift; sourceTree = "<group>"; };
 		66C3AC37AF7128A85A7F7CC7 /* NativeBrokerTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeBrokerTransport.swift; sourceTree = "<group>"; };
 		687FF2AE15E31BCE38EF9073 /* PacketTunnelEngineHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelEngineHost.swift; sourceTree = "<group>"; };
 		693B17B81972486FA17A7D41 /* geoip-cn.srs */ = {isa = PBXFileReference; path = "geoip-cn.srs"; sourceTree = "<group>"; };
-		6A5299A99DA8ED8C75B1E25B /* TelemetrySession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetrySession.swift; sourceTree = "<group>"; };
 		719ACF45718CBF52773FCD6C /* OpenRungVpnModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRungVpnModule.swift; sourceTree = "<group>"; };
 		721B540194A297878ADC76BE /* EngineOperationRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineOperationRunner.swift; sourceTree = "<group>"; };
 		74F84EC23AF9FEB7F7DADBB1 /* BrokerClientError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrokerClientError.swift; sourceTree = "<group>"; };
@@ -346,8 +340,6 @@
 				D11601E153A60E8B30351E20 /* SharedConnectionState.swift */,
 				D156734F7F68151301FEF878 /* SingBoxConfiguration.swift */,
 				88FBD70740FE33FC9CC6564B /* SplitTunnelConfig.swift */,
-				6A5299A99DA8ED8C75B1E25B /* TelemetrySession.swift */,
-				42FBF71585756F18035DA71D /* TelemetrySessionStore.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -809,8 +801,6 @@
 				C30EDE383463DB3F401D317E /* SharedConnectionState.swift in Sources */,
 				62AE36E16F5E162B6C7921DF /* SingBoxConfiguration.swift in Sources */,
 				401088D78629F49BDF35BF3D /* SplitTunnelConfig.swift in Sources */,
-				F6D4EDF154A64B658BBAA677 /* TelemetrySession.swift in Sources */,
-				89009F889ABE5BCFA7F125B2 /* TelemetrySessionStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -899,8 +889,6 @@
 				7AD3CF8197D457CDDC3CCBCE /* RelayDescriptor.swift in Sources */,
 				9E3FE5CDA11DD5EEC1F54942 /* SharedConnectionState.swift in Sources */,
 				FDD249EAC97CC2DF789CBCE6 /* SplitTunnelConfig.swift in Sources */,
-				73D8BDE378B63443C918F178 /* TelemetrySession.swift in Sources */,
-				5F7D90BE5F101E0C8681DF70 /* TelemetrySessionStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -27,8 +27,7 @@ struct EngineStateProjection {
         relayID = id
         let rawName = details["RelayName"] as? String ?? ""
         // connectcore uses the full ID when the signed label is empty.
-        let name = rawName == id ? "" : RelayDescriptor.sanitizeDisplayName(rawName)
-        relayName = name.isEmpty ? RelayDescriptor.sanitizeDisplayName(id.hasPrefix("relay_") ? String(id.dropFirst(6)) : id, maxCodePoints: 12) : name
+        relayName = RelayDescriptor.displayName(rawName == id ? nil : rawName, id: id)
         relayClass = details["RelayClass"] as? String == "foundation" ? "foundation" : "volunteer"
         let label = RelayDescriptor.sanitizeDisplayName(details["LocationLabel"] as? String ?? "", maxCodePoints: 128)
         location = label.isEmpty ? "Unknown location" : label
@@ -37,5 +36,21 @@ struct EngineStateProjection {
                 label: location!, relayName: relayName,
                 latitude: row["Latitude"] as? Double ?? 0, longitude: row["Longitude"] as? Double ?? 0)
         } else { recent = nil }
+    }
+}
+
+extension ConnectionStateSnapshot {
+    mutating func applyEngineState(_ state: EngineStateProjection) {
+        self.status = state.status
+        self.sessionID = [.disconnected, .failed].contains(state.status) ? nil : state.sessionID
+        self.relayLabel = state.location
+        self.relayName = state.relayName
+        self.relayClass = state.relayClass
+        self.lastError = state.error
+        if let node = state.recent {
+            self.recentRegions = Array(([node] + self.recentRegions.filter {
+                $0.relayId != node.relayId && !($0.relayId == nil && $0.countryCode == node.countryCode)
+            }).prefix(AppConfig.maxRecents))
+        }
     }
 }
