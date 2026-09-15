@@ -6,12 +6,16 @@ github.com/hashicorp/yamux v0.1.2 h1:XtB8kyFOyHXYVFnwT5C3+Bdo8gArse7j2AQ0DA0Uey8
 github.com/hashicorp/yamux v0.1.2/go.mod h1:C+zze2n6e/7wshOZep2A70/aQU6QBRWJO/G6FT1wIns=
 github.com/openrung/openrung/brokerapi v0.6.0 h1:inJs3cHbByU0LyfdJhBJSb7FpJpjuFcgIbR+jI4HVLQ=
 github.com/openrung/openrung/brokerapi v0.6.0/go.mod h1:TcbVpmHKwGObQdfiNWtsBv4Ct3fJrw9s7CdOo4CNkfg=
+github.com/openrung/openrung/brokerapi v0.6.1 h1:zxuxM3EdJrAgWEe0aSNXbcY00J6v4WBjx0YCzn2tCF8=
+github.com/openrung/openrung/brokerapi v0.6.1/go.mod h1:TcbVpmHKwGObQdfiNWtsBv4Ct3fJrw9s7CdOo4CNkfg=
 github.com/openrung/openrung/connectcore v0.5.0 h1:0VfD7uQUnwNpsp4BMbH0AN04VT1uiu4MJtYwRdGwyMY=
 github.com/openrung/openrung/connectcore v0.5.0/go.mod h1:HQzqPVDvutsbfHzpxJgMkn/JYea+WcnMpxMmG39PFrg=
 github.com/openrung/openrung/connectcore v0.6.0 h1:nRAEUApifHiUofJa4dnJLZYTG1qbU06z9k+u+YwNAW4=
 github.com/openrung/openrung/connectcore v0.6.0/go.mod h1:HQzqPVDvutsbfHzpxJgMkn/JYea+WcnMpxMmG39PFrg=
 github.com/openrung/openrung/connectcore v0.6.1 h1:Kgj9vl3MNkuAts+29FD7+rQCEUiUQITg65XStu/T2lo=
 github.com/openrung/openrung/connectcore v0.6.1/go.mod h1:HQzqPVDvutsbfHzpxJgMkn/JYea+WcnMpxMmG39PFrg=
+github.com/openrung/openrung/connectcore v0.6.2 h1:y/BGVvs8XX9bvkNx9I9IzVJPpgRDeRpt1fSj8OSWLoE=
+github.com/openrung/openrung/connectcore v0.6.2/go.mod h1:r0uROel9yzD/srbAEJ055ZCCzi8stSRCsi8cNqi6P3U=
 github.com/openrung/openrung/punchcore v0.1.0 h1:15jV81Fq4WXg4nQOKQxuwS7LRPxxQ+sAsbGvDSVrufc=
 github.com/openrung/openrung/punchcore v0.1.0/go.mod h1:ngh0ZjATF0dujNXQq67Jj1a/ZSsXd781o8S1aYm3ehA=
 github.com/openrung/openrung/wsscore v0.7.0 h1:xT7BL33vEJ0b0bdkRT7QQJmfbZOWyEc3NkkPi4wZbHk=

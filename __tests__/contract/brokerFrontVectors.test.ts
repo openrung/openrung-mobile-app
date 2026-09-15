@@ -11,7 +11,7 @@
 import vectors from '../../testdata/contract/broker_fronts.json';
 import { AppConfig } from '../../src/config';
 
-const EXPECTED_VERSION = 2;
+const EXPECTED_VERSION = 3;
 const SUITE = 'ts';
 
 describe('broker front contract vectors', () => {
@@ -37,8 +37,10 @@ describe('broker front contract vectors', () => {
 
   it('leaves the phase ordering to the suite that implements it', () => {
     // Guard against this suite growing assertions it cannot honestly make: the phases describe
-    // brokerapi's race, which no TypeScript here performs.
-    const phased = vectors.phases.flatMap(phase => phase.urls);
+    // brokerapi's race, which no TypeScript here performs. One endpoint may appear in both phases
+    // under different TLS modes — Azure is tried with normal SNI in phase 1 and without SNI in
+    // phase 2 — so what must match the canonical list is the set of endpoints, not their count.
+    const phased = new Set(vectors.phases.flatMap(phase => phase.urls));
     expect([...phased].sort()).toEqual([...vectors.default_order].sort());
   });
 

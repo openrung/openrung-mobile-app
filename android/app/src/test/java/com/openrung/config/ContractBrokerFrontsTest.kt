@@ -24,7 +24,7 @@ import java.io.File
 class ContractBrokerFrontsTest {
 
     private companion object {
-        const val EXPECTED_VERSION = 2
+        const val EXPECTED_VERSION = 3
         const val SUITE = "kotlin"
     }
 

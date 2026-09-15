@@ -1,6 +1,6 @@
 # ADR-003 B2: Android connectcore cutover
 
-Android now runs published `connectcore/v0.6.1` as its sole connection
+Android now runs published `connectcore/v0.6.2` as its sole connection
 orchestrator. This is the actual B2 implementation after preparation PR #112
 (mobile main `53e03d9`) and core API PR #179. There is no engine-selection flag.
 Physical-device acceptance below remains pending; this is not release promotion.
@@ -102,7 +102,7 @@ ABI guards, and 167 iOS tests with Thread Sanitizer. CI uses Go 1.25.
 - The pin includes upstream's explicit port-53 DNS hijack ahead of bypass rules.
   Both platform golden suites assert that extra rule; the original DNS protocol
   match, probe priority and UDP/443 rejection remain.
-- Published `connectcore/v0.6.1` includes the fixes from
+- Published `connectcore/v0.6.2` includes the fixes from
   [core PR #181](https://github.com/openrung/openrung/pull/181): neutral HTTPS or
   broker-front TCP can permit recovery, observed-down paths skip physical probes,
   and outage polling backs off within a shared two-minute recovery budget.
@@ -110,6 +110,15 @@ ABI guards, and 167 iOS tests with Thread Sanitizer. CI uses Go 1.25.
   sustained outages require manual reconnect after that terminal failure.
   Android consumes the atomic geographic location field, sanitizes it, and
   localizes missing locations. Screen-off does not pause engine recovery.
+- `connectcore/v0.6.2` with `brokerapi/v0.6.1` reorders broker discovery per
+  [core PR #184](https://github.com/openrung/openrung/pull/184): SNI-less
+  CloudFront leads, Azure Front Door joins the same phase with normal SNI and
+  hostname verification, and the Cloudflare Worker follows; Azure's SNI-less
+  attempt is retried alone only after every endpoint-bound attempt fails, on a
+  separate connection pool. Every telemetry host then follows the verified
+  discovery winner and its TLS mode. The race stays inside brokerapi — both
+  platforms still hand it one primary and no candidate list — so the only
+  mobile-visible change is `broker_fronts.json` at version 3.
 - Unusable/non-HTTPS/unpinned-IP punch endpoints are rejected by the transport
   adapter before dialing. Go may record a failed punch attempt before RelayHub
   fallback where the old Kotlin wrapper silently skipped constructing a client.

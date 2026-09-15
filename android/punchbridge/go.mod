@@ -3,8 +3,8 @@ module github.com/sagernet/sing-box/experimental/libbox
 go 1.25.0
 
 require (
-	github.com/openrung/openrung/brokerapi v0.6.0
-	github.com/openrung/openrung/connectcore v0.6.1
+	github.com/openrung/openrung/brokerapi v0.6.1
+	github.com/openrung/openrung/connectcore v0.6.2
 	github.com/openrung/openrung/punchcore v0.1.0
 	github.com/openrung/openrung/wsscore v0.7.0
 	github.com/quic-go/quic-go v0.60.0

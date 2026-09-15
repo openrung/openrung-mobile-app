@@ -1,6 +1,6 @@
 # ADR-003 B3: Swift connectcore cutover
 
-Swift now uses published `connectcore/v0.6.1` as its sole VPN orchestrator.
+Swift now uses published `connectcore/v0.6.2` as its sole VPN orchestrator.
 The baseline for independent expectations is mobile main `e1dc94c` (B2 merged;
 iOS still native). The React Native surface and VPN profile format remain the
 same. No runtime engine selector is present.

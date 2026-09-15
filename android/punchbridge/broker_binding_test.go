@@ -232,11 +232,12 @@ func TestOpenRungFirstReachableUsesBrokerapiCandidatePolicy(t *testing.T) {
 		t.Fatalf("candidates = %+v, want %+v", gotCandidates, wantCandidates)
 	}
 	if !gotCandidates.OverrideFirst ||
+		!gotCandidates.AzureSNIFirst ||
 		!reflect.DeepEqual(gotCandidates.URLs, []string{
 			"https://custom.example/",
-			brokerapi.DefaultBrokerURL,
 			brokerapi.CloudFrontBrokerURL,
 			brokerapi.AzureBrokerURL,
+			brokerapi.DefaultBrokerURL,
 		}) {
 		t.Fatalf("custom candidate policy = %+v", gotCandidates)
 	}
