@@ -47,6 +47,12 @@ jobs:
           go-version: '1.25.x'
           cache-dependency-path: android/punchbridge/go.sum
       - uses: android-actions/setup-android@v3
+        with:
+          # Google retired the standalone `tools` package, which the action still
+          # asks for in its default package list, so the default install now fails
+          # with "Failed to find package 'tools'". Nothing here uses it: the action
+          # installs cmdline-tools itself and the steps below need only adb.
+          packages: platform-tools
       - name: Install Android NDKs
         run: |
           sdkmanager "ndk;29.0.14206865" "ndk;27.1.12297006"

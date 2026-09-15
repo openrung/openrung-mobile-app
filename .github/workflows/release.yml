@@ -90,6 +90,12 @@ jobs:
           go-version: stable
 
       - uses: android-actions/setup-android@v3
+        with:
+          # Google retired the standalone `tools` package, which the action still
+          # asks for in its default package list, so the default install now fails
+          # with "Failed to find package 'tools'". Nothing here uses it: the action
+          # installs cmdline-tools itself and the steps below need only adb.
+          packages: platform-tools
       # Two NDKs are needed: 29.0.14206865 to LINK the prebuilt libcronet.a inside libbox
       # (older lld rejects its relocations), and 27.1.12297006 for the Gradle APK build
       # (android/build.gradle pins ndkVersion). The runner's default NDK is neither.
