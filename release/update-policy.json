@@ -4,7 +4,7 @@
     "android": "0.0.0",
     "ios": "0.0.0"
   },
-  "ios_latest": "0.3.6",
+  "ios_latest": "0.3.9",
   "promote": "notify",
   "notice": {
     "id": "2026-09-release-0.3.9",
