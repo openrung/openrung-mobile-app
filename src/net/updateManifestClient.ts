@@ -40,8 +40,8 @@ const GITHUB_MANIFEST_URL =
  * `transport:check` guard and updateManifest.test.ts assert the two lists are identical.
  */
 export const MANIFEST_CANDIDATE_URLS: readonly string[] = [
-  DIRECT_MANIFEST_URL,
   CLOUDFRONT_MANIFEST_URL,
+  DIRECT_MANIFEST_URL,
   GITHUB_MANIFEST_URL,
 ];
 

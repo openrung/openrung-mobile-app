@@ -232,7 +232,7 @@ requirePolicy(
     ),
   'updateManifestClient.ts: direct broker and CloudFront candidates must use the native candidate API',
 );
-const routedManifestUrls = [directManifest, cloudFrontManifest, githubManifest];
+const routedManifestUrls = [cloudFrontManifest, directManifest, githubManifest];
 const configuredManifestUrls = configStringArray('src/config.ts', 'UPDATE_MANIFEST_URLS');
 requirePolicy(
   JSON.stringify(configuredManifestUrls) === JSON.stringify(routedManifestUrls),
@@ -242,7 +242,7 @@ requirePolicy(
 );
 requirePolicy(
   manifestClient.includes('export const MANIFEST_CANDIDATE_URLS') &&
-    /MANIFEST_CANDIDATE_URLS[^=]*=\s*\[\s*DIRECT_MANIFEST_URL,\s*CLOUDFRONT_MANIFEST_URL,\s*GITHUB_MANIFEST_URL,?\s*\]/s.test(
+    /MANIFEST_CANDIDATE_URLS[^=]*=\s*\[\s*CLOUDFRONT_MANIFEST_URL,\s*DIRECT_MANIFEST_URL,\s*GITHUB_MANIFEST_URL,?\s*\]/s.test(
       manifestClient,
     ),
   'updateManifestClient.ts: MANIFEST_CANDIDATE_URLS must export the three routed constants in order',

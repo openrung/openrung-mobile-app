@@ -26,8 +26,9 @@ Every shipped client keeps checking these URLs with this schema for as long as i
 that is the entire point. Therefore:
 
 - **URLs are immutable.** `AppConfig.UPDATE_MANIFEST_URLS`:
-  1. `https://broker.openrung.org/api/v1/app-manifest` (Cloudflare front — censorship-resistant)
-  2. `https://d2r7mdpyevvs1m.cloudfront.net/api/v1/app-manifest` (independent second front)
+  1. `https://d2r7mdpyevvs1m.cloudfront.net/api/v1/app-manifest` (SNI-less CloudFront front — leads
+     because it stays reachable where broker.openrung.org is blocked, mirroring brokerapi's discovery order)
+  2. `https://broker.openrung.org/api/v1/app-manifest` (Cloudflare Worker front)
   3. `https://github.com/openrung/openrung-mobile-app/releases/latest/download/update-manifest.json`
      (zero-infrastructure fallback; works from the first release, but github.com is unreliable in
      several target regions)

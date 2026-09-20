@@ -71,7 +71,9 @@ export const AppConfig = {
   /**
    * Ordered candidates for the in-app update manifest (docs/UPDATE_MANIFEST.md), tried
    * sequentially with a per-attempt timeout, fail-open: all-fail just means "no update UI".
-   * The direct broker and CloudFront candidates use native brokerapi. The GitHub release asset is
+   * The CloudFront and direct broker candidates use native brokerapi. CloudFront leads because the
+   * SNI-less front stays reachable where broker.openrung.org is blocked, mirroring brokerapi's
+   * discovery order (@see brokerapi.DefaultBrokerURLs). The GitHub release asset is
    * the narrow redirecting JavaScript-fetch exception and remains last because github.com is
    * unreliable in several target regions.
    * These URLs are a FOREVER CONTRACT with shipped clients: never repurpose or break them.
@@ -81,8 +83,8 @@ export const AppConfig = {
    * GitHub-only candidate. `npm run transport:check` and updateManifest.test.ts enforce the match.
    */
   UPDATE_MANIFEST_URLS: [
-    'https://broker.openrung.org/api/v1/app-manifest',
     'https://d2r7mdpyevvs1m.cloudfront.net/api/v1/app-manifest',
+    'https://broker.openrung.org/api/v1/app-manifest',
     'https://github.com/openrung/openrung-mobile-app/releases/latest/download/update-manifest.json',
   ],
 

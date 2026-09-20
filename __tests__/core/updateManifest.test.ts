@@ -299,8 +299,8 @@ describe('fetchUpdateManifest — sequential fail-open', () => {
   it('keeps AppConfig.UPDATE_MANIFEST_URLS identical to the routed candidate list', () => {
     expect(AppConfig.UPDATE_MANIFEST_URLS).toEqual([...MANIFEST_CANDIDATE_URLS]);
     expect(MANIFEST_CANDIDATE_URLS).toEqual([
-      DIRECT_MANIFEST_URL,
       CLOUDFRONT_MANIFEST_URL,
+      DIRECT_MANIFEST_URL,
       GITHUB_MANIFEST_URL,
     ]);
   });
@@ -309,7 +309,7 @@ describe('fetchUpdateManifest — sequential fail-open', () => {
     const direct = envelopeFor(manifestPayload({ generated_at: '2026-07-20T00:00:00Z' }));
     const cloudFront = envelopeFor(manifestPayload({ generated_at: '2026-07-10T00:00:00Z' }));
     const gitHub = envelopeFor(manifestPayload({ generated_at: '2026-07-05T00:00:00Z' }));
-    installNativeBodies(direct, cloudFront);
+    installNativeBodies(cloudFront, direct);
     const fetchMock = jest.fn().mockResolvedValue(manifestResponse(gitHub));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
@@ -319,8 +319,8 @@ describe('fetchUpdateManifest — sequential fail-open', () => {
     const fetched = await fetchUpdateManifest();
 
     expect(mockNativeFetchManifestCandidate.mock.calls).toEqual([
-      [{ candidateUrl: DIRECT_MANIFEST_URL }],
       [{ candidateUrl: CLOUDFRONT_MANIFEST_URL }],
+      [{ candidateUrl: DIRECT_MANIFEST_URL }],
     ]);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][0]).toBe(GITHUB_MANIFEST_URL);

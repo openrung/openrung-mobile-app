@@ -5,33 +5,33 @@
     "ios": "0.0.0"
   },
   "ios_latest": "0.3.6",
-  "promote": "silent",
+  "promote": "notify",
   "notice": {
-    "id": "2026-08-release-0.3.7",
+    "id": "2026-09-release-0.3.9",
     "level": "info",
     "title": {
-      "en": "What's new in 0.3.7",
-      "zh-CN": "0.3.7 新功能",
-      "zh-TW": "0.3.7 新功能",
-      "fa": "تازه‌های نسخه ۰.۳.۷",
-      "ru": "Что нового в 0.3.7",
-      "ar": "الجديد في 0.3.7",
-      "tr": "0.3.7'deki yenilikler",
-      "vi": "Có gì mới trong 0.3.7",
-      "my": "0.3.7 အသစ်များ"
+      "en": "What's new in 0.3.9",
+      "zh-CN": "0.3.9 新功能",
+      "zh-TW": "0.3.9 新功能",
+      "fa": "تازه‌های نسخه ۰.۳.۹",
+      "ru": "Что нового в 0.3.9",
+      "ar": "الجديد في 0.3.9",
+      "tr": "0.3.9'daki yenilikler",
+      "vi": "Có gì mới trong 0.3.9",
+      "my": "0.3.9 အသစ်များ"
     },
     "body": {
-      "en": "Version 0.3.7 fixes a privacy issue where some traffic could leave the VPN outside Iran and China, encrypts the address lookups split tunneling makes, and now resets split-tunnel options each time you reopen the app.",
-      "zh-CN": "0.3.7 版修复了在伊朗和中国以外部分流量可能绕过 VPN 的隐私问题，加密了分流所做的域名解析，并会在每次重新打开应用时重置分流选项。",
-      "zh-TW": "0.3.7 版修正了在伊朗和中國以外部分流量可能繞過 VPN 的隱私問題，加密了分流所做的網域解析，並會在每次重新開啟應用程式時重設分流選項。",
-      "fa": "نسخهٔ ۰.۳.۷ مشکلی را برطرف می‌کند که در آن بخشی از ترافیک خارج از ایران و چین می‌توانست از VPN بیرون برود، جست‌وجوی نشانی‌های تونل تقسیم‌شده را رمزگذاری می‌کند و اکنون گزینه‌های تونل تقسیم‌شده را با هر بار باز کردن دوبارهٔ برنامه بازنشانی می‌کند.",
-      "ru": "Версия 0.3.7 устраняет проблему приватности, из-за которой часть трафика за пределами Ирана и Китая могла идти в обход VPN, шифрует DNS-запросы раздельного туннелирования и теперь сбрасывает его настройки при каждом запуске приложения.",
-      "ar": "يعالج الإصدار 0.3.7 مشكلة خصوصية كان يمكن معها لبعض البيانات أن تخرج من VPN خارج إيران والصين، ويشفّر طلبات أسماء النطاقات الخاصة بالتقسيم النفقي، ويعيد الآن ضبط خيارات التقسيم النفقي عند كل فتح جديد للتطبيق.",
-      "tr": "0.3.7 sürümü, İran ve Çin dışında bazı trafiğin VPN'in dışına çıkabilmesine yol açan bir gizlilik sorununu giderir, bölünmüş tünelin adres sorgularını şifreler ve bölünmüş tünel seçeneklerini artık uygulamayı her yeniden açtığınızda sıfırlar.",
-      "vi": "Phiên bản 0.3.7 khắc phục vấn đề riêng tư khiến một phần lưu lượng có thể đi ra ngoài VPN khi bạn ở ngoài Iran và Trung Quốc, mã hóa các truy vấn tên miền của chia đường hầm, và nay đặt lại các tùy chọn chia đường hầm mỗi khi bạn mở lại ứng dụng.",
-      "my": "၀.၃.၇ ဗားရှင်းသည် အီရန်နှင့် တရုတ်ပြင်ပတွင် အချို့ဒေတာများ VPN မှ ထွက်သွားနိုင်သည့် ကိုယ်ရေးကိုယ်တာ ပြဿနာကို ပြင်ဆင်ပြီး၊ ခွဲထွက်လမ်းကြောင်း၏ လိပ်စာရှာဖွေမှုများကို စာဝှက်ကာ၊ အက်ပ်ကို ပြန်ဖွင့်တိုင်း ခွဲထွက်လမ်းကြောင်း ရွေးချယ်မှုများကို ပြန်လည်သတ်မှတ်ပေးပါသည်။"
+      "en": "Version 0.3.9 connects faster on networks that block our main server by trying alternate routes first, shows consistent relay names on Android and iOS, and improves the connection mechanism.",
+      "zh-CN": "0.3.9 版会优先尝试备用线路，在屏蔽我们主服务器的网络上连接更快；Android 与 iOS 上的中继名称显示一致；并优化了连接机制。",
+      "zh-TW": "0.3.9 版會優先嘗試備用線路，在封鎖我們主伺服器的網路上連線更快；Android 與 iOS 上的中繼名稱顯示一致；並優化了連線機制。",
+      "fa": "نسخهٔ ۰.۳.۹ در شبکه‌هایی که سرور اصلی ما را مسدود می‌کنند با آزمودن مسیرهای جایگزین در ابتدا سریع‌تر متصل می‌شود، نام رله‌ها را در اندروید و iOS یکسان نشان می‌دهد و سازوکار اتصال را بهبود می‌بخشد.",
+      "ru": "Версия 0.3.9 быстрее подключается в сетях, блокирующих наш основной сервер, сначала пробуя запасные маршруты, единообразно показывает названия релеев на Android и iOS и улучшает механизм подключения.",
+      "ar": "يتصل الإصدار 0.3.9 أسرع في الشبكات التي تحجب خادمنا الرئيسي عبر تجربة المسارات البديلة أولاً، ويعرض أسماء المرحّلات بشكل متطابق على Android وiOS، ويحسّن آلية الاتصال.",
+      "tr": "0.3.9 sürümü, ana sunucumuzu engelleyen ağlarda önce alternatif yolları deneyerek daha hızlı bağlanır, Android ve iOS'ta tutarlı aktarıcı adları gösterir ve bağlantı mekanizmasını iyileştirir.",
+      "vi": "Phiên bản 0.3.9 kết nối nhanh hơn trên các mạng chặn máy chủ chính của chúng tôi bằng cách thử các tuyến thay thế trước, hiển thị tên relay nhất quán trên Android và iOS, và cải thiện cơ chế kết nối.",
+      "my": "၀.၃.၉ ဗားရှင်းသည် ကျွန်ုပ်တို့၏ ပင်မဆာဗာကို ပိတ်ဆို့ထားသော ကွန်ရက်များတွင် အခြားလမ်းကြောင်းများကို အရင်စမ်းသပ်ခြင်းဖြင့် ပိုမြန်စွာ ချိတ်ဆက်ပေးပြီး၊ Android နှင့် iOS တွင် relay အမည်များကို တသမတ်တည်း ပြသကာ၊ ချိတ်ဆက်မှုယန္တရားကို တိုးတက်ကောင်းမွန်စေပါသည်။"
     },
     "url": null,
-    "expires": "2026-11-01T00:00:00Z"
+    "expires": "2026-12-01T00:00:00Z"
   }
 }
