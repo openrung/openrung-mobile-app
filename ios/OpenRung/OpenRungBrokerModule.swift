@@ -6,7 +6,11 @@ import React
 /// WSS ticket operations intentionally remain absent: credentials are owned only by the
 /// PacketTunnel provider and never cross the React Native bridge.
 @objc(OpenRungBroker)
-final class OpenRungBrokerModule: NSObject, RCTInvalidating {
+// RCTInvalidating conformance is declared in OpenRungBrokerModule+Invalidating.m: the Xcode 27
+// Swift importer does not surface that protocol from the prebuilt React module, so a Swift-side
+// conformance fails to compile. React checks conformsToProtocol at runtime, and a category
+// satisfies that. Keep `invalidate()` @objc so the ObjC category can rely on it.
+final class OpenRungBrokerModule: NSObject {
     private static let errorDomain = "com.openrung.app.OpenRungBroker"
 
     private let coordinator: OpenRungBrokerRequestCoordinator

@@ -7,29 +7,35 @@ import ReactAppDependencyProvider
 class AppDelegate: UIResponder, UIApplicationDelegate {
   var window: UIWindow?
 
-  var reactNativeDelegate: ReactNativeDelegate?
-  var reactNativeFactory: RCTReactNativeFactory?
+  /// Launch options are captured here and handed to React Native from SceneDelegate, which is
+  /// where the window is created under the UIScene lifecycle (required by the iOS 27 SDK).
+  var launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+
+  let reactNativeDelegate = ReactNativeDelegate()
+  lazy var reactNativeFactory: RCTReactNativeFactory = {
+    reactNativeDelegate.dependencyProvider = RCTAppDependencyProvider()
+    return RCTReactNativeFactory(delegate: reactNativeDelegate)
+  }()
 
   func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
-    let delegate = ReactNativeDelegate()
-    let factory = RCTReactNativeFactory(delegate: delegate)
-    delegate.dependencyProvider = RCTAppDependencyProvider()
-
-    reactNativeDelegate = delegate
-    reactNativeFactory = factory
-
-    window = UIWindow(frame: UIScreen.main.bounds)
-
-    factory.startReactNative(
-      withModuleName: "OpenRung",
-      in: window,
-      launchOptions: launchOptions
-    )
-
+    self.launchOptions = launchOptions
     return true
+  }
+
+  func application(
+    _ application: UIApplication,
+    configurationForConnecting connectingSceneSession: UISceneSession,
+    options: UIScene.ConnectionOptions
+  ) -> UISceneConfiguration {
+    let configuration = UISceneConfiguration(
+      name: "Default Configuration",
+      sessionRole: connectingSceneSession.role
+    )
+    configuration.delegateClass = SceneDelegate.self
+    return configuration
   }
 }
 

@@ -39,6 +39,7 @@
 		3E600B1A4A0F6A075AB8D6E7 /* FailureClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E89C58EA730C659109459911 /* FailureClassifierTests.swift */; };
 		401088D78629F49BDF35BF3D /* SplitTunnelConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88FBD70740FE33FC9CC6564B /* SplitTunnelConfig.swift */; };
 		4363B566B4DCDF04E2E7455C /* PacketTunnelDnsProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F02C36295E0BF915B4B9736 /* PacketTunnelDnsProbe.swift */; };
+		443F0D3CD95FA939AFB970DA /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C401882CB8CF6382E1F4488 /* SceneDelegate.swift */; };
 		468C4693D9D5CFC60054F987 /* EngineHostTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D31D432475D7CD185403F2F1 /* EngineHostTests.swift */; };
 		4848380AF5BAABE5EC7A73DB /* EngineAdapterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6F95759BC1B006D4A82F4A5 /* EngineAdapterTests.swift */; };
 		4AF8C7F150317AC00E8B27FA /* PacketTunnel.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1EAA8B2F5746A87534F0C87B /* PacketTunnel.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -75,6 +76,7 @@
 		91DF94A8B176C8B90DCFF6A5 /* EngineDirectories.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25CB8E64CF645C0DD1375294 /* EngineDirectories.swift */; };
 		929CFA1B533CC91BEAF124F9 /* EngineEventDispatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 017DD573ECE8D78A567BF132 /* EngineEventDispatcher.swift */; };
 		930BA1FF73C751F1D80AF335 /* Network.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 091BB47D3F7E77446C73342D /* Network.framework */; };
+		946D20C038AF434910BA4395 /* libPods-OpenRung.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 9A6BF61AB72DBDAB014777F6 /* libPods-OpenRung.a */; };
 		952EFF368D06083B89F5EE8D /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4783169BE46FEE9B0472504 /* AppConfig.swift */; };
 		95BF75EED69904C3B224E0BF /* NativeBrokerTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66C3AC37AF7128A85A7F7CC7 /* NativeBrokerTransport.swift */; };
 		9604E15625FCE8C234279160 /* InternetProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 005F1F59591EC44366AC6B21 /* InternetProbe.swift */; };
@@ -90,6 +92,7 @@
 		A456EFF327FBA312F10D2DDA /* ActivityLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C27022D3D9D7FEEC839F406 /* ActivityLog.swift */; };
 		B399CE98F2A1BE3D97D45856 /* NativeBrokerTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66C3AC37AF7128A85A7F7CC7 /* NativeBrokerTransport.swift */; };
 		B434A0C0E679EE9A6A8ED7AE /* NativeBrokerTestDoubles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44DD4C9CB725E92B8F423EC7 /* NativeBrokerTestDoubles.swift */; };
+		BC893FD3741A777B0F4E7FC8 /* OpenRungBrokerModule+Invalidating.m in Sources */ = {isa = PBXBuildFile; fileRef = 3E549FCD792915F653D67D89 /* OpenRungBrokerModule+Invalidating.m */; };
 		BF55D9C9334181B84F1D36EC /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 83209B5DF847F742A280CD21 /* LaunchScreen.storyboard */; };
 		C27D37D3F725F36D253CEB88 /* DnsProbeMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D55BA84C5D35B80DFF05F1A /* DnsProbeMessage.swift */; };
 		C30EDE383463DB3F401D317E /* SharedConnectionState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11601E153A60E8B30351E20 /* SharedConnectionState.swift */; };
@@ -106,7 +109,6 @@
 		D2C1FC7BD898957136C5BFD4 /* EngineStateProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE547651E9653919D1996F25 /* EngineStateProjection.swift */; };
 		D3F68267EBF9F65D35224383 /* Libbox.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = F19AE6300C331CB6C7B2B9E8 /* Libbox.xcframework */; };
 		D420784479B66EB7456E650F /* LibboxBrokerTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 274F2564F2D6019FBBD3B92A /* LibboxBrokerTransport.swift */; };
-		D84C0C11DA660ACF848B6F34 /* libPods-OpenRung.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 8282A6F0A24AE7C955445330 /* libPods-OpenRung.a */; };
 		D9C12055B37783B2F772A5A6 /* EngineStateProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE547651E9653919D1996F25 /* EngineStateProjection.swift */; };
 		DA63F6EDE23966103B89E919 /* DnsConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF68A64E6FB095B8FD6A3F3F /* DnsConfigurationTests.swift */; };
 		DB776EA0CB28A8D6A698A6D7 /* SingBoxConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = D156734F7F68151301FEF878 /* SingBoxConfiguration.swift */; };
@@ -200,10 +202,12 @@
 		2D55BA84C5D35B80DFF05F1A /* DnsProbeMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DnsProbeMessage.swift; sourceTree = "<group>"; };
 		3B04CC982440EBB0C449CA5A /* OpenRungBrokerCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRungBrokerCoordinator.swift; sourceTree = "<group>"; };
 		3BEE51EC45A891A7FD184DFB /* PacketTunnelInternetProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelInternetProbe.swift; sourceTree = "<group>"; };
-		426E39F9341055FCE902A3B0 /* Pods-OpenRung.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OpenRung.release.xcconfig"; path = "Target Support Files/Pods-OpenRung/Pods-OpenRung.release.xcconfig"; sourceTree = "<group>"; };
+		3C401882CB8CF6382E1F4488 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
+		3E549FCD792915F653D67D89 /* OpenRungBrokerModule+Invalidating.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "OpenRungBrokerModule+Invalidating.m"; sourceTree = "<group>"; };
 		44DD4C9CB725E92B8F423EC7 /* NativeBrokerTestDoubles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeBrokerTestDoubles.swift; sourceTree = "<group>"; };
 		584A04475F28B3CAC39B501E /* ConnectionStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStatus.swift; sourceTree = "<group>"; };
 		5A5941A8CF4A810D424C4147 /* OpenRungBrokerModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRungBrokerModule.swift; sourceTree = "<group>"; };
+		66BC253D5390E97D8AF3EAC8 /* Pods-OpenRung.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OpenRung.debug.xcconfig"; path = "Target Support Files/Pods-OpenRung/Pods-OpenRung.debug.xcconfig"; sourceTree = "<group>"; };
 		66C3AC37AF7128A85A7F7CC7 /* NativeBrokerTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeBrokerTransport.swift; sourceTree = "<group>"; };
 		687FF2AE15E31BCE38EF9073 /* PacketTunnelEngineHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelEngineHost.swift; sourceTree = "<group>"; };
 		693B17B81972486FA17A7D41 /* geoip-cn.srs */ = {isa = PBXFileReference; path = "geoip-cn.srs"; sourceTree = "<group>"; };
@@ -216,7 +220,6 @@
 		7CC98A48B39730FB55671728 /* EngineMemoryMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineMemoryMonitor.swift; sourceTree = "<group>"; };
 		81B10868A3F7FA99A84696A4 /* OpenRung.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = OpenRung.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		81CC00C2F7324111F25D07A0 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
-		8282A6F0A24AE7C955445330 /* libPods-OpenRung.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-OpenRung.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		83209B5DF847F742A280CD21 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		88418ED16021B1DB4B15A07C /* IOSConnectcore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSConnectcore.swift; sourceTree = "<group>"; };
 		88FBD70740FE33FC9CC6564B /* SplitTunnelConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplitTunnelConfig.swift; sourceTree = "<group>"; };
@@ -226,6 +229,7 @@
 		921594E8D4D0BD552D35698C /* geoip-ir.srs */ = {isa = PBXFileReference; path = "geoip-ir.srs"; sourceTree = "<group>"; };
 		950A6D203D0D99231E812DF9 /* LibboxKit.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = LibboxKit.m; sourceTree = "<group>"; };
 		97D23B885595CDD6DD259A85 /* LibboxPacketTunnelPlatformInterface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibboxPacketTunnelPlatformInterface.swift; sourceTree = "<group>"; };
+		9A6BF61AB72DBDAB014777F6 /* libPods-OpenRung.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-OpenRung.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		9AA34278398F5C3F677BC7A6 /* OpenRungBrokerModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = OpenRungBrokerModule.m; sourceTree = "<group>"; };
 		9C27022D3D9D7FEEC839F406 /* ActivityLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityLog.swift; sourceTree = "<group>"; };
 		9F02C36295E0BF915B4B9736 /* PacketTunnelDnsProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelDnsProbe.swift; sourceTree = "<group>"; };
@@ -238,7 +242,6 @@
 		AAC6D89892DE900192CBBBA5 /* PacketTunnelInternetProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelInternetProbeTests.swift; sourceTree = "<group>"; };
 		AB117725DF8A60D9A23412CC /* PacketTunnel.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PacketTunnel.entitlements; sourceTree = "<group>"; };
 		AB8C9F2F42E47E0E9E9AA47E /* LibboxKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = LibboxKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		AE4D2774EFF34BE32983633D /* Pods-OpenRung.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OpenRung.debug.xcconfig"; path = "Target Support Files/Pods-OpenRung/Pods-OpenRung.debug.xcconfig"; sourceTree = "<group>"; };
 		AE547651E9653919D1996F25 /* EngineStateProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineStateProjection.swift; sourceTree = "<group>"; };
 		B0C127CAD14278743A1BD298 /* NetworkPathMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkPathMonitor.swift; sourceTree = "<group>"; };
 		B9D3B66E26E617B7B00140A4 /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
@@ -260,6 +263,7 @@
 		E015EBBA482879150C779611 /* OpenRung.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = OpenRung.entitlements; sourceTree = "<group>"; };
 		E2570C01745DA49558877810 /* CountryGeo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountryGeo.swift; sourceTree = "<group>"; };
 		E4783169BE46FEE9B0472504 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
+		E87D49F174B0A30E273D686A /* Pods-OpenRung.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OpenRung.release.xcconfig"; path = "Target Support Files/Pods-OpenRung/Pods-OpenRung.release.xcconfig"; sourceTree = "<group>"; };
 		E89C58EA730C659109459911 /* FailureClassifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FailureClassifierTests.swift; sourceTree = "<group>"; };
 		EC15DA1827B19848080D3452 /* libresolv.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libresolv.tbd; path = usr/lib/libresolv.tbd; sourceTree = SDKROOT; };
 		ECC225DFB311B748621B135B /* PacketTunnelDnsProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelDnsProbeTests.swift; sourceTree = "<group>"; };
@@ -296,7 +300,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				767680B070BBDB21811EA1F0 /* LibboxKit.framework in Frameworks */,
-				D84C0C11DA660ACF848B6F34 /* libPods-OpenRung.a in Frameworks */,
+				946D20C038AF434910BA4395 /* libPods-OpenRung.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -314,9 +318,11 @@
 				3B04CC982440EBB0C449CA5A /* OpenRungBrokerCoordinator.swift */,
 				9AA34278398F5C3F677BC7A6 /* OpenRungBrokerModule.m */,
 				5A5941A8CF4A810D424C4147 /* OpenRungBrokerModule.swift */,
+				3E549FCD792915F653D67D89 /* OpenRungBrokerModule+Invalidating.m */,
 				ED28831CA960E8B89D5D7D04 /* OpenRungVpnModule.m */,
 				719ACF45718CBF52773FCD6C /* OpenRungVpnModule.swift */,
 				A025739761D97ABD7227B8DA /* PrivacyInfo.xcprivacy */,
+				3C401882CB8CF6382E1F4488 /* SceneDelegate.swift */,
 			);
 			path = OpenRung;
 			sourceTree = "<group>";
@@ -352,6 +358,16 @@
 				950A6D203D0D99231E812DF9 /* LibboxKit.m */,
 			);
 			path = LibboxKit;
+			sourceTree = "<group>";
+		};
+		565BB1F471D0563B04CD533E /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				66BC253D5390E97D8AF3EAC8 /* Pods-OpenRung.debug.xcconfig */,
+				E87D49F174B0A30E273D686A /* Pods-OpenRung.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
 			sourceTree = "<group>";
 		};
 		837FBBD5687C0AB326CC593E /* OpenRungTests */ = {
@@ -398,7 +414,7 @@
 				EC15DA1827B19848080D3452 /* libresolv.tbd */,
 				091BB47D3F7E77446C73342D /* Network.framework */,
 				81CC00C2F7324111F25D07A0 /* UIKit.framework */,
-				8282A6F0A24AE7C955445330 /* libPods-OpenRung.a */,
+				9A6BF61AB72DBDAB014777F6 /* libPods-OpenRung.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -438,16 +454,6 @@
 			path = LegacyClassificationFixtures;
 			sourceTree = "<group>";
 		};
-		D1AA992BDFB3BF63FDEA2705 /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				AE4D2774EFF34BE32983633D /* Pods-OpenRung.debug.xcconfig */,
-				426E39F9341055FCE902A3B0 /* Pods-OpenRung.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
-			sourceTree = "<group>";
-		};
 		DF0B8D29EE157F18B114D908 /* EngineDeviceTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -480,7 +486,7 @@
 				3F24A472F75132572E2891A1 /* Shared */,
 				A1C815B9A63C637692C1C541 /* Frameworks */,
 				E73A5155909F9EFE9F13A6A1 /* Products */,
-				D1AA992BDFB3BF63FDEA2705 /* Pods */,
+				565BB1F471D0563B04CD533E /* Pods */,
 			);
 			sourceTree = "<group>";
 		};
@@ -525,16 +531,16 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = F19D0D1C8CB7FB1B6B178E82 /* Build configuration list for PBXNativeTarget "OpenRung" */;
 			buildPhases = (
-				D83480F2EB06DED5853CC646 /* [CP] Check Pods Manifest.lock */,
+				EA73A1093FAA862BD9811032 /* [CP] Check Pods Manifest.lock */,
 				BC3282E3662088C7CF8F8BC7 /* Sources */,
 				7272F5C7D4F2765DAB69942D /* Resources */,
 				6E9C330AAB907426FF017F77 /* Frameworks */,
 				141D130B421160859A220937 /* Embed Foundation Extensions */,
 				E5A73D1935A290882F2E847C /* Embed Frameworks */,
 				7645E65DA025354651549041 /* Bundle React Native code and images */,
-				98BED2B2424243DA39C43C4B /* [MapLibre React Native] Remove MapLibre.xcframework-ios.signature */,
-				DF68E7EE96D0209F99F893E3 /* [CP] Embed Pods Frameworks */,
-				7DA143BFC4CDEEC87B2B535A /* [CP] Copy Pods Resources */,
+				4DFBB160A42E5C8676A08A3E /* [MapLibre React Native] Remove MapLibre.xcframework-ios.signature */,
+				A566D6EE361BBAB63A5ECA4F /* [CP] Embed Pods Frameworks */,
+				5F4B1CE05C7550C0DCDD1204 /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -544,7 +550,7 @@
 			);
 			name = OpenRung;
 			packageProductDependencies = (
-				65C96B137F8D9E0481042239 /* MapLibre */,
+				63ACDDB486281C3025201081 /* MapLibre */,
 			);
 			productName = OpenRung;
 			productReference = 81B10868A3F7FA99A84696A4 /* OpenRung.app */;
@@ -622,7 +628,7 @@
 			mainGroup = F4646C7E57CBAA9E0DF5661F;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				DED31410BA162F031A8B6DCC /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */,
+				8D20392EF90284DFA791BBF9 /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E73A5155909F9EFE9F13A6A1 /* Products */;
@@ -663,6 +669,42 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		4DFBB160A42E5C8676A08A3E /* [MapLibre React Native] Remove MapLibre.xcframework-ios.signature */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "[MapLibre React Native] Remove MapLibre.xcframework-ios.signature";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "rm -rf \"$CONFIGURATION_BUILD_DIR/MapLibre.xcframework-ios.signature\"";
+		};
+		5F4B1CE05C7550C0DCDD1204 /* [CP] Copy Pods Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-resources-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			name = "[CP] Copy Pods Resources";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-resources.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
 		7645E65DA025354651549041 /* Bundle React Native code and images */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -683,43 +725,24 @@
 			shellPath = /bin/sh;
 			shellScript = "set -e\n\nWITH_ENVIRONMENT=\"$REACT_NATIVE_PATH/scripts/xcode/with-environment.sh\"\nREACT_NATIVE_XCODE=\"$REACT_NATIVE_PATH/scripts/react-native-xcode.sh\"\n\n/bin/sh -c \"\\\"$WITH_ENVIRONMENT\\\" \\\"$REACT_NATIVE_XCODE\\\"\"\n";
 		};
-		7DA143BFC4CDEEC87B2B535A /* [CP] Copy Pods Resources */ = {
+		A566D6EE361BBAB63A5ECA4F /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-resources-${CONFIGURATION}-input-files.xcfilelist",
+				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			name = "[CP] Copy Pods Resources";
+			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-resources-${CONFIGURATION}-output-files.xcfilelist",
+				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-frameworks-${CONFIGURATION}-output-files.xcfilelist",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-resources.sh\"\n";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		98BED2B2424243DA39C43C4B /* [MapLibre React Native] Remove MapLibre.xcframework-ios.signature */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			name = "[MapLibre React Native] Remove MapLibre.xcframework-ios.signature";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "rm -rf \"$CONFIGURATION_BUILD_DIR/MapLibre.xcframework-ios.signature\"";
-		};
-		D83480F2EB06DED5853CC646 /* [CP] Check Pods Manifest.lock */ = {
+		EA73A1093FAA862BD9811032 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -739,23 +762,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
-			showEnvVarsInLog = 0;
-		};
-		DF68E7EE96D0209F99F893E3 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-frameworks-${CONFIGURATION}-input-files.xcfilelist",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-OpenRung/Pods-OpenRung-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
@@ -885,12 +891,14 @@
 				B399CE98F2A1BE3D97D45856 /* NativeBrokerTransport.swift in Sources */,
 				63F4601CF297170FC3EA5408 /* NetworkPathMonitor.swift in Sources */,
 				2A5E5581CC1AAE9FBB88A343 /* OpenRungBrokerCoordinator.swift in Sources */,
+				BC893FD3741A777B0F4E7FC8 /* OpenRungBrokerModule+Invalidating.m in Sources */,
 				7CB2622B1AF9054F3A3CC5EA /* OpenRungBrokerModule.m in Sources */,
 				304A2FEF600E1876E02BB428 /* OpenRungBrokerModule.swift in Sources */,
 				E2C945F0A942AE0E937369EC /* OpenRungVpnModule.m in Sources */,
 				F82F4E03FAD0D3DFDB106718 /* OpenRungVpnModule.swift in Sources */,
 				982E14D3077355EF8F7F3DB5 /* ProbeTargets.swift in Sources */,
 				7AD3CF8197D457CDDC3CCBCE /* RelayDescriptor.swift in Sources */,
+				443F0D3CD95FA939AFB970DA /* SceneDelegate.swift in Sources */,
 				9E3FE5CDA11DD5EEC1F54942 /* SharedConnectionState.swift in Sources */,
 				FDD249EAC97CC2DF789CBCE6 /* SplitTunnelConfig.swift in Sources */,
 			);
@@ -924,9 +932,10 @@
 /* Begin XCBuildConfiguration section */
 		0D953B3D127C0BB08E644293 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 426E39F9341055FCE902A3B0 /* Pods-OpenRung.release.xcconfig */;
+			baseConfigurationReference = E87D49F174B0A30E273D686A /* Pods-OpenRung.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = OpenRung/OpenRung.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				FRAMEWORK_SEARCH_PATHS = (
@@ -1072,7 +1081,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = 9VLV9A7KS9;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -1150,9 +1159,10 @@
 		};
 		73BE8C16CB91640112F4357A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = AE4D2774EFF34BE32983633D /* Pods-OpenRung.debug.xcconfig */;
+			baseConfigurationReference = 66BC253D5390E97D8AF3EAC8 /* Pods-OpenRung.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = OpenRung/OpenRung.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				FRAMEWORK_SEARCH_PATHS = (
@@ -1268,7 +1278,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 16;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = 9VLV9A7KS9;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -1402,7 +1412,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		DED31410BA162F031A8B6DCC /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */ = {
+		8D20392EF90284DFA791BBF9 /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/maplibre/maplibre-gl-native-distribution";
 			requirement = {
@@ -1413,9 +1423,9 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		65C96B137F8D9E0481042239 /* MapLibre */ = {
+		63ACDDB486281C3025201081 /* MapLibre */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = DED31410BA162F031A8B6DCC /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */;
+			package = 8D20392EF90284DFA791BBF9 /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */;
 			productName = MapLibre;
 		};
 /* End XCSwiftPackageProductDependency section */

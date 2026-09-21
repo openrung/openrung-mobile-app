@@ -14,7 +14,7 @@ settings:
     # Injected from package.json by scripts/generate-project.sh (the app version string is
     # single-sourced there; check-versions.mjs enforces the baked pbxproj value matches).
     MARKETING_VERSION: "${APP_VERSION}"
-    CURRENT_PROJECT_VERSION: "15"
+    CURRENT_PROJECT_VERSION: "16"
     DEVELOPMENT_TEAM: 9VLV9A7KS9
     CODE_SIGN_STYLE: Automatic
     # The RN bundle phase writes outside the sandbox; Xcode 15+ would block it otherwise.
@@ -80,6 +80,10 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.openrung.app
         PRODUCT_NAME: OpenRung
         INFOPLIST_FILE: OpenRung/Info.plist
+        # The prebuilt React.xcframework umbrella resolves its <React/...> includes to the CocoaPods
+        # header copies, which clang treats as non-modular. Xcode 27 builds the module strictly when
+        # an Objective-C file imports it, so allow it (the standard React Native setting).
+        CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES: "YES"
         CODE_SIGN_ENTITLEMENTS: OpenRung/OpenRung.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         TARGETED_DEVICE_FAMILY: "1,2"

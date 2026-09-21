@@ -39,6 +39,25 @@
 	<string>OpenRung does not use your location. The relay map is built with a component that can display your position, but the app never requests or collects it.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
+	<!-- iOS 27 SDK builds must adopt the UIScene lifecycle or UIKit traps at launch
+	     (0.3.9 build 15 crashed on every cold start without this). -->
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneConfigurationName</key>
+					<string>Default Configuration</string>
+					<key>UISceneDelegateClassName</key>
+					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>
