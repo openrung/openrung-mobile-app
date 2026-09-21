@@ -40,6 +40,7 @@ let dismissedNoticeIds: string[] = [];
 let blockOverridden = false; // session-scoped "Continue anyway"
 let fetchInFlight = false;
 let started = false;
+let lifecycleGeneration = 0;
 let appStateSubscription: NativeEventSubscription | null = null;
 let noticeExpiryTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -87,7 +88,7 @@ function recompute(): void {
   }
 }
 
-async function hydrate(): Promise<void> {
+async function hydrate(generation: number): Promise<void> {
   try {
     const [raw, checkedAt, banner, notices] = await Promise.all([
       AsyncStorage.getItem(UPDATE_MANIFEST_STORAGE_KEY),
@@ -95,6 +96,9 @@ async function hydrate(): Promise<void> {
       AsyncStorage.getItem(UPDATE_DISMISSED_BANNER_STORAGE_KEY),
       AsyncStorage.getItem(UPDATE_DISMISSED_NOTICES_STORAGE_KEY),
     ]);
+    if (generation !== lifecycleGeneration) {
+      return;
+    }
     // Never clobber a manifest a concurrently-completed refresh already installed: the fetched
     // copy went through the shouldReplaceCache ladder, the persisted one would bypass it.
     if (raw !== null && decoded === null) {
@@ -224,8 +228,13 @@ export function startUpdateCheck(): () => void {
     return () => {};
   }
   started = true;
+  const generation = ++lifecycleGeneration;
   (async () => {
-    await hydrate();
+    await hydrate(generation);
+    // A stopped startup must not resume when storage resolves, even if a new mount started.
+    if (generation !== lifecycleGeneration) {
+      return;
+    }
     recompute();
     // Foreground re-checks only start once hydration has seeded the throttle state — an early
     // 'active' event must not bypass the persisted 6h throttle or race the cache hydration.
@@ -244,6 +253,10 @@ export function startUpdateCheck(): () => void {
     // Every stage above is fail-open already; this guards the chain itself.
   });
   return () => {
+    if (generation !== lifecycleGeneration) {
+      return;
+    }
+    lifecycleGeneration += 1;
     appStateSubscription?.remove();
     appStateSubscription = null;
     clearNoticeExpiryTimer();
@@ -288,6 +301,7 @@ export function continueDespiteBlock(): void {
 
 /** Test-only: clears all module state (mirror of resetStoreForTests). */
 export function resetUpdateCheckForTests(): void {
+  lifecycleGeneration += 1;
   decoded = null;
   lastSuccessAtMs = 0;
   lastAttemptAtMs = 0;
