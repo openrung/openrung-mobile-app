@@ -193,7 +193,12 @@ export function useAppSelector<T>(
   selector: (current: AppState) => T,
   isEqual: (a: T, b: T) => boolean = shallowEqual,
 ): T {
-  const cacheRef = useRef<{ snapshot: AppState; selected: T } | null>(null);
+  const cacheRef = useRef<{
+    snapshot: AppState;
+    selector: (current: AppState) => T;
+    isEqual: (a: T, b: T) => boolean;
+    selected: T;
+  } | null>(null);
   // Latest selector/equality without re-subscribing (the standard external-store shim pattern).
   const selectorRef = useRef(selector);
   const isEqualRef = useRef(isEqual);
@@ -203,13 +208,24 @@ export function useAppSelector<T>(
   const getSelected = useCallback((): T => {
     const snapshot = getSnapshot();
     const cache = cacheRef.current;
-    if (cache !== null && cache.snapshot === snapshot) {
+    // Props can change the selector or equality policy without changing the store snapshot.
+    if (
+      cache !== null &&
+      cache.snapshot === snapshot &&
+      cache.selector === selectorRef.current &&
+      cache.isEqual === isEqualRef.current
+    ) {
       return cache.selected;
     }
     const next = selectorRef.current(snapshot);
     const selected =
       cache !== null && isEqualRef.current(cache.selected, next) ? cache.selected : next;
-    cacheRef.current = { snapshot, selected };
+    cacheRef.current = {
+      snapshot,
+      selector: selectorRef.current,
+      isEqual: isEqualRef.current,
+      selected,
+    };
     return selected;
   }, []);
 
