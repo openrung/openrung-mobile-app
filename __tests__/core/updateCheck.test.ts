@@ -27,6 +27,9 @@ jest.mock('../../src/net/updateManifestClient', () => ({
   fetchUpdateManifest: (...args: unknown[]) => mockFetchUpdateManifest(...args),
 }));
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppState } from 'react-native';
+
 import {
   decodeUpdateEnvelope,
   setManifestSigningKeysForTests,
@@ -250,6 +253,44 @@ describe('refreshUpdateManifest', () => {
 });
 
 describe('startUpdateCheck', () => {
+  it('does not publish or fetch after cleanup while storage is pending', async () => {
+    let resolveStorage!: (value: string | null) => void;
+    jest.mocked(AsyncStorage.getItem).mockImplementationOnce(
+      () => new Promise(resolve => { resolveStorage = resolve; }),
+    );
+    const listener = jest.spyOn(AppState, 'addEventListener').mockClear();
+    try {
+      const stop = startUpdateCheck();
+      stop();
+      resolveStorage(envelopeFor(iosPayload({ latest: '9.9.9' })));
+      await flush();
+      expect(getSnapshot().update.tier).toBe('none');
+      expect(mockFetchUpdateManifest).not.toHaveBeenCalled();
+      expect(listener).not.toHaveBeenCalled();
+    } finally {
+      listener.mockRestore();
+    }
+  });
+
+  it('keeps one listener across a restart and ignores repeated old cleanup', async () => {
+    const remove = jest.fn();
+    const listener = jest.spyOn(AppState, 'addEventListener').mockReturnValue({ remove });
+    mockFetchReturning();
+    try {
+      const stopOld = startUpdateCheck();
+      stopOld();
+      const stopCurrent = startUpdateCheck();
+      await flush();
+      expect(listener).toHaveBeenCalledTimes(1);
+      stopOld();
+      expect(remove).not.toHaveBeenCalled();
+      stopCurrent();
+      expect(remove).toHaveBeenCalledTimes(1);
+    } finally {
+      listener.mockRestore();
+    }
+  });
+
   it('hydrates a persisted manifest without fetching when the check is fresh', async () => {
     const envelope = envelopeFor(iosPayload({ latest: '9.9.9' }));
     mockMemoryStore.set(UPDATE_MANIFEST_STORAGE_KEY, envelope);
