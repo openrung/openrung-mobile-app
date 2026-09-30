@@ -64,7 +64,8 @@ without leaving a leaky tunnel — not that traffic is blocked. See CONTRACT.md 
   |   the native module is absent)    payload: NativeVpnState           |
   +-----|--------------------------------^------------------------------+
         | prepare() / connect(brokerUrl, | event on every status/log/
-        | targetCountry) / disconnect()  | relay/recents change
+        | targetCountry, targetRelayId)  | relay/recents change
+        | / disconnect()                 |
         | / setSplitTunnelConfig(json)   |
         v                                |
   +---------------------------------------------------------------------+
@@ -270,9 +271,10 @@ shape (the RN 0.86 bridgeless interop layer handles it):
 - `prepare()` — OS VPN consent. Android: `VpnService.prepare` dialog (plus
   POST_NOTIFICATIONS on API 33+). iOS: load-or-create the
   `NETunnelProviderManager` and save it.
-- `connect(brokerUrl, targetCountry)` — start or switch the tunnel;
-  `targetCountry` is ISO alpha-2 or null (broker picks). Resolves when the
-  start is *dispatched*; completion arrives via events.
+- `connect(brokerUrl, targetCountry, targetRelayId)` — start or switch the tunnel;
+  `targetCountry` is ISO alpha-2 or null (broker picks). A non-null
+  `targetRelayId` selects an exact relay and takes precedence over country.
+  Resolves when the start is *dispatched*; completion arrives via events.
 - `disconnect()`, `getState()`, `getIdentity()`.
 - `setSplitTunnelConfig(configJson)` — persist the split-tunnel preset config
   JSON natively (schema in the contract §3); when the tunnel is connected and
@@ -280,7 +282,7 @@ shape (the RN 0.86 bridgeless interop layer handles it):
   native reapplies by reconnecting to the same target. Resolves when the
   reapply is *dispatched*.
 - Event `openrungStateChanged` with payload `NativeVpnState`:
-  `{ status, relayLabel, lastError, logLines (cap 80), recents (cap 8) }`.
+  `{ status, relayLabel, relayName, relayClass, lastError, logLines (cap 80), recents (cap 8) }`.
   `status` is one of disconnected / preparing / connecting / connected /
   disconnecting / failed.
 
@@ -465,9 +467,12 @@ redesigned shell renders the map full-screen behind an edge vignette, with a
 glass connect card and a Home / Settings / About us tab bar on top. Base hex
 values live in §5 of the contract.
 
-Navigation is an instant swap over plain state (a bottom-tab enum
-HOME / SETTINGS / ABOUT plus pushed sub-routes DEBUG / LICENSES /
-LICENSE_TEXT) with hardware-back mapping — no navigation library.
+Navigation state lives in `App.tsx`: Home / Settings / About tabs plus pushed
+Debug / Split tunneling / Licenses / License text screens, with hardware-back
+mapping. iOS renders tabs with the system TabView through
+`react-native-bottom-tabs` (`NativeTabs.tsx`); Android uses the custom JS
+`TabBar`. Both preserve the home map across tab switches. Pushed screens cover
+the tabs, and the update-required screen overlays the full app when needed.
 
 ## Known limitations (§8)
 

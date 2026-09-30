@@ -1,11 +1,9 @@
 /**
- * Curated ISO-3166 alpha-2 -> centroid table used to place exit-node markers on the map without a
- * per-host geocoding round trip. Asia-Pacific is covered densely (the relay network's focus);
- * common VPN-exit countries elsewhere are included so a stray relay still lands somewhere sensible.
+ * Curated ISO-3166 alpha-2 country names and approximate centroids.
+ * The real directory uses broker-provided coordinates; this table supplies fallback country
+ * display names there and simulated relay locations in the mock VPN engine.
  *
- * Coordinates are approximate country centroids (latitude, longitude in degrees).
- *
- * Ported verbatim from the production `model/CountryGeo.kt`.
+ * Ported from the production `model/CountryGeo.kt`.
  */
 
 interface Centroid {

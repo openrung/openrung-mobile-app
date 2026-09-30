@@ -130,9 +130,14 @@ export interface OpenRungVpnModule {
    *  NETunnelProviderManager and save it). Resolves true when usable. */
   prepare(): Promise<boolean>;
   /** Start (or switch) the tunnel. targetCountry: ISO alpha-2 or null = broker
-   *  picks. Resolves once the native start has been dispatched (NOT when
-   *  connected — completion is reported via events). */
-  connect(brokerUrl: string, targetCountry: string | null): Promise<void>;
+   *  picks. targetRelayId: exact broker relay id or null; takes precedence
+   *  over targetCountry. Resolves once the native start has been dispatched
+   *  (NOT when connected — completion is reported via events). */
+  connect(
+    brokerUrl: string,
+    targetCountry: string | null,
+    targetRelayId: string | null,
+  ): Promise<void>;
   disconnect(): Promise<void>;
   getState(): Promise<NativeVpnState>;
   getIdentity(): Promise<NativeIdentity>;
