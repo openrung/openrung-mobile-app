@@ -5,7 +5,7 @@
     "ios": "0.0.0"
   },
   "ios_latest": "0.3.9",
-  "promote": "notify",
+  "promote": "silent",
   "notice": {
     "id": "2026-09-release-0.3.9",
     "level": "info",
