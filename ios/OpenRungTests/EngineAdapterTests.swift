@@ -1,4 +1,5 @@
 import Foundation
+import Network
 import XCTest
 
 final class EngineAdapterTests: XCTestCase {
@@ -101,6 +102,16 @@ final class EngineAdapterTests: XCTestCase {
         XCTAssertEqual(sample(["wifi", "cell"]), sample(["cell", "wifi"]))
         XCTAssertNotEqual(sample(["wifi"]), sample(["wifi"], up: false))
         XCTAssertNotEqual(sample(["wifi"]), sample(["wifi"], expensive: true))
+    }
+
+    func testTunnelInterfacesAreNotPartOfThePhysicalFingerprint() {
+        let wifi = (name: "en0", type: NWInterface.InterfaceType.wifi, index: 7)
+        let cell = (name: "pdp_ip0", type: NWInterface.InterfaceType.cellular, index: 3)
+        let ownTunnel = (name: "utun6", type: NWInterface.InterfaceType.other, index: 21)
+        let loopback = (name: "lo0", type: NWInterface.InterfaceType.loopback, index: 1)
+        XCTAssertEqual(EngineNetworkSnapshot.physicalInterfaces([wifi, ownTunnel, loopback]), EngineNetworkSnapshot.physicalInterfaces([wifi]))
+        XCTAssertNotEqual(EngineNetworkSnapshot.physicalInterfaces([wifi]), EngineNetworkSnapshot.physicalInterfaces([cell]))
+        XCTAssertNotEqual(EngineNetworkSnapshot.physicalInterfaces([wifi]), EngineNetworkSnapshot.physicalInterfaces([wifi, cell]))
     }
 
     func testCancellationJoinsProbeCleanupBeforeReturning() {
