@@ -234,7 +234,13 @@ gomobile interface with connectcore's `InstallationKey` method set:
   in the Secure Enclave when available, otherwise a software keychain key;
   `AfterFirstUnlockThisDeviceOnly`. Signing uses
   `ecdsaSignatureDigestX962SHA256`; the X9.63 point is wrapped in the P-256
-  SPKI prefix.
+  SPKI prefix. The key is deliberately not in a shared keychain access group:
+  neither target declares `keychain-access-groups`, so the app process cannot
+  sign with it, and nothing in the app needs to today. If an app-side broker
+  call (`OpenRungBroker`) ever requires user authentication, the key must move
+  to a shared access group on both targets, and existing installs need a
+  one-time migration of the extension's key into that group, or they enroll
+  as new users.
 - Both platforms convert the DER signature to r‖s natively. A load error other
   than "not found" never creates a replacement key, because a new key is a new
   user. `testdata/installation-key-vectors.json` pins the conversion: the Go
