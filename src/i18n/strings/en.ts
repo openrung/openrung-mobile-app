@@ -162,6 +162,9 @@ export const en = {
     `You have v${current}; v${latest} is out. Tap to get it.`,
   noticeDismiss: 'Dismiss',
   noticeLearnMore: 'Learn more',
+  // Replaces the native lastError when lastErrorCode is 'access_denied' (see nativeErrorText).
+  errorAccessDenied:
+    'Access for this device has been disabled, so it cannot connect. Contact OpenRung support.',
 };
 
 export type Strings = typeof en;

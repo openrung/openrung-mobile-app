@@ -162,4 +162,6 @@ export const zhCN: Partial<Strings> = {
     `当前为 v${current}，最新版 v${latest} 已发布。点按获取。`,
   noticeDismiss: '关闭',
   noticeLearnMore: '了解更多',
+  errorAccessDenied:
+    '此设备的访问权限已被停用，无法连接。请联系 OpenRung 支持。',
 };

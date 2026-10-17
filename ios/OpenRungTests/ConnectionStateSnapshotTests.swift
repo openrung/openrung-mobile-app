@@ -191,6 +191,30 @@ final class ConnectionStateSnapshotTests: XCTestCase {
         XCTAssertNil(snapshot.relayClass)
     }
 
+    func testErrorCodeFollowsOnlyTheErrorItDescribes() throws {
+        var snapshot = ConnectionStateSnapshot()
+        let denied = try XCTUnwrap(EngineStateProjection(EngineEvent(sequence: 1, kind: "state",
+            payload: ["Status": "failed", "LastError": "disabled", "ErrorCode": "access_denied"])))
+        snapshot.applyEngineState(denied)
+        XCTAssertEqual(snapshot.lastErrorCode, "access_denied")
+        // The provider then records the terminal failure with the same code.
+        snapshot.applyFailure("disabled", code: "access_denied")
+        XCTAssertEqual(snapshot.lastErrorCode, "access_denied")
+        let decoded = try JSONDecoder().decode(ConnectionStateSnapshot.self, from: JSONEncoder().encode(snapshot))
+        XCTAssertEqual(decoded.lastErrorCode, "access_denied")
+
+        snapshot.applyFailure("relay unreachable")
+        XCTAssertNil(snapshot.lastErrorCode)
+        snapshot.applyFailure("disabled", code: "access_denied")
+        snapshot.apply(status: .preparing, clearError: true)
+        XCTAssertNil(snapshot.lastErrorCode)
+        snapshot.applyEngineState(denied)
+        let plain = try XCTUnwrap(EngineStateProjection(EngineEvent(sequence: 2, kind: "state",
+            payload: ["Status": "failed", "LastError": "relay unreachable"])))
+        snapshot.applyEngineState(plain)
+        XCTAssertNil(snapshot.lastErrorCode)
+    }
+
     func testSanitizedForColdStartDropsStaleConnectionAndRelayDetails() {
         let stale = ConnectionStateSnapshot(
             status: .connected,

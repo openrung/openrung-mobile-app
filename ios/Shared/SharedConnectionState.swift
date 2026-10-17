@@ -44,7 +44,7 @@ enum SharedConnectionState {
     }
 
     static func clearError() {
-        mutate { $0.lastError = nil }
+        mutate { $0.lastError = nil; $0.lastErrorCode = nil }
     }
 
     static func setStatus(
@@ -72,9 +72,9 @@ enum SharedConnectionState {
         }
     }
 
-    static func fail(_ message: String) {
+    static func fail(_ message: String, code: String? = nil) {
         mutate { snapshot in
-            snapshot.applyFailure(message)
+            snapshot.applyFailure(message, code: code)
             snapshot.logLines = ActivityLog.appended(snapshot.logLines, ActivityLog.line("error: \(message)"))
         }
     }

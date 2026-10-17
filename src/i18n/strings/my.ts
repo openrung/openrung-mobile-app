@@ -185,4 +185,6 @@ export const my: Partial<Strings> = {
     `သင် v${current} ကို သုံးနေပြီး v${latest} ထွက်ရှိပြီးဖြစ်သည်။ ရယူရန် တို့ပါ။`,
   noticeDismiss: 'ပိတ်မည်',
   noticeLearnMore: 'ပိုမိုလေ့လာရန်',
+  errorAccessDenied:
+    'ဤစက်၏ ဝင်ရောက်ခွင့်ကို ပိတ်ထားသဖြင့် ချိတ်ဆက်၍ မရပါ။ OpenRung အကူအညီဌာနကို ဆက်သွယ်ပါ။',
 };

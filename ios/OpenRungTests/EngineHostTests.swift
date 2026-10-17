@@ -134,6 +134,21 @@ final class EngineHostTests: XCTestCase {
         XCTAssertNil(host.currentOwner())
     }
 
+    func testTerminalFailureCarriesTheBindingErrorCode() {
+        let queue = DispatchQueue(label: "test.host")
+        let native = FakeEngine()
+        var dispatcher: EngineEventDispatcher!
+        let host = PacketTunnelEngineHost(queue: queue) { dispatcher = $0; return native }
+        let owner = FakeOwner()
+        host.start(owner: owner, broker: "broker", country: "", relay: "") { _ in }
+        queue.sync {}; owner.network?(wifi); queue.sync {}
+        dispatcher.onEvent("{\"version\":1,\"sequence\":1,\"kind\":\"state\",\"payload\":{\"Status\":\"failed\",\"LastError\":\"disabled\",\"ErrorCode\":\"access_denied\"}}")
+        queue.sync {}
+        let failure = owner.stoppedError as? EngineFailure
+        XCTAssertEqual(failure?.code, "access_denied")
+        XCTAssertEqual(failure?.localizedDescription, "disabled")
+    }
+
     func testStopBeforeInitialNetworkNeverStartsEngine() {
         let queue = DispatchQueue(label: "test.host")
         let native = FakeEngine()

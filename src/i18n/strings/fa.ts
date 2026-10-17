@@ -176,4 +176,6 @@ export const fa: Partial<Strings> = {
     `شما نسخهٔ v${current} را دارید؛ نسخهٔ v${latest} منتشر شده است. برای دریافت ضربه بزنید.`,
   noticeDismiss: 'بستن',
   noticeLearnMore: 'بیشتر بدانید',
+  errorAccessDenied:
+    'دسترسی این دستگاه غیرفعال شده است و نمی‌تواند وصل شود. با پشتیبانی OpenRung تماس بگیرید.',
 };

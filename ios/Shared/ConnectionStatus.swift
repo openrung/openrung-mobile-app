@@ -43,6 +43,8 @@ public struct ConnectionStateSnapshot: Codable, Sendable, Equatable {
     /// lifecycle exactly (set on connect, cleared everywhere relayName is cleared).
     public var relayClass: String?
     public var lastError: String?
+    /// Stable code for a `lastError` the UI presents itself (contract §3); nil otherwise.
+    public var lastErrorCode: String?
     public var logLines: [String]
     public var recentRegions: [RecentNode]
 
@@ -54,6 +56,7 @@ public struct ConnectionStateSnapshot: Codable, Sendable, Equatable {
         relayName: String? = nil,
         relayClass: String? = nil,
         lastError: String? = nil,
+        lastErrorCode: String? = nil,
         logLines: [String] = [],
         recentRegions: [RecentNode] = []
     ) {
@@ -64,6 +67,7 @@ public struct ConnectionStateSnapshot: Codable, Sendable, Equatable {
         self.relayName = relayName
         self.relayClass = relayClass
         self.lastError = lastError
+        self.lastErrorCode = lastErrorCode
         self.logLines = logLines
         self.recentRegions = recentRegions
     }
@@ -76,6 +80,7 @@ public struct ConnectionStateSnapshot: Codable, Sendable, Equatable {
         case relayName
         case relayClass
         case lastError
+        case lastErrorCode
         case logLines
         case recentRegions
     }
@@ -89,6 +94,7 @@ public struct ConnectionStateSnapshot: Codable, Sendable, Equatable {
         relayName = try container.decodeIfPresent(String.self, forKey: .relayName)
         relayClass = try container.decodeIfPresent(String.self, forKey: .relayClass)
         lastError = try container.decodeIfPresent(String.self, forKey: .lastError)
+        lastErrorCode = try container.decodeIfPresent(String.self, forKey: .lastErrorCode)
         logLines = try container.decodeIfPresent([String].self, forKey: .logLines) ?? []
         recentRegions = try container.decodeIfPresent([RecentNode].self, forKey: .recentRegions) ?? []
     }
@@ -102,6 +108,7 @@ public struct ConnectionStateSnapshot: Codable, Sendable, Equatable {
         try container.encodeIfPresent(relayName, forKey: .relayName)
         try container.encodeIfPresent(relayClass, forKey: .relayClass)
         try container.encodeIfPresent(lastError, forKey: .lastError)
+        try container.encodeIfPresent(lastErrorCode, forKey: .lastErrorCode)
         try container.encode(logLines, forKey: .logLines)
         try container.encode(recentRegions, forKey: .recentRegions)
     }
@@ -128,15 +135,16 @@ extension ConnectionStateSnapshot {
         self.relayName = status == .connected ? (relayName ?? self.relayName) : nil
         self.relayClass = status == .connected ? (relayClass ?? self.relayClass) : nil
         if clearRelayLabel { relayLabel = nil }
-        if clearError { lastError = nil }
+        if clearError { lastError = nil; lastErrorCode = nil }
     }
 
     /// The terminal-failure rule behind `SharedConnectionState.fail`: relay identity (label,
     /// name, class) never survives a failure.
-    public mutating func applyFailure(_ message: String) {
+    public mutating func applyFailure(_ message: String, code: String? = nil) {
         status = .failed
         sessionID = nil
         lastError = message
+        lastErrorCode = code
         relayLabel = nil
         relayName = nil
         relayClass = nil

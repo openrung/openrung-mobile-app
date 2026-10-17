@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ConsolePanel } from '../components/ConsolePanel';
 import { ScreenHeader } from '../components/ScreenHeader';
-import { useStrings } from '../i18n';
+import { nativeErrorText, useStrings } from '../i18n';
 import { isMock } from '../native/OpenRungVpn';
 import { useVpnState } from '../state/useVpnState';
 import { palette } from '../theme';
@@ -35,7 +35,7 @@ export function DebugScreen({ onBack }: DebugScreenProps): React.JSX.Element {
 
       <ConsolePanel
         logLines={state.native.logLines}
-        lastError={state.native.lastError}
+        lastError={nativeErrorText(s, state.native.lastError, state.native.lastErrorCode)}
         showMockNotice={isMock}
         style={styles.console}
       />

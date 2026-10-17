@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo } from 'react';
-import type { ConnectionStatus } from '../native/types';
+import type { ConnectionStatus, NativeErrorCode } from '../native/types';
 import { hydrateLanguage, setLanguageTag, useAppSelector } from '../state/store';
 import { ar } from './strings/ar';
 import { en } from './strings/en';
@@ -112,6 +112,16 @@ export function statusLabel(strings: Strings, status: ConnectionStatus): string 
     case 'failed':
       return strings.statusFailed;
   }
+}
+
+/** The error line to show: a coded native error in the user's language, any other one as the
+ *  native layer reported it. */
+export function nativeErrorText(
+  strings: Strings,
+  lastError: string | null,
+  lastErrorCode: NativeErrorCode | null,
+): string | null {
+  return lastErrorCode === 'access_denied' ? strings.errorAccessDenied : lastError;
 }
 
 interface LanguageContextValue {

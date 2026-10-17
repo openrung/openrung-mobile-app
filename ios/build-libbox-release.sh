@@ -399,6 +399,9 @@ for slice in ios-arm64 ios-arm64_x86_64-simulator; do
     'LibboxNewOpenRungMobileEngineForAndroid' \
     '@protocol LibboxOpenRungMobileHost <NSObject>' \
     '@protocol LibboxOpenRungMobileRun <NSObject>' \
+    '@protocol LibboxOpenRungInstallationKey <NSObject>' \
+    ')publicKey:' \
+    ')sign:' \
     ')settingsJSON:' \
     ')attributesJSON;' \
     ')newRun:' \

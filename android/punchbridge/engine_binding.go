@@ -190,12 +190,31 @@ type openRungEngineSink struct {
 	mu       sync.Mutex
 	sequence uint64
 	listener OpenRungEngineListener
+	// accessDenied remembers a NoticeAccessDenied until the terminal state it
+	// precedes, which then carries ErrorCode so hosts can present the operator
+	// disable without parsing the engine's English error text.
+	accessDenied bool
 }
+
+// openRungEngineState is the state payload plus the binding's stable error
+// code. The engine's own fields stay inline and unchanged.
+type openRungEngineState struct {
+	connectcore.State
+	ErrorCode string `json:",omitempty"`
+}
+
+// openRungErrorAccessDenied marks a FAILED state caused by the broker refusing
+// this installation (ADR-006 operator disable).
+const openRungErrorAccessDenied = "access_denied"
 
 func (s *openRungEngineSink) emit(kind string, payload any) {
 	// Serialize the callback too: delivery order then agrees with sequence.
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.emitLocked(kind, payload)
+}
+
+func (s *openRungEngineSink) emitLocked(kind string, payload any) {
 	s.sequence++
 	data, err := json.Marshal(struct {
 		Version  int    `json:"version"`
@@ -207,9 +226,30 @@ func (s *openRungEngineSink) emit(kind string, payload any) {
 		s.listener.OnEvent(string(data))
 	}
 }
-func (s *openRungEngineSink) StateChanged(state connectcore.State) { s.emit("state", state) }
-func (s *openRungEngineSink) Log(entry connectcore.LogEntry)       { s.emit("log", entry) }
-func (s *openRungEngineSink) Notice(notice connectcore.Notice)     { s.emit("notice", notice) }
+func (s *openRungEngineSink) StateChanged(state connectcore.State) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	payload := openRungEngineState{State: state}
+	switch state.Status {
+	case connectcore.StatusFailed:
+		if s.accessDenied {
+			payload.ErrorCode = openRungErrorAccessDenied
+		}
+		s.accessDenied = false
+	case connectcore.StatusDisconnected:
+		s.accessDenied = false
+	}
+	s.emitLocked("state", payload)
+}
+func (s *openRungEngineSink) Log(entry connectcore.LogEntry) { s.emit("log", entry) }
+func (s *openRungEngineSink) Notice(notice connectcore.Notice) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if notice.Kind == connectcore.NoticeAccessDenied {
+		s.accessDenied = true
+	}
+	s.emitLocked("notice", notice)
+}
 
 func openRungEnginePunchEstablisher(protector OpenRungWSSProtector, allowUnprotected bool, dial openRungPunchDialer) connectcore.PunchEstablisher {
 	return func(ctx context.Context, hub punchcore.HubClient, relayID string) (*connectcore.PunchPath, punchcore.PunchResult, error) {

@@ -13,6 +13,7 @@ import com.openrung.telemetry.ClientIdentity
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.libbox.OpenRungEngine
 import io.nekohasekai.libbox.OpenRungEngineListener
+import io.nekohasekai.libbox.OpenRungInstallationKey
 import io.nekohasekai.libbox.OpenRungMobileHost
 import io.nekohasekai.libbox.OpenRungMobileRun
 import io.nekohasekai.libbox.OpenRungRunTelemetry
@@ -163,9 +164,13 @@ internal open class EngineProcessHost(
             })
             legacy?.let { put("legacy_telemetry_batch", it) }
         }
+        val key = InstallationKey.androidKeystore()
         val result = Libbox.newOpenRungMobileEngineForAndroid(config.toString(), object : OpenRungWSSProtector {
             override fun protect(fd: Int): Boolean = owner?.protect(fd) == true
-        }, this, events)
+        }, this, object : OpenRungInstallationKey {
+            override fun publicKey(): ByteArray = key.publicKey()
+            override fun sign(digest: ByteArray): ByteArray = key.sign(digest)
+        }, events)
         // Constructor success proves every importable legacy row was persisted;
         // corrupt rows keep the shipping outbox's discard behavior.
         if (legacy != null) prefs.edit().remove("outbox").commit()
@@ -212,7 +217,7 @@ internal open class EngineProcessHost(
                 OpenRungStatusStore.setStatus(status, relayLabel = location,
                     relayName = if (status == ConnectionStatus.CONNECTED) relayName else null,
                     relayClass = if (status == ConnectionStatus.CONNECTED) details?.text("RelayClass") else null,
-                    lastError = p.text("LastError"))
+                    lastError = p.text("LastError"), lastErrorCode = p.text("ErrorCode"))
                 if (status == ConnectionStatus.CONNECTED) {
                     (p["Recents"] as? JsonArray)?.firstOrNull()?.let { raw ->
                         val recent = raw.jsonObject

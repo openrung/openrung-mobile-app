@@ -9,6 +9,8 @@ struct EngineStateProjection {
     let relayName: String?
     let relayClass: String?
     let error: String?
+    /// The binding's stable code for `error` (e.g. "access_denied"), if any.
+    let errorCode: String?
     let recent: RecentNode?
 
     init?(_ event: EngineEvent) {
@@ -18,6 +20,7 @@ struct EngineStateProjection {
         let details = payload["Details"] as? [String: Any] ?? [:]
         sessionID = (details["SessionID"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         error = payload["LastError"] as? String
+        errorCode = payload["ErrorCode"] as? String
         guard status == .connected else {
             location = nil; relayName = nil; relayClass = nil; recent = nil
             return
@@ -45,6 +48,7 @@ extension ConnectionStateSnapshot {
         self.relayName = state.relayName
         self.relayClass = state.relayClass
         self.lastError = state.error
+        self.lastErrorCode = state.errorCode
         if let node = state.recent { recordRecent(node) }
     }
 

@@ -178,4 +178,6 @@ export const ru: Partial<Strings> = {
     `У вас v${current}; вышла v${latest}. Нажмите, чтобы установить.`,
   noticeDismiss: 'Закрыть',
   noticeLearnMore: 'Подробнее',
+  errorAccessDenied:
+    'Доступ для этого устройства отключён, подключение невозможно. Обратитесь в поддержку OpenRung.',
 };

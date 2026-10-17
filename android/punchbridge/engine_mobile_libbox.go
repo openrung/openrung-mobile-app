@@ -44,6 +44,39 @@ func (o *OpenRungEngineOperation) IsCancelled() bool {
 	return o == nil || o.ctx == nil || o.ctx.Err() != nil
 }
 
+// OpenRungInstallationKey is the installation's ADR-006 identity key, held by
+// the platform keystore (Android Keystore, iOS Keychain/Secure Enclave) and
+// never exported. PublicKey returns the P-256 DER SubjectPublicKeyInfo; Sign
+// returns the raw 64-byte r||s signature over digest, which is already a
+// SHA-256 digest. Both run on Go workers, possibly concurrently; the native
+// side creates the key on first use and returns the same key afterwards.
+// Report keystore failures as errors: connectcore logs the reason and keeps
+// the session on the public relay list.
+type OpenRungInstallationKey interface {
+	PublicKey() ([]byte, error)
+	Sign(digest []byte) ([]byte, error)
+}
+
+// unavailableInstallationKey stands in when the host had no key to lend, so
+// the engine still constructs and falls back to the public list.
+type unavailableInstallationKey struct{}
+
+var errInstallationKeyUnavailable = errors.New("installation key unavailable on this device")
+
+func (unavailableInstallationKey) PublicKey() ([]byte, error) {
+	return nil, errInstallationKeyUnavailable
+}
+func (unavailableInstallationKey) Sign([]byte) ([]byte, error) {
+	return nil, errInstallationKeyUnavailable
+}
+
+func mobileInstallationKey(key OpenRungInstallationKey) connectcore.InstallationKey {
+	if key == nil {
+		return unavailableInstallationKey{}
+	}
+	return key
+}
+
 type OpenRungRunTelemetry struct{ reporter *connectcore.RunTelemetry }
 
 func (r *OpenRungRunTelemetry) RecordApplicationConnections(packageName string, uid int32, count int64) bool {
@@ -66,11 +99,11 @@ type openRungMobileConfig struct {
 // Construction must happen once per process, after retiring all legacy uploaders.
 // Legacy decoding matches the shipping outbox: corrupt rows are discarded,
 // while a durability failure rejects construction so the host retains its source.
-func NewOpenRungMobileEngineForAndroid(configJSON string, protector OpenRungWSSProtector, host OpenRungMobileHost, listener OpenRungEngineListener) (OpenRungEngine, error) {
+func NewOpenRungMobileEngineForAndroid(configJSON string, protector OpenRungWSSProtector, host OpenRungMobileHost, key OpenRungInstallationKey, listener OpenRungEngineListener) (OpenRungEngine, error) {
 	if protector == nil {
 		return nil, errors.New("VPN socket protector is required")
 	}
-	engine, err := newOpenRungMobileEngine(configJSON, brokerapi.PlatformAndroid, protector, host, listener)
+	engine, err := newOpenRungMobileEngine(configJSON, brokerapi.PlatformAndroid, protector, host, key, listener)
 	if err != nil {
 		return nil, err
 	}
@@ -80,18 +113,18 @@ func NewOpenRungMobileEngineForAndroid(configJSON string, protector OpenRungWSSP
 // NewOpenRungMobileEngineForIOS is valid only inside the authorized packet tunnel
 // extension. Provider-owned outer sockets bypass its own TUN; probes must use
 // the provider's explicit through-tunnel APIs and attest that path separately.
-func NewOpenRungMobileEngineForIOS(configJSON string, host OpenRungMobileHost, listener OpenRungEngineListener) (OpenRungEngine, error) {
+func NewOpenRungMobileEngineForIOS(configJSON string, host OpenRungMobileHost, key OpenRungInstallationKey, listener OpenRungEngineListener) (OpenRungEngine, error) {
 	if iosConstructorRequiresSocketProtector() {
 		return nil, errors.New("iOS mobile engine requires the iOS runtime")
 	}
-	engine, err := newOpenRungMobileEngine(configJSON, brokerapi.PlatformIOS, nil, host, listener)
+	engine, err := newOpenRungMobileEngine(configJSON, brokerapi.PlatformIOS, nil, host, key, listener)
 	if err != nil {
 		return nil, err
 	}
 	return engine, nil
 }
 
-func newOpenRungMobileEngine(configJSON string, platform brokerapi.Platform, protector OpenRungWSSProtector, host OpenRungMobileHost, listener OpenRungEngineListener) (*openRungEngine, error) {
+func newOpenRungMobileEngine(configJSON string, platform brokerapi.Platform, protector OpenRungWSSProtector, host OpenRungMobileHost, key OpenRungInstallationKey, listener OpenRungEngineListener) (*openRungEngine, error) {
 	var cfg openRungMobileConfig
 	if err := decodeOpenRungObject(configJSON, &cfg); err != nil {
 		return nil, err
@@ -154,6 +187,7 @@ func newOpenRungMobileEngine(configJSON string, platform brokerapi.Platform, pro
 	engine.Elevation = openRungMobileElevation{}
 	engine.PunchEstablisher = openRungMobilePunchEstablisher(cfg.CoordinatorPins, openRungEnginePunchEstablisher(protector, platform == brokerapi.PlatformIOS, dialOpenRungPunch))
 	engine.Mobile = &connectcore.MobileHost{InstallID: cfg.InstallID, AppVersion: cfg.AppVersion, PlatformVersion: cfg.PlatformVersion, Runtime: runtime, Outbox: outbox,
+		Key: mobileInstallationKey(key),
 		Settings: func(ctx context.Context) (connectcore.MobileTunnelSettings, error) {
 			if err := ctx.Err(); err != nil {
 				return connectcore.MobileTunnelSettings{}, err

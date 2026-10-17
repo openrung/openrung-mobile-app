@@ -66,6 +66,8 @@ import {
   setSplitTunnel,
 } from '../../src/state/store';
 import type { NativeVpnState } from '../../src/native/types';
+import { nativeErrorText, stringsForTag } from '../../src/i18n';
+import { en } from '../../src/i18n/strings/en';
 
 const RELAY_LIST = {
   count: 1,
@@ -563,6 +565,7 @@ describe('connectedAtMs (session uptime stamp)', () => {
     relayName: null,
     relayClass: null,
     lastError: null,
+    lastErrorCode: null,
     logLines: [],
     recents: [],
     ...partial,
@@ -620,6 +623,7 @@ describe('applyNativeState relayClass mirroring', () => {
     relayName: null,
     relayClass: null,
     lastError: null,
+    lastErrorCode: null,
     logLines: [],
     recents: [],
     ...partial,
@@ -656,5 +660,48 @@ describe('applyNativeState relayClass mirroring', () => {
       nativeState({ status: 'connected', relayClass: 'sponsored' as unknown as 'volunteer' }),
     );
     expect(getSnapshot().native.relayClass).toBeNull();
+  });
+});
+
+describe('applyNativeState lastErrorCode mirroring', () => {
+  const failed = (partial: Partial<NativeVpnState>): NativeVpnState => ({
+    status: 'failed',
+    relayLabel: null,
+    relayName: null,
+    relayClass: null,
+    lastError: 'this installation has been disabled',
+    lastErrorCode: null,
+    logLines: [],
+    recents: [],
+    ...partial,
+  });
+
+  it('mirrors access_denied and shows the translated message instead of the native text', () => {
+    applyNativeState(failed({ lastErrorCode: 'access_denied' }));
+    const native = getSnapshot().native;
+    expect(native.lastErrorCode).toBe('access_denied');
+    expect(nativeErrorText(en, native.lastError, native.lastErrorCode)).toBe(en.errorAccessDenied);
+    const fa = stringsForTag('fa');
+    expect(nativeErrorText(fa, native.lastError, native.lastErrorCode)).toBe(fa.errorAccessDenied);
+    expect(fa.errorAccessDenied).not.toBe(en.errorAccessDenied);
+  });
+
+  it('publishes a code-only change and keeps uncoded errors as reported', () => {
+    applyNativeState(failed({}));
+    const before = getSnapshot().native;
+    applyNativeState(failed({ lastErrorCode: 'access_denied' }));
+    expect(getSnapshot().native).not.toBe(before);
+    applyNativeState(failed({ lastError: 'relay unreachable' }));
+    const native = getSnapshot().native;
+    expect(nativeErrorText(en, native.lastError, native.lastErrorCode)).toBe('relay unreachable');
+  });
+
+  it('collapses a missing or unknown code to null (stale native build)', () => {
+    const legacyEvent = failed({}) as unknown as Record<string, unknown>;
+    delete legacyEvent.lastErrorCode;
+    applyNativeState(legacyEvent as unknown as NativeVpnState);
+    expect(getSnapshot().native.lastErrorCode).toBeNull();
+    applyNativeState(failed({ lastErrorCode: 'rate_limited' as unknown as 'access_denied' }));
+    expect(getSnapshot().native.lastErrorCode).toBeNull();
   });
 });

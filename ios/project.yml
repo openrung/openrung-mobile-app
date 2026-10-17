@@ -211,6 +211,7 @@ targets:
       - path: PacketTunnel/EngineOperationRunner.swift
       - path: PacketTunnel/EngineProbeFailure.swift
       - path: PacketTunnel/EngineTunnelSettings.swift
+      - path: PacketTunnel/InstallationKey.swift
       - path: Shared/EngineEventDispatcher.swift
       - path: Shared/EngineStateProjection.swift
       - path: PacketTunnel/PacketTunnelDnsProbe.swift

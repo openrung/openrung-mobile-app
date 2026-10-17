@@ -74,6 +74,7 @@ const INITIAL_NATIVE_STATE: NativeVpnState = {
   relayName: null,
   relayClass: null,
   lastError: null,
+  lastErrorCode: null,
   logLines: [],
   recents: [],
 };
@@ -280,7 +281,8 @@ function stabilizedNative(previous: NativeVpnState, next: NativeVpnState): Nativ
     previous.relayLabel === next.relayLabel &&
     previous.relayName === next.relayName &&
     previous.relayClass === next.relayClass &&
-    previous.lastError === next.lastError
+    previous.lastError === next.lastError &&
+    previous.lastErrorCode === next.lastErrorCode
   ) {
     return previous;
   }
@@ -296,7 +298,9 @@ export function applyNativeState(native: NativeVpnState): void {
     native.relayClass === 'foundation' || native.relayClass === 'volunteer'
       ? native.relayClass
       : null;
-  const stabilized = stabilizedNative(state.native, { ...native, relayClass });
+  // Same for lastErrorCode: older binaries omit it, and an unknown code renders as plain lastError.
+  const lastErrorCode = native.lastErrorCode === 'access_denied' ? native.lastErrorCode : null;
+  const stabilized = stabilizedNative(state.native, { ...native, relayClass, lastErrorCode });
   const connectedAtMs = nextConnectedAtMs(state, stabilized);
   if (stabilized === state.native && connectedAtMs === state.connectedAtMs) {
     return; // content-identical event — nothing to publish

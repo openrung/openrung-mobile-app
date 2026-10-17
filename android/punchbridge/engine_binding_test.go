@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -221,6 +222,49 @@ func TestOpenRungEngineCallbackSequence(t *testing.T) {
 		if seq != uint64(i+1) {
 			t.Fatal("out of order callback")
 		}
+	}
+}
+
+func TestOpenRungEngineAccessDeniedErrorCode(t *testing.T) {
+	var codes []string
+	s := &openRungEngineSink{listener: engineListenerFunc(func(raw string) {
+		var event struct {
+			Kind    string
+			Payload struct {
+				Status    string
+				LastError *string
+				ErrorCode *string
+			}
+		}
+		if err := json.Unmarshal([]byte(raw), &event); err != nil {
+			t.Fatal(err)
+		}
+		if event.Kind != "state" {
+			return
+		}
+		code := "-"
+		if event.Payload.ErrorCode != nil {
+			code = *event.Payload.ErrorCode
+		}
+		codes = append(codes, event.Payload.Status+":"+code)
+	})}
+	msg := connectcore.ErrAccessDisabled.Error()
+	s.StateChanged(connectcore.State{Status: connectcore.StatusConnecting})
+	s.Notice(connectcore.Notice{Kind: connectcore.NoticeAccessDenied, Reason: msg})
+	s.StateChanged(connectcore.State{Status: connectcore.StatusFailed, LastError: &msg})
+	// The code belongs to that one failure only.
+	other := "relay unreachable"
+	s.StateChanged(connectcore.State{Status: connectcore.StatusFailed, LastError: &other})
+	// A notice followed by a user disconnect never labels a later failure.
+	s.Notice(connectcore.Notice{Kind: connectcore.NoticeAccessDenied, Reason: msg})
+	s.StateChanged(connectcore.State{Status: connectcore.StatusDisconnected})
+	s.StateChanged(connectcore.State{Status: connectcore.StatusFailed, LastError: &other})
+	// Other notices never set the code.
+	s.Notice(connectcore.Notice{Kind: connectcore.NoticeFailoverStarted})
+	s.StateChanged(connectcore.State{Status: connectcore.StatusFailed, LastError: &other})
+	want := []string{"connecting:-", "failed:access_denied", "failed:-", "disconnected:-", "failed:-", "failed:-"}
+	if strings.Join(codes, ",") != strings.Join(want, ",") {
+		t.Fatalf("codes = %v, want %v", codes, want)
 	}
 }
 

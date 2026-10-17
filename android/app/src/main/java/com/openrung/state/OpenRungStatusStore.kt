@@ -15,6 +15,7 @@ import java.time.format.DateTimeFormatter
 object OpenRungStatusStore {
     private const val KEY_STATUS = "status"
     private const val KEY_LAST_ERROR = "last_error"
+    private const val KEY_LAST_ERROR_CODE = "last_error_code"
     private const val KEY_LOG_LINES = "log_lines"
     private const val KEY_RECENT_NODES = "recent_nodes"
     private const val MAX_LOG_LINES = 80
@@ -40,6 +41,7 @@ object OpenRungStatusStore {
             relayName = null,
             relayClass = null,
             lastError = prefs.getString(KEY_LAST_ERROR, null),
+            lastErrorCode = prefs.getString(KEY_LAST_ERROR_CODE, null),
             logLines = prefs.getString(KEY_LOG_LINES, null)?.lines()?.filter { it.isNotBlank() }.orEmpty(),
             recentRegions = loadRecents(prefs.getString(KEY_RECENT_NODES, null)),
         )
@@ -57,6 +59,8 @@ object OpenRungStatusStore {
         relayName: String? = if (status == ConnectionStatus.CONNECTED) state.value.relayName else null,
         relayClass: String? = if (status == ConnectionStatus.CONNECTED) state.value.relayClass else null,
         lastError: String? = state.value.lastError,
+        // The code describes exactly one error: a new error without one clears it.
+        lastErrorCode: String? = if (lastError == state.value.lastError) state.value.lastErrorCode else null,
     ) {
         state.update {
             it.copy(
@@ -65,6 +69,7 @@ object OpenRungStatusStore {
                 relayName = relayName,
                 relayClass = relayClass,
                 lastError = lastError,
+                lastErrorCode = lastErrorCode,
             )
         }
         appendLog(status.label)
@@ -88,6 +93,7 @@ object OpenRungStatusStore {
             it.copy(
                 status = ConnectionStatus.FAILED,
                 lastError = message,
+                lastErrorCode = null,
                 relayLabel = null,
                 relayName = null,
                 relayClass = null,
@@ -99,7 +105,7 @@ object OpenRungStatusStore {
     }
 
     fun clearError() {
-        state.update { it.copy(lastError = null) }
+        state.update { it.copy(lastError = null, lastErrorCode = null) }
         persist()
     }
 
@@ -137,6 +143,7 @@ object OpenRungStatusStore {
             .edit()
             .putString(KEY_STATUS, current.status.name)
             .putString(KEY_LAST_ERROR, current.lastError)
+            .putString(KEY_LAST_ERROR_CODE, current.lastErrorCode)
             .putString(KEY_LOG_LINES, current.logLines.joinToString("\n"))
             .putString(KEY_RECENT_NODES, json.encodeToString(ListSerializer(RecentNode.serializer()), current.recentRegions))
             .apply()

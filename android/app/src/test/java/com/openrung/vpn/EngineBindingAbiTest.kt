@@ -7,6 +7,7 @@ import io.nekohasekai.libbox.OpenRungEngineOperation
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.libbox.OpenRungEngine
 import io.nekohasekai.libbox.OpenRungEngineListener
+import io.nekohasekai.libbox.OpenRungInstallationKey
 import io.nekohasekai.libbox.OpenRungWSSProtector
 import io.nekohasekai.libbox.PlatformInterface
 import org.junit.Assert.assertEquals
@@ -29,8 +30,10 @@ class EngineBindingAbiTest {
         ).returnType)
         assertEquals(OpenRungEngine::class.java, constructors.getMethod(
             "newOpenRungMobileEngineForAndroid", String::class.java, OpenRungWSSProtector::class.java,
-            OpenRungMobileHost::class.java, OpenRungEngineListener::class.java,
+            OpenRungMobileHost::class.java, OpenRungInstallationKey::class.java, OpenRungEngineListener::class.java,
         ).returnType)
+        assertEquals(ByteArray::class.java, OpenRungInstallationKey::class.java.getMethod("publicKey").returnType)
+        assertEquals(ByteArray::class.java, OpenRungInstallationKey::class.java.getMethod("sign", ByteArray::class.java).returnType)
         constructors.getMethod("openRungTunName", Int::class.javaPrimitiveType)
         OpenRungMobileHost::class.java.getMethod("settingsJSON")
         OpenRungMobileHost::class.java.getMethod("attributesJSON")

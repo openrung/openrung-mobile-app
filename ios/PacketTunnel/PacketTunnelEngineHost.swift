@@ -30,6 +30,14 @@ enum PacketTunnelEngineError: LocalizedError {
     }
 }
 
+/// A terminal engine failure: the engine's message plus the binding's stable code, so the
+/// shared state keeps the code after the provider records the failure.
+struct EngineFailure: LocalizedError {
+    let message: String
+    let code: String?
+    var errorDescription: String? { message }
+}
+
 /// One engine/outbox per extension process. Only this queue calls its lifecycle
 /// API. Go host callbacks borrow the locked owner without waiting on this queue
 /// (Stop joins Go workers, so a synchronous hop here would deadlock).
@@ -141,7 +149,7 @@ final class PacketTunnelEngineHost {
         owner.receiveEngineEvent(event)
         if event.status == .connected { finishStart(nil) }
         if event.status == .failed {
-            fail(NSError(domain: "OpenRungEngine", code: 1, userInfo: [NSLocalizedDescriptionKey: event.payload["LastError"] as? String ?? "VPN connection failed"]))
+            fail(EngineFailure(message: event.payload["LastError"] as? String ?? "VPN connection failed", code: event.payload["ErrorCode"] as? String))
         }
     }
 

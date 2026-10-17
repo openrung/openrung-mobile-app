@@ -35,6 +35,7 @@
 		36CB8CEB6F2E0530F9D82FEA /* ProbeTargets.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9C369738D2565177A979FAC /* ProbeTargets.swift */; };
 		395673F4F22F8D43200B404C /* ConnectionStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 584A04475F28B3CAC39B501E /* ConnectionStatus.swift */; };
 		39DC9ED8F1825AD63630611E /* geosite-ir.srs in Resources */ = {isa = PBXBuildFile; fileRef = 8E7518B2A5F26BA00BA159E1 /* geosite-ir.srs */; };
+		3BF9F28373F29BD0FF40577B /* InstallationKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD0D3EACE57271647CC8BC05 /* InstallationKey.swift */; };
 		3CF707854EB1FBBCFC3E354F /* ConnectionStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 584A04475F28B3CAC39B501E /* ConnectionStatus.swift */; };
 		3E600B1A4A0F6A075AB8D6E7 /* FailureClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E89C58EA730C659109459911 /* FailureClassifierTests.swift */; };
 		401088D78629F49BDF35BF3D /* SplitTunnelConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88FBD70740FE33FC9CC6564B /* SplitTunnelConfig.swift */; };
@@ -45,6 +46,7 @@
 		4AF8C7F150317AC00E8B27FA /* PacketTunnel.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 1EAA8B2F5746A87534F0C87B /* PacketTunnel.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		4F53F9504D1A3BB9A20A7766 /* EngineNetworkObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1644E952F567CEDFA15E98D /* EngineNetworkObserver.swift */; };
 		523936029217C10BD01D40DC /* ActivityLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C27022D3D9D7FEEC839F406 /* ActivityLog.swift */; };
+		530480AE1F8CFBA36F83CC7E /* InstallationKeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 608D9A44A52A6055A226285D /* InstallationKeyTests.swift */; };
 		536944876A7078C70A1B3B8E /* BridgeConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB2E1916E6A3CA0FF658975C /* BridgeConfigurationTests.swift */; };
 		54D85793856E78B8DF9B1629 /* PacketTunnelEngineHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 687FF2AE15E31BCE38EF9073 /* PacketTunnelEngineHost.swift */; };
 		5773648FA4FA3BB89AC47684 /* geoip-ir.srs in Resources */ = {isa = PBXBuildFile; fileRef = 921594E8D4D0BD552D35698C /* geoip-ir.srs */; };
@@ -117,6 +119,7 @@
 		EB4BB9C6B76C65809224DF35 /* RelayDescriptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC6AEF8D510DD407C368119F /* RelayDescriptor.swift */; };
 		ED0AA86BCFC9211195B7081E /* ClientIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD4088394FB9EBCF808F81C2 /* ClientIdentity.swift */; };
 		ED256E8323D2EFE2BF410311 /* EngineStateProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE547651E9653919D1996F25 /* EngineStateProjection.swift */; };
+		F0B0199CB0FDAB6A7AB99276 /* InstallationKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD0D3EACE57271647CC8BC05 /* InstallationKey.swift */; };
 		F24CCDAB26257BD7D24DF4A4 /* EngineMemoryMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CC98A48B39730FB55671728 /* EngineMemoryMonitor.swift */; };
 		F394E6F8661ECC0CFB89B18F /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 81CC00C2F7324111F25D07A0 /* UIKit.framework */; };
 		F4A85CA2F691B7FEB1634174 /* EngineOperationRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 721B540194A297878ADC76BE /* EngineOperationRunner.swift */; };
@@ -207,6 +210,7 @@
 		44DD4C9CB725E92B8F423EC7 /* NativeBrokerTestDoubles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeBrokerTestDoubles.swift; sourceTree = "<group>"; };
 		584A04475F28B3CAC39B501E /* ConnectionStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStatus.swift; sourceTree = "<group>"; };
 		5A5941A8CF4A810D424C4147 /* OpenRungBrokerModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRungBrokerModule.swift; sourceTree = "<group>"; };
+		608D9A44A52A6055A226285D /* InstallationKeyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallationKeyTests.swift; sourceTree = "<group>"; };
 		66BC253D5390E97D8AF3EAC8 /* Pods-OpenRung.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OpenRung.debug.xcconfig"; path = "Target Support Files/Pods-OpenRung/Pods-OpenRung.debug.xcconfig"; sourceTree = "<group>"; };
 		66C3AC37AF7128A85A7F7CC7 /* NativeBrokerTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeBrokerTransport.swift; sourceTree = "<group>"; };
 		687FF2AE15E31BCE38EF9073 /* PacketTunnelEngineHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelEngineHost.swift; sourceTree = "<group>"; };
@@ -251,6 +255,7 @@
 		C86E239B778F6D082F7A9603 /* PacketTunnelDeviceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelDeviceTests.swift; sourceTree = "<group>"; };
 		C9657758A00C98E294119901 /* DnsProbeMessageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DnsProbeMessageTests.swift; sourceTree = "<group>"; };
 		CC60C417C2C56A9F45E90C8D /* ConnectionStateSnapshotTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStateSnapshotTests.swift; sourceTree = "<group>"; };
+		CD0D3EACE57271647CC8BC05 /* InstallationKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallationKey.swift; sourceTree = "<group>"; };
 		CF68A64E6FB095B8FD6A3F3F /* DnsConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DnsConfigurationTests.swift; sourceTree = "<group>"; };
 		D11601E153A60E8B30351E20 /* SharedConnectionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedConnectionState.swift; sourceTree = "<group>"; };
 		D156734F7F68151301FEF878 /* SingBoxConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SingBoxConfiguration.swift; sourceTree = "<group>"; };
@@ -382,6 +387,7 @@
 				A6F95759BC1B006D4A82F4A5 /* EngineAdapterTests.swift */,
 				D31D432475D7CD185403F2F1 /* EngineHostTests.swift */,
 				E89C58EA730C659109459911 /* FailureClassifierTests.swift */,
+				608D9A44A52A6055A226285D /* InstallationKeyTests.swift */,
 				44DD4C9CB725E92B8F423EC7 /* NativeBrokerTestDoubles.swift */,
 				11E1EF79FDA717F2ED5A32F0 /* NativeBrokerTransportTests.swift */,
 				069A5BBA8E1C40AC3EABFD68 /* OpenRungBrokerCoordinatorTests.swift */,
@@ -429,6 +435,7 @@
 				14A9747132FEF5151EC8466B /* EngineProbeFailure.swift */,
 				A690E6E33BDDACFBD9C3FF32 /* EngineTunnelSettings.swift */,
 				C28E2B488D1B810BD0BB8AA1 /* Info.plist */,
+				CD0D3EACE57271647CC8BC05 /* InstallationKey.swift */,
 				88418ED16021B1DB4B15A07C /* IOSConnectcore.swift */,
 				F408CCF94A5AD4266D0675A9 /* IOSPacketTunnelRun.swift */,
 				97D23B885595CDD6DD259A85 /* LibboxPacketTunnelPlatformInterface.swift */,
@@ -796,6 +803,7 @@
 				5C5B44700D206EF4735FCBE2 /* EngineTunnelSettings.swift in Sources */,
 				85D8BA91A05244BEAAC60A24 /* IOSConnectcore.swift in Sources */,
 				F4E9943576D50ADF2D118398 /* IOSPacketTunnelRun.swift in Sources */,
+				3BF9F28373F29BD0FF40577B /* InstallationKey.swift in Sources */,
 				9604E15625FCE8C234279160 /* InternetProbe.swift in Sources */,
 				D420784479B66EB7456E650F /* LibboxBrokerTransport.swift in Sources */,
 				C4B31101802A2AE5B0E26703 /* LibboxPacketTunnelPlatformInterface.swift in Sources */,
@@ -847,6 +855,8 @@
 				5C4A433E28CC9B6A79E0C065 /* EngineTunnelSettings.swift in Sources */,
 				8364D4D656EF87E013D2E0CE /* FailureClassifier.swift in Sources */,
 				3E600B1A4A0F6A075AB8D6E7 /* FailureClassifierTests.swift in Sources */,
+				F0B0199CB0FDAB6A7AB99276 /* InstallationKey.swift in Sources */,
+				530480AE1F8CFBA36F83CC7E /* InstallationKeyTests.swift in Sources */,
 				837E14040DB7B0414964DCFC /* InternetProbe.swift in Sources */,
 				5BC1C25A08BB1C6251F13E66 /* LegacyTransportErrors.swift in Sources */,
 				B434A0C0E679EE9A6A8ED7AE /* NativeBrokerTestDoubles.swift in Sources */,

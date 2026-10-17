@@ -76,4 +76,26 @@ class OpenRungStatusStoreTest {
         assertNull(state.relayName)
         assertNull(state.relayClass)
     }
+
+    @Test
+    fun `error code follows only the error it describes`() {
+        OpenRungStatusStore.setStatus(ConnectionStatus.FAILED, lastError = "disabled", lastErrorCode = "access_denied")
+        assertEquals("access_denied", state.lastErrorCode)
+
+        // A status change that keeps the error keeps its code.
+        OpenRungStatusStore.setStatus(ConnectionStatus.FAILED)
+        assertEquals("access_denied", state.lastErrorCode)
+
+        // A different error without a code drops it.
+        OpenRungStatusStore.setStatus(ConnectionStatus.FAILED, lastError = "relay unreachable")
+        assertNull(state.lastErrorCode)
+
+        OpenRungStatusStore.setStatus(ConnectionStatus.FAILED, lastError = "disabled", lastErrorCode = "access_denied")
+        OpenRungStatusStore.fail("startup failed")
+        assertNull(state.lastErrorCode)
+
+        OpenRungStatusStore.setStatus(ConnectionStatus.FAILED, lastError = "disabled", lastErrorCode = "access_denied")
+        OpenRungStatusStore.clearError()
+        assertNull(state.lastErrorCode)
+    }
 }

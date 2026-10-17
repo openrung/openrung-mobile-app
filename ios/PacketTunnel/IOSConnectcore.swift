@@ -18,6 +18,7 @@ private final class NativePacketTunnelEngine: PacketTunnelEngine {
     private let native: any LibboxOpenRungEngineProtocol
     private let listener: NativeEngineListener
     private let mobileHost = NativeMobileHost()
+    private let installationKey = NativeInstallationKey()
 
     init(events: EngineEventDispatcher) throws {
         listener = NativeEngineListener(events)
@@ -50,7 +51,7 @@ private final class NativePacketTunnelEngine: PacketTunnelEngine {
             "punch_coordinator_cert_sha256_by_host": AppConfig.punchCoordinatorCertificateSHA256ByHost,
         ]
         let json = String(decoding: try JSONSerialization.data(withJSONObject: config), as: UTF8.self)
-        guard let engine = LibboxNewOpenRungMobileEngineForIOS(json, mobileHost, listener, &error) else {
+        guard let engine = LibboxNewOpenRungMobileEngineForIOS(json, mobileHost, installationKey, listener, &error) else {
             throw error ?? PacketTunnelEngineError.unavailable as NSError
         }
         native = engine
@@ -72,6 +73,12 @@ private final class NativeEngineListener: NSObject, LibboxOpenRungEngineListener
     private let events: EngineEventDispatcher
     init(_ events: EngineEventDispatcher) { self.events = events }
     func onEvent(_ raw: String?) { events.onEvent(raw) }
+}
+
+private final class NativeInstallationKey: NSObject, LibboxOpenRungInstallationKeyProtocol {
+    private let key = InstallationKey.keychain()
+    func publicKey() throws -> Data { try key.publicKey() }
+    func sign(_ digest: Data?) throws -> Data { try key.sign(digest ?? Data()) }
 }
 
 private final class NativeMobileHost: NSObject, LibboxOpenRungMobileHostProtocol {

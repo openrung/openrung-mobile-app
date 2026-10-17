@@ -166,6 +166,11 @@ type mobileTestProtector struct{}
 
 func (mobileTestProtector) Protect(int32) bool { return false }
 
+type mobileTestKey struct{}
+
+func (mobileTestKey) PublicKey() ([]byte, error)  { return []byte("spki"), nil }
+func (mobileTestKey) Sign([]byte) ([]byte, error) { return make([]byte, 64), nil }
+
 type mobileTestListener struct{}
 
 func (mobileTestListener) OnEvent(string) {}
@@ -174,7 +179,7 @@ func TestOpenRungLibboxMobileBorrowsExistingIdentityAndDurableOutbox(t *testing.
 	cfg := openRungMobileConfig{InstallID: "E6B1A1DE-9F0F-4C1A-8BB1-1F2B3C4D5E6F", AppVersion: "0.3.8", PlatformVersion: "37", Directory: t.TempDir(),
 		LegacyBatch: `[{"event_id":"legacy-1","event":"connection_ended","client_id":"old-client","session_id":"old-session","timestamp":"2026-09-01T00:00:00Z"}]`}
 	raw, _ := json.Marshal(cfg)
-	e, err := NewOpenRungMobileEngineForAndroid(string(raw), mobileTestProtector{}, mobileTestHost{}, mobileTestListener{})
+	e, err := NewOpenRungMobileEngineForAndroid(string(raw), mobileTestProtector{}, mobileTestHost{}, mobileTestKey{}, mobileTestListener{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,17 +189,20 @@ func TestOpenRungLibboxMobileBorrowsExistingIdentityAndDurableOutbox(t *testing.
 	if h.InstallID != cfg.InstallID || h.AppVersion != cfg.AppVersion || h.PlatformVersion != cfg.PlatformVersion {
 		t.Fatal("native identity changed")
 	}
+	if _, ok := h.Key.(mobileTestKey); !ok {
+		t.Fatal("native installation key was not lent to the engine")
+	}
 	if h.Outbox.PendingCount() != 1 {
 		t.Fatal("legacy event was not imported")
 	}
-	if _, err := NewOpenRungMobileEngineForAndroid(string(raw), mobileTestProtector{}, mobileTestHost{}, mobileTestListener{}); err == nil {
+	if _, err := NewOpenRungMobileEngineForAndroid(string(raw), mobileTestProtector{}, mobileTestHost{}, mobileTestKey{}, mobileTestListener{}); err == nil {
 		t.Fatal("second owner acquired the same outbox")
 	}
 }
 
 func TestOpenRungLibboxMobileIOSConstructorAndIdentity(t *testing.T) {
 	if iosConstructorRequiresSocketProtector() {
-		if _, err := NewOpenRungMobileEngineForIOS("{}", mobileTestHost{}, mobileTestListener{}); err == nil {
+		if _, err := NewOpenRungMobileEngineForIOS("{}", mobileTestHost{}, mobileTestKey{}, mobileTestListener{}); err == nil {
 			t.Fatal("iOS constructor allowed non-iOS runtime")
 		}
 	}
@@ -206,7 +214,7 @@ func TestOpenRungLibboxMobileIOSConstructorAndIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw, _ := json.Marshal(cfg)
-	e, err := newOpenRungMobileEngine(string(raw), brokerapi.PlatformIOS, nil, mobileTestHost{}, mobileTestListener{})
+	e, err := newOpenRungMobileEngine(string(raw), brokerapi.PlatformIOS, nil, mobileTestHost{}, nil, mobileTestListener{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,6 +234,11 @@ func TestOpenRungLibboxMobileIOSConstructorAndIdentity(t *testing.T) {
 	}
 	if e.engine.Mobile.InstallID != cfg.InstallID {
 		t.Fatal("iOS install identity replaced")
+	}
+	// A host without a key still constructs; the key reports why it cannot
+	// sign, which keeps connects on the public relay list.
+	if _, err := e.engine.Mobile.Key.PublicKey(); !errors.Is(err, errInstallationKeyUnavailable) {
+		t.Fatalf("missing native key: %v", err)
 	}
 	e.Pause()
 	if !e.runtime.paused {

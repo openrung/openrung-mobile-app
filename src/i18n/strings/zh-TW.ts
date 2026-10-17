@@ -154,4 +154,6 @@ export const zhTW: Partial<Strings> = {
     `你目前使用 v${current}；v${latest} 已推出。點選即可取得。`,
   noticeDismiss: '關閉',
   noticeLearnMore: '瞭解更多',
+  errorAccessDenied:
+    '此裝置的存取權限已被停用，無法連線。請聯絡 OpenRung 支援。',
 };

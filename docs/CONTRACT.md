@@ -115,6 +115,13 @@ export interface NativeVpnState {
                                // the stale identity cleared by the stale-down guard — so a
                                // dead tunnel's class is never shown.
   lastError: string | null;
+  lastErrorCode: 'access_denied' | null; // stable code for a lastError TS presents in the user's
+                               // language (nativeErrorText); null for every other error, which
+                               // TS shows as-is. 'access_denied' = the broker refused this
+                               // installation (ADR-006 operator disable); the connect is not
+                               // retried. Set from the engine state's ErrorCode on FAILED, cleared
+                               // with lastError, and persisted beside it on both platforms. TS
+                               // collapses an absent or unknown value to null.
   logLines: string[];          // "[HH:mm:ss] message", newest last, cap 80
   recents: RecentNode[];       // newest first, deduped by relayId, cap 8
 }
@@ -778,7 +785,7 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   archive once in the app's Frameworks directory.
 - `ios/build-libbox-release.sh` builds device/simulator slices from the pinned
   sing-box and module tags, including the shared mobile engine graft. Swift
-  calls `LibboxNewOpenRungMobileEngineForIOS(config, host, listener, error)`.
+  calls `LibboxNewOpenRungMobileEngineForIOS(config, host, key, listener, error)`.
   The constructor rejects non-iOS runtimes. Its nil protector is Apple-specific:
   ordinary provider sockets are outside its own TUN, while probes explicitly
   opt into that TUN. Android still requires a protector. Both release scripts

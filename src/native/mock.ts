@@ -49,6 +49,7 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
     relayName: null,
     relayClass: null,
     lastError: null,
+    lastErrorCode: null,
     logLines: [],
     recents: [],
   };
@@ -256,6 +257,8 @@ export class MockOpenRungVpn implements OpenRungVpnModule {
             ? this.state.relayClass
             : null,
       lastError: overrides.lastError !== undefined ? overrides.lastError : this.state.lastError,
+      // The mock reports only uncoded errors.
+      lastErrorCode: overrides.lastError !== undefined ? null : this.state.lastErrorCode,
     };
     // Production setStatus appends the (localized) status label as a log line.
     this.appendLog(STATUS_LABELS[status]);

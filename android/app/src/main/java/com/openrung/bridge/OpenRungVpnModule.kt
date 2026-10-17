@@ -221,6 +221,7 @@ class OpenRungVpnModule(
         if (relayName != null) map.putString("relayName", relayName) else map.putNull("relayName")
         if (relayClass != null) map.putString("relayClass", relayClass) else map.putNull("relayClass")
         if (lastError != null) map.putString("lastError", lastError) else map.putNull("lastError")
+        if (lastErrorCode != null) map.putString("lastErrorCode", lastErrorCode) else map.putNull("lastErrorCode")
         val logs = Arguments.createArray()
         logLines.forEach(logs::pushString)
         map.putArray("logLines", logs)

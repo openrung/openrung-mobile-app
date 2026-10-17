@@ -174,4 +174,6 @@ export const tr: Partial<Strings> = {
     `v${current} kullanıyorsunuz; v${latest} yayında. İndirmek için dokunun.`,
   noticeDismiss: 'Kapat',
   noticeLearnMore: 'Daha fazla bilgi',
+  errorAccessDenied:
+    'Bu cihazın erişimi devre dışı bırakıldı, bu yüzden bağlanamıyor. OpenRung destek ekibiyle iletişime geçin.',
 };

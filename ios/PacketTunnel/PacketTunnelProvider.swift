@@ -70,7 +70,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, PacketTunnelEngineOwne
         reasserting = false
         if let error {
             terminalError = error
-            SharedConnectionState.fail(error.localizedDescription)
+            SharedConnectionState.fail(error.localizedDescription, code: (error as? EngineFailure)?.code)
             // An outstanding start completion reports the failure to NE.
             // Cancel only after that completion has already succeeded.
             if !startPending { cancelTunnelWithError(error) }

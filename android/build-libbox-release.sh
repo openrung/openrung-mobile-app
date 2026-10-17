@@ -358,6 +358,7 @@ required_classes = [
     "io/nekohasekai/libbox/OpenRungEngineListener.class",
     "io/nekohasekai/libbox/OpenRungMobileHost.class",
     "io/nekohasekai/libbox/OpenRungMobileRun.class",
+    "io/nekohasekai/libbox/OpenRungInstallationKey.class",
     "io/nekohasekai/libbox/OpenRungRunTelemetry.class",
     "io/nekohasekai/libbox/OpenRungEngineOperation.class",
     "io/nekohasekai/libbox/OpenRungBrokerOperation.class",
@@ -401,6 +402,7 @@ javap_output="$(
     io.nekohasekai.libbox.OpenRungEngineListener \
     io.nekohasekai.libbox.OpenRungMobileHost \
     io.nekohasekai.libbox.OpenRungMobileRun \
+    io.nekohasekai.libbox.OpenRungInstallationKey \
     io.nekohasekai.libbox.OpenRungRunTelemetry \
     io.nekohasekai.libbox.OpenRungEngineOperation \
     io.nekohasekai.libbox.OpenRungBrokerOperation \
@@ -430,8 +432,10 @@ for generated_symbol in \
   'networkChanged(boolean, java.lang.String, java.lang.String) throws java.lang.Exception;' \
   'stateJSON();' \
   'teardownComplete();' \
-  'newOpenRungMobileEngineForIOS(java.lang.String, io.nekohasekai.libbox.OpenRungMobileHost, io.nekohasekai.libbox.OpenRungEngineListener) throws java.lang.Exception;' \
-  'newOpenRungMobileEngineForAndroid(java.lang.String, io.nekohasekai.libbox.OpenRungWSSProtector, io.nekohasekai.libbox.OpenRungMobileHost, io.nekohasekai.libbox.OpenRungEngineListener) throws java.lang.Exception;' \
+  'newOpenRungMobileEngineForIOS(java.lang.String, io.nekohasekai.libbox.OpenRungMobileHost, io.nekohasekai.libbox.OpenRungInstallationKey, io.nekohasekai.libbox.OpenRungEngineListener) throws java.lang.Exception;' \
+  'newOpenRungMobileEngineForAndroid(java.lang.String, io.nekohasekai.libbox.OpenRungWSSProtector, io.nekohasekai.libbox.OpenRungMobileHost, io.nekohasekai.libbox.OpenRungInstallationKey, io.nekohasekai.libbox.OpenRungEngineListener) throws java.lang.Exception;' \
+  'byte[] publicKey() throws java.lang.Exception;' \
+  'byte[] sign(byte[]) throws java.lang.Exception;' \
   'openRungTunName(int) throws java.lang.Exception;' \
   'settingsJSON() throws java.lang.Exception;' \
   'attributesJSON();' \

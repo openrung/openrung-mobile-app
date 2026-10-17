@@ -175,4 +175,6 @@ export const vi: Partial<Strings> = {
     `Bạn đang dùng v${current}; v${latest} đã ra mắt. Nhấn để tải về.`,
   noticeDismiss: 'Bỏ qua',
   noticeLearnMore: 'Tìm hiểu thêm',
+  errorAccessDenied:
+    'Quyền truy cập của thiết bị này đã bị vô hiệu hóa nên không thể kết nối. Hãy liên hệ bộ phận hỗ trợ OpenRung.',
 };

@@ -20,6 +20,8 @@ data class OpenRungUiState(
     /** Node class of the connected relay ("foundation" or "volunteer"); null unless CONNECTED. */
     val relayClass: String? = null,
     val lastError: String? = null,
+    /** Stable code for a [lastError] the UI presents itself (contract §3); null otherwise. */
+    val lastErrorCode: String? = null,
     val logLines: List<String> = emptyList(),
     val recentRegions: List<RecentNode> = emptyList(),
 )

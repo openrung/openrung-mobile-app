@@ -18,6 +18,10 @@ export interface RecentNode {
   longitude: number;
 }
 
+/** Errors the UI presents in its own words. 'access_denied': the broker refused this
+ *  installation because an operator disabled it (ADR-006); the connect is not retried. */
+export type NativeErrorCode = 'access_denied';
+
 export interface NativeVpnState {
   status: ConnectionStatus;
   relayLabel: string | null; // resolved geo label, never a raw IP
@@ -27,6 +31,8 @@ export interface NativeVpnState {
   // normalizes the descriptor's node_class (unknown/absent => 'volunteer'); null whenever
   // not connected, mirroring relayName's lifecycle
   lastError: string | null;
+  lastErrorCode: NativeErrorCode | null; // stable code for a lastError the UI translates itself;
+  // null for every other error (render lastError as-is) and from native builds without the field
   logLines: string[]; // "[HH:mm:ss] message", newest last, cap 80
   recents: RecentNode[]; // newest first, deduped by relayId, cap 8
 }

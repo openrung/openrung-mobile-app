@@ -35,7 +35,7 @@ import { RelayList } from '../components/RelayList';
 import { UpdateBanner } from '../components/UpdateBanner';
 import { ViewModeToggle } from '../components/ViewModeToggle';
 import { AppConfig } from '../config';
-import { resolveLanguage, useLanguage, useStrings } from '../i18n';
+import { nativeErrorText, resolveLanguage, useLanguage, useStrings } from '../i18n';
 import { pickLocalizedText } from '../model/updateStatus';
 import {
   hydrateHomeViewMode,
@@ -89,6 +89,7 @@ function selectMainScreenState(current: AppState) {
     relayName: current.native.relayName,
     relayClass: current.native.relayClass,
     lastError: current.native.lastError,
+    lastErrorCode: current.native.lastErrorCode,
     recents: current.native.recents,
     directoryStatus: current.directoryStatus,
     availableRegions: current.availableRegions,
@@ -109,6 +110,7 @@ export function MainScreen(): React.JSX.Element {
     relayName,
     relayClass,
     lastError,
+    lastErrorCode,
     recents,
     directoryStatus,
     availableRegions,
@@ -210,7 +212,7 @@ export function MainScreen(): React.JSX.Element {
             status={status}
             relayLabel={relayLabel}
             relayName={relayName}
-            lastError={lastError}
+            lastError={nativeErrorText(s, lastError, lastErrorCode)}
             connectedAtMs={connectedAtMs}
           />
         </ExitNodeMap>

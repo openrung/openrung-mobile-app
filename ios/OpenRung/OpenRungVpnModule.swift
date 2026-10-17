@@ -19,6 +19,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
     private var relayName: String?
     private var relayClass: String?
     private var lastError: String?
+    private var lastErrorCode: String?
     private var logLines: [String] = []
     private var recentRegions: [RecentNode] = []
     private var hasListeners = false
@@ -138,6 +139,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
             } catch {
                 let message = AppError.message(for: error)
                 self.lastError = message
+                self.lastErrorCode = nil
                 self.status = .failed
                 // Relay identity never survives a failure (contract: relayClass/relayName are
                 // null whenever not CONNECTED), matching SharedConnectionState.fail().
@@ -223,6 +225,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
                         try manager.connection.startVPNTunnel()
                     } catch {
                         self.lastError = AppError.message(for: error)
+                        self.lastErrorCode = nil
                         self.status = .failed
                         // Same failure semantics as the connect() catch above.
                         self.relayLabel = nil
@@ -259,6 +262,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
             refreshVPNStatus()
         } catch {
             lastError = AppError.message(for: error)
+            lastErrorCode = nil
             emitStateChanged()
         }
     }
@@ -365,6 +369,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
         relayName = snapshot.relayName
         relayClass = snapshot.relayClass
         lastError = snapshot.lastError
+        lastErrorCode = snapshot.lastErrorCode
         logLines = snapshot.logLines
         recentRegions = snapshot.recentRegions
         if emit {
@@ -387,6 +392,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
             "relayName": relayName ?? NSNull(),
             "relayClass": relayClass ?? NSNull(),
             "lastError": lastError ?? NSNull(),
+            "lastErrorCode": lastErrorCode ?? NSNull(),
             "logLines": logLines,
             "recents": recentRegions.map { node in
                 [
