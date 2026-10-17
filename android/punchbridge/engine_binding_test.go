@@ -259,10 +259,14 @@ func TestOpenRungEngineAccessDeniedErrorCode(t *testing.T) {
 	s.Notice(connectcore.Notice{Kind: connectcore.NoticeAccessDenied, Reason: msg})
 	s.StateChanged(connectcore.State{Status: connectcore.StatusDisconnected})
 	s.StateChanged(connectcore.State{Status: connectcore.StatusFailed, LastError: &other})
+	// Nor across a successful connection (or any other non-failed state).
+	s.Notice(connectcore.Notice{Kind: connectcore.NoticeAccessDenied, Reason: msg})
+	s.StateChanged(connectcore.State{Status: connectcore.StatusConnected})
+	s.StateChanged(connectcore.State{Status: connectcore.StatusFailed, LastError: &other})
 	// Other notices never set the code.
 	s.Notice(connectcore.Notice{Kind: connectcore.NoticeFailoverStarted})
 	s.StateChanged(connectcore.State{Status: connectcore.StatusFailed, LastError: &other})
-	want := []string{"connecting:-", "failed:access_denied", "failed:-", "disconnected:-", "failed:-", "failed:-"}
+	want := []string{"connecting:-", "failed:access_denied", "failed:-", "disconnected:-", "failed:-", "connected:-", "failed:-", "failed:-"}
 	if strings.Join(codes, ",") != strings.Join(want, ",") {
 		t.Fatalf("codes = %v, want %v", codes, want)
 	}

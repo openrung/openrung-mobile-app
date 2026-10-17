@@ -146,7 +146,7 @@ weaken the production OS policy.
   relay/front-bound ticket by redirect-rejecting HTTPS POST with sequential
   broker-front failover under one deadline, then passes the exact signed URL and
   opaque ticket to `github.com/openrung/openrung/wsscore`, pinned in
-  `android/punchbridge/go.mod` (currently v0.6.0).
+  `android/punchbridge/go.mod` (currently v0.7.0).
   wsscore exposes a loopback endpoint to the unchanged Reality client. Android
   requires `VpnService.protect(fd)` to return true before connecting the outer
   socket and fails closed; PacketTunnel uses the dedicated Apple constructor's

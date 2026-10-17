@@ -1,6 +1,6 @@
 # ADR-003 B2: Android connectcore cutover
 
-Android now runs published `connectcore/v0.6.2` as its sole connection
+Android now runs published `connectcore/v0.7.0` as its sole connection
 orchestrator. This is the actual B2 implementation after preparation PR #112
 (mobile main `53e03d9`) and core API PR #179. There is no engine-selection flag.
 Physical-device acceptance below remains pending; this is not release promotion.

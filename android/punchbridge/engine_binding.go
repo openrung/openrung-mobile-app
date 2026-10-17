@@ -190,9 +190,9 @@ type openRungEngineSink struct {
 	mu       sync.Mutex
 	sequence uint64
 	listener OpenRungEngineListener
-	// accessDenied remembers a NoticeAccessDenied until the terminal state it
-	// precedes, which then carries ErrorCode so hosts can present the operator
-	// disable without parsing the engine's English error text.
+	// accessDenied remembers a NoticeAccessDenied until the next state; a FAILED
+	// state then carries ErrorCode so hosts can present the operator disable
+	// without parsing the engine's English error text.
 	accessDenied bool
 }
 
@@ -230,15 +230,13 @@ func (s *openRungEngineSink) StateChanged(state connectcore.State) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	payload := openRungEngineState{State: state}
-	switch state.Status {
-	case connectcore.StatusFailed:
-		if s.accessDenied {
-			payload.ErrorCode = openRungErrorAccessDenied
-		}
-		s.accessDenied = false
-	case connectcore.StatusDisconnected:
-		s.accessDenied = false
+	// The notice describes only the state that immediately follows it (the
+	// engine goes straight from the refusal to FAILED); any state consumes it,
+	// so a later unrelated failure is never labeled as a disable.
+	if s.accessDenied && state.Status == connectcore.StatusFailed {
+		payload.ErrorCode = openRungErrorAccessDenied
 	}
+	s.accessDenied = false
 	s.emitLocked("state", payload)
 }
 func (s *openRungEngineSink) Log(entry connectcore.LogEntry) { s.emit("log", entry) }
