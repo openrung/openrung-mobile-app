@@ -156,5 +156,5 @@ export const zhTW: Partial<Strings> = {
   noticeLearnMore: '瞭解更多',
   errorAccessDenied:
     '此裝置的存取權限已被停用，無法連線。請聯絡 OpenRung 支援。',
-  errorEnrollmentRefused: '註冊失敗：請確認你沒有連線其他 VPN，然後再試一次',
+  errorEnrollmentRefused: '註冊失敗：請確認沒有啟用其他 VPN，然後再試一次',
 };
