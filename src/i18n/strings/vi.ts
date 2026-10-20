@@ -177,4 +177,6 @@ export const vi: Partial<Strings> = {
   noticeLearnMore: 'Tìm hiểu thêm',
   errorAccessDenied:
     'Quyền truy cập của thiết bị này đã bị vô hiệu hóa nên không thể kết nối. Hãy liên hệ bộ phận hỗ trợ OpenRung.',
+  errorEnrollmentRefused:
+    'Không thể đăng ký thiết bị này trên mạng hiện tại vì mạng thuộc về nhà cung cấp hosting hoặc trung tâm dữ liệu (thường là một VPN khác hoặc máy chủ đám mây). Hãy kết nối một lần bằng kết nối internet thông thường của bạn.',
 };

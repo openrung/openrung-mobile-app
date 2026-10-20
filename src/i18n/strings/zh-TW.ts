@@ -156,4 +156,6 @@ export const zhTW: Partial<Strings> = {
   noticeLearnMore: '瞭解更多',
   errorAccessDenied:
     '此裝置的存取權限已被停用，無法連線。請聯絡 OpenRung 支援。',
+  errorEnrollmentRefused:
+    '無法在目前的網路上註冊此裝置：該網路屬於代管或資料中心業者（通常是另一個 VPN 或雲端伺服器）。請先使用你平常的網際網路連線連線一次。',
 };

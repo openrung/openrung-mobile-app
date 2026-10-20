@@ -19,8 +19,10 @@ export interface RecentNode {
 }
 
 /** Errors the UI presents in its own words. 'access_denied': the broker refused this
- *  installation because an operator disabled it (ADR-006); the connect is not retried. */
-export type NativeErrorCode = 'access_denied';
+ *  installation because an operator disabled it (ADR-006); the connect is not retried.
+ *  'enrollment_refused': the connect failed after the broker refused to enroll this new
+ *  installation from the current (hosting/datacenter) network (ADR-006). */
+export type NativeErrorCode = 'access_denied' | 'enrollment_refused';
 
 export interface NativeVpnState {
   status: ConnectionStatus;

@@ -165,6 +165,9 @@ export const en = {
   // Replaces the native lastError when lastErrorCode is 'access_denied' (see nativeErrorText).
   errorAccessDenied:
     'Access for this device has been disabled, so it cannot connect. Contact OpenRung support.',
+  // Replaces the native lastError when lastErrorCode is 'enrollment_refused' (see nativeErrorText).
+  errorEnrollmentRefused:
+    'This device could not be registered on the current network, which belongs to a hosting or datacenter provider (often another VPN or a cloud server). Connect once from your regular internet connection.',
 };
 
 export type Strings = typeof en;

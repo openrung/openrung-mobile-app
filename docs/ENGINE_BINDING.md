@@ -1,6 +1,6 @@
 # ADR-003 B1: engine lifecycle binding
 
-B1 introduced the lifecycle binding; B2 now pins connectcore v0.7.0 (with brokerapi v0.9.0) and uses
+B1 introduced the lifecycle binding; B2 now pins connectcore v0.8.0 (with brokerapi v0.10.0) and uses
 its mobile host API as Android's sole orchestrator. B3 uses that API on iOS,
 as documented in [IOS_ENGINE_CUTOVER.md](IOS_ENGINE_CUTOVER.md). The original B1 APIs and measurements below are retained
 for compatibility and historical evidence. The current Android constructor,
@@ -110,7 +110,7 @@ JSON, the binding's actual `TunnelRuntime`, and a local telemetry collector.
 Only the libbox service/network outcomes are simulated. Whole projected status,
 notice, and telemetry streams must equal the upstream vector expectations.
 
-connectcore v0.7.0 exposes its deterministic network/probe seams only to its own
+connectcore v0.8.0 exposes its deterministic network/probe seams only to its own
 package tests. The runner copies that exact tagged module to a temporary test
 workspace and changes only those existing identifiers' visibility. It does not
 change engine logic, modify the module cache, regenerate expectations, or ship
@@ -219,7 +219,7 @@ additive; the Kotlin callback envelope remains compatible.
 
 ## Installation key (ADR-006)
 
-connectcore v0.7.0 requires `MobileHost.Key`: the installation's P-256 identity
+connectcore (since v0.7.0) requires `MobileHost.Key`: the installation's P-256 identity
 key, from which the broker derives a stable user ID and per-user relay
 credentials. Both mobile constructors take an `OpenRungInstallationKey`, a
 gomobile interface with connectcore's `InstallationKey` method set:
@@ -254,6 +254,13 @@ gomobile interface with connectcore's `InstallationKey` method set:
   `access_denied` notice. The binding's state sink then marks the following
   FAILED state with `ErrorCode: "access_denied"`, which the hosts expose as
   `lastErrorCode` (CONTRACT §3) so TypeScript can show a translated message.
+- A broker refusal to enroll a new installation from a hosting/datacenter
+  network (HTTP 403 `datacenter_source`) arrives as connectcore's
+  `enrollment_refused` notice. It is not terminal: the engine continues on the
+  public relay list. The sink keeps it across that attempt's CONNECTING states
+  and, if the attempt ends FAILED, marks that state with
+  `ErrorCode: "enrollment_refused"` (an `access_denied` in the same attempt
+  wins); any other state clears it.
 - The app stores nothing else for this: the user ID and access token stay in
   the engine (the mobile host has no `UserIDPersistence`), and neither key
   material nor tokens are logged. The telemetry install ID is unrelated.

@@ -272,6 +272,57 @@ func TestOpenRungEngineAccessDeniedErrorCode(t *testing.T) {
 	}
 }
 
+func TestOpenRungEngineEnrollmentRefusedErrorCode(t *testing.T) {
+	var codes []string
+	s := &openRungEngineSink{listener: engineListenerFunc(func(raw string) {
+		var event struct {
+			Kind    string
+			Payload struct {
+				Status    string
+				ErrorCode *string
+			}
+		}
+		if err := json.Unmarshal([]byte(raw), &event); err != nil {
+			t.Fatal(err)
+		}
+		if event.Kind != "state" {
+			return
+		}
+		code := "-"
+		if event.Payload.ErrorCode != nil {
+			code = *event.Payload.ErrorCode
+		}
+		codes = append(codes, event.Payload.Status+":"+code)
+	})}
+	refused := connectcore.Notice{Kind: connectcore.NoticeEnrollmentRefused, Reason: connectcore.ErrEnrollmentRefused.Error()}
+	other := "relay unreachable"
+	// The refusal is not terminal: it survives the attempt's CONNECTING
+	// steps and labels the failure that ends the attempt, once.
+	s.StateChanged(connectcore.State{Status: connectcore.StatusPreparing})
+	s.Notice(refused)
+	s.StateChanged(connectcore.State{Status: connectcore.StatusConnecting})
+	s.StateChanged(connectcore.State{Status: connectcore.StatusFailed, LastError: &other})
+	s.StateChanged(connectcore.State{Status: connectcore.StatusFailed, LastError: &other})
+	// A connected attempt consumes it.
+	s.Notice(refused)
+	s.StateChanged(connectcore.State{Status: connectcore.StatusConnected})
+	s.StateChanged(connectcore.State{Status: connectcore.StatusFailed, LastError: &other})
+	// So does a user disconnect.
+	s.Notice(refused)
+	s.StateChanged(connectcore.State{Status: connectcore.StatusDisconnected})
+	s.StateChanged(connectcore.State{Status: connectcore.StatusFailed, LastError: &other})
+	// An operator disable is the more specific cause and wins.
+	msg := connectcore.ErrAccessDisabled.Error()
+	s.Notice(refused)
+	s.Notice(connectcore.Notice{Kind: connectcore.NoticeAccessDenied, Reason: msg})
+	s.StateChanged(connectcore.State{Status: connectcore.StatusFailed, LastError: &msg})
+	want := []string{"preparing:-", "connecting:-", "failed:enrollment_refused", "failed:-",
+		"connected:-", "failed:-", "disconnected:-", "failed:-", "failed:access_denied"}
+	if strings.Join(codes, ",") != strings.Join(want, ",") {
+		t.Fatalf("codes = %v, want %v", codes, want)
+	}
+}
+
 func TestOpenRungEnginePunchUsesProtectedHubAndClosesInvalidPath(t *testing.T) {
 	called := false
 	protect := engineProtectorFunc(func(int32) bool { called = true; return true })
