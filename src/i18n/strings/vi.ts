@@ -177,6 +177,5 @@ export const vi: Partial<Strings> = {
   noticeLearnMore: 'Tìm hiểu thêm',
   errorAccessDenied:
     'Quyền truy cập của thiết bị này đã bị vô hiệu hóa nên không thể kết nối. Hãy liên hệ bộ phận hỗ trợ OpenRung.',
-  errorEnrollmentRefused:
-    'Đăng ký thất bại: hãy chắc chắn không có VPN khác đang bật rồi thử lại',
+  errorEnrollmentRefused: 'Đăng ký thất bại. Hãy ngắt các VPN khác và thử lại.',
 };
