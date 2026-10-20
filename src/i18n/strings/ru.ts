@@ -180,4 +180,6 @@ export const ru: Partial<Strings> = {
   noticeLearnMore: 'Подробнее',
   errorAccessDenied:
     'Доступ для этого устройства отключён, подключение невозможно. Обратитесь в поддержку OpenRung.',
+  errorEnrollmentRefused:
+    'Ошибка регистрации. Отключите другие VPN и повторите.',
 };

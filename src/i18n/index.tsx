@@ -121,7 +121,14 @@ export function nativeErrorText(
   lastError: string | null,
   lastErrorCode: NativeErrorCode | null,
 ): string | null {
-  return lastErrorCode === 'access_denied' ? strings.errorAccessDenied : lastError;
+  switch (lastErrorCode) {
+    case 'access_denied':
+      return strings.errorAccessDenied;
+    case 'enrollment_refused':
+      return strings.errorEnrollmentRefused;
+    default:
+      return lastError;
+  }
 }
 
 interface LanguageContextValue {

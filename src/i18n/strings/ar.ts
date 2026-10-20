@@ -169,4 +169,5 @@ export const ar: Partial<Strings> = {
   noticeLearnMore: 'معرفة المزيد',
   errorAccessDenied:
     'تم تعطيل وصول هذا الجهاز، لذا لا يمكنه الاتصال. تواصل مع دعم OpenRung.',
+  errorEnrollmentRefused: 'فشل التسجيل. افصل شبكات VPN الأخرى وأعد المحاولة.',
 };

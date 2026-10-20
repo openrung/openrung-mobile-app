@@ -164,4 +164,5 @@ export const zhCN: Partial<Strings> = {
   noticeLearnMore: '了解更多',
   errorAccessDenied:
     '此设备的访问权限已被停用，无法连接。请联系 OpenRung 支持。',
+  errorEnrollmentRefused: '注册失败。请断开其他 VPN 后重试。',
 };

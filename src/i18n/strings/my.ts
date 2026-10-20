@@ -187,4 +187,6 @@ export const my: Partial<Strings> = {
   noticeLearnMore: 'ပိုမိုလေ့လာရန်',
   errorAccessDenied:
     'ဤစက်၏ ဝင်ရောက်ခွင့်ကို ပိတ်ထားသဖြင့် ချိတ်ဆက်၍ မရပါ။ OpenRung အကူအညီဌာနကို ဆက်သွယ်ပါ။',
+  errorEnrollmentRefused:
+    'မှတ်ပုံတင်၍ မရပါ။ အခြား VPN များကို ဖြုတ်ပြီး ထပ်စမ်းပါ။',
 };

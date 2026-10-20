@@ -165,6 +165,9 @@ export const en = {
   // Replaces the native lastError when lastErrorCode is 'access_denied' (see nativeErrorText).
   errorAccessDenied:
     'Access for this device has been disabled, so it cannot connect. Contact OpenRung support.',
+  // Replaces the native lastError when lastErrorCode is 'enrollment_refused' (see nativeErrorText).
+  errorEnrollmentRefused:
+    'Registration failed. Disconnect other VPNs and retry.',
 };
 
 export type Strings = typeof en;

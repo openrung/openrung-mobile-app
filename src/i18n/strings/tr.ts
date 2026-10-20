@@ -176,4 +176,6 @@ export const tr: Partial<Strings> = {
   noticeLearnMore: 'Daha fazla bilgi',
   errorAccessDenied:
     'Bu cihazın erişimi devre dışı bırakıldı, bu yüzden bağlanamıyor. OpenRung destek ekibiyle iletişime geçin.',
+  errorEnrollmentRefused:
+    "Kayıt başarısız. Diğer VPN'leri kapatıp tekrar deneyin.",
 };

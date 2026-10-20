@@ -178,4 +178,6 @@ export const fa: Partial<Strings> = {
   noticeLearnMore: 'بیشتر بدانید',
   errorAccessDenied:
     'دسترسی این دستگاه غیرفعال شده است و نمی‌تواند وصل شود. با پشتیبانی OpenRung تماس بگیرید.',
+  errorEnrollmentRefused:
+    'ثبت ناموفق بود. VPNهای دیگر را قطع کنید و دوباره تلاش کنید.',
 };

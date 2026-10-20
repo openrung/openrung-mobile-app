@@ -299,7 +299,10 @@ export function applyNativeState(native: NativeVpnState): void {
       ? native.relayClass
       : null;
   // Same for lastErrorCode: older binaries omit it, and an unknown code renders as plain lastError.
-  const lastErrorCode = native.lastErrorCode === 'access_denied' ? native.lastErrorCode : null;
+  const lastErrorCode =
+    native.lastErrorCode === 'access_denied' || native.lastErrorCode === 'enrollment_refused'
+      ? native.lastErrorCode
+      : null;
   const stabilized = stabilizedNative(state.native, { ...native, relayClass, lastErrorCode });
   const connectedAtMs = nextConnectedAtMs(state, stabilized);
   if (stabilized === state.native && connectedAtMs === state.connectedAtMs) {

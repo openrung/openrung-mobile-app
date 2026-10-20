@@ -194,6 +194,12 @@ type openRungEngineSink struct {
 	// state then carries ErrorCode so hosts can present the operator disable
 	// without parsing the engine's English error text.
 	accessDenied bool
+	// enrollmentRefused remembers a NoticeEnrollmentRefused for the rest of
+	// the connect attempt. The refusal is not terminal (the engine continues
+	// on the public relay list), so it survives CONNECTING states; if that
+	// attempt then ends FAILED, the state carries ErrorCode so hosts can tell
+	// the user to connect once from another network.
+	enrollmentRefused bool
 }
 
 // openRungEngineState is the state payload plus the binding's stable error
@@ -206,6 +212,11 @@ type openRungEngineState struct {
 // openRungErrorAccessDenied marks a FAILED state caused by the broker refusing
 // this installation (ADR-006 operator disable).
 const openRungErrorAccessDenied = "access_denied"
+
+// openRungErrorEnrollmentRefused marks a FAILED state of a connect attempt in
+// which the broker refused to enroll this installation from the current
+// network (ADR-006 datacenter source).
+const openRungErrorEnrollmentRefused = "enrollment_refused"
 
 func (s *openRungEngineSink) emit(kind string, payload any) {
 	// Serialize the callback too: delivery order then agrees with sequence.
@@ -233,18 +244,30 @@ func (s *openRungEngineSink) StateChanged(state connectcore.State) {
 	// The notice describes only the state that immediately follows it (the
 	// engine goes straight from the refusal to FAILED); any state consumes it,
 	// so a later unrelated failure is never labeled as a disable.
-	if s.accessDenied && state.Status == connectcore.StatusFailed {
+	switch {
+	case state.Status != connectcore.StatusFailed:
+	case s.accessDenied:
 		payload.ErrorCode = openRungErrorAccessDenied
+	case s.enrollmentRefused:
+		payload.ErrorCode = openRungErrorEnrollmentRefused
 	}
 	s.accessDenied = false
+	// The enrollment refusal belongs to the attempt in flight: only a
+	// CONNECTING step of that same attempt keeps it.
+	if state.Status != connectcore.StatusConnecting {
+		s.enrollmentRefused = false
+	}
 	s.emitLocked("state", payload)
 }
 func (s *openRungEngineSink) Log(entry connectcore.LogEntry) { s.emit("log", entry) }
 func (s *openRungEngineSink) Notice(notice connectcore.Notice) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if notice.Kind == connectcore.NoticeAccessDenied {
+	switch notice.Kind {
+	case connectcore.NoticeAccessDenied:
 		s.accessDenied = true
+	case connectcore.NoticeEnrollmentRefused:
+		s.enrollmentRefused = true
 	}
 	s.emitLocked("notice", notice)
 }

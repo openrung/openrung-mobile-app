@@ -686,6 +686,20 @@ describe('applyNativeState lastErrorCode mirroring', () => {
     expect(fa.errorAccessDenied).not.toBe(en.errorAccessDenied);
   });
 
+  it('mirrors enrollment_refused and shows the translated message instead of the native text', () => {
+    applyNativeState(failed({ lastErrorCode: 'enrollment_refused' }));
+    const native = getSnapshot().native;
+    expect(native.lastErrorCode).toBe('enrollment_refused');
+    expect(nativeErrorText(en, native.lastError, native.lastErrorCode)).toBe(
+      en.errorEnrollmentRefused,
+    );
+    const ru = stringsForTag('ru');
+    expect(nativeErrorText(ru, native.lastError, native.lastErrorCode)).toBe(
+      ru.errorEnrollmentRefused,
+    );
+    expect(ru.errorEnrollmentRefused).not.toBe(en.errorEnrollmentRefused);
+  });
+
   it('publishes a code-only change and keeps uncoded errors as reported', () => {
     applyNativeState(failed({}));
     const before = getSnapshot().native;
