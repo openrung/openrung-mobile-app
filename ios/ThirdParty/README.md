@@ -11,12 +11,6 @@
 > [`../../android/punchbridge/go.mod`](../../android/punchbridge/go.mod), so the
 > GPL §6 corresponding source is reproducible — keep those pins in lockstep
 > with the shipped binary (see [`../../RELEASE.md`](../../RELEASE.md)).
->
-> **App Store caveat:** distributing this GPL-linked binary through the App
-> Store (and likely external TestFlight) conflicts with Apple's Usage Rules /
-> DRM under GPL §6/§10. OpenRung cannot resolve this for the sing-box portion
-> alone — resolve it before any public App Store release (exception from
-> SagerNet, or move to an out-of-process engine).
 
 `Libbox.xcframework` is generated locally from sing-box and intentionally
 ignored by git because it is large.

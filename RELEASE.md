@@ -385,13 +385,11 @@ Privacy Policy URL to `https://www.openrung.org/privacy`. If the telemetry
 schema changes, update the manifest, this table, the public policy, and App
 Store Connect together before distributing the new build.
 
-## 6. App Store / DRM caveat (must be resolved separately)
+## 6. Store distribution
 
-Distributing a GPL-linked binary through the App Store (and likely external
-TestFlight) conflicts with Apple's Usage Rules / DRM under GPL §6/§10. This is
-**not** resolved by anything in this repo. Before any public Apple release,
-either obtain a licensing exception from SagerNet for sing-box or move the
-engine out-of-process. Google Play does not have the equivalent conflict.
+App Store, TestFlight and Google Play builds follow the same
+corresponding-source steps as every other channel (§1–4). Do not use the
+sing-box name in store listings or imply association with SagerNet.
 
 ## 7. Retention
 
