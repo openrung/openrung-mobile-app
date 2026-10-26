@@ -13,7 +13,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SettingPanel } from '../components/SettingPanel';
 import {
@@ -27,6 +26,7 @@ import {
 } from '../components/SocialIcons';
 import { APP_VERSION, AppConfig } from '../config';
 import { useStrings } from '../i18n';
+import { edgePadding, layout, useTabSceneInsets } from '../layout';
 import { monoFont, palette, tokens } from '../theme';
 
 export interface AboutScreenProps {
@@ -82,7 +82,7 @@ export function AboutScreen({
   onOpenLicenses,
 }: AboutScreenProps): React.JSX.Element {
   const s = useStrings();
-  const insets = useSafeAreaInsets();
+  const insets = useTabSceneInsets();
 
   const onOpenDonate = useCallback(() => {
     Linking.openURL(AppConfig.DONATE_URL).catch(() => {
@@ -103,28 +103,21 @@ export function AboutScreen({
   }, []);
 
   return (
-    <ScrollView
-      style={styles.root}
-      contentContainerStyle={[
-        styles.content,
-        {
-          paddingTop: insets.top + 24,
-          paddingBottom: tokens.tabBarHeight + insets.bottom + 24,
-        },
-      ]}
-    >
-      <Text style={styles.title}>{s.aboutTitle}</Text>
+    <ScrollView style={styles.root} contentContainerStyle={edgePadding(insets, 24)}>
+      <View style={[styles.content, layout.column]}>
+        <Text style={styles.title}>{s.aboutTitle}</Text>
 
-      <View style={styles.hero}>
-        <View style={styles.heroRow}>
-          <Text style={styles.heroWordmark}>{s.appName}</Text>
-          <View style={styles.versionPill}>
-            <Text style={styles.versionText}>v{APP_VERSION}</Text>
+        <View style={styles.hero}>
+          <View style={styles.heroRow}>
+            <Text style={styles.heroWordmark}>{s.appName}</Text>
+            <View style={styles.versionPill}>
+              <Text style={styles.versionText}>v{APP_VERSION}</Text>
+            </View>
           </View>
+          <Text style={styles.heroTagline}>{s.homeTagline}</Text>
+          <Text style={styles.missionLead}>{s.aboutMissionLead}</Text>
+          <Text style={styles.mission}>{s.aboutMissionBody}</Text>
         </View>
-        <Text style={styles.heroTagline}>{s.homeTagline}</Text>
-        <Text style={styles.missionLead}>{s.aboutMissionLead}</Text>
-        <Text style={styles.mission}>{s.aboutMissionBody}</Text>
       </View>
 
       <Text style={styles.sectionHeader}>
@@ -191,7 +184,6 @@ const styles = StyleSheet.create({
     backgroundColor: palette.screen,
   },
   content: {
-    paddingHorizontal: tokens.edge,
     gap: 14,
   },
   title: {

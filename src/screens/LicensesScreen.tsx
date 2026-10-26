@@ -6,13 +6,14 @@
  * panels from the bundled notices.
  */
 import React, { useCallback } from 'react';
-import { Linking, ScrollView, StyleSheet, Text } from 'react-native';
+import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ScreenHeader } from '../components/ScreenHeader';
 import { SettingPanel } from '../components/SettingPanel';
 import { AppConfig } from '../config';
 import { useStrings } from '../i18n';
+import { edgePadding, layout } from '../layout';
 import { components } from '../licenses/notices';
 import { monoFont, palette } from '../theme';
 
@@ -35,34 +36,30 @@ export function LicensesScreen({
   }, []);
 
   return (
-    <ScrollView
-      style={styles.root}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 },
-      ]}
-    >
-      <ScreenHeader title={s.licensesTitle} onBack={onBack} />
+    <ScrollView style={styles.root} contentContainerStyle={edgePadding(insets, 20)}>
+      <View style={[styles.content, layout.column]}>
+        <ScreenHeader title={s.licensesTitle} onBack={onBack} />
 
-      <Text style={styles.intro}>{s.licensesIntro}</Text>
+        <Text style={styles.intro}>{s.licensesIntro}</Text>
 
-      <SettingPanel
-        title={s.licensesSourceTitle}
-        subtitle={AppConfig.SOURCE_URL}
-        onPress={onOpenSource}
-      />
+        <SettingPanel
+          title={s.licensesSourceTitle}
+          subtitle={AppConfig.SOURCE_URL}
+          onPress={onOpenSource}
+        />
 
-      <SettingPanel
-        title={s.licensesFullTextTitle}
-        subtitle={s.licensesFullTextSubtitle}
-        onPress={onOpenFullText}
-      />
+        <SettingPanel
+          title={s.licensesFullTextTitle}
+          subtitle={s.licensesFullTextSubtitle}
+          onPress={onOpenFullText}
+        />
 
-      <Text style={styles.componentsHeader}>{s.licensesComponentsHeader}</Text>
+        <Text style={styles.componentsHeader}>{s.licensesComponentsHeader}</Text>
 
-      {components.map(entry => (
-        <SettingPanel key={entry.name} title={entry.name} subtitle={entry.license} />
-      ))}
+        {components.map(entry => (
+          <SettingPanel key={entry.name} title={entry.name} subtitle={entry.license} />
+        ))}
+      </View>
     </ScrollView>
   );
 }
@@ -73,7 +70,6 @@ const styles = StyleSheet.create({
     backgroundColor: palette.screen,
   },
   content: {
-    paddingHorizontal: 20,
     gap: 16,
   },
   intro: {

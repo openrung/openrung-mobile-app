@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ScreenHeader } from '../components/ScreenHeader';
 import { useStrings } from '../i18n';
+import { edgePadding, layout } from '../layout';
 import { GPL_TEXT, THIRD_PARTY_TEXT } from '../licenses/notices';
 import { monoFont, palette } from '../theme';
 
@@ -23,18 +24,15 @@ export function LicenseTextScreen({ onBack }: LicenseTextScreenProps): React.JSX
   const insets = useSafeAreaInsets();
 
   return (
-    <View
-      style={[
-        styles.root,
-        { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 },
-      ]}
-    >
-      <ScreenHeader title={s.licensesFullTextTitle} onBack={onBack} />
+    <View style={[styles.root, edgePadding(insets, 20)]}>
+      <View style={[styles.content, layout.column]}>
+        <ScreenHeader title={s.licensesFullTextTitle} onBack={onBack} />
 
-      <ScrollView style={styles.scroll}>
-        <Text style={styles.text}>{THIRD_PARTY_TEXT}</Text>
-        <Text style={styles.text}>{GPL_TEXT}</Text>
-      </ScrollView>
+        <ScrollView style={styles.scroll}>
+          <Text style={styles.text}>{THIRD_PARTY_TEXT}</Text>
+          <Text style={styles.text}>{GPL_TEXT}</Text>
+        </ScrollView>
+      </View>
     </View>
   );
 }
@@ -43,7 +41,9 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: palette.screen,
-    paddingHorizontal: 20,
+  },
+  content: {
+    flex: 1,
     gap: 16,
   },
   scroll: {

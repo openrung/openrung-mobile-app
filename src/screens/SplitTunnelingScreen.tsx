@@ -27,6 +27,7 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { SettingPanel } from '../components/SettingPanel';
 import { TerminalSwitch } from '../components/TerminalSwitch';
 import { useStrings } from '../i18n';
+import { edgePadding, layout } from '../layout';
 import {
   getInstalledApps,
   isAppListAvailable,
@@ -73,79 +74,75 @@ export function SplitTunnelingScreen({ onBack }: SplitTunnelingScreenProps): Rea
   );
 
   return (
-    <ScrollView
-      style={styles.root}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 },
-      ]}
-    >
-      <ScreenHeader title={s.splitTunnelHeader} onBack={onBack} />
+    <ScrollView style={styles.root} contentContainerStyle={edgePadding(insets, 20)}>
+      <View style={[styles.content, layout.column]}>
+        <ScreenHeader title={s.splitTunnelHeader} onBack={onBack} />
 
-      <SettingPanel
-        title={s.splitTunnelMasterTitle}
-        subtitle={s.splitTunnelMasterSubtitle}
-        trailing={
-          <TerminalSwitch
-            value={splitTunnel.enabled}
-            onChange={enabled => setSplitTunnel({ enabled })}
-          />
-        }
-      />
+        <SettingPanel
+          title={s.splitTunnelMasterTitle}
+          subtitle={s.splitTunnelMasterSubtitle}
+          trailing={
+            <TerminalSwitch
+              value={splitTunnel.enabled}
+              onChange={enabled => setSplitTunnel({ enabled })}
+            />
+          }
+        />
 
-      <Text style={styles.sectionHeader}>{s.splitTunnelBypassHeader.toUpperCase()}</Text>
-      <View style={!splitTunnel.enabled && styles.sectionDimmed}>
-        <View style={styles.sectionRows}>
-          <SettingPanel
-            title={s.splitTunnelLanTitle}
-            subtitle={s.splitTunnelLanSubtitle}
-            trailing={
-              <TerminalSwitch
-                value={splitTunnel.bypassLan}
-                onChange={bypassLan => setSplitTunnel({ bypassLan })}
-                disabled={!splitTunnel.enabled}
-              />
-            }
-          />
-          <SettingPanel
-            title={s.splitTunnelIranTitle}
-            subtitle={s.splitTunnelIranSubtitle}
-            trailing={
-              <TerminalSwitch
-                value={splitTunnel.bypassCountries.includes('ir')}
-                onChange={on => toggleCountry('ir', on)}
-                disabled={!splitTunnel.enabled}
-              />
-            }
-          />
-          <SettingPanel
-            title={s.splitTunnelChinaTitle}
-            subtitle={s.splitTunnelChinaSubtitle}
-            trailing={
-              <TerminalSwitch
-                value={splitTunnel.bypassCountries.includes('cn')}
-                onChange={on => toggleCountry('cn', on)}
-                disabled={!splitTunnel.enabled}
-              />
-            }
-          />
+        <Text style={styles.sectionHeader}>{s.splitTunnelBypassHeader.toUpperCase()}</Text>
+        <View style={!splitTunnel.enabled && styles.sectionDimmed}>
+          <View style={styles.sectionRows}>
+            <SettingPanel
+              title={s.splitTunnelLanTitle}
+              subtitle={s.splitTunnelLanSubtitle}
+              trailing={
+                <TerminalSwitch
+                  value={splitTunnel.bypassLan}
+                  onChange={bypassLan => setSplitTunnel({ bypassLan })}
+                  disabled={!splitTunnel.enabled}
+                />
+              }
+            />
+            <SettingPanel
+              title={s.splitTunnelIranTitle}
+              subtitle={s.splitTunnelIranSubtitle}
+              trailing={
+                <TerminalSwitch
+                  value={splitTunnel.bypassCountries.includes('ir')}
+                  onChange={on => toggleCountry('ir', on)}
+                  disabled={!splitTunnel.enabled}
+                />
+              }
+            />
+            <SettingPanel
+              title={s.splitTunnelChinaTitle}
+              subtitle={s.splitTunnelChinaSubtitle}
+              trailing={
+                <TerminalSwitch
+                  value={splitTunnel.bypassCountries.includes('cn')}
+                  onChange={on => toggleCountry('cn', on)}
+                  disabled={!splitTunnel.enabled}
+                />
+              }
+            />
+          </View>
         </View>
+
+        {showApps ? (
+          <>
+            <Text style={styles.sectionHeader}>{s.splitTunnelAppsHeader.toUpperCase()}</Text>
+            <AppPickerRow excludedApps={splitTunnel.excludedApps} />
+          </>
+        ) : null}
+
+        <Text style={styles.footer}>{s.splitTunnelApplyHint}</Text>
+        {/* The country presets are session-scoped while bypassed apps are remembered, so say so
+            rather than letting a preset silently vanish. Only the Android build mentions apps —
+            elsewhere there is no APPS section to refer to. */}
+        <Text style={styles.footer}>
+          {showApps ? s.splitTunnelResetHintWithApps : s.splitTunnelResetHint}
+        </Text>
       </View>
-
-      {showApps ? (
-        <>
-          <Text style={styles.sectionHeader}>{s.splitTunnelAppsHeader.toUpperCase()}</Text>
-          <AppPickerRow excludedApps={splitTunnel.excludedApps} />
-        </>
-      ) : null}
-
-      <Text style={styles.footer}>{s.splitTunnelApplyHint}</Text>
-      {/* The country presets are session-scoped while bypassed apps are remembered, so say so
-          rather than letting a preset silently vanish. Only the Android build mentions apps —
-          elsewhere there is no APPS section to refer to. */}
-      <Text style={styles.footer}>
-        {showApps ? s.splitTunnelResetHintWithApps : s.splitTunnelResetHint}
-      </Text>
     </ScrollView>
   );
 }
@@ -253,7 +250,6 @@ const styles = StyleSheet.create({
     backgroundColor: palette.screen,
   },
   content: {
-    paddingHorizontal: tokens.edge,
     gap: 14,
   },
   sectionHeader: {

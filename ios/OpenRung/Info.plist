@@ -64,19 +64,22 @@
 	<array>
 		<string>arm64</string>
 	</array>
+	<!-- Resizable app (no UIRequiresFullScreen): on iPhone Duo a full-screen-only app is
+	     shown scaled on the inner display and cannot take part in Split View, and on iPad
+	     the same key opts out of multitasking. Resizable windows ignore the orientation
+	     list and lay out from the window size and safe area instead, so the TypeScript
+	     layer keys everything off insets and width. Classic iPhones keep the portrait
+	     preference; an iPad window must list all four orientations to be resizable. -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 	</array>
-	<!-- Portrait-only, like the phone. An iPad app that doesn't support all four
-	     orientations must also opt out of multitasking (UIRequiresFullScreen)
-	     or App Store validation rejects the build. -->
-	<key>UIRequiresFullScreen</key>
-	<true/>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
