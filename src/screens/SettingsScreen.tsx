@@ -24,7 +24,7 @@ import {
 import { SettingPanel } from '../components/SettingPanel';
 import { APP_VERSION, AppConfig } from '../config';
 import { languageOptions, useLanguage, useStrings } from '../i18n';
-import { edgePadding, layout, useTabSceneInsets } from '../layout';
+import { edgePadding, layout, useTabSceneColumns } from '../layout';
 import {
   apkShareErrorCode,
   isApkShareAvailable,
@@ -58,7 +58,8 @@ export function SettingsScreen({
   onOpenSplitTunneling,
 }: SettingsScreenProps): React.JSX.Element {
   const s = useStrings();
-  const insets = useTabSceneInsets();
+  const { insets, twoColumns, contentWidth, columnWidth } = useTabSceneColumns();
+  const columnStyle = { width: columnWidth };
   // Selectors, not the whole store: on iOS this scene stays mounted behind the other tabs, so
   // it must not re-render on every mirrored native event (log lines, recents).
   const isConnected = useAppSelector(current => current.native.status === 'connected');
@@ -182,70 +183,75 @@ export function SettingsScreen({
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={edgePadding(insets, 24)}>
-      <View style={[styles.content, layout.column]}>
+      <View style={[styles.content, { width: contentWidth }]}>
         <Text style={styles.title}>{s.settingsTitle}</Text>
 
-        <Text style={styles.sectionHeader}>{s.settingsGeneralHeader.toUpperCase()}</Text>
-        {update.tier !== 'none' && update.latestVersion != null ? (
-          // Passive update row: present at every tier above 'none' — for 'available' (routine
-          // releases, and the ceiling for unsigned manifests) it is the ONLY update UI.
-          <SettingPanel
-            title={s.updateSettingTitle}
-            subtitle={s.updateSettingSubtitle(APP_VERSION, update.latestVersion)}
-            onPress={onOpenUpdate}
-          />
-        ) : null}
-        <SettingPanel
-          title={s.languageSettingTitle}
-          subtitle={s.languageSettingSubtitle}
-          trailing={<LanguagePicker />}
-        />
-        <SettingPanel
-          title={s.splitTunnelSettingTitle}
-          subtitle={
-            splitTunnel.enabled
-              ? s.splitTunnelSettingSubtitleOn
-              : s.splitTunnelSettingSubtitleOff
-          }
-          onPress={onOpenSplitTunneling}
-        />
-        {isApkShareAvailable ? (
-          <SettingPanel
-            title={s.shareApkTitle}
-            subtitle={s.shareApkSubtitle}
-            onPress={onShareApk}
-          />
-        ) : null}
-        {isTestFlightShareAvailable ? (
-          <SettingPanel
-            title={s.shareTestFlightTitle}
-            subtitle={s.shareTestFlightSubtitle}
-            onPress={onShareTestFlight}
-          />
-        ) : null}
-
-        <Text style={styles.sectionHeader}>{s.settingsDiagnosticsHeader.toUpperCase()}</Text>
-        <SettingPanel
-          title={s.speedTestSettingTitle}
-          subtitle={speedTestSubtitle}
-          trailing={
-            <Pressable
-              onPress={onRunSpeedTest}
-              disabled={!runEnabled}
-              style={[styles.runButton, !runEnabled && styles.runButtonDisabled]}
-              accessibilityRole="button"
-            >
-              <Text style={[styles.runLabel, !runEnabled && styles.runLabelDisabled]}>
-                {s.speedTestAction}
-              </Text>
-            </Pressable>
-          }
-        />
-        <SettingPanel
-          title={s.debugSettingTitle}
-          subtitle={s.debugSettingSubtitle}
-          onPress={onOpenDebug}
-        />
+        <View style={[styles.sections, twoColumns && layout.twoColumns]}>
+          <View style={[styles.sectionColumn, columnStyle]}>
+            <Text style={styles.sectionHeader}>{s.settingsGeneralHeader.toUpperCase()}</Text>
+            {update.tier !== 'none' && update.latestVersion != null ? (
+              // Passive update row: present at every tier above 'none' — for 'available' (routine
+              // releases, and the ceiling for unsigned manifests) it is the ONLY update UI.
+              <SettingPanel
+                title={s.updateSettingTitle}
+                subtitle={s.updateSettingSubtitle(APP_VERSION, update.latestVersion)}
+                onPress={onOpenUpdate}
+              />
+            ) : null}
+            <SettingPanel
+              title={s.languageSettingTitle}
+              subtitle={s.languageSettingSubtitle}
+              trailing={<LanguagePicker />}
+            />
+            <SettingPanel
+              title={s.splitTunnelSettingTitle}
+              subtitle={
+                splitTunnel.enabled
+                  ? s.splitTunnelSettingSubtitleOn
+                  : s.splitTunnelSettingSubtitleOff
+              }
+              onPress={onOpenSplitTunneling}
+            />
+            {isApkShareAvailable ? (
+              <SettingPanel
+                title={s.shareApkTitle}
+                subtitle={s.shareApkSubtitle}
+                onPress={onShareApk}
+              />
+            ) : null}
+            {isTestFlightShareAvailable ? (
+              <SettingPanel
+                title={s.shareTestFlightTitle}
+                subtitle={s.shareTestFlightSubtitle}
+                onPress={onShareTestFlight}
+              />
+            ) : null}
+          </View>
+          <View style={[styles.sectionColumn, columnStyle]}>
+            <Text style={styles.sectionHeader}>{s.settingsDiagnosticsHeader.toUpperCase()}</Text>
+            <SettingPanel
+              title={s.speedTestSettingTitle}
+              subtitle={speedTestSubtitle}
+              trailing={
+                <Pressable
+                  onPress={onRunSpeedTest}
+                  disabled={!runEnabled}
+                  style={[styles.runButton, !runEnabled && styles.runButtonDisabled]}
+                  accessibilityRole="button"
+                >
+                  <Text style={[styles.runLabel, !runEnabled && styles.runLabelDisabled]}>
+                    {s.speedTestAction}
+                  </Text>
+                </Pressable>
+              }
+            />
+            <SettingPanel
+              title={s.debugSettingTitle}
+              subtitle={s.debugSettingSubtitle}
+              onPress={onOpenDebug}
+            />
+          </View>
+        </View>
       </View>
     </ScrollView>
   );
@@ -306,6 +312,13 @@ const styles = StyleSheet.create({
     backgroundColor: palette.screen,
   },
   content: {
+    gap: 14,
+    alignSelf: 'center',
+  },
+  sections: {
+    gap: 14,
+  },
+  sectionColumn: {
     gap: 14,
   },
   title: {

@@ -479,7 +479,8 @@ iOS app is resizable (no `UIRequiresFullScreen`), every screen pads from all
 four safe-area insets, tab scenes take the tab bar from their own
 `SafeAreaProvider` (whichever edge the system places it on), and interactive
 columns are capped at `tokens.contentMaxWidth` on regular-width windows such as
-iPad and the iPhone Duo inner display.
+iPad and the iPhone Duo inner display. About and Settings use two columns when
+the scene has enough usable width, and stack their sections in narrower windows.
 
 ## Known limitations (§8)
 

@@ -8,6 +8,7 @@
  */
 import React from 'react';
 import { StyleSheet } from 'react-native';
+import { useSafeAreaFrame } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { palette } from '../theme';
@@ -15,8 +16,15 @@ import { palette } from '../theme';
 const FADE = palette.screen;
 
 export function EdgeFade(): React.JSX.Element {
+  const { width, height } = useSafeAreaFrame();
+
   return (
-    <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+    <Svg
+      // Recreate percentage-based SVG geometry when the native tab scene resizes.
+      key={`${width}:${height}`}
+      style={StyleSheet.absoluteFill}
+      pointerEvents="none"
+    >
       <Defs>
         {/* Clear center -> soft mist -> near-opaque background at the corners. */}
         <RadialGradient id="edge-vignette" cx="50%" cy="46%" rx="58%" ry="52%">

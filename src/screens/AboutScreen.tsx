@@ -26,7 +26,7 @@ import {
 } from '../components/SocialIcons';
 import { APP_VERSION, AppConfig } from '../config';
 import { useStrings } from '../i18n';
-import { edgePadding, layout, useTabSceneInsets } from '../layout';
+import { edgePadding, layout, useTabSceneColumns } from '../layout';
 import { monoFont, palette, tokens } from '../theme';
 
 export interface AboutScreenProps {
@@ -82,7 +82,8 @@ export function AboutScreen({
   onOpenLicenses,
 }: AboutScreenProps): React.JSX.Element {
   const s = useStrings();
-  const insets = useTabSceneInsets();
+  const { insets, twoColumns, contentWidth, columnWidth } = useTabSceneColumns();
+  const columnStyle = { width: columnWidth };
 
   const onOpenDonate = useCallback(() => {
     Linking.openURL(AppConfig.DONATE_URL).catch(() => {
@@ -104,75 +105,79 @@ export function AboutScreen({
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={edgePadding(insets, 24)}>
-      <View style={[styles.content, layout.column]}>
-        <Text style={styles.title}>{s.aboutTitle}</Text>
+      <View style={[styles.content, twoColumns && layout.twoColumns, { width: contentWidth }]}>
+        <View style={[styles.sectionColumn, columnStyle]}>
+          <Text style={styles.title}>{s.aboutTitle}</Text>
 
-        <View style={styles.hero}>
-          <View style={styles.heroRow}>
-            <Text style={styles.heroWordmark}>{s.appName}</Text>
-            <View style={styles.versionPill}>
-              <Text style={styles.versionText}>v{APP_VERSION}</Text>
+          <View style={styles.hero}>
+            <View style={styles.heroRow}>
+              <Text style={styles.heroWordmark}>{s.appName}</Text>
+              <View style={styles.versionPill}>
+                <Text style={styles.versionText}>v{APP_VERSION}</Text>
+              </View>
             </View>
+            <Text style={styles.heroTagline}>{s.homeTagline}</Text>
+            <Text style={styles.missionLead}>{s.aboutMissionLead}</Text>
+            <Text style={styles.mission}>{s.aboutMissionBody}</Text>
           </View>
-          <Text style={styles.heroTagline}>{s.homeTagline}</Text>
-          <Text style={styles.missionLead}>{s.aboutMissionLead}</Text>
-          <Text style={styles.mission}>{s.aboutMissionBody}</Text>
         </View>
-      </View>
 
-      <Text style={styles.sectionHeader}>
-        {s.aboutSupportHeader.toUpperCase()}
-      </Text>
-      <Pressable
-        accessibilityRole="link"
-        accessibilityLabel={s.donateTitle}
-        onPress={onOpenDonate}
-        style={({ pressed }) => [
-          styles.donateButton,
-          pressed && styles.donateButtonPressed,
-        ]}
-      >
-        <Text style={styles.donateHeart}>♥</Text>
-        <View style={styles.donateTextColumn}>
-          <Text style={styles.donateTitle}>{s.donateTitle}</Text>
-          <Text style={styles.donateSubtitle}>{s.donateSubtitle}</Text>
-        </View>
-        <Text style={styles.donateChevron}>›</Text>
-      </Pressable>
-
-      <Text style={styles.sectionHeader}>
-        {s.aboutLegalHeader.toUpperCase()}
-      </Text>
-      <SettingPanel
-        title={s.privacyPolicyTitle}
-        subtitle={s.privacyPolicySubtitle}
-        onPress={onOpenPrivacy}
-      />
-      <SettingPanel
-        title={s.licensesSettingTitle}
-        subtitle={s.licensesSettingSubtitle}
-        onPress={onOpenLicenses}
-      />
-
-      <Text style={styles.sectionHeader}>
-        {s.aboutFollowHeader.toUpperCase()}
-      </Text>
-      <View style={styles.socialRow}>
-        {SOCIAL_LINKS.map(({ label, url, color, Icon }) => (
+        <View style={[styles.sectionColumn, columnStyle]}>
+          <Text style={styles.sectionHeader}>
+            {s.aboutSupportHeader.toUpperCase()}
+          </Text>
           <Pressable
-            key={url}
             accessibilityRole="link"
-            accessibilityLabel={label}
-            hitSlop={6}
-            onPress={() => onOpenSocial(url)}
+            accessibilityLabel={s.donateTitle}
+            onPress={onOpenDonate}
             style={({ pressed }) => [
-              styles.socialButton,
-              pressed && styles.socialButtonPressed,
+              styles.donateButton,
+              pressed && styles.donateButtonPressed,
             ]}
           >
-            <Icon color={color} size={20} />
+            <Text style={styles.donateHeart}>♥</Text>
+            <View style={styles.donateTextColumn}>
+              <Text style={styles.donateTitle}>{s.donateTitle}</Text>
+              <Text style={styles.donateSubtitle}>{s.donateSubtitle}</Text>
+            </View>
+            <Text style={styles.donateChevron}>›</Text>
           </Pressable>
-        ))}
+
+          <Text style={styles.sectionHeader}>
+            {s.aboutLegalHeader.toUpperCase()}
+          </Text>
+          <SettingPanel
+            title={s.privacyPolicyTitle}
+            subtitle={s.privacyPolicySubtitle}
+            onPress={onOpenPrivacy}
+          />
+          <SettingPanel
+            title={s.licensesSettingTitle}
+            subtitle={s.licensesSettingSubtitle}
+            onPress={onOpenLicenses}
+          />
+
+          <Text style={styles.sectionHeader}>
+            {s.aboutFollowHeader.toUpperCase()}
+          </Text>
+          <View style={styles.socialRow}>
+            {SOCIAL_LINKS.map(({ label, url, color, Icon }) => (
+              <Pressable
+                key={url}
+                accessibilityRole="link"
+                accessibilityLabel={label}
+                hitSlop={6}
+                onPress={() => onOpenSocial(url)}
+                style={({ pressed }) => [
+                  styles.socialButton,
+                  pressed && styles.socialButtonPressed,
+                ]}
+              >
+                <Icon color={color} size={20} />
+              </Pressable>
+            ))}
+          </View>
+        </View>
       </View>
     </ScrollView>
   );
@@ -184,6 +189,10 @@ const styles = StyleSheet.create({
     backgroundColor: palette.screen,
   },
   content: {
+    gap: 14,
+    alignSelf: 'center',
+  },
+  sectionColumn: {
     gap: 14,
   },
   title: {
