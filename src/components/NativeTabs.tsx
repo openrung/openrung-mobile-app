@@ -51,7 +51,14 @@ export const NativeTabs = React.memo(function NativeTabsComponent({
       settings: s.tabSettings,
       about: s.tabAbout,
     };
-    return TAB_ORDER.map(tab => ({ key: tab, title: titles[tab], focusedIcon: ICONS[tab] }));
+    // lazy: false mounts every scene at launch. The library's lazy placeholder is an
+    // unstyled (white) view, which flashes the first time a tab is opened in this dark UI.
+    return TAB_ORDER.map(tab => ({
+      key: tab,
+      title: titles[tab],
+      focusedIcon: ICONS[tab],
+      lazy: false,
+    }));
   }, [s]);
 
   const navigationState = useMemo(
