@@ -23,7 +23,6 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Animated, Linking, Platform, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ConnectCard } from '../components/ConnectCard';
 import { EdgeFade } from '../components/EdgeFade';
@@ -36,6 +35,7 @@ import { UpdateBanner } from '../components/UpdateBanner';
 import { ViewModeToggle } from '../components/ViewModeToggle';
 import { AppConfig } from '../config';
 import { nativeErrorText, resolveLanguage, useLanguage, useStrings } from '../i18n';
+import { layout, useTabSceneInsets } from '../layout';
 import { pickLocalizedText } from '../model/updateStatus';
 import {
   hydrateHomeViewMode,
@@ -100,7 +100,7 @@ function selectMainScreenState(current: AppState) {
 }
 
 export function MainScreen(): React.JSX.Element {
-  const insets = useSafeAreaInsets();
+  const insets = useTabSceneInsets();
   const s = useStrings();
   const { languageTag } = useLanguage();
   const { disconnect, prepareAndConnect } = useVpnActions();
@@ -223,9 +223,11 @@ export function MainScreen(): React.JSX.Element {
         style={[
           styles.overlay,
           {
+            // Insets include the tab bar (bottom, or a side rail on iPhone Duo / landscape).
             paddingTop: insets.top + 14,
-            // Clear the translucent tab bar (its own safe-area padding included).
-            paddingBottom: tokens.tabBarHeight + insets.bottom + 14,
+            paddingBottom: insets.bottom + 14,
+            paddingLeft: insets.left + tokens.edge,
+            paddingRight: insets.right + tokens.edge,
           },
         ]}
         pointerEvents="box-none"
@@ -242,7 +244,7 @@ export function MainScreen(): React.JSX.Element {
 
         {update.tier === 'notify' && update.latestVersion != null ? (
           <UpdateBanner
-            style={styles.updateBanner}
+            style={[styles.updateBanner, layout.column]}
             title={s.updateBannerTitle}
             body={s.updateBannerBody(update.latestVersion)}
             primaryLabel={s.updateActionNow}
@@ -254,7 +256,7 @@ export function MainScreen(): React.JSX.Element {
           // Broadcast notice (verified manifests only; one card at a time — the update banner
           // outranks it, and the notice returns once the banner is dismissed or acted on).
           <UpdateBanner
-            style={styles.updateBanner}
+            style={[styles.updateBanner, layout.column]}
             level={notice.level}
             title={pickLocalizedText(notice.title, locale)}
             body={pickLocalizedText(notice.body, locale)}
@@ -274,13 +276,13 @@ export function MainScreen(): React.JSX.Element {
             onRelayPress={onConnectRelay}
             onRetry={onRetryDirectory}
             refreshing={directoryStatus === 'loading'}
-            style={styles.list}
+            style={[styles.list, layout.column]}
           />
         ) : (
           <View style={styles.spacer} pointerEvents="none" />
         )}
 
-        <View style={styles.bottomStack} pointerEvents="box-none">
+        <View style={[styles.bottomStack, layout.column]} pointerEvents="box-none">
           <RecentsSection recents={recents} liveRelayIds={liveRelayIds} onPress={onConnectRelay} />
           <ConnectCard
             status={status}
@@ -307,7 +309,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    paddingHorizontal: tokens.edge,
   },
   header: {
     flexDirection: 'row',

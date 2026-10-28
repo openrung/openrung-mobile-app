@@ -141,10 +141,20 @@ export const ConnectCard = React.memo(function ConnectCardComponent({
     return { x, y, r: Math.max(r, 1) };
   }, []);
 
-  const onLayout = useCallback((event: LayoutChangeEvent) => {
-    const { width, height } = event.nativeEvent.layout;
-    sizeRef.current = { w: width, h: height };
-  }, []);
+  const onLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      const { width, height } = event.nativeEvent.layout;
+      const previous = sizeRef.current;
+      sizeRef.current = { w: width, h: height };
+      if (previous.w === width && previous.h === height) {
+        return;
+      }
+      // The button resized (window resize on iPad / iPhone Duo): keep the anchor but
+      // re-stretch the disc so a full fill still reaches every corner.
+      setFillGeometry(current => (current == null ? current : geometryFor(current.x, current.y)));
+    },
+    [geometryFor],
+  );
 
   const onPressIn = useCallback(
     (event: GestureResponderEvent) => {

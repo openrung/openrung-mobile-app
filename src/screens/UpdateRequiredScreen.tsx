@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { APP_VERSION, AppConfig } from '../config';
 import { useStrings } from '../i18n';
+import { edgePadding, layout } from '../layout';
 import { continueDespiteBlock } from '../state/updateCheck';
 import { useAppState } from '../state/store';
 import { monoFont, palette, tokens } from '../theme';
@@ -28,36 +29,33 @@ export function UpdateRequiredScreen(): React.JSX.Element {
   }, []);
 
   return (
-    <View
-      style={[
-        styles.root,
-        { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 },
-      ]}
-    >
-      <View style={styles.body}>
-        <Text style={styles.title}>{s.updateRequiredTitle}</Text>
-        <Text style={styles.message}>{s.updateRequiredBody}</Text>
-        {update.latestVersion != null ? (
-          <Text style={styles.versions}>
-            {s.updateVersionTransition(APP_VERSION, update.latestVersion)}
-          </Text>
-        ) : null}
-      </View>
-      <View style={styles.footer}>
-        <Pressable
-          onPress={onUpdate}
-          style={({ pressed }) => [styles.updateButton, pressed && styles.pressed]}
-          accessibilityRole="button"
-        >
-          <Text style={styles.updateLabel}>{s.updateActionNow}</Text>
-        </Pressable>
-        <Pressable
-          onPress={continueDespiteBlock}
-          style={({ pressed }) => [styles.continueButton, pressed && styles.pressed]}
-          accessibilityRole="button"
-        >
-          <Text style={styles.continueLabel}>{s.updateContinueAnyway}</Text>
-        </Pressable>
+    <View style={[styles.root, edgePadding(insets, 24)]}>
+      <View style={[styles.content, layout.column]}>
+        <View style={styles.body}>
+          <Text style={styles.title}>{s.updateRequiredTitle}</Text>
+          <Text style={styles.message}>{s.updateRequiredBody}</Text>
+          {update.latestVersion != null ? (
+            <Text style={styles.versions}>
+              {s.updateVersionTransition(APP_VERSION, update.latestVersion)}
+            </Text>
+          ) : null}
+        </View>
+        <View style={styles.footer}>
+          <Pressable
+            onPress={onUpdate}
+            style={({ pressed }) => [styles.updateButton, pressed && styles.pressed]}
+            accessibilityRole="button"
+          >
+            <Text style={styles.updateLabel}>{s.updateActionNow}</Text>
+          </Pressable>
+          <Pressable
+            onPress={continueDespiteBlock}
+            style={({ pressed }) => [styles.continueButton, pressed && styles.pressed]}
+            accessibilityRole="button"
+          >
+            <Text style={styles.continueLabel}>{s.updateContinueAnyway}</Text>
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -67,7 +65,9 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: palette.screen,
-    paddingHorizontal: tokens.edge,
+  },
+  content: {
+    flex: 1,
   },
   body: {
     flex: 1,

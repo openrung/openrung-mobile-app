@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConsolePanel } from '../components/ConsolePanel';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { nativeErrorText, useStrings } from '../i18n';
+import { edgePadding, layout } from '../layout';
 import { isMock } from '../native/OpenRungVpn';
 import { useVpnState } from '../state/useVpnState';
 import { palette } from '../theme';
@@ -25,20 +26,17 @@ export function DebugScreen({ onBack }: DebugScreenProps): React.JSX.Element {
   const { state } = useVpnState();
 
   return (
-    <View
-      style={[
-        styles.root,
-        { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 },
-      ]}
-    >
-      <ScreenHeader title={s.debugTitle} onBack={onBack} />
+    <View style={[styles.root, edgePadding(insets, 20)]}>
+      <View style={[styles.content, layout.column]}>
+        <ScreenHeader title={s.debugTitle} onBack={onBack} />
 
-      <ConsolePanel
-        logLines={state.native.logLines}
-        lastError={nativeErrorText(s, state.native.lastError, state.native.lastErrorCode)}
-        showMockNotice={isMock}
-        style={styles.console}
-      />
+        <ConsolePanel
+          logLines={state.native.logLines}
+          lastError={nativeErrorText(s, state.native.lastError, state.native.lastErrorCode)}
+          showMockNotice={isMock}
+          style={styles.console}
+        />
+      </View>
     </View>
   );
 }
@@ -47,7 +45,9 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: palette.screen,
-    paddingHorizontal: 20,
+  },
+  content: {
+    flex: 1,
     gap: 16,
   },
   console: {

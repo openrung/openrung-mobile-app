@@ -65,6 +65,11 @@ export const tokens = {
   tabBarHeight: 62,
   /** Screen edge padding. */
   edge: 20,
+  /**
+   * Widest column for interactive content (cards, lists, panels). Regular-width windows —
+   * iPad, the iPhone Duo inner display — center it instead of stretching controls edge to edge.
+   */
+  contentMaxWidth: 520,
 } as const;
 
 /**
