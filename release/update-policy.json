@@ -4,34 +4,34 @@
     "android": "0.0.0",
     "ios": "0.0.0"
   },
-  "ios_latest": "0.3.10",
-  "promote": "silent",
+  "ios_latest": "0.4.1",
+  "promote": "notify",
   "notice": {
-    "id": "2026-09-release-0.3.9",
+    "id": "2026-10-release-0.4.1",
     "level": "info",
     "title": {
-      "en": "What's new in 0.3.9",
-      "zh-CN": "0.3.9 新功能",
-      "zh-TW": "0.3.9 新功能",
-      "fa": "تازه‌های نسخه ۰.۳.۹",
-      "ru": "Что нового в 0.3.9",
-      "ar": "الجديد في 0.3.9",
-      "tr": "0.3.9'daki yenilikler",
-      "vi": "Có gì mới trong 0.3.9",
-      "my": "0.3.9 အသစ်များ"
+      "en": "What's new in 0.4.1",
+      "zh-CN": "0.4.1 新功能",
+      "zh-TW": "0.4.1 新功能",
+      "fa": "تازه‌های نسخه ۰.۴.۱",
+      "ru": "Что нового в 0.4.1",
+      "ar": "الجديد في 0.4.1",
+      "tr": "0.4.1'deki yenilikler",
+      "vi": "Có gì mới trong 0.4.1",
+      "my": "0.4.1 အသစ်များ"
     },
     "body": {
-      "en": "Version 0.3.9 connects faster on networks that block our main server by trying alternate routes first, shows consistent relay names on Android and iOS, and improves the connection mechanism.",
-      "zh-CN": "0.3.9 版会优先尝试备用线路，在屏蔽我们主服务器的网络上连接更快；Android 与 iOS 上的中继名称显示一致；并优化了连接机制。",
-      "zh-TW": "0.3.9 版會優先嘗試備用線路，在封鎖我們主伺服器的網路上連線更快；Android 與 iOS 上的中繼名稱顯示一致；並優化了連線機制。",
-      "fa": "نسخهٔ ۰.۳.۹ در شبکه‌هایی که سرور اصلی ما را مسدود می‌کنند با آزمودن مسیرهای جایگزین در ابتدا سریع‌تر متصل می‌شود، نام رله‌ها را در اندروید و iOS یکسان نشان می‌دهد و سازوکار اتصال را بهبود می‌بخشد.",
-      "ru": "Версия 0.3.9 быстрее подключается в сетях, блокирующих наш основной сервер, сначала пробуя запасные маршруты, единообразно показывает названия релеев на Android и iOS и улучшает механизм подключения.",
-      "ar": "يتصل الإصدار 0.3.9 أسرع في الشبكات التي تحجب خادمنا الرئيسي عبر تجربة المسارات البديلة أولاً، ويعرض أسماء المرحّلات بشكل متطابق على Android وiOS، ويحسّن آلية الاتصال.",
-      "tr": "0.3.9 sürümü, ana sunucumuzu engelleyen ağlarda önce alternatif yolları deneyerek daha hızlı bağlanır, Android ve iOS'ta tutarlı aktarıcı adları gösterir ve bağlantı mekanizmasını iyileştirir.",
-      "vi": "Phiên bản 0.3.9 kết nối nhanh hơn trên các mạng chặn máy chủ chính của chúng tôi bằng cách thử các tuyến thay thế trước, hiển thị tên relay nhất quán trên Android và iOS, và cải thiện cơ chế kết nối.",
-      "my": "၀.၃.၉ ဗားရှင်းသည် ကျွန်ုပ်တို့၏ ပင်မဆာဗာကို ပိတ်ဆို့ထားသော ကွန်ရက်များတွင် အခြားလမ်းကြောင်းများကို အရင်စမ်းသပ်ခြင်းဖြင့် ပိုမြန်စွာ ချိတ်ဆက်ပေးပြီး၊ Android နှင့် iOS တွင် relay အမည်များကို တသမတ်တည်း ပြသကာ၊ ချိတ်ဆက်မှုယန္တရားကို တိုးတက်ကောင်းမွန်စေပါသည်။"
+      "en": "Version 0.4.1 connects better on devices without IPv6 and after switching networks, explains device registration errors more clearly, and on iPhone and iPad resizes properly in Split View and on larger screens.",
+      "zh-CN": "0.4.1 版在不支持 IPv6 的设备上以及切换网络后连接更稳定，设备注册失败时的提示更清楚；在 iPhone 和 iPad 上，分屏和大屏幕下的布局也能正确调整。",
+      "zh-TW": "0.4.1 版在不支援 IPv6 的裝置上以及切換網路後連線更穩定，裝置註冊失敗時的提示更清楚；在 iPhone 和 iPad 上，分割畫面與大螢幕下的版面也能正確調整。",
+      "fa": "نسخهٔ ۰.۴.۱ در دستگاه‌های بدون IPv6 و پس از تغییر شبکه بهتر متصل می‌شود، خطاهای ثبت دستگاه را روشن‌تر توضیح می‌دهد و در آیفون و آیپد در حالت Split View و صفحه‌های بزرگ‌تر به‌درستی تغییر اندازه می‌دهد.",
+      "ru": "Версия 0.4.1 лучше подключается на устройствах без IPv6 и после смены сети, понятнее объясняет ошибки регистрации устройства, а на iPhone и iPad корректно меняет размер в Split View и на больших экранах.",
+      "ar": "يتصل الإصدار 0.4.1 بشكل أفضل على الأجهزة التي لا تدعم IPv6 وبعد تبديل الشبكة، ويشرح أخطاء تسجيل الجهاز بوضوح أكبر، ويتكيّف حجمه بشكل صحيح في وضع Split View وعلى الشاشات الأكبر في iPhone وiPad.",
+      "tr": "0.4.1 sürümü IPv6 olmayan cihazlarda ve ağ değiştirdikten sonra daha iyi bağlanır, cihaz kayıt hatalarını daha açık anlatır ve iPhone ile iPad'de Split View'da ve büyük ekranlarda düzgün yeniden boyutlanır.",
+      "vi": "Phiên bản 0.4.1 kết nối tốt hơn trên thiết bị không có IPv6 và sau khi chuyển mạng, giải thích lỗi đăng ký thiết bị rõ ràng hơn, và trên iPhone và iPad hiển thị đúng kích thước trong Split View và trên màn hình lớn hơn.",
+      "my": "၀.၄.၁ ဗားရှင်းသည် IPv6 မရှိသော စက်များတွင်နှင့် ကွန်ရက်ပြောင်းပြီးနောက် ပိုမိုကောင်းမွန်စွာ ချိတ်ဆက်ပေးပြီး၊ စက်မှတ်ပုံတင်ခြင်း အမှားများကို ပိုမိုရှင်းလင်းစွာ ရှင်းပြကာ၊ iPhone နှင့် iPad တွင် Split View နှင့် ပိုကြီးသော မျက်နှာပြင်များ၌ အရွယ်အစားကို မှန်ကန်စွာ ပြောင်းလဲပေးပါသည်။"
     },
     "url": null,
-    "expires": "2026-12-01T00:00:00Z"
+    "expires": "2027-01-01T00:00:00Z"
   }
 }
