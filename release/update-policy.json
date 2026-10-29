@@ -4,7 +4,34 @@
     "android": "0.0.0",
     "ios": "0.0.0"
   },
-  "ios_latest": "0.3.10",
+  "ios_latest": "0.4.1",
   "promote": "notify",
-  "notice": null
+  "notice": {
+    "id": "2026-10-release-0.4.1",
+    "level": "info",
+    "title": {
+      "en": "What's new in 0.4.1",
+      "zh-CN": "0.4.1 新功能",
+      "zh-TW": "0.4.1 新功能",
+      "fa": "تازه‌های نسخه ۰.۴.۱",
+      "ru": "Что нового в 0.4.1",
+      "ar": "الجديد في 0.4.1",
+      "tr": "0.4.1'deki yenilikler",
+      "vi": "Có gì mới trong 0.4.1",
+      "my": "0.4.1 အသစ်များ"
+    },
+    "body": {
+      "en": "Version 0.4.1 connects better on devices without IPv6 and after switching networks, explains device registration errors more clearly, and on iPhone and iPad resizes properly in Split View and on larger screens.",
+      "zh-CN": "0.4.1 版在不支持 IPv6 的设备上以及切换网络后连接更稳定，设备注册失败时的提示更清楚；在 iPhone 和 iPad 上，分屏和大屏幕下的布局也能正确调整。",
+      "zh-TW": "0.4.1 版在不支援 IPv6 的裝置上以及切換網路後連線更穩定，裝置註冊失敗時的提示更清楚；在 iPhone 和 iPad 上，分割畫面與大螢幕下的版面也能正確調整。",
+      "fa": "نسخهٔ ۰.۴.۱ در دستگاه‌های بدون IPv6 و پس از تغییر شبکه بهتر متصل می‌شود، خطاهای ثبت دستگاه را روشن‌تر توضیح می‌دهد و در آیفون و آیپد در حالت Split View و صفحه‌های بزرگ‌تر به‌درستی تغییر اندازه می‌دهد.",
+      "ru": "Версия 0.4.1 лучше подключается на устройствах без IPv6 и после смены сети, понятнее объясняет ошибки регистрации устройства, а на iPhone и iPad корректно меняет размер в Split View и на больших экранах.",
+      "ar": "يتصل الإصدار 0.4.1 بشكل أفضل على الأجهزة التي لا تدعم IPv6 وبعد تبديل الشبكة، ويشرح أخطاء تسجيل الجهاز بوضوح أكبر، ويتكيّف حجمه بشكل صحيح في وضع Split View وعلى الشاشات الأكبر في iPhone وiPad.",
+      "tr": "0.4.1 sürümü IPv6 olmayan cihazlarda ve ağ değiştirdikten sonra daha iyi bağlanır, cihaz kayıt hatalarını daha açık anlatır ve iPhone ile iPad'de Split View'da ve büyük ekranlarda düzgün yeniden boyutlanır.",
+      "vi": "Phiên bản 0.4.1 kết nối tốt hơn trên thiết bị không có IPv6 và sau khi chuyển mạng, giải thích lỗi đăng ký thiết bị rõ ràng hơn, và trên iPhone và iPad hiển thị đúng kích thước trong Split View và trên màn hình lớn hơn.",
+      "my": "၀.၄.၁ ဗားရှင်းသည် IPv6 မရှိသော စက်များတွင်နှင့် ကွန်ရက်ပြောင်းပြီးနောက် ပိုမိုကောင်းမွန်စွာ ချိတ်ဆက်ပေးပြီး၊ စက်မှတ်ပုံတင်ခြင်း အမှားများကို ပိုမိုရှင်းလင်းစွာ ရှင်းပြကာ၊ iPhone နှင့် iPad တွင် Split View နှင့် ပိုကြီးသော မျက်နှာပြင်များ၌ အရွယ်အစားကို မှန်ကန်စွာ ပြောင်းလဲပေးပါသည်။"
+    },
+    "url": null,
+    "expires": "2027-01-01T00:00:00Z"
+  }
 }
