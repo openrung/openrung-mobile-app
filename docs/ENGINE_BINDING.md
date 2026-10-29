@@ -1,6 +1,6 @@
 # ADR-003 B1: engine lifecycle binding
 
-B1 introduced the lifecycle binding; B2 now pins connectcore v0.8.0 (with brokerapi v0.10.0) and uses
+B1 introduced the lifecycle binding; B2 now pins connectcore v0.9.1 (with brokerapi v0.10.0) and uses
 its mobile host API as Android's sole orchestrator. B3 uses that API on iOS,
 as documented in [IOS_ENGINE_CUTOVER.md](IOS_ENGINE_CUTOVER.md). The original B1 APIs and measurements below are retained
 for compatibility and historical evidence. The current Android constructor,
@@ -110,7 +110,7 @@ JSON, the binding's actual `TunnelRuntime`, and a local telemetry collector.
 Only the libbox service/network outcomes are simulated. Whole projected status,
 notice, and telemetry streams must equal the upstream vector expectations.
 
-connectcore v0.8.0 exposes its deterministic network/probe seams only to its own
+connectcore v0.9.1 exposes its deterministic network/probe seams only to its own
 package tests. The runner copies that exact tagged module to a temporary test
 workspace and changes only those existing identifiers' visibility. It does not
 change engine logic, modify the module cache, regenerate expectations, or ship
