@@ -18,6 +18,10 @@ enum WidgetSharedState {
     static let languageTagKey = "widget_language_tag"
     /// Written by `WidgetReloadGate`: the last face WidgetKit was asked to render.
     static let lastPublishedFaceKey = "widget_last_face"
+    /// App-written (`WidgetStaleTunnelMarker`): true when the OS reported the tunnel down while
+    /// the snapshot still claimed it live (the extension was killed). Removed by the tunnel on
+    /// its next snapshot write, so a real tunnel always supersedes it.
+    static let systemTunnelDownKey = "widget_system_tunnel_down"
     /// WidgetKit `kind` of the single widget; reload requests target exactly this.
     static let widgetKind = "OpenRungConnect"
 
@@ -33,8 +37,17 @@ enum WidgetSharedState {
         return WidgetFace(statusRawValue: partial.status ?? "")
     }
 
+    /// The face from a snapshot, overridden to disconnected while the app's stale-tunnel marker
+    /// says the OS has no such tunnel.
+    static func face(fromSnapshotData data: Data?, systemTunnelDown: Bool) -> WidgetFace {
+        systemTunnelDown ? .disconnected : face(fromSnapshotData: data)
+    }
+
     static func currentFace() -> WidgetFace {
-        face(fromSnapshotData: defaults?.data(forKey: connectionSnapshotKey))
+        face(
+            fromSnapshotData: defaults?.data(forKey: connectionSnapshotKey),
+            systemTunnelDown: defaults?.bool(forKey: systemTunnelDownKey) ?? false
+        )
     }
 
     static func currentLanguageTag() -> String {
@@ -75,15 +88,19 @@ enum WidgetFace: String, Equatable {
 }
 
 /// Asks WidgetKit to reload only when the rendered face changed since the last request: WidgetKit's
-/// daily reload budget is small, and the snapshot is rewritten for every log line.
+/// daily reload budget is small, and the snapshot is rewritten for every log line. Runs in the
+/// tunnel extension on every snapshot flush, and every flush retires the app's stale-tunnel marker:
+/// a fresh tunnel write is the truth, whatever the app concluded earlier.
 struct WidgetReloadGate {
     var readLastFace: () -> WidgetFace?
     var writeLastFace: (WidgetFace) -> Void
+    var clearStaleTunnelMarker: () -> Void
     var reload: () -> Void
 
     /// Returns true when a reload was requested.
     @discardableResult
     func publish(statusRawValue: String) -> Bool {
+        clearStaleTunnelMarker()
         let face = WidgetFace(statusRawValue: statusRawValue)
         guard readLastFace() != face else { return false }
         writeLastFace(face)
@@ -100,6 +117,44 @@ struct WidgetReloadGate {
         writeLastFace: { face in
             WidgetSharedState.defaults?.set(face.rawValue, forKey: WidgetSharedState.lastPublishedFaceKey)
         },
+        clearStaleTunnelMarker: {
+            WidgetSharedState.defaults?.removeObject(forKey: WidgetSharedState.systemTunnelDownKey)
+        },
+        reload: {
+            #if canImport(WidgetKit)
+            WidgetCenter.shared.reloadTimelines(ofKind: WidgetSharedState.widgetKind)
+            #endif
+        }
+    )
+}
+
+/// The app's one widget-facing publication about the tunnel: that the OS has no live tunnel
+/// although the snapshot still says so. It only ever SETS the marker (deduplicated, so a run of
+/// status refreshes costs one reload); the tunnel's next write clears it.
+struct WidgetStaleTunnelMarker {
+    var readMarker: () -> Bool
+    var writeMarker: () -> Void
+    var reload: () -> Void
+
+    /// Whether the marker applies: the OS says down while the snapshot claims a live tunnel.
+    static func applies(systemTunnelIsDown: Bool, snapshotFace: WidgetFace) -> Bool {
+        systemTunnelIsDown && (snapshotFace == .connected || snapshotFace == .connecting)
+    }
+
+    /// Returns true when the marker was newly set (and a reload requested).
+    @discardableResult
+    func publish(systemTunnelIsDown: Bool, snapshotFace: WidgetFace) -> Bool {
+        guard Self.applies(systemTunnelIsDown: systemTunnelIsDown, snapshotFace: snapshotFace),
+              !readMarker()
+        else { return false }
+        writeMarker()
+        reload()
+        return true
+    }
+
+    static let shared = WidgetStaleTunnelMarker(
+        readMarker: { WidgetSharedState.defaults?.bool(forKey: WidgetSharedState.systemTunnelDownKey) ?? false },
+        writeMarker: { WidgetSharedState.defaults?.set(true, forKey: WidgetSharedState.systemTunnelDownKey) },
         reload: {
             #if canImport(WidgetKit)
             WidgetCenter.shared.reloadTimelines(ofKind: WidgetSharedState.widgetKind)

@@ -64,7 +64,7 @@ blocks traffic or fails a connect.
 | iOS widget bundle id | `com.openrung.app.OpenRungWidget` (WidgetKit; app group only, no VPN entitlement) |
 | iOS URL scheme | `openrung` — on iOS 16 only, the app acts on exactly `openrung://connect` (no path/query/fragment/user/port); on iOS 17+ the widget uses its intent and the URL, like any other URL under the scheme, only opens the app |
 | iOS app group | `group.com.openrung.app` |
-| iOS app-group keys | `connection_state` (PacketTunnel writes, app + widget read), `split_tunnel_config` (app writes, PacketTunnel reads), `widget_language_tag` (app writes, widget reads), `widget_last_face` (PacketTunnel's reload gate) |
+| iOS app-group keys | `connection_state` (PacketTunnel writes, app + widget read), `split_tunnel_config` (app writes, PacketTunnel reads), `widget_language_tag` (app writes, widget reads), `widget_last_face` (PacketTunnel's reload gate), `widget_system_tunnel_down` (app sets when the OS reports no tunnel against a live snapshot; PacketTunnel removes it on every snapshot write; widget reads) |
 | iOS VPN profile localizedDescription | `OpenRung VPN` |
 | iOS deployment target | 16.0 |
 | DEVELOPMENT_TEAM | `9VLV9A7KS9` |
@@ -814,10 +814,15 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   reconciles the snapshot with `NEVPNStatus`, applies `WidgetConnectPolicy`
   (`Shared/WidgetConnectPolicy.swift`: start only from disconnected/failed with
   the OS tunnel invalid/disconnected; never switch, restart or stop a live or
-  country-pinned tunnel) and emits `openrungConnectRequested`. The app never
-  writes the snapshot; `SharedConnectionState` drives `WidgetReloadGate`, which
-  reloads the widget only when its face changed (preparing and connecting share
-  one face). Hostless `OpenRungTests` cover the policy, mailbox, URL rejection,
+  country-pinned tunnel) and emits `openrungConnectRequested`. Nothing is
+  collected before the manager load has finished, so the pre-load `.invalid`
+  placeholder never reads as "down". The app never writes the snapshot; when a
+  loaded manager reports no tunnel against a snapshot that still says
+  connected/connecting (extension killed) it sets `widget_system_tunnel_down`
+  once (`WidgetStaleTunnelMarker`), which the widget renders as Disconnected and
+  the tunnel removes on its next write. `SharedConnectionState` drives
+  `WidgetReloadGate`, which reloads the widget only when its face changed
+  (preparing and connecting share one face). Hostless `OpenRungTests` cover the policy, mailbox, URL rejection,
   face/reload gate and string resolution.
 - Both targets retain the packet-tunnel-provider/app-group entitlements and
   ATS defaults. The app and extension import the same generated Libbox headers

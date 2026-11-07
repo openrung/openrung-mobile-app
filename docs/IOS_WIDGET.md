@@ -51,16 +51,27 @@ selects a relay, talks to the broker, or holds a VPN entitlement.
 | `connection_state` | PacketTunnel only | app, widget | The existing `ConnectionStateSnapshot`; the widget decodes `status` only. |
 | `widget_language_tag` | app (`OpenRungWidget.setLanguageTag`) | widget | In-app language selection, `''` = system. |
 | `widget_last_face` | `WidgetReloadGate` (PacketTunnel) | PacketTunnel | Last face WidgetKit was asked to render. |
+| `widget_system_tunnel_down` | app (`WidgetStaleTunnelMarker`, set only) · PacketTunnel (removed on every snapshot write) | widget | The OS reported no tunnel while the snapshot still said connected/connecting: the widget shows Disconnected. |
 
 The app never writes `connection_state`. `WidgetReloadGate` asks WidgetKit to reload
 only when the face (`disconnected` / `connecting` / `connected` / `disconnecting` /
 `failed`; `preparing` collapses into `connecting`) changed — never per log line or
 engine event — and the app reloads once per language change.
 
-Known limit: the widget shows the snapshot as written by the tunnel. After an
-extension crash the snapshot can say "connected" until the app next runs and
-reconciles it with the OS; the widget shows no Connect control in that state, and
-tapping it opens the app, which corrects both.
+Extension killed under the tunnel: when iOS stops the extension (memory limit, crash)
+the snapshot keeps saying "connected". Once the app has loaded its tunnel manager,
+`refreshVPNStatus` sees the OS report `.disconnected`/`.invalid` against a live
+snapshot and sets `widget_system_tunnel_down` — once, deduplicated on the stored
+value, with one WidgetKit reload — so the widget shows Disconnected with a Connect
+control. The app never clears the marker: the tunnel's next snapshot flush removes
+it (`WidgetReloadGate.publish`), so a real tunnel always wins and ordering stays
+with the sole snapshot writer. Until the app next runs, the widget still shows the
+last tunnel-written face; tapping it opens the app, which corrects it.
+
+A widget tap is also never acted on before that manager load has finished:
+`OpenRungVpnModule` leaves the request in the mailbox until both JavaScript is
+listening and the OS tunnel state is known, so a placeholder `.invalid` can never
+pass for "down" and let a running country-pinned tunnel be replaced.
 
 ## Strings
 

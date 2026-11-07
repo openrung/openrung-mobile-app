@@ -47,12 +47,56 @@ final class WidgetSharedStateTests: XCTestCase {
         XCTAssertFalse(WidgetFace.disconnecting.offersConnect)
     }
 
+    func testStaleTunnelMarkerOverridesALiveSnapshotFaceToDisconnected() throws {
+        let data = try JSONEncoder().encode(ConnectionStateSnapshot(status: .connected, brokerURL: "https://broker.example"))
+        XCTAssertEqual(WidgetSharedState.face(fromSnapshotData: data, systemTunnelDown: false), .connected)
+        XCTAssertEqual(WidgetSharedState.face(fromSnapshotData: data, systemTunnelDown: true), .disconnected)
+        XCTAssertEqual(WidgetSharedState.face(fromSnapshotData: nil, systemTunnelDown: true), .disconnected)
+    }
+
+    func testStaleTunnelMarkerAppliesOnlyToALiveSnapshotWithTheOSTunnelDown() {
+        XCTAssertTrue(WidgetStaleTunnelMarker.applies(systemTunnelIsDown: true, snapshotFace: .connected))
+        XCTAssertTrue(WidgetStaleTunnelMarker.applies(systemTunnelIsDown: true, snapshotFace: .connecting))
+        for face: WidgetFace in [.disconnected, .disconnecting, .failed] {
+            XCTAssertFalse(WidgetStaleTunnelMarker.applies(systemTunnelIsDown: true, snapshotFace: face), "\(face)")
+        }
+        XCTAssertFalse(WidgetStaleTunnelMarker.applies(systemTunnelIsDown: false, snapshotFace: .connected))
+    }
+
+    func testStaleTunnelMarkerIsSetOnceAndReloadsOnce() {
+        var marker = false
+        var reloads = 0
+        let publisher = WidgetStaleTunnelMarker(readMarker: { marker }, writeMarker: { marker = true }, reload: { reloads += 1 })
+        XCTAssertFalse(publisher.publish(systemTunnelIsDown: false, snapshotFace: .connected))
+        XCTAssertFalse(marker)
+        XCTAssertTrue(publisher.publish(systemTunnelIsDown: true, snapshotFace: .connected))
+        XCTAssertFalse(publisher.publish(systemTunnelIsDown: true, snapshotFace: .connected), "deduplicated on the stored value")
+        XCTAssertFalse(publisher.publish(systemTunnelIsDown: true, snapshotFace: .connecting))
+        XCTAssertTrue(marker)
+        XCTAssertEqual(reloads, 1)
+    }
+
+    func testEveryTunnelFlushClearsTheStaleTunnelMarker() {
+        var stored: WidgetFace? = .connected
+        var cleared = 0
+        let gate = WidgetReloadGate(
+            readLastFace: { stored },
+            writeLastFace: { stored = $0 },
+            clearStaleTunnelMarker: { cleared += 1 },
+            reload: {}
+        )
+        XCTAssertFalse(gate.publish(statusRawValue: "connected"), "same face: no reload")
+        XCTAssertTrue(gate.publish(statusRawValue: "preparing"))
+        XCTAssertEqual(cleared, 2, "cleared on every flush, reload or not")
+    }
+
     func testReloadGateRequestsAReloadOnlyWhenTheFaceChanges() {
         var stored: WidgetFace?
         var reloads = 0
         let gate = WidgetReloadGate(
             readLastFace: { stored },
             writeLastFace: { stored = $0 },
+            clearStaleTunnelMarker: {},
             reload: { reloads += 1 }
         )
         XCTAssertTrue(gate.publish(statusRawValue: "preparing"))
@@ -69,7 +113,9 @@ final class WidgetSharedStateTests: XCTestCase {
     func testReloadGateHonoursAFacePersistedByAnEarlierProcess() {
         var stored: WidgetFace? = .connected
         var reloads = 0
-        let gate = WidgetReloadGate(readLastFace: { stored }, writeLastFace: { stored = $0 }, reload: { reloads += 1 })
+        let gate = WidgetReloadGate(
+            readLastFace: { stored }, writeLastFace: { stored = $0 }, clearStaleTunnelMarker: {}, reload: { reloads += 1 }
+        )
         XCTAssertFalse(gate.publish(statusRawValue: "connected"))
         XCTAssertEqual(reloads, 0)
     }
