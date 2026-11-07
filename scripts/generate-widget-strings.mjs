@@ -2,7 +2,10 @@
 // Renders ios/OpenRungWidget/WidgetStrings.generated.swift from the app's locale tables so the iOS
 // home-screen widget shows the same copy as the app in every supported language.
 //
-// Run: npm run widget:strings   (Node >= 22.11 strips the TypeScript types on import)
+// Run: npm run widget:strings
+// The script imports the .ts tables directly. Node strips TypeScript types by default only from
+// 22.18 / 23.6, and the repo's floor is 22.11, so the npm script passes --experimental-strip-types
+// (accepted, and redundant, on newer versions).
 // Drift check: __tests__/core/widgetStrings.test.ts re-renders and compares with the committed file.
 
 import { writeFileSync } from 'node:fs';
