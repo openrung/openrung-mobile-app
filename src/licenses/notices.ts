@@ -1137,6 +1137,12 @@ first-party code in those apps — is licensed to recipients under
 **GPL-3.0-or-later**. This app as a whole is licensed under
 GPL-3.0-or-later (see \`LICENSE\`), same as the production OpenRung project.
 
+**Modified source:** the apps link a modified sing-box. The release build
+applies the patches in \`scripts/singbox-patches/\` to the pinned commit
+(currently: the Reality client keeps the uTLS fingerprint's full key-share
+list, plus a regression test). These modifications are licensed under
+GPL-3.0-or-later and carry the same additional term.
+
 OpenRung is **not affiliated with or endorsed by** sing-box or SagerNet; the
 sing-box name is used only descriptively.
 
@@ -1378,12 +1384,15 @@ self-hosted/licensed source before scaling).
 ## Corresponding source (GPL-3.0 §6)
 
 The complete corresponding source for any distributed OpenRung mobile app
-binary — this repository's source, the pinned sing-box revision, and the build
-scripts — is available from the app's source repository:
+binary — this repository's source, the pinned sing-box revision, OpenRung's
+sing-box patches, and the build scripts — is available from the app's source repository:
 **https://github.com/openrung/openrung-mobile-app**.
 
 The apps statically link a specific sing-box commit. That commit is pinned in
-this repository at \`SINGBOX_VERSION\`. Android's same-runtime AAR also includes
+this repository at \`SINGBOX_VERSION\`, and both build scripts modify it only
+by applying the patches in \`scripts/singbox-patches/\` (via
+\`scripts/patch-singbox-source.sh\`) and the build-tag trim and native-shell stub swap in
+\`RELEASE.md\` §2. Android's same-runtime AAR also includes
 the first-party native bindings under \`android/punchbridge\` and the shared
 OpenRung broker, connect-policy, punch, and WSS modules, consumed as
 \`github.com/openrung/openrung/brokerapi\`,

@@ -1,0 +1,196 @@
+tls: keep the full uTLS key-share list in the Reality client
+
+The Reality client removed X25519MLKEM768 from the supported groups and
+key shares of the selected uTLS fingerprint. Send the fingerprint's
+groups and key shares unchanged so current Xray REALITY servers accept
+the Client Hello. Same change as openrung/sing-box commit 121da7ad15,
+plus a regression test.
+
+--- a/common/tls/reality_client.go
++++ b/common/tls/reality_client.go
+@@ -30,7 +30,6 @@
+ 	"github.com/sagernet/sing-box/adapter"
+ 	C "github.com/sagernet/sing-box/constant"
+ 	"github.com/sagernet/sing-box/option"
+-	"github.com/sagernet/sing/common"
+ 	"github.com/sagernet/sing/common/debug"
+ 	E "github.com/sagernet/sing/common/exceptions"
+ 	"github.com/sagernet/sing/common/logger"
+@@ -145,18 +144,6 @@
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	for _, extension := range uConn.Extensions {
+-		if ce, ok := extension.(*utls.SupportedCurvesExtension); ok {
+-			ce.Curves = common.Filter(ce.Curves, func(curveID utls.CurveID) bool {
+-				return curveID != utls.X25519MLKEM768
+-			})
+-		}
+-		if ks, ok := extension.(*utls.KeyShareExtension); ok {
+-			ks.KeyShares = common.Filter(ks.KeyShares, func(share utls.KeyShare) bool {
+-				return share.Group != utls.X25519MLKEM768
+-			})
+-		}
+-	}
+ 	err = uConn.BuildHandshakeState()
+ 	if err != nil {
+ 		return nil, err
+--- /dev/null
++++ b/common/tls/openrung_reality_hello_test.go
+@@ -0,0 +1,156 @@
++//go:build with_utls
++
++package tls
++
++import (
++	"context"
++	"encoding/binary"
++	"io"
++	"net"
++	"testing"
++	"time"
++
++	"github.com/sagernet/sing-box/option"
++	"github.com/sagernet/sing/common/logger"
++)
++
++const (
++	openRungGroupX25519         = 0x001d
++	openRungGroupX25519MLKEM768 = 0x11ec
++)
++
++// TestOpenRungRealityClientHelloKeepsX25519MLKEM768 pins the Reality client to
++// the uTLS fingerprint's full key-share list: X25519MLKEM768 must be offered
++// and must precede X25519 in both supported_groups and key_share.
++func TestOpenRungRealityClientHelloKeepsX25519MLKEM768(t *testing.T) {
++	listener, err := net.Listen("tcp", "127.0.0.1:0")
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer listener.Close()
++
++	helloCh := make(chan []byte, 1)
++	go func() {
++		conn, err := listener.Accept()
++		if err != nil {
++			helloCh <- nil
++			return
++		}
++		defer conn.Close()
++		_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
++		header := make([]byte, 5)
++		if _, err := io.ReadFull(conn, header); err != nil {
++			helloCh <- nil
++			return
++		}
++		record := make([]byte, binary.BigEndian.Uint16(header[3:5]))
++		if _, err := io.ReadFull(conn, record); err != nil {
++			helloCh <- nil
++			return
++		}
++		helloCh <- record
++	}()
++
++	config, err := NewRealityClient(context.Background(), logger.NOP(), "127.0.0.1", option.OutboundTLSOptions{
++		Enabled:    true,
++		ServerName: "www.example.com",
++		UTLS:       &option.OutboundUTLSOptions{Enabled: true, Fingerprint: "chrome"},
++		Reality: &option.OutboundRealityOptions{
++			Enabled:   true,
++			PublicKey: "xncM9nbSxEQSfS0zf5whHN62A5ujE7d3onLn78E_6WE",
++			ShortID:   "0123456789abcdef",
++		},
++	})
++	if err != nil {
++		t.Fatal(err)
++	}
++	conn, err := net.Dial("tcp", listener.Addr().String())
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer conn.Close()
++	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
++	defer cancel()
++	// The listener hangs up after reading the hello, so the handshake fails.
++	go func() { _, _ = ClientHandshake(ctx, conn, config) }()
++
++	var record []byte
++	select {
++	case record = <-helloCh:
++	case <-ctx.Done():
++	}
++	if record == nil {
++		t.Fatal("no Client Hello captured")
++	}
++	groups, shares, err := openRungParseHelloGroups(record)
++	if err != nil {
++		t.Fatal(err)
++	}
++	if !openRungPrecedes(groups, openRungGroupX25519MLKEM768, openRungGroupX25519) {
++		t.Errorf("supported_groups = %#x, want X25519MLKEM768 before X25519", groups)
++	}
++	if !openRungPrecedes(shares, openRungGroupX25519MLKEM768, openRungGroupX25519) {
++		t.Errorf("key_share groups = %#x, want X25519MLKEM768 before X25519", shares)
++	}
++}
++
++func openRungPrecedes(list []uint16, first, second uint16) bool {
++	firstAt, secondAt := -1, -1
++	for i, value := range list {
++		if value == first && firstAt < 0 {
++			firstAt = i
++		}
++		if value == second && secondAt < 0 {
++			secondAt = i
++		}
++	}
++	return firstAt >= 0 && secondAt >= 0 && firstAt < secondAt
++}
++
++// openRungParseHelloGroups returns the supported_groups list and the key_share
++// groups of a TLS handshake record holding a ClientHello.
++func openRungParseHelloGroups(record []byte) (groups, shares []uint16, err error) {
++	short := io.ErrUnexpectedEOF
++	p := 4 + 2 + 32 // handshake header, legacy version, random
++	if len(record) < p+1 {
++		return nil, nil, short
++	}
++	p += 1 + int(record[p]) // session id
++	if len(record) < p+2 {
++		return nil, nil, short
++	}
++	p += 2 + int(binary.BigEndian.Uint16(record[p:])) // cipher suites
++	if len(record) < p+1 {
++		return nil, nil, short
++	}
++	p += 1 + int(record[p]) // compression methods
++	if len(record) < p+2 {
++		return nil, nil, short
++	}
++	end := p + 2 + int(binary.BigEndian.Uint16(record[p:]))
++	p += 2
++	if end > len(record) {
++		return nil, nil, short
++	}
++	for p+4 <= end {
++		extensionType := binary.BigEndian.Uint16(record[p:])
++		length := int(binary.BigEndian.Uint16(record[p+2:]))
++		if p+4+length > end {
++			return nil, nil, short
++		}
++		data := record[p+4 : p+4+length]
++		p += 4 + length
++		switch extensionType {
++		case 10: // supported_groups
++			for i := 2; i+2 <= len(data); i += 2 {
++				groups = append(groups, binary.BigEndian.Uint16(data[i:]))
++			}
++		case 51: // key_share
++			for i := 2; i+4 <= len(data); {
++				shares = append(shares, binary.BigEndian.Uint16(data[i:]))
++				i += 4 + int(binary.BigEndian.Uint16(data[i+2:]))
++			}
++		}
++	}
++	return groups, shares, nil
++}

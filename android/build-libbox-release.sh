@@ -141,6 +141,10 @@ GOMODCACHE="$module_cache" go mod download "github.com/sagernet/sing-box@$sing_b
 cp -R "$module_source" "$work_dir/source"
 chmod -R u+w "$work_dir/source"
 
+# OpenRung's sing-box source patches (scripts/singbox-patches) are shared with
+# the other platform's release script; the build fails if any does not apply.
+bash "$repo_root/scripts/patch-singbox-source.sh" "$work_dir/source"
+
 # --- OpenRung app-size trim -------------------------------------------------
 # Drop sing-box features OpenRung never uses (Tailscale, WireGuard, naiveproxy)
 # from the libbox build so their Go trees are not statically linked into the
@@ -341,6 +345,9 @@ done
   # Match upstream build_libbox: oomprofile uses runtime linknames on Linux.
   GOMODCACHE="$module_cache" GOWORK=off \
     go test -race -ldflags=-checklinkname=0 -tags with_gvisor,with_quic,with_clash_api ./experimental/libbox -run TestOpenRungLibbox
+  # Regression test shipped with the sing-box patches (Reality key shares).
+  GOMODCACHE="$module_cache" GOWORK=off \
+    go test -race -tags with_utls ./common/tls -run TestOpenRung
   GOMODCACHE="$module_cache" GOWORK=off go run ./cmd/internal/build_libbox \
     -target android \
     -platform android

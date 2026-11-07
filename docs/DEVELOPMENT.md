@@ -27,7 +27,8 @@ android/app/libs/libbox.aar
 ```
 
 The AAR is intentionally ignored by Git because it is generated and large. Build
-it from the pinned sing-box revision (in `SINGBOX_VERSION`), the committed
+it from the pinned sing-box revision (in `SINGBOX_VERSION`) with the patches in
+`scripts/singbox-patches` applied, the committed
 Android native adapters (`android/punchbridge`), and the shared broker,
 connect-policy, punch, and WSS implementations consumed as the pinned
 `github.com/openrung/openrung/brokerapi`,

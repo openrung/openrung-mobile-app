@@ -46,7 +46,8 @@ The broker handles discovery; relays carry user traffic.
 - [CONTRACT.md](docs/CONTRACT.md) takes precedence over the architecture overview.
   Preserve Android/iOS parity and bridge compatibility.
 - Shared Go dependencies are pinned in `android/punchbridge/go.mod` and `go.sum`;
-  sing-box is pinned in `SINGBOX_VERSION`. Rebuild both native artifacts after pin
+  sing-box is pinned in `SINGBOX_VERSION`, and its source patches live in
+  `scripts/singbox-patches`. Rebuild both native artifacts after pin or patch
   changes. Never commit local replacements or release with development overrides.
 - `package.json` is the app-version source. Regenerate the iOS project using
   `ios/scripts/generate-project.sh` after version/project changes.

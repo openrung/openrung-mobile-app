@@ -24,7 +24,9 @@ PATH="$(go env GOPATH)/bin:$PATH" gomobile init
 ./ios/build-libbox-release.sh
 ```
 
-The script downloads the exact sing-box pseudo-version, grafts only the thin
+The script downloads the exact sing-box pseudo-version, applies OpenRung's
+sing-box patches from [`../../scripts/singbox-patches`](../../scripts/singbox-patches)
+(see [`../../RELEASE.md`](../../RELEASE.md) §1), grafts only the thin
 OpenRung broker, punch, and WSS bindings into `experimental/libbox`, trims
 sing-box's
 libbox build tags to OpenRung's feature set (dropping Tailscale, WireGuard, and
