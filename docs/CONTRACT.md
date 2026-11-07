@@ -61,7 +61,10 @@ blocks traffic or fails a connect.
 | Android minSdk / compile / target | 26 / 36 / 36 (minSdk raised from RN default 24) |
 | iOS app bundle id | `com.openrung.app` |
 | iOS extension bundle id | `com.openrung.app.PacketTunnel` |
+| iOS widget bundle id | `com.openrung.app.OpenRungWidget` (WidgetKit; app group only, no VPN entitlement) |
+| iOS URL scheme | `openrung` — the app acts on exactly `openrung://connect` (no path/query/fragment/user/port); any other URL only opens it |
 | iOS app group | `group.com.openrung.app` |
+| iOS app-group keys | `connection_state` (PacketTunnel writes, app + widget read), `split_tunnel_config` (app writes, PacketTunnel reads), `widget_language_tag` (app writes, widget reads), `widget_last_face` (PacketTunnel's reload gate) |
 | iOS VPN profile localizedDescription | `OpenRung VPN` |
 | iOS deployment target | 16.0 |
 | DEVELOPMENT_TEAM | `9VLV9A7KS9` |
@@ -161,6 +164,19 @@ export interface OpenRungVpnModule {
 ```
 
 The module has **six** methods (split tunneling raised the count from five).
+
+iOS additionally emits **`openrungConnectRequested`** (payload `{ source: 'intent' | 'url' }`)
+on the same emitter when a home-screen widget tap has passed the native handoff policy
+(§7, [IOS_WIDGET.md](IOS_WIDGET.md)). TS answers it by running the same
+`prepareAndConnect(null, null)` the in-app CONNECT button uses — no target, the engine
+picks the relay. Android and the mock never emit it; subscribing is harmless there.
+
+### Dedicated widget module (iOS only)
+
+Module name: **`OpenRungWidget`** — `setLanguageTag(tag): Promise<void>`. Mirrors the
+stored in-app language tag (`''` = system) into the app group under `widget_language_tag`
+and asks WidgetKit to reload only when it changed. Like the Android-only modules, it is
+separate so the VPN surface stays at six methods; TS no-ops when the module is absent.
 
 ### Dedicated broker module
 
@@ -782,6 +798,27 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   §1). iOS has no per-app bypass: `excluded_packages` is parsed and ignored,
   so a config whose only effective content is excluded packages yields nil
   rules.
+- Home-screen widget (`ios/OpenRungWidget/`, target `OpenRungWidget`, bundle
+  `com.openrung.app.OpenRungWidget`; design and device checklist in
+  [IOS_WIDGET.md](IOS_WIDGET.md)): a WidgetKit extension with the app-group
+  entitlement only. It reads `status` out of the tunnel-written `connection_state`
+  snapshot (`Shared/WidgetSharedState.swift`, which decodes nothing else) and the
+  app-written `widget_language_tag`, and renders `WidgetStrings.generated.swift`
+  (from `src/i18n`, `npm run widget:strings`, drift-checked by Jest). The Connect
+  control is `WidgetConnectIntent` on iOS 17+ — `openAppWhenRun`, so the system
+  performs it in the app process — and the `openrung://connect` URL on iOS 16
+  (`SceneDelegate` → `WidgetConnectURL`, which accepts nothing but that exact
+  URL). Both drop a parameterless request into `WidgetConnectMailbox`
+  (`Shared/WidgetConnectHandoff.swift`: one pending request, 30 s freshness,
+  3 s duplicate collapse); `OpenRungVpnModule` collects it once JS is listening,
+  reconciles the snapshot with `NEVPNStatus`, applies `WidgetConnectPolicy`
+  (`Shared/WidgetConnectPolicy.swift`: start only from disconnected/failed with
+  the OS tunnel invalid/disconnected; never switch, restart or stop a live or
+  country-pinned tunnel) and emits `openrungConnectRequested`. The app never
+  writes the snapshot; `SharedConnectionState` drives `WidgetReloadGate`, which
+  reloads the widget only when its face changed (preparing and connecting share
+  one face). Hostless `OpenRungTests` cover the policy, mailbox, URL rejection,
+  face/reload gate and string resolution.
 - Both targets retain the packet-tunnel-provider/app-group entitlements and
   ATS defaults. The app and extension import the same generated Libbox headers
   and link the single dynamic `LibboxKit` wrapper, which carries the static Go

@@ -35,6 +35,9 @@ export const zhCN: Partial<Strings> = {
   tabAbout: '关于我们',
   aboutTitle: '关于我们',
   relayAuto: '自动中继',
+  widgetName: '快速连接',
+  widgetDescription:
+    '从主屏幕连接到自动选择的中继。',
   relayClassOfficial: '官方',
   relayClassVolunteer: '志愿',
   settingsGeneralHeader: '常规',

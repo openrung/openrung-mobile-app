@@ -33,3 +33,18 @@ export function subscribeVpnState(callback: (state: NativeVpnState) => void): ()
   const subscription = emitter.addListener('openrungStateChanged', callback);
   return () => subscription.remove();
 }
+
+/**
+ * iOS only: a home-screen widget Connect tap arrives as `openrungConnectRequested` once native has
+ * confirmed nothing is running (contract §3). The handler runs the same prepare-and-connect path as
+ * the in-app button with no target, so connectcore picks the relay. Never emitted by the mock or
+ * by Android; subscribing is harmless there.
+ */
+export function subscribeConnectRequests(callback: () => void): () => void {
+  if (mock) {
+    return () => {};
+  }
+  const emitter = new NativeEventEmitter(NativeModules.OpenRungVpn);
+  const subscription = emitter.addListener('openrungConnectRequested', callback);
+  return () => subscription.remove();
+}

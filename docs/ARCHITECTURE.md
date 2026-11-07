@@ -450,7 +450,16 @@ template app target plus the `PacketTunnel` app-extension target);
   engine monitoring and libbox. The dispatcher drops retired callbacks before
   projecting state into the existing app-group/RN contract.
 - The app's `OpenRungVpnModule` still owns NETunnelProviderManager and the
-  stop → 350 ms → reconfigure → start relay-switch dance.
+  stop → 350 ms → reconfigure → start relay-switch dance. It also collects
+  home-screen widget taps (`WidgetConnectMailbox`) and, when `WidgetConnectPolicy`
+  finds nothing running, emits `openrungConnectRequested` so JavaScript runs the
+  ordinary no-target connect.
+- `OpenRungWidget` (`ios/OpenRungWidget/`) is a WidgetKit extension with only the
+  app-group entitlement: it reads the tunnel's snapshot status and the app-published
+  language tag, and hands a Connect tap to the app through an `openAppWhenRun`
+  AppIntent (iOS 17+) or the strict `openrung://connect` URL (iOS 16). It never
+  touches NetworkExtension, the broker or relay selection; the tunnel extension
+  reloads it only on a face change. See [IOS_WIDGET.md](IOS_WIDGET.md).
 - Both executables share the Go archive through the dynamic `LibboxKit`
   framework. The release script generates one device/simulator XCFramework.
   Hostless tests cover native lifecycle/hooks; the isolated Swift A4 runner

@@ -10,6 +10,9 @@ import React
 @objc(OpenRungVpn)
 final class OpenRungVpnModule: RCTEventEmitter {
     private static let stateChangedEvent = "openrungStateChanged"
+    /// iOS-only (contract §3): a home-screen widget tap that passed `WidgetConnectPolicy`. JS runs
+    /// the same prepare-and-connect path as the in-app button with no target country or relay.
+    private static let connectRequestedEvent = "openrungConnectRequested"
 
     private var manager: NETunnelProviderManager?
     private var vpnStatus: NEVPNStatus = .invalid
@@ -41,6 +44,9 @@ final class OpenRungVpnModule: RCTEventEmitter {
         apply(SharedConnectionState.sanitizedForColdStart(), emit: false)
         observeVPNStatus()
         observeSharedState()
+        WidgetConnectMailbox.shared.onSubmit = { [weak self] in
+            Task { @MainActor in self?.deliverWidgetConnectRequest() }
+        }
         Task { @MainActor in
             await self.loadExistingManager()
         }
@@ -60,13 +66,15 @@ final class OpenRungVpnModule: RCTEventEmitter {
 
     override static func requiresMainQueueSetup() -> Bool { true }
 
-    override func supportedEvents() -> [String]! { [Self.stateChangedEvent] }
+    override func supportedEvents() -> [String]! { [Self.stateChangedEvent, Self.connectRequestedEvent] }
 
     override func startObserving() {
         hasListeners = true
-        // Sync JS with the current snapshot as soon as it subscribes.
+        // Sync JS with the current snapshot as soon as it subscribes, then hand over a widget tap
+        // that arrived before JS was listening (a cold launch from the widget).
         Task { @MainActor in
             self.emitStateChanged()
+            self.deliverWidgetConnectRequest()
         }
     }
 
@@ -375,6 +383,23 @@ final class OpenRungVpnModule: RCTEventEmitter {
         if emit {
             emitStateChanged()
         }
+    }
+
+    // MARK: - Widget handoff
+
+    /// Collects the pending widget request (if JS can receive it) and forwards it only when neither
+    /// the shared snapshot nor the OS reports a tunnel in motion. A request that fails the policy
+    /// is consumed, not retried: the user sees the live state in the app that just opened.
+    @MainActor
+    private func deliverWidgetConnectRequest() {
+        guard hasListeners, let request = WidgetConnectMailbox.shared.collect() else { return }
+        refreshVPNStatus(emit: false)
+        let decision = WidgetConnectPolicy.decide(
+            sharedStatus: status,
+            systemTunnel: WidgetConnectPolicy.SystemTunnel(vpnStatus)
+        )
+        guard decision == .start else { return }
+        sendEvent(withName: Self.connectRequestedEvent, body: ["source": request.source.rawValue])
     }
 
     // MARK: - Event emission
