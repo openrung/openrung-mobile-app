@@ -165,7 +165,7 @@ targets:
           - "@executable_path/Frameworks"
           - "@executable_path/../../Frameworks"
 
-  # Home-screen widget (WidgetKit, small + medium). Reads the tunnel's app-group snapshot and
+  # Home-screen widget (WidgetKit, small family only). Reads the tunnel's app-group snapshot and
   # hands a Connect tap to the app (AppIntent on iOS 17+, `openrung://connect` on iOS 16); it
   # holds the app-group entitlement only — no packet-tunnel entitlement, no Libbox, no React.
   OpenRungWidget:
