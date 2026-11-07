@@ -7,6 +7,8 @@ on:
       - 'android/build-libbox-release.sh'
       - 'ios/build-libbox-release.sh'
       - 'scripts/graft-engine-binding.sh'
+      - 'scripts/patch-singbox-source.sh'
+      - 'scripts/singbox-patches/**'
       - 'SINGBOX_VERSION'
       - 'package.json'
       - 'scripts/test-engine-vectors.py'
@@ -20,6 +22,8 @@ on:
       - 'android/build-libbox-release.sh'
       - 'ios/build-libbox-release.sh'
       - 'scripts/graft-engine-binding.sh'
+      - 'scripts/patch-singbox-source.sh'
+      - 'scripts/singbox-patches/**'
       - 'SINGBOX_VERSION'
       - 'package.json'
       - 'scripts/test-engine-vectors.py'
@@ -42,4 +46,4 @@ jobs:
       - name: Run A4 vectors through the engine binding
         run: python3 scripts/test-engine-vectors.py -race
       - name: Check native release build scripts
-        run: bash -n android/build-libbox-release.sh ios/build-libbox-release.sh scripts/graft-engine-binding.sh
+        run: bash -n android/build-libbox-release.sh ios/build-libbox-release.sh scripts/graft-engine-binding.sh scripts/patch-singbox-source.sh

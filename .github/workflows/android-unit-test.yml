@@ -9,6 +9,8 @@ on:
       - 'SINGBOX_VERSION'
       - 'testdata/contract/**'
       - 'scripts/graft-engine-binding.sh'
+      - 'scripts/patch-singbox-source.sh'
+      - 'scripts/singbox-patches/**'
       - 'scripts/*engine*'
       - '.github/workflows/android-unit-test.yml'
   push:
@@ -20,6 +22,8 @@ on:
       - 'SINGBOX_VERSION'
       - 'testdata/contract/**'
       - 'scripts/graft-engine-binding.sh'
+      - 'scripts/patch-singbox-source.sh'
+      - 'scripts/singbox-patches/**'
       - 'scripts/*engine*'
       - '.github/workflows/android-unit-test.yml'
   workflow_dispatch:
@@ -63,7 +67,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: android/app/libs/libbox.aar
-          key: libbox-${{ hashFiles('SINGBOX_VERSION', 'package.json', 'android/build-libbox-release.sh', 'scripts/graft-engine-binding.sh', 'android/punchbridge/**/*.go', 'android/punchbridge/go.mod', 'android/punchbridge/go.sum') }}
+          key: libbox-${{ hashFiles('SINGBOX_VERSION', 'package.json', 'android/build-libbox-release.sh', 'scripts/graft-engine-binding.sh', 'scripts/patch-singbox-source.sh', 'scripts/singbox-patches/**', 'android/punchbridge/**/*.go', 'android/punchbridge/go.mod', 'android/punchbridge/go.sum') }}
       - name: Install gomobile
         run: |
           go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.12

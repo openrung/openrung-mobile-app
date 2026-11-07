@@ -21,6 +21,16 @@ the upstream commit SHA). Both build paths consume it:
 When you move to a newer sing-box, update `SINGBOX_VERSION` **only**, rebuild
 both artifacts from it, and commit the new pin in the same change.
 
+Both build scripts apply OpenRung's sing-box source patches,
+[`scripts/singbox-patches/*.patch`](scripts/singbox-patches), to the pinned
+tree through [`scripts/patch-singbox-source.sh`](scripts/patch-singbox-source.sh),
+then run the regression tests the patches add
+(`go test -tags with_utls ./common/tls -run TestOpenRung`). Every hunk must
+apply exactly, so a `SINGBOX_VERSION` bump that moves the patched code fails the
+build until the patch is rebased. The patches are part of the corresponding
+source: keep them with the tagged commit, and list each one in
+`THIRD_PARTY_NOTICES.md`.
+
 Both platforms compile the first-party punch client into their existing
 gomobile Libbox artifact. The gomobile binding and its QUIC session layer are
 committed under [`android/punchbridge`](android/punchbridge) and pinned by the
