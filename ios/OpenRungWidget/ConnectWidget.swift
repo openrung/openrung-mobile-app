@@ -3,7 +3,7 @@ import WidgetKit
 
 /// The one OpenRung widget: current tunnel status plus a Connect control that starts a tunnel to an
 /// automatically chosen relay through the app's own connect path (see `WidgetConnectHandoff.swift`).
-/// Small and medium families; the extension holds no VPN entitlement and never touches the tunnel.
+/// Small family only; the extension holds no VPN entitlement and never touches the tunnel.
 struct ConnectWidget: Widget {
     var body: some WidgetConfiguration {
         let strings = WidgetStrings.current()
@@ -12,7 +12,7 @@ struct ConnectWidget: Widget {
         }
         .configurationDisplayName(strings.widgetName)
         .description(strings.widgetDescription)
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemSmall])
     }
 }
 
@@ -47,23 +47,9 @@ struct ConnectTimelineProvider: TimelineProvider {
 }
 
 struct ConnectWidgetView: View {
-    @Environment(\.widgetFamily) private var family
     let entry: ConnectEntry
 
     var body: some View {
-        Group {
-            if family == .systemMedium {
-                mediumLayout
-            } else {
-                smallLayout
-            }
-        }
-        .environment(\.layoutDirection, entry.strings.isRightToLeft ? .rightToLeft : .leftToRight)
-        .widgetURL(tapURL)
-        .widgetChrome()
-    }
-
-    private var smallLayout: some View {
         VStack(alignment: .leading, spacing: 6) {
             appName
             Spacer(minLength: 0)
@@ -72,22 +58,9 @@ struct ConnectWidgetView: View {
             connectControl
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-    }
-
-    private var mediumLayout: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 6) {
-                appName
-                statusLine
-                Text(entry.strings.relayAuto)
-                    .font(.system(.footnote, design: .monospaced))
-                    .foregroundStyle(WidgetPalette.dim)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            connectControl
-                .frame(width: 120)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .environment(\.layoutDirection, entry.strings.isRightToLeft ? .rightToLeft : .leftToRight)
+        .widgetURL(tapURL)
+        .widgetChrome()
     }
 
     private var appName: some View {

@@ -3,7 +3,7 @@
 
 enum WidgetStringTables {
     static let tags: [String] = ["en", "zh-CN", "zh-TW", "fa", "ru", "ar", "tr", "vi", "my"]
-    static let keys: [String] = ["appName", "actionConnect", "statusDisconnected", "statusConnecting", "statusConnected", "statusDisconnecting", "statusFailed", "relayAuto", "widgetName", "widgetDescription"]
+    static let keys: [String] = ["appName", "actionConnect", "statusDisconnected", "statusConnecting", "statusConnected", "statusDisconnecting", "statusFailed", "widgetName", "widgetDescription"]
     static let tables: [String: [String: String]] = [
         "en": [
             "appName": "OpenRung",
@@ -13,7 +13,6 @@ enum WidgetStringTables {
             "statusConnected": "Connected",
             "statusDisconnecting": "Disconnecting",
             "statusFailed": "Failed",
-            "relayAuto": "auto relay",
             "widgetName": "Quick connect",
             "widgetDescription": "Connect to an automatically chosen relay from your home screen.",
         ],
@@ -25,7 +24,6 @@ enum WidgetStringTables {
             "statusConnected": "已连接",
             "statusDisconnecting": "正在断开",
             "statusFailed": "失败",
-            "relayAuto": "自动中继",
             "widgetName": "快速连接",
             "widgetDescription": "从主屏幕连接到自动选择的中继。",
         ],
@@ -37,7 +35,6 @@ enum WidgetStringTables {
             "statusConnected": "已連線",
             "statusDisconnecting": "正在中斷",
             "statusFailed": "失敗",
-            "relayAuto": "自動中繼",
             "widgetName": "快速連線",
             "widgetDescription": "從主畫面連線至自動選擇的中繼。",
         ],
@@ -49,7 +46,6 @@ enum WidgetStringTables {
             "statusConnected": "متصل",
             "statusDisconnecting": "در حال قطع اتصال",
             "statusFailed": "ناموفق",
-            "relayAuto": "رله خودکار",
             "widgetName": "اتصال سریع",
             "widgetDescription": "از صفحهٔ اصلی به رله‌ای که به‌طور خودکار انتخاب می‌شود متصل شوید.",
         ],
@@ -61,7 +57,6 @@ enum WidgetStringTables {
             "statusConnected": "Подключено",
             "statusDisconnecting": "Отключение",
             "statusFailed": "Ошибка",
-            "relayAuto": "авто-реле",
             "widgetName": "Быстрое подключение",
             "widgetDescription": "Подключайтесь к автоматически выбранному реле с главного экрана.",
         ],
@@ -73,7 +68,6 @@ enum WidgetStringTables {
             "statusConnected": "متصل",
             "statusDisconnecting": "جار قطع الاتصال",
             "statusFailed": "فشل",
-            "relayAuto": "مرحّل تلقائي",
             "widgetName": "اتصال سريع",
             "widgetDescription": "اتصل بمرحّل يتم اختياره تلقائيًا من الشاشة الرئيسية.",
         ],
@@ -85,7 +79,6 @@ enum WidgetStringTables {
             "statusConnected": "Bağlandı",
             "statusDisconnecting": "Bağlantı kesiliyor",
             "statusFailed": "Başarısız",
-            "relayAuto": "otomatik röle",
             "widgetName": "Hızlı bağlantı",
             "widgetDescription": "Ana ekrandan otomatik seçilen bir röleye bağlanın.",
         ],
@@ -97,7 +90,6 @@ enum WidgetStringTables {
             "statusConnected": "Đã kết nối",
             "statusDisconnecting": "Đang ngắt kết nối",
             "statusFailed": "Thất bại",
-            "relayAuto": "relay tự động",
             "widgetName": "Kết nối nhanh",
             "widgetDescription": "Kết nối tới relay được chọn tự động ngay từ màn hình chính.",
         ],
@@ -109,7 +101,6 @@ enum WidgetStringTables {
             "statusConnected": "ချိတ်ဆက်ပြီး",
             "statusDisconnecting": "ချိတ်ဆက်မှု ဖြုတ်နေသည်",
             "statusFailed": "မအောင်မြင်ပါ",
-            "relayAuto": "အလိုအလျောက် relay",
             "widgetName": "အမြန်ချိတ်ဆက်ရန်",
             "widgetDescription": "ပင်မစာမျက်နှာမှ အလိုအလျောက် ရွေးချယ်ထားသော relay သို့ ချိတ်ဆက်ပါ။",
         ],

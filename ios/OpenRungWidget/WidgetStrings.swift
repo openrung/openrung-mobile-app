@@ -48,7 +48,6 @@ struct WidgetStrings: Equatable {
 
     var appName: String { value("appName") }
     var connect: String { value("actionConnect") }
-    var relayAuto: String { value("relayAuto") }
     var widgetName: String { value("widgetName") }
     var widgetDescription: String { value("widgetDescription") }
 

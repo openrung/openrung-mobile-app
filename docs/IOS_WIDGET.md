@@ -1,6 +1,6 @@
 # iOS home-screen widget
 
-One WidgetKit widget (`OpenRungConnect`, small and medium) that shows the tunnel's
+One WidgetKit widget (`OpenRungConnect`, small family only) that shows the tunnel's
 current status and offers a Connect control. A tap starts a tunnel to an
 **automatically chosen relay** through the app's own connect path; the widget never
 selects a relay, talks to the broker, or holds a VPN entitlement.
@@ -110,7 +110,7 @@ app's canned simulator error, exactly like the in-app button.
 
 Run on a signed iPhone with the VPN profile already saved once from the app.
 
-- [ ] Add the small and the medium widget; both render the app name, status and
+- [ ] Add the small widget; it renders the app name, status and
       CONNECT in the in-app language (change the language in Settings and confirm
       the widget re-renders once; set Persian or Arabic and confirm right-to-left).
 - [ ] iOS 17+: tap CONNECT from a disconnected state with the app killed. The app

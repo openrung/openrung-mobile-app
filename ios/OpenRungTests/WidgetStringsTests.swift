@@ -21,7 +21,7 @@ final class WidgetStringsTests: XCTestCase {
         for tag in allTags {
             let strings = WidgetStrings(tag: tag)
             let values = [
-                strings.appName, strings.connect, strings.relayAuto,
+                strings.appName, strings.connect,
                 strings.widgetName, strings.widgetDescription,
                 strings.label(for: .disconnected), strings.label(for: .connecting),
                 strings.label(for: .connected), strings.label(for: .disconnecting),

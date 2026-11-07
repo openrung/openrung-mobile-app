@@ -16,7 +16,6 @@ export const WIDGET_STRING_KEYS = [
   'statusConnected',
   'statusDisconnecting',
   'statusFailed',
-  'relayAuto',
   'widgetName',
   'widgetDescription',
 ] as const;
