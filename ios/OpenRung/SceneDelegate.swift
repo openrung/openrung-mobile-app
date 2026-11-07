@@ -30,12 +30,13 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     self.window = window
     appDelegate.window = window
 
-    // Cold launch through the `openrung:` scheme (the iOS 16 widget's Connect tap).
+    // Cold launch through the `openrung:` scheme (the iOS 16 widget's Connect tap; a no-op on
+    // iOS 17+, where the widget uses the intent instead).
     WidgetConnectURL.handle(connectionOptions.urlContexts.map(\.url))
   }
 
-  /// Warm open through the scheme. Only the exact connect URL does anything; the request still has
-  /// to pass `WidgetConnectPolicy` in OpenRungVpnModule before JS starts a tunnel.
+  /// Warm open through the scheme. Only the exact connect URL, and only on iOS 16, does anything;
+  /// the request still has to pass `WidgetConnectPolicy` in OpenRungVpnModule before JS starts a tunnel.
   func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
     WidgetConnectURL.handle(URLContexts.map(\.url))
   }

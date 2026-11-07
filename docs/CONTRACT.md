@@ -62,7 +62,7 @@ blocks traffic or fails a connect.
 | iOS app bundle id | `com.openrung.app` |
 | iOS extension bundle id | `com.openrung.app.PacketTunnel` |
 | iOS widget bundle id | `com.openrung.app.OpenRungWidget` (WidgetKit; app group only, no VPN entitlement) |
-| iOS URL scheme | `openrung` — the app acts on exactly `openrung://connect` (no path/query/fragment/user/port); any other URL only opens it |
+| iOS URL scheme | `openrung` — on iOS 16 only, the app acts on exactly `openrung://connect` (no path/query/fragment/user/port); on iOS 17+ the widget uses its intent and the URL, like any other URL under the scheme, only opens the app |
 | iOS app group | `group.com.openrung.app` |
 | iOS app-group keys | `connection_state` (PacketTunnel writes, app + widget read), `split_tunnel_config` (app writes, PacketTunnel reads), `widget_language_tag` (app writes, widget reads), `widget_last_face` (PacketTunnel's reload gate) |
 | iOS VPN profile localizedDescription | `OpenRung VPN` |
@@ -808,7 +808,7 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   control is `WidgetConnectIntent` on iOS 17+ — `openAppWhenRun`, so the system
   performs it in the app process — and the `openrung://connect` URL on iOS 16
   (`SceneDelegate` → `WidgetConnectURL`, which accepts nothing but that exact
-  URL). Both drop a parameterless request into `WidgetConnectMailbox`
+  URL and ignores it on iOS 17+, where the intent exists). Both drop a parameterless request into `WidgetConnectMailbox`
   (`Shared/WidgetConnectHandoff.swift`: one pending request, 30 s freshness,
   3 s duplicate collapse); `OpenRungVpnModule` collects it once JS is listening,
   reconciles the snapshot with `NEVPNStatus`, applies `WidgetConnectPolicy`

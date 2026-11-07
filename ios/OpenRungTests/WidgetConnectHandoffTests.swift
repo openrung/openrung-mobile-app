@@ -149,9 +149,25 @@ final class WidgetConnectHandoffTests: XCTestCase {
 
     func testHandleSubmitsOneRequestForAConnectURLAndNothingOtherwise() {
         let mailbox = WidgetConnectMailbox()
-        XCTAssertFalse(WidgetConnectURL.handle([WidgetConnectURL.open], mailbox: mailbox, now: epoch))
+        XCTAssertFalse(WidgetConnectURL.handle([WidgetConnectURL.open], mailbox: mailbox, now: epoch, enabled: true))
         XCTAssertNil(mailbox.collect(now: epoch))
-        XCTAssertTrue(WidgetConnectURL.handle([WidgetConnectURL.open, WidgetConnectURL.connect], mailbox: mailbox, now: epoch))
+        XCTAssertTrue(WidgetConnectURL.handle(
+            [WidgetConnectURL.open, WidgetConnectURL.connect], mailbox: mailbox, now: epoch, enabled: true
+        ))
         XCTAssertEqual(mailbox.collect(now: epoch), WidgetConnectRequest(source: .url, issuedAt: epoch))
+    }
+
+    func testURLHandoffIsIgnoredWhereTheIntentPathExists() {
+        let mailbox = WidgetConnectMailbox()
+        XCTAssertFalse(WidgetConnectURL.handle([WidgetConnectURL.connect], mailbox: mailbox, now: epoch, enabled: false))
+        XCTAssertNil(mailbox.collect(now: epoch))
+    }
+
+    func testURLHandoffIsEnabledOnlyBelowiOS17() {
+        if #available(iOS 17.0, *) {
+            XCTAssertFalse(WidgetConnectURL.acceptsURLHandoff)
+        } else {
+            XCTAssertTrue(WidgetConnectURL.acceptsURLHandoff)
+        }
     }
 }

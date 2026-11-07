@@ -29,7 +29,9 @@ selects a relay, talks to the broker, or holds a VPN entitlement.
 - On iOS 16 the whole widget is the control: it carries `openrung://connect` while a
   Connect control is shown and `openrung://open` otherwise. `WidgetConnectURL`
   accepts exactly `openrung://connect` (scheme and host only; any path, query,
-  fragment, user, password or port is rejected), so a URL can never carry a target.
+  fragment, user, password or port is rejected), so a URL can never carry a target,
+  and it acts **only on iOS 16**: from iOS 17 the intent is the one way in, so an
+  arbitrary app or web link can only open OpenRung, never start a tunnel.
 - `WidgetConnectMailbox` holds one request, collapses repeat deliveries of one tap
   (3 s window, or while one is still pending) and drops anything older than 30 s
   when collected, so a cold launch that never reached JavaScript cannot connect later.
@@ -123,8 +125,10 @@ Run on a signed iPhone with the VPN profile already saved once from the app.
       switched.
 - [ ] Double-tap CONNECT quickly: exactly one connect attempt in the console.
 - [ ] Disconnect in the app: widget shows "Disconnected" and offers CONNECT again.
-- [ ] Open `openrung://connect?country=JP` and `openrung://connect/x` from Safari:
-      the app opens and does **not** connect. `openrung://connect` does.
+- [ ] Open `openrung://connect` from Safari on iOS 17+: the app opens and does
+      **not** connect (the URL acts only on iOS 16). On an iOS 16 device,
+      `openrung://connect?country=JP` and `openrung://connect/x` open the app without
+      connecting; plain `openrung://connect` connects.
 - [ ] iOS 16 device (if available): tapping the widget opens the app via the URL and
       connects; while connected the tap only opens the app.
 - [ ] Kill the app, wait a minute, tap CONNECT: still connects (request is fresh at

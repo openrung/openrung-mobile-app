@@ -67,7 +67,9 @@ final class WidgetConnectMailbox {
 }
 
 /// The `openrung:` URL scheme (contract §2). The widget uses it on iOS 16, where a widget cannot
-/// run an intent, and as the plain "open the app" tap target on every version.
+/// run an intent, and as the plain "open the app" tap target on every version. The connect URL
+/// ACTS only on iOS 16: from iOS 17 the widget goes through the intent, so honouring the URL there
+/// would let any app or web link foreground OpenRung and start a tunnel.
 enum WidgetConnectURL {
     static let scheme = "openrung"
     static let connectHost = "connect"
@@ -91,15 +93,25 @@ enum WidgetConnectURL {
             && components.port == nil
     }
 
-    /// Submits one request when any URL handed to the scene is the connect URL; every other URL
-    /// under the scheme merely opened the app. Returns whether a request was accepted.
+    /// Whether this OS version takes connect requests from the URL at all (iOS 16 only).
+    static var acceptsURLHandoff: Bool {
+        if #available(iOS 17.0, *) {
+            return false
+        }
+        return true
+    }
+
+    /// Submits one request when the handoff is enabled and any URL handed to the scene is the
+    /// connect URL; every other URL under the scheme merely opened the app. Returns whether a
+    /// request was accepted.
     @discardableResult
     static func handle<URLs: Sequence>(
         _ urls: URLs,
         mailbox: WidgetConnectMailbox = .shared,
-        now: Date = Date()
+        now: Date = Date(),
+        enabled: Bool = acceptsURLHandoff
     ) -> Bool where URLs.Element == URL {
-        guard urls.contains(where: isConnectRequest) else { return false }
+        guard enabled, urls.contains(where: isConnectRequest) else { return false }
         return mailbox.submit(WidgetConnectRequest(source: .url, issuedAt: now))
     }
 }
