@@ -59,6 +59,21 @@ enum AppConfig {
     // App ↔ extension shared-state plumbing.
     static let darwinNotificationName = "com.openrung.app.state-changed"
     static let telemetryOutboxFilename = "outbox.json"
+    /// App-group key for the `ConnectionStateSnapshot` JSON the tunnel writes and the app and
+    /// widget read. Non-secret connection status only.
+    static let connectionStateDefaultsKey = "connection_state"
+
+    /// Home-screen widget. The widget extension cannot start the packet tunnel; it writes one
+    /// short-lived non-secret request and the host app consumes it. See docs/IOS_WIDGET.md.
+    static let widgetKind = "OpenRungConnect"
+    static let widgetBundleIdentifier = "com.openrung.app.OpenRungWidget"
+    static let widgetURLScheme = "openrung"
+    static let widgetConnectRequestDefaultsKey = "widget_connect_request"
+    /// Posted when a widget tap stores a connect request. The running app consumes it; a
+    /// suspended app still gets the request from the foreground handoff.
+    static let widgetConnectDarwinNotificationName = "com.openrung.app.widget-connect"
+    static let widgetVpnProfileReadyDefaultsKey = "widget_vpn_profile_ready"
+    static let widgetLanguageTagDefaultsKey = "widget_language_tag"
 
     // Heartbeat cadence (random in this range), matching Android.
     static let heartbeatMinDelayMs: UInt64 = 50_000

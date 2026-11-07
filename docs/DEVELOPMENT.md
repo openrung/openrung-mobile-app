@@ -109,10 +109,13 @@ framework; only the hostless `OpenRungTests` target uses fakes without loading
 Libbox. If the React Native broker operation is unavailable at runtime it
 rejects explicitly and never falls back to JavaScript networking.
 
-**Signing:** both targets need a development team (production uses `9VLV9A7KS9`)
+**Signing:** the app and PacketTunnel targets need a development team (production uses `9VLV9A7KS9`)
 with the **Network Extension (packet-tunnel-provider)** capability and the app
 group `group.com.openrung.app`. Bundle ids are `com.openrung.app` (app) and
-`com.openrung.app.PacketTunnel` (extension).
+`com.openrung.app.PacketTunnel` (extension). The home-screen widget
+(`com.openrung.app.OpenRungWidget`) uses the same app group and does not get
+the packet-tunnel entitlement. Provisioning steps and the manual device
+checklist are in [IOS_WIDGET.md](IOS_WIDGET.md).
 
 > [!NOTE]
 > **Simulator limitation:** the iOS simulator runs the UI, map, and relay

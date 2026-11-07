@@ -129,6 +129,51 @@
 		FBB5A1494BB10EC5CC265A5C /* geosite-cn.srs in Resources */ = {isa = PBXBuildFile; fileRef = F68B4299B0EAD00601A47FF2 /* geosite-cn.srs */; };
 		FDD249EAC97CC2DF789CBCE6 /* SplitTunnelConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88FBD70740FE33FC9CC6564B /* SplitTunnelConfig.swift */; };
 		FE46CA9BB747203298E45D6F /* NativeBrokerTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66C3AC37AF7128A85A7F7CC7 /* NativeBrokerTransport.swift */; };
+		FAA9560AD6D702E286DC5E2E /* WidgetConnectPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70BFCF969ACA7819CD355FCE /* WidgetConnectPolicy.swift */; };
+		977EFE180F48584CAA1B27D4 /* WidgetConnectPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70BFCF969ACA7819CD355FCE /* WidgetConnectPolicy.swift */; };
+		3AEC2BF91DF5957049B5AF91 /* WidgetConnectPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70BFCF969ACA7819CD355FCE /* WidgetConnectPolicy.swift */; };
+		CDF0DA5B3225CA118FC0206F /* WidgetConnectPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70BFCF969ACA7819CD355FCE /* WidgetConnectPolicy.swift */; };
+		0634CB9FCC2CADF486D0BC3B /* WidgetConnectRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75172819FF79FEE73C8B9B38 /* WidgetConnectRequest.swift */; };
+		60DE19AF1168DD7CA27E274B /* WidgetConnectRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75172819FF79FEE73C8B9B38 /* WidgetConnectRequest.swift */; };
+		B853A172045B2ED594F1B5BA /* WidgetConnectRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75172819FF79FEE73C8B9B38 /* WidgetConnectRequest.swift */; };
+		2810E464744F41645E97CB51 /* WidgetConnectRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75172819FF79FEE73C8B9B38 /* WidgetConnectRequest.swift */; };
+		8B17F2DF70B78B1FBFEF33A3 /* WidgetConnectURL.swift in Sources */ = {isa = PBXBuildFile; fileRef = 277583F25856ACC6597CF1F4 /* WidgetConnectURL.swift */; };
+		4CDAC689BC24CE7024144561 /* WidgetConnectURL.swift in Sources */ = {isa = PBXBuildFile; fileRef = 277583F25856ACC6597CF1F4 /* WidgetConnectURL.swift */; };
+		C3A7AB54165604CF02796DE5 /* WidgetConnectURL.swift in Sources */ = {isa = PBXBuildFile; fileRef = 277583F25856ACC6597CF1F4 /* WidgetConnectURL.swift */; };
+		4692A188BE6F61128B435004 /* WidgetConnectURL.swift in Sources */ = {isa = PBXBuildFile; fileRef = 277583F25856ACC6597CF1F4 /* WidgetConnectURL.swift */; };
+		92C52E2D91B1F251BCA44DD2 /* WidgetDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8462B83582005463425EDA7C /* WidgetDisplay.swift */; };
+		F34C0A2FCA5D38BAE749EB5E /* WidgetDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8462B83582005463425EDA7C /* WidgetDisplay.swift */; };
+		9ED1374329B300883E4506DD /* WidgetDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8462B83582005463425EDA7C /* WidgetDisplay.swift */; };
+		D2AC1090E32BB5FB2B6EE7DE /* WidgetDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8462B83582005463425EDA7C /* WidgetDisplay.swift */; };
+		284C1D6CF4A67C6BD0A9039E /* WidgetStrings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D474160EFBF0B527F9E94C11 /* WidgetStrings.swift */; };
+		16310603ADC2A48CCAB02633 /* WidgetStrings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D474160EFBF0B527F9E94C11 /* WidgetStrings.swift */; };
+		BDC2E0040B72EECC3D9B0696 /* WidgetStrings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D474160EFBF0B527F9E94C11 /* WidgetStrings.swift */; };
+		8D87ECC41B417C182E5CA489 /* WidgetStrings.swift in Sources */ = {isa = PBXBuildFile; fileRef = D474160EFBF0B527F9E94C11 /* WidgetStrings.swift */; };
+		8EE95A6FD144EEEBB9A0519F /* WidgetTimelineReloadHook.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC6E1067D7F552EA29386846 /* WidgetTimelineReloadHook.swift */; };
+		ABEB80BBDF5B604708B10BF3 /* WidgetTimelineReloadHook.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC6E1067D7F552EA29386846 /* WidgetTimelineReloadHook.swift */; };
+		128DC8132F2FE8BD4B08A838 /* WidgetTimelineReloadHook.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC6E1067D7F552EA29386846 /* WidgetTimelineReloadHook.swift */; };
+		706D17DB109A5A8A93CFF854 /* TunnelControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2927474DF93703E105717757 /* TunnelControl.swift */; };
+		7B405917C243DCFE718ADA9A /* WidgetAutoConnectBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58739ECF0950F3C49747FD1B /* WidgetAutoConnectBridge.swift */; };
+		DBEEA548F33ABC9E77C3D0FF /* AppWidgetReload.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD9E3FA2A1938650B954E710 /* AppWidgetReload.swift */; };
+		79994A5135DC360811773C91 /* OpenRungWidgetModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0F0BF9D4771C9ED5ACEF701 /* OpenRungWidgetModule.swift */; };
+		A80C506D079E2F010AFFC55B /* OpenRungWidgetModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 1D00DC310DFFA9C5AC39C18C /* OpenRungWidgetModule.m */; };
+		623FDD35DF56163DA9D1AAEC /* ConnectBestRelayIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA50339CD342F7F22A85FC4B /* ConnectBestRelayIntent.swift */; };
+		5D48CE1303978E28A5939F69 /* ConnectBestRelayIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA50339CD342F7F22A85FC4B /* ConnectBestRelayIntent.swift */; };
+		329643475AAD7E9F207778FF /* OpenRungConnectWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64F1BD0528D1DFA6FCA79B38 /* OpenRungConnectWidget.swift */; };
+		B931B66ABA2FFEA749AD62E1 /* PacketTunnelWidgetReload.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3BA28C6A7F1FAE2D9745664 /* PacketTunnelWidgetReload.swift */; };
+		803E7A5C7744884C2789BFE9 /* WidgetConnectPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 156DAF30D69412D8D8D2004D /* WidgetConnectPolicyTests.swift */; };
+		B6CC11F8F774CAA20131CB20 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4783169BE46FEE9B0472504 /* AppConfig.swift */; };
+		DF059F25E617C90E307DD1A4 /* ConnectionStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 584A04475F28B3CAC39B501E /* ConnectionStatus.swift */; };
+		75737E1660886F0BA1DB04E8 /* CountryGeo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2570C01745DA49558877810 /* CountryGeo.swift */; };
+		E31111EC8FC1003A6E1E4AD5 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E0676580CBDED498509D44F3 /* WidgetKit.framework */; };
+		1DD69A1AAB0DEFBA5230C134 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E0676580CBDED498509D44F3 /* WidgetKit.framework */; };
+		D112884BB19EDBE9A93FB73B /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E0676580CBDED498509D44F3 /* WidgetKit.framework */; };
+		1D73825177081200EEBF42CA /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6BCF8DFD7C7E680CA99839A2 /* SwiftUI.framework */; };
+		9B4B00D10B143BFAEA0329A1 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A007484DB0FF040F33C609AA /* AppIntents.framework */; };
+		B1C0DE0011000000000000A1 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A007484DB0FF040F33C609AA /* AppIntents.framework */; };
+		BB27AD7BBFDDAC09C73BE453 /* OpenRungWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 7E8C6E6A7CE57809166DFBF0 /* OpenRungWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		FD59F6E0D8E74FCE42F536AA /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = C70144A126094429EB269AE3 /* PrivacyInfo.xcprivacy */; };
+		8F14FAB1FD47A6AB607C4FD4 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = F6B9E985B91D4A02673F24A8 /* Localizable.strings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -160,6 +205,13 @@
 			remoteGlobalIDString = 918ED55B0C2DB461BD7DBE0E;
 			remoteInfo = LibboxKit;
 		};
+		64A61F8A84FBDD6D836DFC8F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 146F6B38E4A347A28C649EC1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AAF6422D83A015DBF202257D;
+			remoteInfo = OpenRungWidget;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -170,6 +222,8 @@
 			dstSubfolderSpec = 13;
 			files = (
 				4AF8C7F150317AC00E8B27FA /* PacketTunnel.appex in Embed Foundation Extensions */,
+				BB27AD7BBFDDAC09C73BE453 /* OpenRungWidget.appex in Embed Foundation Extensions */,
+
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -277,6 +331,37 @@
 		F408CCF94A5AD4266D0675A9 /* IOSPacketTunnelRun.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSPacketTunnelRun.swift; sourceTree = "<group>"; };
 		F68B4299B0EAD00601A47FF2 /* geosite-cn.srs */ = {isa = PBXFileReference; path = "geosite-cn.srs"; sourceTree = "<group>"; };
 		F9C369738D2565177A979FAC /* ProbeTargets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProbeTargets.swift; sourceTree = "<group>"; };
+		70BFCF969ACA7819CD355FCE /* WidgetConnectPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetConnectPolicy.swift; sourceTree = "<group>"; };
+		75172819FF79FEE73C8B9B38 /* WidgetConnectRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetConnectRequest.swift; sourceTree = "<group>"; };
+		277583F25856ACC6597CF1F4 /* WidgetConnectURL.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetConnectURL.swift; sourceTree = "<group>"; };
+		8462B83582005463425EDA7C /* WidgetDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDisplay.swift; sourceTree = "<group>"; };
+		D474160EFBF0B527F9E94C11 /* WidgetStrings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetStrings.swift; sourceTree = "<group>"; };
+		FC6E1067D7F552EA29386846 /* WidgetTimelineReloadHook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetTimelineReloadHook.swift; sourceTree = "<group>"; };
+		2927474DF93703E105717757 /* TunnelControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelControl.swift; sourceTree = "<group>"; };
+		58739ECF0950F3C49747FD1B /* WidgetAutoConnectBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetAutoConnectBridge.swift; sourceTree = "<group>"; };
+		AD9E3FA2A1938650B954E710 /* AppWidgetReload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppWidgetReload.swift; sourceTree = "<group>"; };
+		B0F0BF9D4771C9ED5ACEF701 /* OpenRungWidgetModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRungWidgetModule.swift; sourceTree = "<group>"; };
+		1D00DC310DFFA9C5AC39C18C /* OpenRungWidgetModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = OpenRungWidgetModule.m; sourceTree = "<group>"; };
+		BA50339CD342F7F22A85FC4B /* ConnectBestRelayIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectBestRelayIntent.swift; sourceTree = "<group>"; };
+		64F1BD0528D1DFA6FCA79B38 /* OpenRungConnectWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRungConnectWidget.swift; sourceTree = "<group>"; };
+		FB31A6211145B5A6CAA7BF37 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		92D6A949CEAFAC650538F5EA /* OpenRungWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = OpenRungWidget.entitlements; sourceTree = "<group>"; };
+		C70144A126094429EB269AE3 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		B3BA28C6A7F1FAE2D9745664 /* PacketTunnelWidgetReload.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelWidgetReload.swift; sourceTree = "<group>"; };
+		156DAF30D69412D8D8D2004D /* WidgetConnectPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetConnectPolicyTests.swift; sourceTree = "<group>"; };
+		E0676580CBDED498509D44F3 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		6BCF8DFD7C7E680CA99839A2 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		A007484DB0FF040F33C609AA /* AppIntents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = System/Library/Frameworks/AppIntents.framework; sourceTree = SDKROOT; };
+		7E8C6E6A7CE57809166DFBF0 /* OpenRungWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = OpenRungWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		C9D3076B7836AC64A62B6658 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
+		39E0EEAF3C50B52BBBE7FDF7 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = zh-Hans; path = zh-Hans.lproj/Localizable.strings; sourceTree = "<group>"; };
+		56C610C423342E0228D7E25C /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = zh-Hant; path = zh-Hant.lproj/Localizable.strings; sourceTree = "<group>"; };
+		95061A650540C2530FA7631C /* fa */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = fa; path = fa.lproj/Localizable.strings; sourceTree = "<group>"; };
+		CCFD32B23253B129EBB15EDC /* ru */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ru; path = ru.lproj/Localizable.strings; sourceTree = "<group>"; };
+		141E8525C700A81074F63552 /* ar */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ar; path = ar.lproj/Localizable.strings; sourceTree = "<group>"; };
+		C1E78F60590A61363EB9D83F /* tr */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = tr; path = tr.lproj/Localizable.strings; sourceTree = "<group>"; };
+		6E975119CFA756251890EEAF /* vi */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = vi; path = vi.lproj/Localizable.strings; sourceTree = "<group>"; };
+		7B2698ED316C14E53BBC1181 /* my */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = my; path = my.lproj/Localizable.strings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -297,6 +382,8 @@
 			files = (
 				7B4D3DC05BA1AE1A2F069C94 /* LibboxKit.framework in Frameworks */,
 				F394E6F8661ECC0CFB89B18F /* UIKit.framework in Frameworks */,
+				1DD69A1AAB0DEFBA5230C134 /* WidgetKit.framework in Frameworks */,
+
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -306,6 +393,19 @@
 			files = (
 				767680B070BBDB21811EA1F0 /* LibboxKit.framework in Frameworks */,
 				946D20C038AF434910BA4395 /* libPods-OpenRung.a in Frameworks */,
+				E31111EC8FC1003A6E1E4AD5 /* WidgetKit.framework in Frameworks */,
+				B1C0DE0011000000000000A1 /* AppIntents.framework in Frameworks */,
+
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		66F5404B7D48F320FE7B3DCA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D112884BB19EDBE9A93FB73B /* WidgetKit.framework in Frameworks */,
+				1D73825177081200EEBF42CA /* SwiftUI.framework in Frameworks */,
+				9B4B00D10B143BFAEA0329A1 /* AppIntents.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -328,6 +428,12 @@
 				719ACF45718CBF52773FCD6C /* OpenRungVpnModule.swift */,
 				A025739761D97ABD7227B8DA /* PrivacyInfo.xcprivacy */,
 				3C401882CB8CF6382E1F4488 /* SceneDelegate.swift */,
+				AD9E3FA2A1938650B954E710 /* AppWidgetReload.swift */,
+				1D00DC310DFFA9C5AC39C18C /* OpenRungWidgetModule.m */,
+				B0F0BF9D4771C9ED5ACEF701 /* OpenRungWidgetModule.swift */,
+				2927474DF93703E105717757 /* TunnelControl.swift */,
+				58739ECF0950F3C49747FD1B /* WidgetAutoConnectBridge.swift */,
+
 			);
 			path = OpenRung;
 			sourceTree = "<group>";
@@ -353,6 +459,13 @@
 				D11601E153A60E8B30351E20 /* SharedConnectionState.swift */,
 				D156734F7F68151301FEF878 /* SingBoxConfiguration.swift */,
 				88FBD70740FE33FC9CC6564B /* SplitTunnelConfig.swift */,
+				8462B83582005463425EDA7C /* WidgetDisplay.swift */,
+				70BFCF969ACA7819CD355FCE /* WidgetConnectPolicy.swift */,
+				75172819FF79FEE73C8B9B38 /* WidgetConnectRequest.swift */,
+				D474160EFBF0B527F9E94C11 /* WidgetStrings.swift */,
+				FC6E1067D7F552EA29386846 /* WidgetTimelineReloadHook.swift */,
+				277583F25856ACC6597CF1F4 /* WidgetConnectURL.swift */,
+
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -397,6 +510,8 @@
 				293D5236C6FC627E5993262E /* SplitTunnelConfigurationTests.swift */,
 				C3DFA10EE6C65833EE32289D /* WssTestFixtures.swift */,
 				CA844B9D41B3605D8572DFE1 /* LegacyClassificationFixtures */,
+				156DAF30D69412D8D8D2004D /* WidgetConnectPolicyTests.swift */,
+
 			);
 			path = OpenRungTests;
 			sourceTree = "<group>";
@@ -421,6 +536,10 @@
 				091BB47D3F7E77446C73342D /* Network.framework */,
 				81CC00C2F7324111F25D07A0 /* UIKit.framework */,
 				9A6BF61AB72DBDAB014777F6 /* libPods-OpenRung.a */,
+				A007484DB0FF040F33C609AA /* AppIntents.framework */,
+				6BCF8DFD7C7E680CA99839A2 /* SwiftUI.framework */,
+				E0676580CBDED498509D44F3 /* WidgetKit.framework */,
+
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -444,6 +563,8 @@
 				687FF2AE15E31BCE38EF9073 /* PacketTunnelEngineHost.swift */,
 				3BEE51EC45A891A7FD184DFB /* PacketTunnelInternetProbe.swift */,
 				B9D3B66E26E617B7B00140A4 /* PacketTunnelProvider.swift */,
+				B3BA28C6A7F1FAE2D9745664 /* PacketTunnelWidgetReload.swift */,
+
 			);
 			path = PacketTunnel;
 			sourceTree = "<group>";
@@ -477,6 +598,8 @@
 				81B10868A3F7FA99A84696A4 /* OpenRung.app */,
 				174E944F053F54F691E59C74 /* OpenRungTests.xctest */,
 				1EAA8B2F5746A87534F0C87B /* PacketTunnel.appex */,
+				7E8C6E6A7CE57809166DFBF0 /* OpenRungWidget.appex */,
+
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -494,7 +617,38 @@
 				A1C815B9A63C637692C1C541 /* Frameworks */,
 				E73A5155909F9EFE9F13A6A1 /* Products */,
 				565BB1F471D0563B04CD533E /* Pods */,
+				D4586C5045E92AEDF49B5280 /* OpenRungWidget */,
+
 			);
+			sourceTree = "<group>";
+		};
+		F6B9E985B91D4A02673F24A8 /* Localizable.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				C9D3076B7836AC64A62B6658 /* en */,
+				39E0EEAF3C50B52BBBE7FDF7 /* zh-Hans */,
+				56C610C423342E0228D7E25C /* zh-Hant */,
+				95061A650540C2530FA7631C /* fa */,
+				CCFD32B23253B129EBB15EDC /* ru */,
+				141E8525C700A81074F63552 /* ar */,
+				C1E78F60590A61363EB9D83F /* tr */,
+				6E975119CFA756251890EEAF /* vi */,
+				7B2698ED316C14E53BBC1181 /* my */,
+			);
+			name = Localizable.strings;
+			sourceTree = "<group>";
+		};
+		D4586C5045E92AEDF49B5280 /* OpenRungWidget */ = {
+			isa = PBXGroup;
+			children = (
+				BA50339CD342F7F22A85FC4B /* ConnectBestRelayIntent.swift */,
+				FB31A6211145B5A6CAA7BF37 /* Info.plist */,
+				F6B9E985B91D4A02673F24A8 /* Localizable.strings */,
+				64F1BD0528D1DFA6FCA79B38 /* OpenRungConnectWidget.swift */,
+				92D6A949CEAFAC650538F5EA /* OpenRungWidget.entitlements */,
+				C70144A126094429EB269AE3 /* PrivacyInfo.xcprivacy */,
+			);
+			path = OpenRungWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -554,6 +708,7 @@
 			dependencies = (
 				159865C9091D7EFA5E759C4D /* PBXTargetDependency */,
 				D384349DAD2D4DBB30CDC13E /* PBXTargetDependency */,
+				753CE30A2670507208B8C2C4 /* PBXTargetDependency */,
 			);
 			name = OpenRung;
 			packageProductDependencies = (
@@ -594,6 +749,23 @@
 			productReference = 90B81EBD6EB3B24EBE741D16 /* EngineDeviceTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		AAF6422D83A015DBF202257D /* OpenRungWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 673A184C6DB548406143F1C4 /* Build configuration list for PBXNativeTarget "OpenRungWidget" */;
+			buildPhases = (
+				BC1CDE00CE283829E40C954F /* Sources */,
+				9C507116C9D7A4924F070F00 /* Resources */,
+				66F5404B7D48F320FE7B3DCA /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = OpenRungWidget;
+			productName = OpenRungWidget;
+			productReference = 7E8C6E6A7CE57809166DFBF0 /* OpenRungWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -623,6 +795,10 @@
 						DevelopmentTeam = 9VLV9A7KS9;
 						ProvisioningStyle = Automatic;
 					};
+					AAF6422D83A015DBF202257D = {
+						DevelopmentTeam = 9VLV9A7KS9;
+						ProvisioningStyle = Automatic;
+					};
 				};
 			};
 			buildConfigurationList = BE5FEF582D9F4428CE70CE8B /* Build configuration list for PBXProject "OpenRung" */;
@@ -631,6 +807,14 @@
 			knownRegions = (
 				Base,
 				en,
+				zh-Hans,
+				zh-Hant,
+				fa,
+				ru,
+				ar,
+				tr,
+				vi,
+				my,
 			);
 			mainGroup = F4646C7E57CBAA9E0DF5661F;
 			minimizedProjectReferenceProxies = 1;
@@ -647,6 +831,7 @@
 				ADBDEA07895981C3C202875A /* OpenRung */,
 				F015EA6D6BDCBE1C4CAF2180 /* OpenRungTests */,
 				008A07C80B8C5B8E7AC13818 /* PacketTunnel */,
+				AAF6422D83A015DBF202257D /* OpenRungWidget */,
 			);
 		};
 /* End PBXProject section */
@@ -660,6 +845,35 @@
 				5773648FA4FA3BB89AC47684 /* geoip-ir.srs in Resources */,
 				FBB5A1494BB10EC5CC265A5C /* geosite-cn.srs in Resources */,
 				39DC9ED8F1825AD63630611E /* geosite-ir.srs in Resources */,
+				FAA9560AD6D702E286DC5E2E /* WidgetConnectPolicy.swift in Sources */,
+				0634CB9FCC2CADF486D0BC3B /* WidgetConnectRequest.swift in Sources */,
+				8B17F2DF70B78B1FBFEF33A3 /* WidgetConnectURL.swift in Sources */,
+				92C52E2D91B1F251BCA44DD2 /* WidgetDisplay.swift in Sources */,
+				284C1D6CF4A67C6BD0A9039E /* WidgetStrings.swift in Sources */,
+				8EE95A6FD144EEEBB9A0519F /* WidgetTimelineReloadHook.swift in Sources */,
+				706D17DB109A5A8A93CFF854 /* TunnelControl.swift in Sources */,
+				7B405917C243DCFE718ADA9A /* WidgetAutoConnectBridge.swift in Sources */,
+				DBEEA548F33ABC9E77C3D0FF /* AppWidgetReload.swift in Sources */,
+				79994A5135DC360811773C91 /* OpenRungWidgetModule.swift in Sources */,
+				A80C506D079E2F010AFFC55B /* OpenRungWidgetModule.m in Sources */,
+				623FDD35DF56163DA9D1AAEC /* ConnectBestRelayIntent.swift in Sources */,
+
+				977EFE180F48584CAA1B27D4 /* WidgetConnectPolicy.swift in Sources */,
+				60DE19AF1168DD7CA27E274B /* WidgetConnectRequest.swift in Sources */,
+				4CDAC689BC24CE7024144561 /* WidgetConnectURL.swift in Sources */,
+				F34C0A2FCA5D38BAE749EB5E /* WidgetDisplay.swift in Sources */,
+				16310603ADC2A48CCAB02633 /* WidgetStrings.swift in Sources */,
+				ABEB80BBDF5B604708B10BF3 /* WidgetTimelineReloadHook.swift in Sources */,
+				B931B66ABA2FFEA749AD62E1 /* PacketTunnelWidgetReload.swift in Sources */,
+
+				CDF0DA5B3225CA118FC0206F /* WidgetConnectPolicy.swift in Sources */,
+				2810E464744F41645E97CB51 /* WidgetConnectRequest.swift in Sources */,
+				4692A188BE6F61128B435004 /* WidgetConnectURL.swift in Sources */,
+				D2AC1090E32BB5FB2B6EE7DE /* WidgetDisplay.swift in Sources */,
+				8D87ECC41B417C182E5CA489 /* WidgetStrings.swift in Sources */,
+				128DC8132F2FE8BD4B08A838 /* WidgetTimelineReloadHook.swift in Sources */,
+				803E7A5C7744884C2789BFE9 /* WidgetConnectPolicyTests.swift in Sources */,
+
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -670,6 +884,15 @@
 				1001D8102F7EA1A694366DFF /* Images.xcassets in Resources */,
 				BF55D9C9334181B84F1D36EC /* LaunchScreen.storyboard in Resources */,
 				C98C9E042E602DF887F4B995 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9C507116C9D7A4924F070F00 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FD59F6E0D8E74FCE42F536AA /* PrivacyInfo.xcprivacy in Resources */,
+				8F14FAB1FD47A6AB607C4FD4 /* Localizable.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -914,6 +1137,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BC1CDE00CE283829E40C954F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5D48CE1303978E28A5939F69 /* ConnectBestRelayIntent.swift in Sources */,
+				329643475AAD7E9F207778FF /* OpenRungConnectWidget.swift in Sources */,
+				3AEC2BF91DF5957049B5AF91 /* WidgetConnectPolicy.swift in Sources */,
+				B853A172045B2ED594F1B5BA /* WidgetConnectRequest.swift in Sources */,
+				C3A7AB54165604CF02796DE5 /* WidgetConnectURL.swift in Sources */,
+				9ED1374329B300883E4506DD /* WidgetDisplay.swift in Sources */,
+				BDC2E0040B72EECC3D9B0696 /* WidgetStrings.swift in Sources */,
+				B6CC11F8F774CAA20131CB20 /* AppConfig.swift in Sources */,
+				DF059F25E617C90E307DD1A4 /* ConnectionStatus.swift in Sources */,
+				75737E1660886F0BA1DB04E8 /* CountryGeo.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -936,6 +1176,11 @@
 			isa = PBXTargetDependency;
 			target = 918ED55B0C2DB461BD7DBE0E /* LibboxKit */;
 			targetProxy = E6D5811F919DB235C009799B /* PBXContainerItemProxy */;
+		};
+		753CE30A2670507208B8C2C4 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AAF6422D83A015DBF202257D /* OpenRungWidget */;
+			targetProxy = 64A61F8A84FBDD6D836DFC8F /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1362,6 +1607,44 @@
 			};
 			name = Debug;
 		};
+		5D603C9EE3121F927CC34441 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = OpenRungWidget/OpenRungWidget.entitlements;
+				INFOPLIST_FILE = OpenRungWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.openrung.app.OpenRungWidget;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "OPENRUNG_WIDGET_EXTENSION $(inherited)";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		EFE8C3FAEB82FAB071A11ADB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = OpenRungWidget/OpenRungWidget.entitlements;
+				INFOPLIST_FILE = OpenRungWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.openrung.app.OpenRungWidget;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "OPENRUNG_WIDGET_EXTENSION $(inherited)";
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1415,6 +1698,15 @@
 			buildConfigurations = (
 				73BE8C16CB91640112F4357A /* Debug */,
 				0D953B3D127C0BB08E644293 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		673A184C6DB548406143F1C4 /* Build configuration list for PBXNativeTarget "OpenRungWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5D603C9EE3121F927CC34441 /* Debug */,
+				EFE8C3FAEB82FAB071A11ADB /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

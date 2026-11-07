@@ -8,6 +8,17 @@
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
 	<string>OpenRung</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.openrung.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>openrung</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>

@@ -5,6 +5,11 @@ import NetworkExtension
 /// orchestrator; this provider never selects a relay, retries a ticket or runs a
 /// health/recovery loop. All mutations below arrive on the process host queue.
 final class PacketTunnelProvider: NEPacketTunnelProvider, PacketTunnelEngineOwner {
+    override init() {
+        super.init()
+        PacketTunnelWidgetReload.install()
+    }
+
     let settingsCleanup = EngineTunnelSettingsCleanup(diagnostic: SharedConnectionState.appendLog)
     private let memory = EngineMemoryMonitor()
     private var networkObserver: EngineNetworkObserver?

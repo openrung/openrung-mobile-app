@@ -22,6 +22,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
     self.launchOptions = launchOptions
+    AppWidgetReload.install()
+    WidgetAutoConnectBridge.install()
     return true
   }
 

@@ -61,6 +61,8 @@ blocks traffic or fails a connect.
 | Android minSdk / compile / target | 26 / 36 / 36 (minSdk raised from RN default 24) |
 | iOS app bundle id | `com.openrung.app` |
 | iOS extension bundle id | `com.openrung.app.PacketTunnel` |
+| iOS widget bundle id | `com.openrung.app.OpenRungWidget` |
+| iOS widget URL scheme | `openrung` (`open`, `connect-auto`; no query, user, or path) |
 | iOS app group | `group.com.openrung.app` |
 | iOS VPN profile localizedDescription | `OpenRung VPN` |
 | iOS deployment target | 16.0 |
@@ -750,6 +752,10 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   (RCT_EXTERN_MODULE) — implements §3 over NETunnelProviderManager +
   SharedConnectionState (Darwin observer + NEVPNStatusDidChange), including the
   production relay-switch dance (stop → 350 ms → reconfigure → start).
+  `TunnelControl` is the single manager owner used by that module and by the
+  home-screen widget handoff. The widget is not part of the six-method VPN
+  contract. `OpenRungWidget.setLanguageTag` only publishes the in-app language
+  tag into the app group. See [IOS_WIDGET.md](IOS_WIDGET.md).
 - `ios/OpenRung/OpenRungBrokerModule.swift` plus its Objective-C extern module
   implement the separate §3 broker surface. The Foundation-only request
   coordinator is included in hostless tests, which use fake operations and do

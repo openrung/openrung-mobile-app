@@ -11,7 +11,6 @@ import React
 final class OpenRungVpnModule: RCTEventEmitter {
     private static let stateChangedEvent = "openrungStateChanged"
 
-    private var manager: NETunnelProviderManager?
     private var vpnStatus: NEVPNStatus = .invalid
     private var status: ConnectionStatus = .disconnected
     private var sessionID: String?
@@ -28,14 +27,11 @@ final class OpenRungVpnModule: RCTEventEmitter {
     /// decodes the full snapshot and serializes an 80-line payload across the bridge, so
     /// notification bursts collapse into one reload ~100 ms later instead of one per line.
     private var sharedStateReloadScheduled = false
-    /// Bumped by every explicit connect/disconnect and by a split-tunnel reapply. The reapply
-    /// dance stops the tunnel and restarts it after a 350 ms delay; it captures this value before
-    /// sleeping and aborts the restart if a newer command (e.g. the user tapping Disconnect)
-    /// arrived meanwhile — so a settings reapply never resurrects a tunnel the user just stopped.
-    private var controlEpoch = 0
-
     override init() {
         super.init()
+        TunnelControl.shared.onActivity = { [weak self] in
+            self?.refreshVPNStatus()
+        }
         // What the app shows on a cold launch: a stale CONNECTED never survives, and the relay
         // label (which could leak a prior relay) is dropped until re-resolved.
         apply(SharedConnectionState.sanitizedForColdStart(), emit: false)
@@ -82,16 +78,22 @@ final class OpenRungVpnModule: RCTEventEmitter {
     @objc(prepare:rejecter:)
     func prepare(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
         Task { @MainActor in
-            guard Self.canUseNetworkExtension else {
+            guard TunnelControl.canUseNetworkExtension else {
                 resolve(false)
                 return
             }
             do {
-                let manager = try await self.loadOrCreateManager()
-                if manager.protocolConfiguration == nil {
-                    try await self.configure(manager: manager, brokerURL: AppConfig.defaultBrokerURL, targetCountry: nil)
+                let loaded = try await TunnelControl.shared.loadOrCreateManager()
+                if loaded.manager.protocolConfiguration == nil {
+                    try await TunnelControl.shared.configure(
+                        manager: loaded.manager,
+                        brokerURL: AppConfig.defaultBrokerURL,
+                        targetCountry: nil
+                    )
+                } else {
+                    TunnelControl.shared.adopt(loaded.manager)
                 }
-                self.manager = manager
+                TunnelControl.shared.noteProfileSavedIfConfigured()
                 self.refreshVPNStatus()
                 resolve(true)
             } catch {
@@ -111,33 +113,19 @@ final class OpenRungVpnModule: RCTEventEmitter {
         rejecter reject: @escaping RCTPromiseRejectBlock
     ) {
         Task { @MainActor in
-            self.controlEpoch += 1
-            let normalizedCountry = Self.normalizedCountryCode(targetCountry)
-            let normalizedRelayID = targetRelayId?.trimmingCharacters(in: .whitespacesAndNewlines)
             let shouldSwitchRelay = self.status.isConnected || self.status.isWorking
             do {
-                guard Self.canUseNetworkExtension else {
-                    throw AppError.networkExtensionUnavailableInSimulator
-                }
-                let brokerURL = URL(string: brokerUrl) ?? AppConfig.defaultBrokerURL
-                let manager = try await self.loadOrCreateManager()
-                if shouldSwitchRelay {
-                    manager.connection.stopVPNTunnel()
-                    self.refreshVPNStatus()
-                    try? await Task.sleep(nanoseconds: 350_000_000)
-                }
-                try await self.configure(
-                    manager: manager,
-                    brokerURL: brokerURL,
-                    targetCountry: normalizedCountry,
-                    targetRelayID: normalizedRelayID?.isEmpty == false ? normalizedRelayID : nil
+                try await TunnelControl.shared.connect(
+                    brokerUrl: brokerUrl,
+                    targetCountry: targetCountry,
+                    targetRelayId: targetRelayId,
+                    switchRelay: shouldSwitchRelay
                 )
-                try manager.connection.startVPNTunnel()
-                self.manager = manager
                 self.refreshVPNStatus()
                 resolve(nil)
             } catch {
                 let message = AppError.message(for: error)
+                SharedConnectionState.fail(message)
                 self.lastError = message
                 self.lastErrorCode = nil
                 self.status = .failed
@@ -155,9 +143,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
     @objc(disconnect:rejecter:)
     func disconnect(_ resolve: @escaping RCTPromiseResolveBlock, rejecter reject: @escaping RCTPromiseRejectBlock) {
         Task { @MainActor in
-            self.controlEpoch += 1
-            self.manager?.connection.stopVPNTunnel()
-            self.refreshVPNStatus()
+            TunnelControl.shared.disconnect()
             resolve(nil)
         }
     }
@@ -207,24 +193,26 @@ final class OpenRungVpnModule: RCTEventEmitter {
                 sharedTunnelIsConnected: self.status == .connected,
                 systemTunnelIsConnected: self.vpnStatus == .connected
             ),
-               Self.canUseNetworkExtension,
-               let manager = self.manager {
-                self.controlEpoch += 1
-                let reapplyEpoch = self.controlEpoch
+               TunnelControl.canUseNetworkExtension,
+               let manager = TunnelControl.shared.manager {
+                let reapplyEpoch = TunnelControl.shared.beginCommand()
                 Task { @MainActor in
+                    defer { TunnelControl.shared.endCommand(epoch: reapplyEpoch) }
                     manager.connection.stopVPNTunnel()
                     self.refreshVPNStatus()
                     try? await Task.sleep(nanoseconds: 350_000_000)
                     // A connect/disconnect during the sleep bumps controlEpoch; if so, that command
                     // now owns the tunnel — don't resurrect it against the user's explicit action.
-                    guard self.controlEpoch == reapplyEpoch else {
+                    guard TunnelControl.shared.controlEpoch == reapplyEpoch else {
                         self.refreshVPNStatus()
                         return
                     }
                     do {
                         try manager.connection.startVPNTunnel()
                     } catch {
-                        self.lastError = AppError.message(for: error)
+                        let message = AppError.message(for: error)
+                        SharedConnectionState.fail(message)
+                        self.lastError = message
                         self.lastErrorCode = nil
                         self.status = .failed
                         // Same failure semantics as the connect() catch above.
@@ -256,57 +244,14 @@ final class OpenRungVpnModule: RCTEventEmitter {
 
     @MainActor
     private func loadExistingManager() async {
-        guard Self.canUseNetworkExtension else { return }
         do {
-            manager = try await loadOrCreateManager()
+            try await TunnelControl.shared.loadInstalledManager()
             refreshVPNStatus()
         } catch {
             lastError = AppError.message(for: error)
             lastErrorCode = nil
             emitStateChanged()
         }
-    }
-
-    private func loadOrCreateManager() async throws -> NETunnelProviderManager {
-        let managers = try await NETunnelProviderManager.loadAllFromPreferences()
-        if let existing = managers.first(where: {
-            $0.localizedDescription == AppConfig.vpnProfileName
-        }) {
-            return existing
-        }
-        if let existing = managers.first(where: {
-            $0.localizedDescription == AppConfig.legacyVPNProfileName
-        }) {
-            // The next configure/save migrates profiles created before the terminology change.
-            existing.localizedDescription = AppConfig.vpnProfileName
-            return existing
-        }
-        let manager = NETunnelProviderManager()
-        manager.localizedDescription = AppConfig.vpnProfileName
-        return manager
-    }
-
-    private func configure(
-        manager: NETunnelProviderManager,
-        brokerURL: URL,
-        targetCountry: String?,
-        targetRelayID: String? = nil
-    ) async throws {
-        let tunnelProtocol = NETunnelProviderProtocol()
-        tunnelProtocol.providerBundleIdentifier = AppConfig.packetTunnelBundleIdentifier
-        tunnelProtocol.serverAddress = brokerURL.host ?? brokerURL.absoluteString
-        var providerConfiguration = [AppConfig.providerBrokerURLKey: brokerURL.absoluteString]
-        if let targetCountry {
-            providerConfiguration[AppConfig.providerTargetCountryKey] = targetCountry
-        }
-        if let targetRelayID {
-            providerConfiguration[AppConfig.providerTargetRelayIDKey] = targetRelayID
-        }
-        tunnelProtocol.providerConfiguration = providerConfiguration
-        manager.protocolConfiguration = tunnelProtocol
-        manager.isEnabled = true
-        try await manager.saveToPreferences()
-        try await manager.loadFromPreferences()
     }
 
     // MARK: - State observation
@@ -356,9 +301,14 @@ final class OpenRungVpnModule: RCTEventEmitter {
 
     @MainActor
     private func refreshVPNStatus(emit: Bool = true) {
-        vpnStatus = manager?.connection.status ?? .invalid
+        vpnStatus = TunnelControl.shared.systemStatus
         var snapshot = SharedConnectionState.snapshot()
         snapshot.reconcileSystemTunnel(isDown: vpnStatus == .disconnected || vpnStatus == .invalid)
+        // Only persist once a manager is loaded. Before that, status is `.invalid` and writing
+        // the reconciliation would wipe a live tunnel's snapshot on every cold launch.
+        if TunnelControl.shared.hasManager {
+            SharedConnectionState.persistReconciliation(snapshot)
+        }
         apply(snapshot, emit: emit)
     }
 
@@ -406,42 +356,5 @@ final class OpenRungVpnModule: RCTEventEmitter {
             },
         ]
     }
-
-    // MARK: - Helpers
-
-    private static var canUseNetworkExtension: Bool {
-        #if targetEnvironment(simulator)
-        false
-        #else
-        true
-        #endif
-    }
-
-    private static func normalizedCountryCode(_ countryCode: String?) -> String? {
-        guard let normalized = countryCode?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(),
-              normalized.isEmpty == false
-        else {
-            return nil
-        }
-        return normalized
-    }
 }
 
-enum AppError: LocalizedError {
-    case networkExtensionUnavailableInSimulator
-
-    var errorDescription: String? {
-        switch self {
-        case .networkExtensionUnavailableInSimulator:
-            return "The iOS simulator cannot install or start a Packet Tunnel VPN profile. Run on a signed physical iPhone with the Network Extension packet-tunnel entitlement to test Connect."
-        }
-    }
-
-    static func message(for error: Error) -> String {
-        let nsError = error as NSError
-        if nsError.domain == "NEConfigurationErrorDomain", nsError.code == 11 {
-            return "Network Extension preferences are unavailable. On the simulator this is expected; on a real iPhone, confirm the app and Packet Tunnel extension are signed with the packet-tunnel entitlement and matching App Group."
-        }
-        return (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-    }
-}

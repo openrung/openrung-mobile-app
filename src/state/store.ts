@@ -7,6 +7,7 @@ import { INITIAL_UPDATE_UI, type UpdateUiState } from '../model/updateStatus';
 import { firstReachable } from '../net/brokerClient';
 import { loadExitNodeDirectory } from '../net/exitNodeDirectory';
 import { OpenRungVpn } from '../native/OpenRungVpn';
+import { publishWidgetLanguage } from '../native/widgetLanguage';
 import type { NativeVpnState, RecentNode } from '../native/types';
 
 /**
@@ -362,6 +363,7 @@ export function setLanguageTag(tag: string): void {
   AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, tag).catch(() => {
     // Persistence is best-effort, like production's autoStoreLocales.
   });
+  publishWidgetLanguage(tag);
 }
 
 /** Loads the persisted language selection (called once by the LanguageProvider on mount). */
@@ -371,8 +373,11 @@ export async function hydrateLanguage(): Promise<void> {
     if (persisted !== null && persisted !== state.languageTag) {
       setState({ ...state, languageTag: persisted });
     }
+    // Publish even when the stored tag already matches memory so a newly added
+    // widget learns the override. setLanguageTag publishes later edits.
+    publishWidgetLanguage(state.languageTag);
   } catch {
-    // Best-effort: fall back to the in-memory default ('' = system).
+    publishWidgetLanguage(state.languageTag);
   }
 }
 

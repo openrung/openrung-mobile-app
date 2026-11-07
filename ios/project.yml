@@ -1,7 +1,8 @@
 # XcodeGen spec — the source of truth for ios/OpenRung.xcodeproj (contract §7).
 # Replicates the React Native 0.86 template app target as it existed in the checked-in
 # pbxproj (Bundle React Native code and images phase, folly flags, -ObjC/-lc++, etc.),
-# plus the PacketTunnel network-extension target ported from the production app.
+# plus the PacketTunnel network-extension target ported from the production app
+# and the OpenRungWidget WidgetKit extension (iOS 16 target, iOS 17 interactive button).
 # Regenerate with scripts/generate-project.sh (xcodegen generate + pod install).
 name: OpenRung
 options:
@@ -61,9 +62,14 @@ targets:
         excludes:
           - InternetProbe.swift
           - SingBoxConfiguration.swift
+      # Same AppIntent type as the widget, so a home-screen button can run in this process.
+      - path: OpenRungWidget/ConnectBestRelayIntent.swift
     dependencies:
-      # Embeds the PacketTunnel appex into PlugIns/.
+      # Embeds the PacketTunnel appex and the home-screen widget into PlugIns/.
       - target: PacketTunnel
+      - target: OpenRungWidget
+      - sdk: WidgetKit.framework
+      - sdk: AppIntents.framework
       # Compile-time only: FRAMEWORK_SEARCH_PATHS entry so `import Libbox`
       # resolves against the gomobile headers/modulemap. The static archive is
       # NOT linked here — the symbols come from LibboxKit at link time, so the
@@ -143,12 +149,50 @@ targets:
       - target: LibboxKit
         embed: false
       - sdk: UIKit.framework
+      - sdk: WidgetKit.framework
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.openrung.app.PacketTunnel
         INFOPLIST_FILE: PacketTunnel/Info.plist
         CODE_SIGN_ENTITLEMENTS: PacketTunnel/PacketTunnel.entitlements
         APPLICATION_EXTENSION_API_ONLY: "YES"
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@executable_path/Frameworks"
+          - "@executable_path/../../Frameworks"
+
+  # Home-screen widget. Deployment stays on the project floor (iOS 16). Interactive
+  # controls are gated in source with #available(iOS 17). No packet-tunnel entitlement:
+  # this process cannot start the VPN. See docs/IOS_WIDGET.md.
+  OpenRungWidget:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: OpenRungWidget
+        excludes:
+          - Info.plist
+          - OpenRungWidget.entitlements
+      - path: Shared/AppConfig.swift
+      - path: Shared/ConnectionStatus.swift
+      - path: Shared/CountryGeo.swift
+      - path: Shared/WidgetConnectPolicy.swift
+      - path: Shared/WidgetConnectRequest.swift
+      - path: Shared/WidgetConnectURL.swift
+      - path: Shared/WidgetDisplay.swift
+      - path: Shared/WidgetStrings.swift
+    dependencies:
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+      - sdk: AppIntents.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.openrung.app.OpenRungWidget
+        INFOPLIST_FILE: OpenRungWidget/Info.plist
+        CODE_SIGN_ENTITLEMENTS: OpenRungWidget/OpenRungWidget.entitlements
+        APPLICATION_EXTENSION_API_ONLY: "YES"
+        IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "OPENRUNG_WIDGET_EXTENSION $(inherited)"
         LD_RUNPATH_SEARCH_PATHS:
           - "$(inherited)"
           - "@executable_path/Frameworks"
@@ -219,6 +263,12 @@ targets:
       - path: Shared/AppConfig.swift
       # ConnectionStateSnapshot (ConnectionStateSnapshotTests) + the RecentNode type it embeds.
       - path: Shared/ConnectionStatus.swift
+      - path: Shared/WidgetConnectPolicy.swift
+      - path: Shared/WidgetConnectRequest.swift
+      - path: Shared/WidgetConnectURL.swift
+      - path: Shared/WidgetDisplay.swift
+      - path: Shared/WidgetStrings.swift
+      - path: Shared/WidgetTimelineReloadHook.swift
       - path: Shared/CountryGeo.swift
       - path: Shared/DeviceAttributes.swift
       - path: Shared/DnsProbeMessage.swift

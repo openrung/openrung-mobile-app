@@ -29,5 +29,18 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     )
     self.window = window
     appDelegate.window = window
+    for context in connectionOptions.urlContexts {
+      WidgetAutoConnectBridge.handle(url: context.url)
+    }
+  }
+
+  func sceneDidBecomeActive(_ scene: UIScene) {
+    WidgetAutoConnectBridge.noteForeground()
+  }
+
+  func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+    for context in URLContexts {
+      WidgetAutoConnectBridge.handle(url: context.url)
+    }
   }
 }

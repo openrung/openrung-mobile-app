@@ -5,7 +5,7 @@ import Foundation
 /// `UserDefaults` and posts a Darwin notification so the app can re-read. Port of the cross-process
 /// half of Android `OpenRungStatusStore`.
 enum SharedConnectionState {
-    private static let key = "connection_state"
+    private static let key = AppConfig.connectionStateDefaultsKey
 
     // One suite instance for the process lifetime: the computed-property form re-registered a
     // fresh UserDefaults with cfprefsd on every read/write.
@@ -104,7 +104,7 @@ enum SharedConnectionState {
             // log appends first, so ordering between the two kinds is preserved.
             mutationQueue.sync {
                 applyOnQueue(transform)
-                flushPendingOnQueue()
+                flushPendingOnQueue(reloadWidget: true)
             }
         }
     }
@@ -121,12 +121,34 @@ enum SharedConnectionState {
         guard !logFlushScheduled else { return }
         logFlushScheduled = true
         mutationQueue.asyncAfter(deadline: .now() + .milliseconds(250)) {
-            flushPendingOnQueue()
+            flushPendingOnQueue(reloadWidget: false)
+        }
+    }
+
+    /// Publishes an OS-reconciled identity without dropping log lines that are still queued.
+    /// The widget cannot read `NEVPNStatus`, so a stale connected snapshot has to be corrected
+    /// here or the home screen keeps showing a tunnel the OS already tore down.
+    static func persistReconciliation(_ snapshot: ConnectionStateSnapshot) {
+        mutationQueue.sync {
+            var current = pendingSnapshot ?? self.snapshot()
+            guard current.status != snapshot.status
+                || current.sessionID != snapshot.sessionID
+                || current.relayLabel != snapshot.relayLabel
+                || current.relayName != snapshot.relayName
+                || current.relayClass != snapshot.relayClass
+            else { return }
+            current.status = snapshot.status
+            current.sessionID = snapshot.sessionID
+            current.relayLabel = snapshot.relayLabel
+            current.relayName = snapshot.relayName
+            current.relayClass = snapshot.relayClass
+            pendingSnapshot = current
+            flushPendingOnQueue(reloadWidget: true)
         }
     }
 
     /// Must run on `mutationQueue`.
-    private static func flushPendingOnQueue() {
+    private static func flushPendingOnQueue(reloadWidget: Bool) {
         logFlushScheduled = false
         guard let snapshot = pendingSnapshot else { return }
         pendingSnapshot = nil
@@ -135,6 +157,11 @@ enum SharedConnectionState {
         // Retire the pre-connectcore session shadow after publishing its replacement.
         defaults?.removeObject(forKey: "telemetry_session")
         postDarwinNotification()
+        // Log-only flushes stay on the Darwin path the app already coalesces. Reloading the
+        // widget for every log line would burn the timeline budget without a new status.
+        if reloadWidget {
+            WidgetTimelineReloadHook.reload()
+        }
     }
 
     static func postDarwinNotification() {
