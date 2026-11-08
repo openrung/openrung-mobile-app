@@ -36,10 +36,6 @@ final class OpenRungVpnModule: RCTEventEmitter {
     /// sleeping and aborts the restart if a newer command (e.g. the user tapping Disconnect)
     /// arrived meanwhile — so a settings reapply never resurrects a tunnel the user just stopped.
     private var controlEpoch = 0
-    /// True once `loadExistingManager` has finished, whatever the outcome. Until then `vpnStatus`
-    /// is a placeholder `.invalid`, which must not stand in for "the OS tunnel is down" (see
-    /// deliverWidgetConnectRequest and the stale-tunnel marker in refreshVPNStatus).
-    private var managerLoaded = false
 
     override init() {
         super.init()
@@ -268,15 +264,15 @@ final class OpenRungVpnModule: RCTEventEmitter {
 
     @MainActor
     private func loadExistingManager() async {
-        // Every exit (simulator, success, failure) marks the load finished and hands over a widget
-        // request that arrived while the OS tunnel state was still unknown.
-        defer {
-            managerLoaded = true
-            deliverWidgetConnectRequest()
-        }
+        // Every exit re-offers a pending widget request; only a SUCCESSFUL load lets it through
+        // (deliverWidgetConnectRequest requires a manager), so a failed load or the simulator
+        // drops it instead of reading the placeholder `.invalid` status as "down".
+        defer { deliverWidgetConnectRequest() }
         guard Self.canUseNetworkExtension else { return }
         do {
             manager = try await loadOrCreateManager()
+            // `manager` is set before this refresh, so the stale-tunnel marker (which requires a
+            // loaded manager) is published on this very launch if the extension died earlier.
             refreshVPNStatus()
         } catch {
             lastError = AppError.message(for: error)
@@ -379,9 +375,10 @@ final class OpenRungVpnModule: RCTEventEmitter {
         var snapshot = SharedConnectionState.snapshot()
         // The widget cannot ask the OS, so when a loaded manager says the tunnel is down while the
         // tunnel-written snapshot still claims it is live (the extension was killed), publish that
-        // under the widget's own key. The snapshot itself is never written from here; the next
+        // under the widget's own key. Before a manager exists `vpnStatus` is only a placeholder,
+        // so nothing is published then. The snapshot itself is never written from here; the next
         // tunnel write clears the marker (WidgetReloadGate).
-        if managerLoaded, manager != nil {
+        if manager != nil {
             WidgetStaleTunnelMarker.shared.publish(
                 systemTunnelIsDown: systemTunnelIsDown,
                 snapshotFace: WidgetFace(statusRawValue: snapshot.status.rawValue)
@@ -413,13 +410,14 @@ final class OpenRungVpnModule: RCTEventEmitter {
     /// retried: the user sees the live state in the app that just opened.
     ///
     /// Ordering: the request stays in the mailbox until BOTH JavaScript is listening (so the event
-    /// can be received) AND the tunnel manager has loaded (so `vpnStatus` is the OS's answer, not
-    /// the `.invalid` placeholder that would read as "down" and let a country-pinned tunnel be
-    /// replaced). Each of those events calls this again, and the mailbox's 30 s freshness bounds
-    /// how long an early tap may wait.
+    /// can be received) AND a tunnel manager has been loaded (so `vpnStatus` is the OS's answer,
+    /// not the `.invalid` placeholder that would read as "down" and let a country-pinned tunnel be
+    /// replaced). A failed load, or the simulator, never satisfies the second condition, so the
+    /// request simply expires. Each of those events calls this again, and the mailbox's 30 s
+    /// freshness bounds how long an early tap may wait.
     @MainActor
     private func deliverWidgetConnectRequest() {
-        guard hasListeners, managerLoaded, let request = WidgetConnectMailbox.shared.collect() else { return }
+        guard hasListeners, manager != nil, let request = WidgetConnectMailbox.shared.collect() else { return }
         refreshVPNStatus(emit: false)
         let decision = WidgetConnectPolicy.decide(
             sharedStatus: status,

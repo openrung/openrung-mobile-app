@@ -76,6 +76,20 @@ final class WidgetSharedStateTests: XCTestCase {
         XCTAssertEqual(reloads, 1)
     }
 
+    /// The launch that matters: the extension died while connected, the app loads its manager and
+    /// refreshes once. That first publish must set the marker and reload the widget.
+    func testStaleTunnelMarkerIsSetOnTheFirstRefreshAfterLaunch() throws {
+        var marker = false
+        var reloads = 0
+        let publisher = WidgetStaleTunnelMarker(readMarker: { marker }, writeMarker: { marker = true }, reload: { reloads += 1 })
+        let data = try JSONEncoder().encode(ConnectionStateSnapshot(status: .connected, brokerURL: "https://broker.example"))
+        let snapshotFace = WidgetSharedState.face(fromSnapshotData: data)
+        XCTAssertTrue(publisher.publish(systemTunnelIsDown: true, snapshotFace: snapshotFace))
+        XCTAssertTrue(marker)
+        XCTAssertEqual(reloads, 1)
+        XCTAssertEqual(WidgetSharedState.face(fromSnapshotData: data, systemTunnelDown: marker), .disconnected)
+    }
+
     func testEveryTunnelFlushClearsTheStaleTunnelMarker() {
         var stored: WidgetFace? = .connected
         var cleared = 0

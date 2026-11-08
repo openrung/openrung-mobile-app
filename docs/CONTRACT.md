@@ -815,9 +815,9 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   (`Shared/WidgetConnectPolicy.swift`: start only from disconnected/failed with
   the OS tunnel invalid/disconnected; never switch, restart or stop a live or
   country-pinned tunnel) and emits `openrungConnectRequested`. Nothing is
-  collected before the manager load has finished, so the pre-load `.invalid`
-  placeholder never reads as "down". The app never writes the snapshot; when a
-  loaded manager reports no tunnel against a snapshot that still says
+  collected until a manager has loaded (a failed load or the simulator drops
+  the request), so the pre-load `.invalid` placeholder never reads as "down".
+  The app never writes the snapshot; when a loaded manager reports no tunnel against a snapshot that still says
   connected/connecting (extension killed) it sets `widget_system_tunnel_down`
   once (`WidgetStaleTunnelMarker`), which the widget renders as Disconnected and
   the tunnel removes on its next write. `SharedConnectionState` drives

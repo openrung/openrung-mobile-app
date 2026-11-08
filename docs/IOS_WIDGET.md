@@ -68,10 +68,11 @@ it (`WidgetReloadGate.publish`), so a real tunnel always wins and ordering stays
 with the sole snapshot writer. Until the app next runs, the widget still shows the
 last tunnel-written face; tapping it opens the app, which corrects it.
 
-A widget tap is also never acted on before that manager load has finished:
-`OpenRungVpnModule` leaves the request in the mailbox until both JavaScript is
-listening and the OS tunnel state is known, so a placeholder `.invalid` can never
-pass for "down" and let a running country-pinned tunnel be replaced.
+A widget tap is also never acted on without a loaded manager: `OpenRungVpnModule`
+leaves the request in the mailbox until both JavaScript is listening and the
+manager has loaded, so the placeholder `.invalid` status can never pass for "down"
+and let a running country-pinned tunnel be replaced. A failed load (or the
+simulator) never delivers; the request expires in the mailbox.
 
 ## Strings
 
@@ -116,8 +117,8 @@ xcodebuild -project ios/OpenRung.xcodeproj -scheme OpenRungWidget \
   CODE_SIGNING_ALLOWED=NO build
 ```
 
-The simulator cannot start a packet tunnel, so a widget tap there ends in the
-app's canned simulator error, exactly like the in-app button.
+The simulator cannot load a tunnel manager, so a widget tap there only opens the
+app: the request is dropped, since nothing is delivered without a loaded manager.
 
 ## Physical-device checklist
 
