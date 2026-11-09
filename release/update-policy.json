@@ -4,34 +4,34 @@
     "android": "0.0.0",
     "ios": "0.0.0"
   },
-  "ios_latest": "0.4.1",
+  "ios_latest": "0.4.2",
   "promote": "notify",
   "notice": {
-    "id": "2026-10-release-0.4.1",
+    "id": "2026-11-release-0.4.2",
     "level": "info",
     "title": {
-      "en": "What's new in 0.4.1",
-      "zh-CN": "0.4.1 新功能",
-      "zh-TW": "0.4.1 新功能",
-      "fa": "تازه‌های نسخه ۰.۴.۱",
-      "ru": "Что нового в 0.4.1",
-      "ar": "الجديد في 0.4.1",
-      "tr": "0.4.1'deki yenilikler",
-      "vi": "Có gì mới trong 0.4.1",
-      "my": "0.4.1 အသစ်များ"
+      "en": "What's new in 0.4.2",
+      "zh-CN": "0.4.2 新功能",
+      "zh-TW": "0.4.2 新功能",
+      "fa": "تازه‌های نسخه ۰.۴.۲",
+      "ru": "Что нового в 0.4.2",
+      "ar": "الجديد في 0.4.2",
+      "tr": "0.4.2'deki yenilikler",
+      "vi": "Có gì mới trong 0.4.2",
+      "my": "0.4.2 အသစ်များ"
     },
     "body": {
-      "en": "Version 0.4.1 connects better on devices without IPv6 and after switching networks, explains device registration errors more clearly, and on iPhone and iPad resizes properly in Split View and on larger screens.",
-      "zh-CN": "0.4.1 版在不支持 IPv6 的设备上以及切换网络后连接更稳定，设备注册失败时的提示更清楚；在 iPhone 和 iPad 上，分屏和大屏幕下的布局也能正确调整。",
-      "zh-TW": "0.4.1 版在不支援 IPv6 的裝置上以及切換網路後連線更穩定，裝置註冊失敗時的提示更清楚；在 iPhone 和 iPad 上，分割畫面與大螢幕下的版面也能正確調整。",
-      "fa": "نسخهٔ ۰.۴.۱ در دستگاه‌های بدون IPv6 و پس از تغییر شبکه بهتر متصل می‌شود، خطاهای ثبت دستگاه را روشن‌تر توضیح می‌دهد و در آیفون و آیپد در حالت Split View و صفحه‌های بزرگ‌تر به‌درستی تغییر اندازه می‌دهد.",
-      "ru": "Версия 0.4.1 лучше подключается на устройствах без IPv6 и после смены сети, понятнее объясняет ошибки регистрации устройства, а на iPhone и iPad корректно меняет размер в Split View и на больших экранах.",
-      "ar": "يتصل الإصدار 0.4.1 بشكل أفضل على الأجهزة التي لا تدعم IPv6 وبعد تبديل الشبكة، ويشرح أخطاء تسجيل الجهاز بوضوح أكبر، ويتكيّف حجمه بشكل صحيح في وضع Split View وعلى الشاشات الأكبر في iPhone وiPad.",
-      "tr": "0.4.1 sürümü IPv6 olmayan cihazlarda ve ağ değiştirdikten sonra daha iyi bağlanır, cihaz kayıt hatalarını daha açık anlatır ve iPhone ile iPad'de Split View'da ve büyük ekranlarda düzgün yeniden boyutlanır.",
-      "vi": "Phiên bản 0.4.1 kết nối tốt hơn trên thiết bị không có IPv6 và sau khi chuyển mạng, giải thích lỗi đăng ký thiết bị rõ ràng hơn, và trên iPhone và iPad hiển thị đúng kích thước trong Split View và trên màn hình lớn hơn.",
-      "my": "၀.၄.၁ ဗားရှင်းသည် IPv6 မရှိသော စက်များတွင်နှင့် ကွန်ရက်ပြောင်းပြီးနောက် ပိုမိုကောင်းမွန်စွာ ချိတ်ဆက်ပေးပြီး၊ စက်မှတ်ပုံတင်ခြင်း အမှားများကို ပိုမိုရှင်းလင်းစွာ ရှင်းပြကာ၊ iPhone နှင့် iPad တွင် Split View နှင့် ပိုကြီးသော မျက်နှာပြင်များ၌ အရွယ်အစားကို မှန်ကန်စွာ ပြောင်းလဲပေးပါသည်။"
+      "en": "Version 0.4.2 keeps the app compatible with upcoming relay server updates. Please update to stay connected.",
+      "zh-CN": "0.4.2 版让应用与即将到来的中继服务器更新保持兼容。请更新以保持连接。",
+      "zh-TW": "0.4.2 版讓應用程式與即將推出的中繼伺服器更新保持相容。請更新以維持連線。",
+      "fa": "نسخهٔ ۰.۴.۲ برنامه را با به‌روزرسانی‌های آیندهٔ سرورهای رله سازگار نگه می‌دارد. برای حفظ اتصال، لطفاً برنامه را به‌روز کنید.",
+      "ru": "Версия 0.4.2 сохраняет совместимость приложения с предстоящими обновлениями серверов релеев. Обновитесь, чтобы оставаться на связи.",
+      "ar": "يحافظ الإصدار 0.4.2 على توافق التطبيق مع التحديثات القادمة لخوادم المرحّلات. يُرجى التحديث للبقاء متصلاً.",
+      "tr": "0.4.2 sürümü, uygulamanın aktarıcı sunucularının yaklaşan güncellemeleriyle uyumlu kalmasını sağlar. Bağlı kalmak için lütfen güncelleyin.",
+      "vi": "Phiên bản 0.4.2 giúp ứng dụng tương thích với các bản cập nhật sắp tới của máy chủ relay. Vui lòng cập nhật để duy trì kết nối.",
+      "my": "၀.၄.၂ ဗားရှင်းသည် လာမည့် relay ဆာဗာ အပ်ဒိတ်များနှင့် အက်ပ်ကို ကိုက်ညီစေပါသည်။ ချိတ်ဆက်မှု ဆက်လက်ရရှိရန် ကျေးဇူးပြု၍ အပ်ဒိတ်လုပ်ပါ။"
     },
     "url": null,
-    "expires": "2027-01-01T00:00:00Z"
+    "expires": "2027-02-01T00:00:00Z"
   }
 }
