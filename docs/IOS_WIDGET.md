@@ -5,6 +5,10 @@ current status and offers a Connect control. A tap starts a tunnel to an
 **automatically chosen relay** through the app's own connect path; the widget never
 selects a relay, talks to the broker, or holds a VPN entitlement.
 
+While connected it also shows the relay's display name with its country flag, how
+long the tunnel has been up, and (iOS 17+) a Disconnect control that ends the tunnel
+**without opening the app**. The OpenRung mark sits in the top trailing corner.
+
 ## How a tap becomes a tunnel
 
 ```text
@@ -44,20 +48,67 @@ selects a relay, talks to the broker, or holds a VPN entitlement.
   same `prepareAndConnect(null, null)` the in-app CONNECT button uses (split-tunnel
   flush, consent, `connect(brokerUrl, null, null)`), so connectcore chooses the relay.
 
+## Disconnect without opening the app
+
+WidgetKit opens the app for any tap that does not land on a button, and a button can
+only run an App Intent. `WidgetDisconnectIntent` is compiled into the widget
+extension alone and does not set `openAppWhenRun`, so the system performs it in the
+widget extension, in the background.
+
+The extension cannot load a tunnel manager, so it asks the tunnel to end itself:
+
+1. `WidgetDisconnectRequest.submit()` stores the tap time under
+   `widget_disconnect_request` and posts the Darwin notification
+   `com.openrung.app.widget-disconnect`.
+2. `PacketTunnelProvider` observes that notification from `startTunnel` on. The
+   notification is only a wake-up (any process can post one); the request is the
+   app-group key, which only this app's own processes can write. The provider
+   consumes the key (removing it), ignores a request older than 15 s, and clears any
+   leftover request when a tunnel starts, so a tap that found no tunnel can never
+   stop a later one.
+3. On a fresh request the provider runs the normal `IOSConnectcore.host.stop`
+   (snapshot goes `disconnecting`, then `disconnected`) and then
+   `cancelTunnelWithError(nil)` so NetworkExtension retires the tunnel.
+4. The intent waits up to 5 s for the snapshot to leave the live faces; WidgetKit
+   rebuilds the timeline when the intent returns. While a fresh request is still
+   unanswered the widget shows "Disconnecting"; if the tunnel never answers, the
+   request goes stale and the widget returns to "Connected". That return is a
+   second timeline entry dated at the staleness limit, so it does not wait for a
+   reload.
+
+The request carries nothing but a timestamp: there is only one tunnel to stop. On
+iOS 16 (no interactive widgets) the connected face has no control and a tap opens
+the app.
+
+## Connected details
+
+- **Relay and flag.** The widget decodes `relayName` and the head of
+  `recentRegions` from the snapshot. The country is used only when that head entry
+  is the connected relay; the flag is derived from its two-letter code. The line is
+  `privacySensitive`, so it is redacted where the system hides sensitive content.
+- **Timer.** `Text(_:style: .timer)` counts from `widget_last_face_at` (when the
+  tunnel entered the connected face). The system animates it; no timeline entries or
+  reloads are spent on it.
+- **Status label.** `widgetStatusDisconnected` may contain a line break; each line
+  is drawn as its own single-line `Text` and scaled rather than broken mid-word.
+
 ## App-group contract
 
 | Key | Writer | Reader | Meaning |
 | --- | --- | --- | --- |
-| `connection_state` | PacketTunnel only | app, widget | The existing `ConnectionStateSnapshot`; the widget decodes `status` only. |
+| `connection_state` | PacketTunnel only | app, widget | The existing `ConnectionStateSnapshot`; the widget decodes `status`, `relayName` and the head of `recentRegions` (`countryCode`, `relayName`) only. |
 | `widget_language_tag` | app (`OpenRungWidget.setLanguageTag`) | widget | In-app language selection, `''` = system. |
 | `widget_last_face`, `widget_last_face_at` | `WidgetReloadGate` (PacketTunnel) | PacketTunnel, widget | Last face WidgetKit was asked to render, and when the tunnel entered it. |
-| `widget_rendered_face` | widget (its only write) | app, PacketTunnel | Face of the last timeline the widget built. |
+| `widget_last_relay` | `WidgetReloadGate` (PacketTunnel) | PacketTunnel | The connected relay WidgetKit was last asked to show; absent on other faces. |
+| `widget_rendered_face` | widget | app, PacketTunnel | Face of the last timeline the widget built. |
+| `widget_disconnect_request` | widget (set on a Disconnect tap) · PacketTunnel (removed when consumed and at tunnel start) | PacketTunnel, widget | Tap time of an unanswered Disconnect; ignored after 15 s. |
 | `widget_system_tunnel_down` | app (`WidgetStaleTunnelMarker`, set only) · PacketTunnel (removed on every snapshot write) | widget | The OS reported no tunnel while the snapshot still said connected/connecting: the widget shows Disconnected. |
 
-The app never writes `connection_state`. `WidgetReloadGate` asks WidgetKit to reload
-only when the face (`disconnected` / `connecting` / `connected` / `disconnecting` /
-`failed`; `preparing` collapses into `connecting`) changed — never per log line or
-engine event — and the app reloads once per language change.
+The app and the widget never write `connection_state`. `WidgetReloadGate` asks
+WidgetKit to reload only when the face (`disconnected` / `connecting` / `connected` /
+`disconnecting` / `failed`; `preparing` collapses into `connecting`) changed, or the
+relay shown on the connected face did — never per log line or engine event — and
+the app reloads once per language change.
 
 A reload request is not a render. WidgetKit applies reloads at once while the app is
 in the foreground and budgets them otherwise, so a request the tunnel makes after
@@ -145,19 +196,25 @@ app: the request is dropped, since nothing is delivered without a loaded manager
 
 Run on a signed iPhone with the VPN profile already saved once from the app.
 
-- [ ] Add the small widget; it renders the app name, status and
-      CONNECT in the in-app language (change the language in Settings and confirm
+- [ ] Add the small widget; it renders the app name, the OpenRung mark, a two-line
+      "Not connected" status and CONNECT in the in-app language (change the language in Settings and confirm
       the widget re-renders once; set Persian or Arabic and confirm right-to-left).
 - [ ] iOS 17+: tap CONNECT from a disconnected state with the app killed. The app
       opens, the console shows the normal connect sequence, the relay is the
       automatically chosen one (no country/relay pin), and the widget moves to
       "Connecting" then "Connected".
-- [ ] Tap the widget while connected: the app opens, nothing restarts, the tunnel
-      stays on the same relay.
+- [ ] While connected the widget shows the relay name with its flag, a running
+      timer and a red DISCONNECT control. Tap outside the control: the app opens,
+      nothing restarts, the tunnel stays on the same relay.
+- [ ] iOS 17+: tap DISCONNECT with the app killed. The app does **not** open, the
+      VPN indicator goes away and the widget moves to "Not connected" with CONNECT.
+      Repeat with the app open in the background: its status follows.
+- [ ] Lock the device with the widget on the Lock Screen's Today view: the relay
+      line is redacted.
 - [ ] Connect to a chosen country in the app, then tap the widget: the tunnel is not
       switched.
 - [ ] Double-tap CONNECT quickly: exactly one connect attempt in the console.
-- [ ] Disconnect in the app: widget shows "Disconnected" and offers CONNECT again.
+- [ ] Disconnect in the app: widget shows "Not connected" and offers CONNECT again.
 - [ ] Press CONNECT in the app and go to the home screen while it is still
       connecting: the widget moves from "Connecting" to "Connected" without the app
       being reopened. Repeat with the app swiped away from the app switcher.
@@ -172,4 +229,4 @@ Run on a signed iPhone with the VPN profile already saved once from the app.
 - [ ] Kill the app, wait a minute, tap CONNECT: still connects (request is fresh at
       collection). Then simulate a stale request only if a debug build exposes it.
 - [ ] Watch WidgetKit reloads over one connect/disconnect cycle (Console.app,
-      subsystem `com.apple.chronod`): two reloads for connect, two for disconnect.
+      subsystem `com.apple.chronod`): two reloads for connect, two for disconnect (the timer costs none).

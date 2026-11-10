@@ -11,7 +11,8 @@
 export const WIDGET_STRING_KEYS = [
   'appName',
   'actionConnect',
-  'statusDisconnected',
+  'actionDisconnect',
+  'widgetStatusDisconnected',
   'statusConnecting',
   'statusConnected',
   'statusDisconnecting',

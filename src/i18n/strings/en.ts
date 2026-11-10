@@ -91,7 +91,10 @@ export const en = {
   homeTagline: 'relay network',
   relayAuto: 'auto relay',
   // iOS home-screen widget: gallery name and description. Rendered into Swift by
-  // `npm run widget:strings` together with the status/connect labels above.
+  // `npm run widget:strings` together with the status/connect/disconnect labels above.
+  // The widget's disconnected face. It is narrow, so the label is broken where it should wrap:
+  // each line of this value is drawn on its own line.
+  widgetStatusDisconnected: 'Not\nconnected',
   widgetName: 'Quick connect',
   widgetDescription:
     'Connect to an automatically chosen relay from your home screen.',

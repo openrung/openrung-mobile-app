@@ -123,7 +123,8 @@ targets:
       - path: Shared
         excludes:
           # App/widget-only: the widget → app handoff, its policy and its AppIntent. The tunnel
-          # only compiles WidgetSharedState (the reload gate it drives from SharedConnectionState).
+          # only compiles WidgetSharedState (the reload gate it drives from SharedConnectionState,
+          # and the widget's disconnect request it answers).
           - WidgetConnectHandoff.swift
           - WidgetConnectIntent.swift
           - WidgetConnectPolicy.swift
@@ -165,8 +166,9 @@ targets:
           - "@executable_path/Frameworks"
           - "@executable_path/../../Frameworks"
 
-  # Home-screen widget (WidgetKit, small family only). Reads the tunnel's app-group snapshot and
-  # hands a Connect tap to the app (AppIntent on iOS 17+, `openrung://connect` on iOS 16); it
+  # Home-screen widget (WidgetKit, small family only). Reads the tunnel's app-group snapshot,
+  # hands a Connect tap to the app (AppIntent on iOS 17+, `openrung://connect` on iOS 16) and
+  # leaves a Disconnect tap for the tunnel to act on (iOS 17+, without opening the app); it
   # holds the app-group entitlement only — no packet-tunnel entitlement, no Libbox, no React.
   OpenRungWidget:
     type: app-extension

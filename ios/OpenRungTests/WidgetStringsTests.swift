@@ -21,7 +21,7 @@ final class WidgetStringsTests: XCTestCase {
         for tag in allTags {
             let strings = WidgetStrings(tag: tag)
             let values = [
-                strings.appName, strings.connect,
+                strings.appName, strings.connect, strings.disconnect,
                 strings.widgetName, strings.widgetDescription,
                 strings.label(for: .disconnected), strings.label(for: .connecting),
                 strings.label(for: .connected), strings.label(for: .disconnecting),
@@ -36,12 +36,26 @@ final class WidgetStringsTests: XCTestCase {
 
     func testStatusLabelsMatchTheAppsEnglish() {
         let strings = WidgetStrings(tag: "en")
-        XCTAssertEqual(strings.label(for: .disconnected), ConnectionStatus.disconnected.displayLabel)
+        // The disconnected face has its own, two-line wording; the rest are the app's labels.
+        XCTAssertEqual(strings.labelLines(for: .disconnected), ["Not", "connected"])
+        XCTAssertEqual(strings.inlineLabel(for: .disconnected), "Not connected")
         XCTAssertEqual(strings.label(for: .connecting), ConnectionStatus.connecting.displayLabel)
         XCTAssertEqual(strings.label(for: .connected), ConnectionStatus.connected.displayLabel)
         XCTAssertEqual(strings.label(for: .disconnecting), ConnectionStatus.disconnecting.displayLabel)
         XCTAssertEqual(strings.label(for: .failed), ConnectionStatus.failed.displayLabel)
         XCTAssertEqual(strings.connect, "CONNECT")
+        XCTAssertEqual(strings.disconnect, "DISCONNECT")
+    }
+
+    func testEveryLabelFitsTheWidgetInAtMostTwoLines() {
+        for tag in allTags {
+            let strings = WidgetStrings(tag: tag)
+            for face: WidgetFace in [.disconnected, .connecting, .connected, .disconnecting, .failed] {
+                let lines = strings.labelLines(for: face)
+                XCTAssertTrue((1...2).contains(lines.count), "\(tag) \(face): \(lines)")
+                XCTAssertFalse(strings.inlineLabel(for: face).contains("\n"), "\(tag) \(face)")
+            }
+        }
     }
 
     func testStoredTagWinsOverTheDevicePreference() {

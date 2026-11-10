@@ -1,16 +1,17 @@
 import Foundation
+import notify
 #if canImport(WidgetKit)
 import WidgetKit
 #endif
 
 /// The home-screen widget's view of the tunnel, and the app-group keys the app and the PacketTunnel
-/// extension use to feed it (contract §2 / §7). The widget reads everything here and writes one
-/// key of its own (`widget_rendered_face`).
+/// extension use to feed it (contract §2 / §7). The widget reads everything here and writes two
+/// keys of its own (`widget_rendered_face`, `widget_disconnect_request`).
 ///
 /// The PacketTunnel extension stays the sole writer of the `connection_state` snapshot; the widget
-/// decodes just its `status` (as a raw string, so this file needs nothing else from Shared/).
-/// Everything the app publishes for the widget lives under its own `widget_*` keys, so an
-/// app-process write can never clobber the tunnel's snapshot.
+/// decodes just what it shows (`status`, the connected relay's display name and that relay's
+/// country) as raw strings, so this file needs nothing else from Shared/. Everything the app and
+/// the widget publish lives under their own `widget_*` keys, so neither can clobber the snapshot.
 enum WidgetSharedState {
     static let appGroupIdentifier = "group.com.openrung.app"
     /// The tunnel-written `ConnectionStateSnapshot` (`SharedConnectionState`'s key; a test pins both).
@@ -26,23 +27,38 @@ enum WidgetSharedState {
     /// the snapshot still claimed it live (the extension was killed). Removed by the tunnel on
     /// its next snapshot write, so a real tunnel always supersedes it.
     static let systemTunnelDownKey = "widget_system_tunnel_down"
-    /// Widget-written (the only key it writes): the face of the last timeline it built. A reload
+    /// Widget-written: the face of the last timeline it built. A reload
     /// request is not a render — WidgetKit budgets and defers requests made while the app is not
     /// in the foreground — so the app re-requests while this lags (`WidgetRenderCatchUp`).
     static let renderedFaceKey = "widget_rendered_face"
+    /// Written by `WidgetReloadGate` with the face: the connected relay it last asked WidgetKit to
+    /// show (`WidgetRelay.signature`), absent on every other face.
+    static let lastPublishedRelayKey = "widget_last_relay"
+    /// Widget-written (`WidgetDisconnectRequest`): when its Disconnect control was tapped (seconds
+    /// since 1970). The tunnel acts on a fresh one and removes it.
+    static let disconnectRequestKey = "widget_disconnect_request"
+    /// Darwin notification telling the tunnel to look at `disconnectRequestKey`. It carries no
+    /// authority of its own: any process can post it, only an app-group member can write the key.
+    static let disconnectNotificationName = "com.openrung.app.widget-disconnect"
     /// WidgetKit `kind` of the single widget; reload requests target exactly this.
     static let widgetKind = "OpenRungConnect"
 
     // One suite instance per process (see SharedConnectionState for why not a computed property).
     static let defaults: UserDefaults? = UserDefaults(suiteName: appGroupIdentifier)
 
-    /// Decodes only `status` out of a persisted snapshot; anything missing or undecodable reads as
-    /// disconnected, the face from which a connect is offered — never a stale "connected".
-    static func face(fromSnapshotData data: Data?) -> WidgetFace {
-        guard let data, let partial = try? JSONDecoder().decode(StatusOnly.self, from: data) else {
-            return .disconnected
+    /// Decodes what the widget shows out of a persisted snapshot. Anything missing or undecodable
+    /// reads as disconnected, the face from which a connect is offered — never a stale "connected".
+    static func display(fromSnapshotData data: Data?) -> WidgetDisplay {
+        guard let data, let slice = try? JSONDecoder().decode(SnapshotSlice.self, from: data) else {
+            return WidgetDisplay(face: .disconnected)
         }
-        return WidgetFace(statusRawValue: partial.status ?? "")
+        let face = WidgetFace(statusRawValue: slice.status ?? "")
+        guard face == .connected else { return WidgetDisplay(face: face) }
+        return WidgetDisplay(face: face, relay: WidgetRelay(name: slice.relayName, recents: slice.recents))
+    }
+
+    static func face(fromSnapshotData data: Data?) -> WidgetFace {
+        display(fromSnapshotData: data).face
     }
 
     /// The face from a snapshot, overridden to disconnected while the app's stale-tunnel marker
@@ -51,20 +67,68 @@ enum WidgetSharedState {
         systemTunnelDown ? .disconnected : face(fromSnapshotData: data)
     }
 
-    static func currentFace() -> WidgetFace {
-        face(
-            fromSnapshotData: defaults?.data(forKey: connectionSnapshotKey),
-            systemTunnelDown: defaults?.bool(forKey: systemTunnelDownKey) ?? false
+    /// What the widget shows for a decoded snapshot once the keys around it are applied: the
+    /// app's stale-tunnel marker wins, then a Disconnect tap the tunnel has not yet answered
+    /// reads as disconnecting. `since` is when the tunnel entered the face (the gate's record,
+    /// when it is for this face) or when the pending disconnect was requested.
+    static func resolve(
+        snapshot: WidgetDisplay,
+        systemTunnelDown: Bool,
+        disconnectRequestedAt: Double?,
+        lastFace: WidgetFace?,
+        lastFaceAt: Double?,
+        now: Date
+    ) -> WidgetDisplay {
+        if systemTunnelDown { return WidgetDisplay(face: .disconnected) }
+        if snapshot.face == .connected, let disconnectRequestedAt,
+           WidgetDisconnectRequest.isFresh(issuedAt: disconnectRequestedAt, now: now) {
+            let requested = Date(timeIntervalSince1970: disconnectRequestedAt)
+            return WidgetDisplay(
+                face: .disconnecting,
+                since: requested,
+                expires: requested.addingTimeInterval(WidgetDisconnectRequest.maxAge)
+            )
+        }
+        var display = snapshot
+        if lastFace == snapshot.face, let lastFaceAt {
+            display.since = Date(timeIntervalSince1970: lastFaceAt)
+        }
+        return display
+    }
+
+    static func currentDisplay(now: Date = Date()) -> WidgetDisplay {
+        resolve(
+            snapshot: display(fromSnapshotData: defaults?.data(forKey: connectionSnapshotKey)),
+            systemTunnelDown: defaults?.bool(forKey: systemTunnelDownKey) ?? false,
+            disconnectRequestedAt: defaults?.object(forKey: disconnectRequestKey) as? Double,
+            lastFace: defaults?.string(forKey: lastPublishedFaceKey).flatMap(WidgetFace.init(rawValue:)),
+            lastFaceAt: defaults?.object(forKey: lastPublishedFaceDateKey) as? Double,
+            now: now
         )
     }
 
-    /// How long the tunnel has been in `face`, nil when its record is for another face (or absent).
-    static func age(of face: WidgetFace, now: Date = Date()) -> TimeInterval? {
-        guard let defaults,
-              defaults.string(forKey: lastPublishedFaceKey) == face.rawValue,
-              let since = defaults.object(forKey: lastPublishedFaceDateKey) as? Double
-        else { return nil }
-        return now.timeIntervalSince1970 - since
+    static func currentFace() -> WidgetFace {
+        currentDisplay().face
+    }
+
+    /// The displays a timeline built at `now` should carry: the current one and, when that one
+    /// expires by itself, what replaces it. WidgetKit switches entries on time by itself, whereas
+    /// a reload asked for through the timeline's policy may be deferred.
+    static func timelineDisplays(now: Date, display: (Date) -> WidgetDisplay) -> [(date: Date, display: WidgetDisplay)] {
+        let first = display(now)
+        guard let expires = first.expires, expires >= now else { return [(now, first)] }
+        // Just past the limit, where the request no longer reads as fresh.
+        let next = expires.addingTimeInterval(1)
+        return [(now, first), (next, display(next))]
+    }
+
+    /// Whether the snapshot itself (ignoring a pending disconnect) still has a tunnel to stop.
+    static func tunnelIsLive() -> Bool {
+        let face = face(
+            fromSnapshotData: defaults?.data(forKey: connectionSnapshotKey),
+            systemTunnelDown: defaults?.bool(forKey: systemTunnelDownKey) ?? false
+        )
+        return face == .connected || face == .disconnecting
     }
 
     static func currentLanguageTag() -> String {
@@ -81,8 +145,147 @@ enum WidgetSharedState {
         defaults?.set(face.rawValue, forKey: renderedFaceKey)
     }
 
-    private struct StatusOnly: Decodable {
+    /// The slice of `ConnectionStateSnapshot` the widget reads. Each field is optional and decoded
+    /// leniently: a malformed relay or recents entry costs the relay line, never the status.
+    private struct SnapshotSlice: Decodable {
         let status: String?
+        let relayName: String?
+        let recents: [WidgetRelay.Recent]
+
+        enum CodingKeys: String, CodingKey {
+            case status, relayName, recentRegions
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            status = try? container.decodeIfPresent(String.self, forKey: .status)
+            relayName = try? container.decodeIfPresent(String.self, forKey: .relayName)
+            recents = (try? container.decodeIfPresent([WidgetRelay.Recent].self, forKey: .recentRegions)) ?? []
+        }
+    }
+}
+
+/// Everything one render of the widget shows about the tunnel.
+struct WidgetDisplay: Equatable {
+    var face: WidgetFace
+    /// The connected relay; nil on every other face.
+    var relay: WidgetRelay?
+    /// When this face began, where known: the connected timer's origin, and what paces the
+    /// refresh of a transitional face.
+    var since: Date?
+    /// When this stops being what to show although nothing else changes: the moment an unanswered
+    /// Disconnect tap goes stale. Nil for everything the tunnel itself reports.
+    var expires: Date?
+
+    init(face: WidgetFace, relay: WidgetRelay? = nil, since: Date? = nil, expires: Date? = nil) {
+        self.face = face
+        self.relay = relay
+        self.since = since
+        self.expires = expires
+    }
+}
+
+/// The connected relay as the widget shows it: its display name (already sanitized by the tunnel)
+/// and, when the snapshot's most recent region is this relay, that region's country.
+struct WidgetRelay: Equatable {
+    let name: String
+    /// ISO 3166-1 alpha-2, uppercased.
+    let countryCode: String?
+
+    struct Recent: Decodable, Equatable {
+        let countryCode: String?
+        let relayName: String?
+
+        enum CodingKeys: String, CodingKey {
+            case countryCode, relayName
+        }
+
+        init(countryCode: String?, relayName: String?) {
+            self.countryCode = countryCode
+            self.relayName = relayName
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            countryCode = try? container.decodeIfPresent(String.self, forKey: .countryCode)
+            relayName = try? container.decodeIfPresent(String.self, forKey: .relayName)
+        }
+    }
+
+    init?(name: String?, recents: [Recent] = []) {
+        guard let name = name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else {
+            return nil
+        }
+        self.name = name
+        // The tunnel records the connected relay at the head of the recents; an older entry is
+        // some other session's and says nothing about this one.
+        let code = recents.first.flatMap { $0.relayName == name ? $0.countryCode : nil }
+        countryCode = code.flatMap(Self.normalizedCountryCode)
+    }
+
+    /// The country's flag emoji (a regional-indicator pair), nil without a country.
+    var flag: String? {
+        guard let countryCode else { return nil }
+        var flag = String.UnicodeScalarView()
+        for scalar in countryCode.unicodeScalars {
+            guard let indicator = Unicode.Scalar(0x1F1E6 + scalar.value - 65) else { return nil }
+            flag.append(indicator)
+        }
+        return String(flag)
+    }
+
+    /// Identity for the reload gate: a change means the connected face shows something new.
+    var signature: String {
+        "\(name)|\(countryCode ?? "")"
+    }
+
+    private static func normalizedCountryCode(_ raw: String) -> String? {
+        let code = raw.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard code.unicodeScalars.count == 2,
+              code.unicodeScalars.allSatisfy({ $0.value >= 65 && $0.value <= 90 })
+        else { return nil }
+        return code
+    }
+}
+
+/// The widget's Disconnect control (iOS 17+). The widget extension cannot reach a tunnel manager
+/// and must not launch the app for this, so it leaves a timestamp under its own app-group key and
+/// pokes the tunnel with a Darwin notification; the tunnel, which is necessarily running, ends
+/// itself. The request names nothing (there is only one tunnel to stop) and goes stale quickly,
+/// so one that found no tunnel can never stop a later one.
+enum WidgetDisconnectRequest {
+    /// A request older than this is ignored by the tunnel and no longer shown as pending.
+    static let maxAge: TimeInterval = 15
+    /// How long the widget's intent waits for the tunnel to settle before its timeline is rebuilt.
+    static let settleWait: TimeInterval = 5
+
+    static func isFresh(issuedAt: Double?, now: Date) -> Bool {
+        guard let issuedAt else { return false }
+        let age = now.timeIntervalSince1970 - issuedAt
+        return age >= 0 && age <= maxAge
+    }
+
+    /// Widget side: record the tap, then tell the tunnel to look.
+    static func submit(now: Date = Date()) {
+        guard let defaults = WidgetSharedState.defaults else { return }
+        defaults.set(now.timeIntervalSince1970, forKey: WidgetSharedState.disconnectRequestKey)
+        // Push the write out before the tunnel is told to read it.
+        defaults.synchronize()
+        notify_post(WidgetSharedState.disconnectNotificationName)
+    }
+
+    /// Tunnel side: true exactly once for a fresh request. Whatever was stored is removed.
+    static func consume(now: Date = Date()) -> Bool {
+        guard let defaults = WidgetSharedState.defaults,
+              let issuedAt = defaults.object(forKey: WidgetSharedState.disconnectRequestKey) as? Double
+        else { return false }
+        defaults.removeObject(forKey: WidgetSharedState.disconnectRequestKey)
+        return isFresh(issuedAt: issuedAt, now: now)
+    }
+
+    /// Tunnel side, at start: a request left over from before this tunnel is not for it.
+    static func clear() {
+        WidgetSharedState.defaults?.removeObject(forKey: WidgetSharedState.disconnectRequestKey)
     }
 }
 
@@ -143,31 +346,54 @@ enum WidgetSelfRefresh {
     }
 }
 
-/// Asks WidgetKit to reload only when the face changed since the last request (and the widget has
-/// not already rendered it): WidgetKit's daily reload budget is small, and the snapshot is rewritten
-/// for every log line. Runs in the tunnel extension on every snapshot flush, and every flush retires
-/// the app's stale-tunnel marker: a fresh tunnel write is the truth, whatever the app concluded
-/// earlier. A request made while the app is not in the foreground is budgeted and may be deferred;
-/// the widget's own refresh of a transitional face (`WidgetSelfRefresh`) and `WidgetRenderCatchUp`
+/// Asks WidgetKit to reload only when what the widget shows changed since the last request (and the
+/// widget has not already rendered it): WidgetKit's daily reload budget is small, and the snapshot
+/// is rewritten for every log line. "What it shows" is the face, plus the relay on the connected
+/// face. Runs in the tunnel extension on every snapshot flush, and every flush retires the app's
+/// stale-tunnel marker: a fresh tunnel write is the truth, whatever the app concluded earlier. A
+/// request made while the app is not in the foreground is budgeted and may be deferred; the
+/// widget's own refresh of a transitional face (`WidgetSelfRefresh`) and `WidgetRenderCatchUp`
 /// (app, the next time it is in front) cover that.
 struct WidgetReloadGate {
     var readLastFace: () -> WidgetFace?
     var writeLastFace: (WidgetFace) -> Void
+    var readLastRelay: () -> String? = { nil }
+    var writeLastRelay: (String?) -> Void = { _ in }
     var readRenderedFace: () -> WidgetFace?
     var clearStaleTunnelMarker: () -> Void
     var reload: () -> Void
 
     /// Returns true when a reload was requested.
     @discardableResult
-    func publish(statusRawValue: String) -> Bool {
+    func publish(_ display: WidgetDisplay) -> Bool {
         clearStaleTunnelMarker()
-        let face = WidgetFace(statusRawValue: statusRawValue)
-        guard readLastFace() != face else { return false }
-        writeLastFace(face)
-        // The app's catch-up may have had this face rendered already (e.g. after a launch).
-        guard readRenderedFace() != face else { return false }
+        let face = display.face
+        let relay = face == .connected ? display.relay?.signature : nil
+        let faceChanged = readLastFace() != face
+        let relayChanged = readLastRelay() != relay
+        if faceChanged { writeLastFace(face) }
+        if relayChanged { writeLastRelay(relay) }
+        if faceChanged {
+            // The widget may be there already: the app's catch-up (e.g. after a launch), or its
+            // own reading of a Disconnect tap.
+            guard readRenderedFace() != face else { return false }
+        } else {
+            // Same face: only a new relay on the connected face is worth a reload.
+            guard relayChanged, face == .connected else { return false }
+        }
         reload()
         return true
+    }
+
+    @discardableResult
+    func publish(statusRawValue: String) -> Bool {
+        publish(WidgetDisplay(face: WidgetFace(statusRawValue: statusRawValue)))
+    }
+
+    /// The tunnel's entry point: the snapshot it just persisted, read the way the widget will.
+    @discardableResult
+    func publish(snapshotData: Data) -> Bool {
+        publish(WidgetSharedState.display(fromSnapshotData: snapshotData))
     }
 
     static let shared = WidgetReloadGate(
@@ -181,6 +407,14 @@ struct WidgetReloadGate {
             WidgetSharedState.defaults?.set(
                 Date().timeIntervalSince1970, forKey: WidgetSharedState.lastPublishedFaceDateKey
             )
+        },
+        readLastRelay: { WidgetSharedState.defaults?.string(forKey: WidgetSharedState.lastPublishedRelayKey) },
+        writeLastRelay: { relay in
+            if let relay {
+                WidgetSharedState.defaults?.set(relay, forKey: WidgetSharedState.lastPublishedRelayKey)
+            } else {
+                WidgetSharedState.defaults?.removeObject(forKey: WidgetSharedState.lastPublishedRelayKey)
+            }
         },
         readRenderedFace: { WidgetSharedState.renderedFace() },
         clearStaleTunnelMarker: {

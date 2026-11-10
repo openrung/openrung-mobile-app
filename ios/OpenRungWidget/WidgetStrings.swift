@@ -48,17 +48,33 @@ struct WidgetStrings: Equatable {
 
     var appName: String { value("appName") }
     var connect: String { value("actionConnect") }
+    var disconnect: String { value("actionDisconnect") }
     var widgetName: String { value("widgetName") }
     var widgetDescription: String { value("widgetDescription") }
 
+    /// May hold line breaks: the widget is narrow, so a label says where it should wrap
+    /// (`labelLines(for:)`).
     func label(for face: WidgetFace) -> String {
         switch face {
-        case .disconnected: return value("statusDisconnected")
+        case .disconnected: return value("widgetStatusDisconnected")
         case .connecting: return value("statusConnecting")
         case .connected: return value("statusConnected")
         case .disconnecting: return value("statusDisconnecting")
         case .failed: return value("statusFailed")
         }
+    }
+
+    /// The label one drawn line at a time, so a long word is scaled down rather than broken.
+    func labelLines(for face: WidgetFace) -> [String] {
+        label(for: face)
+            .split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
+    /// The label on one line, for the places that have the room.
+    func inlineLabel(for face: WidgetFace) -> String {
+        labelLines(for: face).joined(separator: " ")
     }
 
     /// Generated tables are complete per tag (English merged in at generation time); the English

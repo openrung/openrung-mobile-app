@@ -36,6 +36,7 @@ export const fa: Partial<Strings> = {
   tabAbout: 'درباره ما',
   aboutTitle: 'درباره ما',
   relayAuto: 'رله خودکار',
+  widgetStatusDisconnected: 'متصل\nنیست',
   widgetName: 'اتصال سریع',
   widgetDescription:
     'از صفحهٔ اصلی به رله‌ای که به‌طور خودکار انتخاب می‌شود متصل شوید.',

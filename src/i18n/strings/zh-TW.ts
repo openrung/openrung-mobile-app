@@ -35,6 +35,7 @@ export const zhTW: Partial<Strings> = {
   tabAbout: '關於我們',
   aboutTitle: '關於我們',
   relayAuto: '自動中繼',
+  widgetStatusDisconnected: '未連線',
   widgetName: '快速連線',
   widgetDescription:
     '從主畫面連線至自動選擇的中繼。',

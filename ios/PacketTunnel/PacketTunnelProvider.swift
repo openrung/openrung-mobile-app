@@ -1,5 +1,6 @@
 import Foundation
 import NetworkExtension
+import notify
 
 /// NetworkExtension lifecycle and OS hooks. connectcore is the sole connection
 /// orchestrator; this provider never selects a relay, retries a ticket or runs a
@@ -10,8 +11,14 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, PacketTunnelEngineOwne
     private var networkObserver: EngineNetworkObserver?
     private var hasConnected = false
     private var terminalError: Error?
+    private var widgetDisconnectToken: Int32 = NOTIFY_TOKEN_INVALID
+
+    deinit {
+        if widgetDisconnectToken != NOTIFY_TOKEN_INVALID { notify_cancel(widgetDisconnectToken) }
+    }
 
     override func startTunnel(options: [String: NSObject]?, completionHandler: @escaping (Error?) -> Void) {
+        observeWidgetDisconnect()
         settingsCleanup.beginProviderStart()
         memory.start()
         memory.mark("provider-start")
@@ -27,6 +34,39 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, PacketTunnelEngineOwne
         IOSConnectcore.host.stop(owner: self) { [self] in
             memory.stop()
             completionHandler()
+        }
+    }
+
+    /// The home-screen widget's Disconnect control (`WidgetDisconnectRequest`): the widget cannot
+    /// reach a tunnel manager and must not launch the app, so the tunnel ends itself. The Darwin
+    /// notification is only a wake-up; the request is the app-group key, which only this app's
+    /// own processes can write.
+    private func observeWidgetDisconnect() {
+        // A request from before this tunnel existed is not for it.
+        WidgetDisconnectRequest.clear()
+        guard widgetDisconnectToken == NOTIFY_TOKEN_INVALID else { return }
+        notify_register_dispatch(
+            WidgetSharedState.disconnectNotificationName, &widgetDisconnectToken, .global(qos: .userInitiated)
+        ) { [weak self] _ in
+            self?.handleWidgetDisconnect(attemptsLeft: 3)
+        }
+    }
+
+    private func handleWidgetDisconnect(attemptsLeft: Int) {
+        guard IOSConnectcore.host.currentOwner() === self else { return }
+        guard WidgetDisconnectRequest.consume() else {
+            // The widget's write can trail its notification across processes; look again shortly.
+            guard attemptsLeft > 1 else { return }
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + .milliseconds(300)) { [weak self] in
+                self?.handleWidgetDisconnect(attemptsLeft: attemptsLeft - 1)
+            }
+            return
+        }
+        SharedConnectionState.appendLog("Disconnect requested from the home-screen widget")
+        IOSConnectcore.host.stop(owner: self) { [self] in
+            memory.stop()
+            // The engine is down and the snapshot says so; have NetworkExtension retire the tunnel.
+            cancelTunnelWithError(nil)
         }
     }
 

@@ -64,11 +64,12 @@ blocks traffic or fails a connect.
 | iOS widget bundle id | `com.openrung.app.OpenRungWidget` (WidgetKit; app group only, no VPN entitlement) |
 | iOS URL scheme | `openrung` — on iOS 16 only, the app acts on exactly `openrung://connect` (no path/query/fragment/user/port); on iOS 17+ the widget uses its intent and the URL, like any other URL under the scheme, only opens the app |
 | iOS app group | `group.com.openrung.app` |
-| iOS app-group keys | `connection_state` (PacketTunnel writes, app + widget read), `split_tunnel_config` (app writes, PacketTunnel reads), `widget_language_tag` (app writes, widget reads), `widget_last_face` + `widget_last_face_at` (PacketTunnel's reload gate writes; widget reads the pair to pace its own refresh), `widget_rendered_face` (widget writes the face of the last timeline it built; app + PacketTunnel read), `widget_system_tunnel_down` (app sets when the OS reports no tunnel against a live snapshot; PacketTunnel removes it on every snapshot write; widget reads) |
+| iOS app-group keys | `connection_state` (PacketTunnel writes, app + widget read), `split_tunnel_config` (app writes, PacketTunnel reads), `widget_language_tag` (app writes, widget reads), `widget_last_face` + `widget_last_face_at` (PacketTunnel's reload gate writes; widget reads the pair to pace its own refresh), `widget_last_relay` (PacketTunnel's reload gate writes and reads the connected relay it last asked the widget to show), `widget_rendered_face` (widget writes the face of the last timeline it built; app + PacketTunnel read), `widget_disconnect_request` (widget writes the time of a Disconnect tap; PacketTunnel consumes it, ignoring one older than 15 s, and clears it at tunnel start), `widget_system_tunnel_down` (app sets when the OS reports no tunnel against a live snapshot; PacketTunnel removes it on every snapshot write; widget reads) |
 | iOS VPN profile localizedDescription | `OpenRung VPN` |
 | iOS deployment target | 16.0 |
 | DEVELOPMENT_TEAM | `9VLV9A7KS9` |
 | Darwin notification (ext→app) | `com.openrung.app.state-changed` |
+| Darwin notification (widget→ext) | `com.openrung.app.widget-disconnect` (wake-up only; the request is the `widget_disconnect_request` app-group key) |
 
 The production identifiers (`com.openrung.client`, `group.com.openrung.client`,
 `com.openrung.client.state-changed`) are NOT reused so both apps install
@@ -801,8 +802,9 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
 - Home-screen widget (`ios/OpenRungWidget/`, target `OpenRungWidget`, bundle
   `com.openrung.app.OpenRungWidget`; design and device checklist in
   [IOS_WIDGET.md](IOS_WIDGET.md)): a WidgetKit extension with the app-group
-  entitlement only. It reads `status` out of the tunnel-written `connection_state`
-  snapshot (`Shared/WidgetSharedState.swift`, which decodes nothing else) and the
+  entitlement only. It reads `status`, `relayName` and the head of `recentRegions`
+  out of the tunnel-written `connection_state` snapshot
+  (`Shared/WidgetSharedState.swift`, which decodes nothing else) and the
   app-written `widget_language_tag`, and renders `WidgetStrings.generated.swift`
   (from `src/i18n`, `npm run widget:strings`, drift-checked by Jest). The Connect
   control is `WidgetConnectIntent` on iOS 17+ — `openAppWhenRun`, so the system
@@ -822,13 +824,24 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   once (`WidgetStaleTunnelMarker`), which the widget renders as Disconnected and
   the tunnel removes on its next write. `SharedConnectionState` drives
   `WidgetReloadGate`, which reloads the widget only when its face changed
-  (preparing and connecting share one face) and the widget has not rendered it yet.
+  (preparing and connecting share one face) and the widget has not rendered it yet,
+  or when the relay shown on the connected face changed. While connected the widget
+  shows that relay with its flag, a system-driven timer from `widget_last_face_at`,
+  and on iOS 17+ a Disconnect control: `WidgetDisconnectIntent` runs in the widget
+  extension (the app is not opened), stores the tap time under
+  `widget_disconnect_request` and posts the Darwin notification
+  `com.openrung.app.widget-disconnect`; `PacketTunnelProvider` treats the
+  notification as a wake-up only, consumes a request no older than 15 s, stops
+  the engine through `IOSConnectcore.host.stop` and calls
+  `cancelTunnelWithError(nil)`. The request names nothing and is cleared at
+  tunnel start.
   WidgetKit may defer a reload requested while the app is not in the foreground, so
   the widget rebuilds a transitional face (connecting/disconnecting) on its own,
   paced by `WidgetSelfRefresh` (10 s, then 1 min, then hourly; settled faces never),
-  and records what it rendered in `widget_rendered_face` — its only write — which
+  and records what it rendered in `widget_rendered_face`, which
   lets the active app re-request a lagging face (`WidgetRenderCatchUp`). Hostless `OpenRungTests` cover the policy, mailbox, URL rejection,
-  face/reload gate, self-refresh pacing, catch-up and string resolution.
+  face/reload gate, relay decoding, disconnect-request freshness, self-refresh
+  pacing, catch-up and string resolution.
 - Both targets retain the packet-tunnel-provider/app-group entitlements and
   ATS defaults. The app and extension import the same generated Libbox headers
   and link the single dynamic `LibboxKit` wrapper, which carries the static Go

@@ -3,12 +3,13 @@
 
 enum WidgetStringTables {
     static let tags: [String] = ["en", "zh-CN", "zh-TW", "fa", "ru", "ar", "tr", "vi", "my"]
-    static let keys: [String] = ["appName", "actionConnect", "statusDisconnected", "statusConnecting", "statusConnected", "statusDisconnecting", "statusFailed", "widgetName", "widgetDescription"]
+    static let keys: [String] = ["appName", "actionConnect", "actionDisconnect", "widgetStatusDisconnected", "statusConnecting", "statusConnected", "statusDisconnecting", "statusFailed", "widgetName", "widgetDescription"]
     static let tables: [String: [String: String]] = [
         "en": [
             "appName": "OpenRung",
             "actionConnect": "CONNECT",
-            "statusDisconnected": "Disconnected",
+            "actionDisconnect": "DISCONNECT",
+            "widgetStatusDisconnected": "Not\nconnected",
             "statusConnecting": "Connecting",
             "statusConnected": "Connected",
             "statusDisconnecting": "Disconnecting",
@@ -19,7 +20,8 @@ enum WidgetStringTables {
         "zh-CN": [
             "appName": "OpenRung",
             "actionConnect": "连接",
-            "statusDisconnected": "已断开",
+            "actionDisconnect": "断开连接",
+            "widgetStatusDisconnected": "未连接",
             "statusConnecting": "正在连接",
             "statusConnected": "已连接",
             "statusDisconnecting": "正在断开",
@@ -30,7 +32,8 @@ enum WidgetStringTables {
         "zh-TW": [
             "appName": "OpenRung",
             "actionConnect": "連線",
-            "statusDisconnected": "已中斷",
+            "actionDisconnect": "中斷連線",
+            "widgetStatusDisconnected": "未連線",
             "statusConnecting": "正在連線",
             "statusConnected": "已連線",
             "statusDisconnecting": "正在中斷",
@@ -41,7 +44,8 @@ enum WidgetStringTables {
         "fa": [
             "appName": "OpenRung",
             "actionConnect": "اتصال",
-            "statusDisconnected": "قطع شده",
+            "actionDisconnect": "قطع اتصال",
+            "widgetStatusDisconnected": "متصل\nنیست",
             "statusConnecting": "در حال اتصال",
             "statusConnected": "متصل",
             "statusDisconnecting": "در حال قطع اتصال",
@@ -52,7 +56,8 @@ enum WidgetStringTables {
         "ru": [
             "appName": "OpenRung",
             "actionConnect": "ПОДКЛЮЧИТЬ",
-            "statusDisconnected": "Отключено",
+            "actionDisconnect": "ОТКЛЮЧИТЬ",
+            "widgetStatusDisconnected": "Не\nподключено",
             "statusConnecting": "Подключение",
             "statusConnected": "Подключено",
             "statusDisconnecting": "Отключение",
@@ -63,7 +68,8 @@ enum WidgetStringTables {
         "ar": [
             "appName": "OpenRung",
             "actionConnect": "اتصال",
-            "statusDisconnected": "غير متصل",
+            "actionDisconnect": "قطع الاتصال",
+            "widgetStatusDisconnected": "غير\nمتصل",
             "statusConnecting": "جار الاتصال",
             "statusConnected": "متصل",
             "statusDisconnecting": "جار قطع الاتصال",
@@ -74,7 +80,8 @@ enum WidgetStringTables {
         "tr": [
             "appName": "OpenRung",
             "actionConnect": "BAĞLAN",
-            "statusDisconnected": "Bağlı değil",
+            "actionDisconnect": "BAĞLANTIYI KES",
+            "widgetStatusDisconnected": "Bağlı\ndeğil",
             "statusConnecting": "Bağlanıyor",
             "statusConnected": "Bağlandı",
             "statusDisconnecting": "Bağlantı kesiliyor",
@@ -85,7 +92,8 @@ enum WidgetStringTables {
         "vi": [
             "appName": "OpenRung",
             "actionConnect": "KẾT NỐI",
-            "statusDisconnected": "Đã ngắt kết nối",
+            "actionDisconnect": "NGẮT KẾT NỐI",
+            "widgetStatusDisconnected": "Chưa\nkết nối",
             "statusConnecting": "Đang kết nối",
             "statusConnected": "Đã kết nối",
             "statusDisconnecting": "Đang ngắt kết nối",
@@ -96,7 +104,8 @@ enum WidgetStringTables {
         "my": [
             "appName": "OpenRung",
             "actionConnect": "ချိတ်ဆက်မည်",
-            "statusDisconnected": "ချိတ်ဆက်မှု ပြတ်နေသည်",
+            "actionDisconnect": "ချိတ်ဆက်မှု ဖြုတ်မည်",
+            "widgetStatusDisconnected": "ချိတ်ဆက်မှု\nပြတ်နေသည်",
             "statusConnecting": "ချိတ်ဆက်နေသည်",
             "statusConnected": "ချိတ်ဆက်ပြီး",
             "statusDisconnecting": "ချိတ်ဆက်မှု ဖြုတ်နေသည်",

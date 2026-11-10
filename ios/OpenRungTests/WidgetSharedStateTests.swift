@@ -9,7 +9,7 @@ final class WidgetSharedStateTests: XCTestCase {
         XCTAssertEqual(WidgetSharedState.connectionSnapshotKey, "connection_state")
     }
 
-    func testReadsOnlyTheStatusOutOfAFullSnapshot() throws {
+    func testReadsTheFaceOutOfAFullSnapshot() throws {
         let snapshot = ConnectionStateSnapshot(
             status: .connected,
             brokerURL: "https://broker.example",
@@ -19,6 +19,150 @@ final class WidgetSharedStateTests: XCTestCase {
         )
         let data = try JSONEncoder().encode(snapshot)
         XCTAssertEqual(WidgetSharedState.face(fromSnapshotData: data), .connected)
+    }
+
+    // MARK: - What the connected face shows
+
+    private func recent(_ country: String, _ name: String?) -> RecentNode {
+        RecentNode(countryCode: country, relayId: "relay-1", label: "Somewhere", relayName: name, latitude: 0, longitude: 0)
+    }
+
+    func testConnectedSnapshotCarriesTheRelayAndItsCountry() throws {
+        let snapshot = ConnectionStateSnapshot(
+            status: .connected,
+            brokerURL: "https://broker.example",
+            relayLabel: "Ashburn, United States",
+            relayName: "suave-mantis",
+            recentRegions: [recent("us", "suave-mantis"), recent("JP", "calm-otter")]
+        )
+        let display = WidgetSharedState.display(fromSnapshotData: try JSONEncoder().encode(snapshot))
+        XCTAssertEqual(display.face, .connected)
+        XCTAssertEqual(display.relay?.name, "suave-mantis")
+        XCTAssertEqual(display.relay?.countryCode, "US")
+        XCTAssertEqual(display.relay?.flag, "🇺🇸")
+        XCTAssertNil(display.since, "the snapshot carries no time; the gate's record does")
+    }
+
+    func testTheCountryIsTakenOnlyFromTheConnectedRelaysOwnRecentEntry() throws {
+        // The head of the recents is another relay (this one was not recorded): no flag, not a wrong one.
+        let snapshot = ConnectionStateSnapshot(
+            status: .connected, brokerURL: "https://broker.example", relayName: "suave-mantis",
+            recentRegions: [recent("JP", "calm-otter"), recent("US", "suave-mantis")]
+        )
+        let relay = WidgetSharedState.display(fromSnapshotData: try JSONEncoder().encode(snapshot)).relay
+        XCTAssertEqual(relay?.name, "suave-mantis")
+        XCTAssertNil(relay?.countryCode)
+        XCTAssertNil(relay?.flag)
+    }
+
+    func testTheRelayIsShownOnlyOnTheConnectedFace() throws {
+        let json = #"{"status":"connecting","relayName":"suave-mantis","recentRegions":[{"countryCode":"US","relayName":"suave-mantis"}]}"#
+        let display = WidgetSharedState.display(fromSnapshotData: Data(json.utf8))
+        XCTAssertEqual(display, WidgetDisplay(face: .connecting))
+        XCTAssertNil(WidgetSharedState.display(fromSnapshotData: Data(#"{"status":"connected"}"#.utf8)).relay)
+        XCTAssertNil(WidgetSharedState.display(fromSnapshotData: Data(#"{"status":"connected","relayName":"  "}"#.utf8)).relay)
+    }
+
+    func testAMalformedRelayOrRecentsNeverCostsTheStatus() {
+        for json in [
+            #"{"status":"connected","relayName":7,"recentRegions":"nope"}"#,
+            #"{"status":"connected","relayName":"suave-mantis","recentRegions":[{"countryCode":12}]}"#,
+            #"{"status":"connected","relayName":"suave-mantis","recentRegions":[7]}"#,
+        ] {
+            XCTAssertEqual(WidgetSharedState.face(fromSnapshotData: Data(json.utf8)), .connected, json)
+        }
+    }
+
+    func testFlagNeedsATwoLetterCountry() {
+        func relay(_ country: String) -> WidgetRelay? {
+            WidgetRelay(name: "suave-mantis", recents: [.init(countryCode: country, relayName: "suave-mantis")])
+        }
+        XCTAssertEqual(relay("de")?.flag, "🇩🇪")
+        XCTAssertEqual(relay(" JP ")?.flag, "🇯🇵")
+        for bad in ["", "U", "USA", "U1", "ÜS"] {
+            XCTAssertNil(relay(bad)?.countryCode, bad)
+            XCTAssertNil(relay(bad)?.flag, bad)
+        }
+        XCTAssertNil(WidgetRelay(name: nil))
+    }
+
+    func testTheConnectedTimerStartsWhenTheTunnelEnteredTheFace() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        let connected = WidgetDisplay(face: .connected, relay: WidgetRelay(name: "suave-mantis"))
+        func resolve(lastFace: WidgetFace?, lastFaceAt: Double?) -> WidgetDisplay {
+            WidgetSharedState.resolve(
+                snapshot: connected, systemTunnelDown: false, disconnectRequestedAt: nil,
+                lastFace: lastFace, lastFaceAt: lastFaceAt, now: now
+            )
+        }
+        XCTAssertEqual(resolve(lastFace: .connected, lastFaceAt: 9_000).since, Date(timeIntervalSince1970: 9_000))
+        XCTAssertEqual(resolve(lastFace: .connected, lastFaceAt: 9_000).relay?.name, "suave-mantis")
+        XCTAssertNil(resolve(lastFace: .connecting, lastFaceAt: 9_000).since, "a record for another face says nothing")
+        XCTAssertNil(resolve(lastFace: .connected, lastFaceAt: nil).since)
+    }
+
+    // MARK: - Disconnect from the widget
+
+    func testAnUnansweredDisconnectIsScheduledToLapseInTheTimeline() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        func display(at date: Date) -> WidgetDisplay {
+            WidgetSharedState.resolve(
+                snapshot: WidgetDisplay(face: .connected, relay: WidgetRelay(name: "suave-mantis")),
+                systemTunnelDown: false, disconnectRequestedAt: 9_995,
+                lastFace: .connected, lastFaceAt: 9_000, now: date
+            )
+        }
+        let entries = WidgetSharedState.timelineDisplays(now: now, display: display(at:))
+        XCTAssertEqual(entries.map(\.display.face), [.disconnecting, .connected])
+        XCTAssertEqual(entries[0].date, now)
+        XCTAssertGreaterThan(entries[1].date, Date(timeIntervalSince1970: 9_995 + WidgetDisconnectRequest.maxAge))
+        XCTAssertEqual(entries[1].display.since, Date(timeIntervalSince1970: 9_000), "the timer resumes from the connect")
+        XCTAssertEqual(entries[1].display.relay?.name, "suave-mantis")
+
+        // Nothing pending: one entry, whatever the face.
+        let settled = WidgetSharedState.timelineDisplays(now: now) { _ in WidgetDisplay(face: .connected) }
+        XCTAssertEqual(settled.count, 1)
+        let tunnelStopping = WidgetSharedState.timelineDisplays(now: now) { _ in WidgetDisplay(face: .disconnecting) }
+        XCTAssertEqual(tunnelStopping.count, 1)
+    }
+
+    func testADisconnectRequestIsFreshOnlyBriefly() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        XCTAssertTrue(WidgetDisconnectRequest.isFresh(issuedAt: 10_000, now: now))
+        XCTAssertTrue(WidgetDisconnectRequest.isFresh(issuedAt: 10_000 - WidgetDisconnectRequest.maxAge, now: now))
+        XCTAssertFalse(WidgetDisconnectRequest.isFresh(issuedAt: 10_000 - WidgetDisconnectRequest.maxAge - 1, now: now))
+        XCTAssertFalse(WidgetDisconnectRequest.isFresh(issuedAt: 10_001, now: now), "a request from the future is not one")
+        XCTAssertFalse(WidgetDisconnectRequest.isFresh(issuedAt: nil, now: now))
+    }
+
+    func testAPendingDisconnectReadsAsDisconnectingUntilItGoesStale() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        let connected = WidgetDisplay(face: .connected, relay: WidgetRelay(name: "suave-mantis"))
+        func resolve(_ snapshot: WidgetDisplay, requestedAt: Double?, down: Bool = false) -> WidgetDisplay {
+            WidgetSharedState.resolve(
+                snapshot: snapshot, systemTunnelDown: down, disconnectRequestedAt: requestedAt,
+                lastFace: .connected, lastFaceAt: 9_000, now: now
+            )
+        }
+        let pending = resolve(connected, requestedAt: 9_998)
+        XCTAssertEqual(pending.face, .disconnecting)
+        XCTAssertNil(pending.relay)
+        XCTAssertEqual(pending.since, Date(timeIntervalSince1970: 9_998), "paces the refresh from the tap")
+        XCTAssertEqual(pending.expires, Date(timeIntervalSince1970: 9_998 + WidgetDisconnectRequest.maxAge))
+        XCTAssertNil(resolve(connected, requestedAt: nil).expires, "what the tunnel reports does not expire")
+        // The tunnel never answered: back to what the snapshot says.
+        XCTAssertEqual(resolve(connected, requestedAt: 9_000).face, .connected)
+        // Only a connected tunnel has anything pending.
+        XCTAssertEqual(resolve(WidgetDisplay(face: .disconnected), requestedAt: 9_998).face, .disconnected)
+        XCTAssertEqual(resolve(WidgetDisplay(face: .connecting), requestedAt: 9_998).face, .connecting)
+        // The app's stale-tunnel marker still wins.
+        XCTAssertEqual(resolve(connected, requestedAt: 9_998, down: true), WidgetDisplay(face: .disconnected))
+    }
+
+    func testDisconnectRequestKeyIsTheWidgetsOwn() {
+        XCTAssertEqual(WidgetSharedState.disconnectRequestKey, "widget_disconnect_request")
+        XCTAssertNotEqual(WidgetSharedState.disconnectRequestKey, WidgetSharedState.connectionSnapshotKey)
+        XCTAssertNotEqual(WidgetSharedState.disconnectNotificationName, AppConfig.darwinNotificationName)
     }
 
     func testMissingOrUndecodableSnapshotReadsAsDisconnected() {
@@ -155,6 +299,73 @@ final class WidgetSharedStateTests: XCTestCase {
         XCTAssertEqual(stored, .connected, "the request is still recorded as made")
         XCTAssertEqual(reloads, 0)
         XCTAssertTrue(gate.publish(statusRawValue: "disconnecting"), "a face not yet rendered reloads")
+        XCTAssertEqual(reloads, 1)
+    }
+
+    func testReloadGateReloadsAConnectedFaceWhenItsRelayChanges() {
+        var storedFace: WidgetFace? = .connecting
+        var storedRelay: String?
+        var faceWrites = 0
+        var reloads = 0
+        let gate = WidgetReloadGate(
+            readLastFace: { storedFace },
+            writeLastFace: { storedFace = $0; faceWrites += 1 },
+            readLastRelay: { storedRelay },
+            writeLastRelay: { storedRelay = $0 },
+            readRenderedFace: { nil },
+            clearStaleTunnelMarker: {},
+            reload: { reloads += 1 }
+        )
+        func connected(_ name: String?, _ country: String = "US") -> WidgetDisplay {
+            WidgetDisplay(face: .connected, relay: WidgetRelay(
+                name: name, recents: [.init(countryCode: country, relayName: name)]
+            ))
+        }
+        XCTAssertTrue(gate.publish(connected("suave-mantis")))
+        XCTAssertEqual(storedRelay, "suave-mantis|US")
+        XCTAssertFalse(gate.publish(connected("suave-mantis")), "log-line rewrites change nothing")
+        XCTAssertTrue(gate.publish(connected("calm-otter", "JP")), "same face, another relay")
+        XCTAssertEqual(faceWrites, 1, "a relay change does not restart the connected timer")
+        XCTAssertTrue(gate.publish(statusRawValue: "disconnecting"))
+        XCTAssertNil(storedRelay, "no relay is recorded off the connected face")
+        XCTAssertFalse(gate.publish(statusRawValue: "disconnecting"))
+        XCTAssertEqual(reloads, 3)
+    }
+
+    func testReloadGateReadsTheSnapshotTheWayTheWidgetDoes() throws {
+        var storedFace: WidgetFace?
+        var storedRelay: String?
+        let gate = WidgetReloadGate(
+            readLastFace: { storedFace },
+            writeLastFace: { storedFace = $0 },
+            readLastRelay: { storedRelay },
+            writeLastRelay: { storedRelay = $0 },
+            readRenderedFace: { nil },
+            clearStaleTunnelMarker: {},
+            reload: {}
+        )
+        let snapshot = ConnectionStateSnapshot(
+            status: .connected, brokerURL: "https://broker.example", relayName: "suave-mantis",
+            recentRegions: [recent("US", "suave-mantis")]
+        )
+        XCTAssertTrue(gate.publish(snapshotData: try JSONEncoder().encode(snapshot)))
+        XCTAssertEqual(storedFace, .connected)
+        XCTAssertEqual(storedRelay, "suave-mantis|US")
+    }
+
+    func testReloadGateSkipsTheDisconnectingFaceTheWidgetShowedForItsOwnTap() {
+        // The widget rendered its pending Disconnect as "disconnecting" before the tunnel said so.
+        var stored: WidgetFace? = .connected
+        var reloads = 0
+        let gate = WidgetReloadGate(
+            readLastFace: { stored },
+            writeLastFace: { stored = $0 },
+            readRenderedFace: { .disconnecting },
+            clearStaleTunnelMarker: {},
+            reload: { reloads += 1 }
+        )
+        XCTAssertFalse(gate.publish(statusRawValue: "disconnecting"))
+        XCTAssertTrue(gate.publish(statusRawValue: "disconnected"))
         XCTAssertEqual(reloads, 1)
     }
 

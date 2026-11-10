@@ -35,6 +35,7 @@ export const ar: Partial<Strings> = {
   tabAbout: 'من نحن',
   aboutTitle: 'من نحن',
   relayAuto: 'مرحّل تلقائي',
+  widgetStatusDisconnected: 'غير\nمتصل',
   widgetName: 'اتصال سريع',
   widgetDescription:
     'اتصل بمرحّل يتم اختياره تلقائيًا من الشاشة الرئيسية.',
