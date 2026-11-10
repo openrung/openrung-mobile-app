@@ -64,7 +64,7 @@ blocks traffic or fails a connect.
 | iOS widget bundle id | `com.openrung.app.OpenRungWidget` (WidgetKit; app group only, no VPN entitlement) |
 | iOS URL scheme | `openrung` — on iOS 16 only, the app acts on exactly `openrung://connect` (no path/query/fragment/user/port); on iOS 17+ the widget uses its intent and the URL, like any other URL under the scheme, only opens the app |
 | iOS app group | `group.com.openrung.app` |
-| iOS app-group keys | `connection_state` (PacketTunnel writes, app + widget read), `split_tunnel_config` (app writes, PacketTunnel reads), `widget_language_tag` (app writes, widget reads), `widget_last_face` (PacketTunnel's reload gate), `widget_system_tunnel_down` (app sets when the OS reports no tunnel against a live snapshot; PacketTunnel removes it on every snapshot write; widget reads) |
+| iOS app-group keys | `connection_state` (PacketTunnel writes, app + widget read), `split_tunnel_config` (app writes, PacketTunnel reads), `widget_language_tag` (app writes, widget reads), `widget_last_face` + `widget_last_face_at` (PacketTunnel's reload gate writes; widget reads the pair to pace its own refresh), `widget_rendered_face` (widget writes the face of the last timeline it built; app + PacketTunnel read), `widget_system_tunnel_down` (app sets when the OS reports no tunnel against a live snapshot; PacketTunnel removes it on every snapshot write; widget reads) |
 | iOS VPN profile localizedDescription | `OpenRung VPN` |
 | iOS deployment target | 16.0 |
 | DEVELOPMENT_TEAM | `9VLV9A7KS9` |
@@ -822,8 +822,13 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   once (`WidgetStaleTunnelMarker`), which the widget renders as Disconnected and
   the tunnel removes on its next write. `SharedConnectionState` drives
   `WidgetReloadGate`, which reloads the widget only when its face changed
-  (preparing and connecting share one face). Hostless `OpenRungTests` cover the policy, mailbox, URL rejection,
-  face/reload gate and string resolution.
+  (preparing and connecting share one face) and the widget has not rendered it yet.
+  WidgetKit may defer a reload requested while the app is not in the foreground, so
+  the widget rebuilds a transitional face (connecting/disconnecting) on its own,
+  paced by `WidgetSelfRefresh` (10 s, then 1 min, then hourly; settled faces never),
+  and records what it rendered in `widget_rendered_face` — its only write — which
+  lets the active app re-request a lagging face (`WidgetRenderCatchUp`). Hostless `OpenRungTests` cover the policy, mailbox, URL rejection,
+  face/reload gate, self-refresh pacing, catch-up and string resolution.
 - Both targets retain the packet-tunnel-provider/app-group entitlements and
   ATS defaults. The app and extension import the same generated Libbox headers
   and link the single dynamic `LibboxKit` wrapper, which carries the static Go

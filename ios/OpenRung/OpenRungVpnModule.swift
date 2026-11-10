@@ -1,6 +1,7 @@
 import Foundation
 import NetworkExtension
 import React
+import UIKit
 
 /// React Native bridge for the OpenRung VPN (contract §3). Port of the manager/state half of the
 /// production `AppViewModel`: owns the `NETunnelProviderManager` (found by localizedDescription
@@ -36,6 +37,11 @@ final class OpenRungVpnModule: RCTEventEmitter {
     /// sleeping and aborts the restart if a newer command (e.g. the user tapping Disconnect)
     /// arrived meanwhile — so a settings reapply never resurrects a tunnel the user just stopped.
     private var controlEpoch = 0
+    /// Re-requests a widget reload while the app is in the foreground (where WidgetKit honours it
+    /// at once) whenever the face the widget last rendered lags the snapshot — a reload the tunnel
+    /// requested while the app was away may have been deferred.
+    private var widgetRenderCatchUp = WidgetRenderCatchUp.live()
+    private var didBecomeActiveObserver: NSObjectProtocol?
 
     override init() {
         super.init()
@@ -44,6 +50,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
         apply(SharedConnectionState.sanitizedForColdStart(), emit: false)
         observeVPNStatus()
         observeSharedState()
+        observeActivation()
         WidgetConnectMailbox.shared.onSubmit = { [weak self] in
             Task { @MainActor in self?.deliverWidgetConnectRequest() }
         }
@@ -55,6 +62,9 @@ final class OpenRungVpnModule: RCTEventEmitter {
     deinit {
         if let vpnStatusObserver {
             NotificationCenter.default.removeObserver(vpnStatusObserver)
+        }
+        if let didBecomeActiveObserver {
+            NotificationCenter.default.removeObserver(didBecomeActiveObserver)
         }
         CFNotificationCenterRemoveEveryObserver(
             CFNotificationCenterGetDarwinNotifyCenter(),
@@ -335,6 +345,21 @@ final class OpenRungVpnModule: RCTEventEmitter {
         }
     }
 
+    /// Back in the foreground: a widget reload deferred while the app was away is free now, so
+    /// forget the per-face dedupe and re-check the widget against the snapshot.
+    private func observeActivation() {
+        didBecomeActiveObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.widgetRenderCatchUp.resetForActivation()
+                self?.refreshVPNStatus(emit: false)
+            }
+        }
+    }
+
     private func observeSharedState() {
         let observer = Unmanaged.passUnretained(self).toOpaque()
         CFNotificationCenterAddObserver(
@@ -386,6 +411,11 @@ final class OpenRungVpnModule: RCTEventEmitter {
         }
         snapshot.reconcileSystemTunnel(isDown: systemTunnelIsDown)
         apply(snapshot, emit: emit)
+        // Only while in front: there a reload is free and immediate; from the background it would
+        // just join the budgeted queue the tunnel's own request is already in.
+        if UIApplication.shared.applicationState == .active {
+            widgetRenderCatchUp.publish(currentFace: WidgetSharedState.currentFace())
+        }
     }
 
     private func apply(_ snapshot: ConnectionStateSnapshot, emit: Bool = true) {

@@ -96,6 +96,7 @@ final class WidgetSharedStateTests: XCTestCase {
         let gate = WidgetReloadGate(
             readLastFace: { stored },
             writeLastFace: { stored = $0 },
+            readRenderedFace: { nil },
             clearStaleTunnelMarker: { cleared += 1 },
             reload: {}
         )
@@ -110,6 +111,7 @@ final class WidgetSharedStateTests: XCTestCase {
         let gate = WidgetReloadGate(
             readLastFace: { stored },
             writeLastFace: { stored = $0 },
+            readRenderedFace: { nil },
             clearStaleTunnelMarker: {},
             reload: { reloads += 1 }
         )
@@ -128,9 +130,110 @@ final class WidgetSharedStateTests: XCTestCase {
         var stored: WidgetFace? = .connected
         var reloads = 0
         let gate = WidgetReloadGate(
-            readLastFace: { stored }, writeLastFace: { stored = $0 }, clearStaleTunnelMarker: {}, reload: { reloads += 1 }
+            readLastFace: { stored },
+            writeLastFace: { stored = $0 },
+            readRenderedFace: { nil },
+            clearStaleTunnelMarker: {},
+            reload: { reloads += 1 }
         )
         XCTAssertFalse(gate.publish(statusRawValue: "connected"))
         XCTAssertEqual(reloads, 0)
+    }
+
+    func testReloadGateSkipsAFaceTheWidgetAlreadyRendered() {
+        // The app's catch-up got "connected" rendered before the tunnel's own flush for it.
+        var stored: WidgetFace? = .connecting
+        var reloads = 0
+        let gate = WidgetReloadGate(
+            readLastFace: { stored },
+            writeLastFace: { stored = $0 },
+            readRenderedFace: { .connected },
+            clearStaleTunnelMarker: {},
+            reload: { reloads += 1 }
+        )
+        XCTAssertFalse(gate.publish(statusRawValue: "connected"))
+        XCTAssertEqual(stored, .connected, "the request is still recorded as made")
+        XCTAssertEqual(reloads, 0)
+        XCTAssertTrue(gate.publish(statusRawValue: "disconnecting"), "a face not yet rendered reloads")
+        XCTAssertEqual(reloads, 1)
+    }
+
+    // MARK: - App-side catch-up (WidgetKit defers reloads requested while the app is not in front)
+
+    func testCatchUpRequestsAReloadOnlyWhileTheRenderedFaceLags() {
+        // Connect from the app, quit while connecting: the tunnel's "connected" request was
+        // deferred, the widget still shows connecting. The app comes back and asks once.
+        var rendered: WidgetFace? = .connecting
+        var reloads = 0
+        var catchUp = WidgetRenderCatchUp(readRenderedFace: { rendered }, reload: { reloads += 1 })
+        XCTAssertTrue(catchUp.publish(currentFace: .connected))
+        XCTAssertFalse(catchUp.publish(currentFace: .connected), "same face is never asked for twice")
+        XCTAssertEqual(reloads, 1)
+        rendered = .connected
+        XCTAssertFalse(catchUp.publish(currentFace: .connected), "rendered: nothing to do")
+        XCTAssertTrue(catchUp.publish(currentFace: .disconnecting), "a new lag asks again")
+        XCTAssertEqual(reloads, 2)
+    }
+
+    func testCatchUpAsksAgainAfterAnActivation() {
+        var reloads = 0
+        var catchUp = WidgetRenderCatchUp(readRenderedFace: { .connecting }, reload: { reloads += 1 })
+        XCTAssertTrue(catchUp.publish(currentFace: .connected))
+        XCTAssertFalse(catchUp.publish(currentFace: .connected))
+        catchUp.resetForActivation()
+        XCTAssertTrue(catchUp.publish(currentFace: .connected), "a deferred request is worth repeating in front")
+        XCTAssertEqual(reloads, 2)
+    }
+
+    func testCatchUpWithNoWidgetEverRenderedAsksOncePerFace() {
+        var reloads = 0
+        var catchUp = WidgetRenderCatchUp(readRenderedFace: { nil }, reload: { reloads += 1 })
+        XCTAssertTrue(catchUp.publish(currentFace: .connecting))
+        XCTAssertFalse(catchUp.publish(currentFace: .connecting), "log-line refreshes cost nothing")
+        XCTAssertTrue(catchUp.publish(currentFace: .connected))
+        XCTAssertEqual(reloads, 2)
+    }
+
+    // MARK: - The widget's own refresh of a transitional face
+
+    func testSettledFacesNeverSelfRefresh() {
+        for face in [WidgetFace.disconnected, .connected, .failed] {
+            XCTAssertFalse(face.isTransitional)
+            XCTAssertNil(WidgetSelfRefresh.delay(for: face, age: 0))
+            XCTAssertNil(WidgetSelfRefresh.delay(for: face, age: nil))
+        }
+    }
+
+    func testTransitionalFacesRefreshQuicklyThenBackOff() {
+        for face in [WidgetFace.connecting, .disconnecting] {
+            XCTAssertTrue(face.isTransitional)
+            XCTAssertEqual(WidgetSelfRefresh.delay(for: face, age: 0), WidgetSelfRefresh.earlyDelay)
+            XCTAssertEqual(WidgetSelfRefresh.delay(for: face, age: 59), WidgetSelfRefresh.earlyDelay)
+            XCTAssertEqual(WidgetSelfRefresh.delay(for: face, age: 60), WidgetSelfRefresh.midDelay)
+            XCTAssertEqual(WidgetSelfRefresh.delay(for: face, age: 599), WidgetSelfRefresh.midDelay)
+            XCTAssertEqual(WidgetSelfRefresh.delay(for: face, age: 600), WidgetSelfRefresh.lateDelay)
+            XCTAssertEqual(WidgetSelfRefresh.delay(for: face, age: 86_400), WidgetSelfRefresh.lateDelay)
+        }
+    }
+
+    func testAnUnknownOrFutureAgeTakesTheSlowestPace() {
+        XCTAssertEqual(WidgetSelfRefresh.delay(for: .connecting, age: nil), WidgetSelfRefresh.lateDelay)
+        XCTAssertEqual(WidgetSelfRefresh.delay(for: .connecting, age: -5), WidgetSelfRefresh.lateDelay)
+    }
+
+    func testASelfRefreshingTunnelStuckInTransitionStaysWithinTheReloadBudget() {
+        // Walk a day of a tunnel that never leaves "connecting".
+        var age: TimeInterval = 0
+        var reloads = 0
+        while age < 86_400, let delay = WidgetSelfRefresh.delay(for: .connecting, age: age) {
+            age += delay
+            reloads += 1
+        }
+        XCTAssertLessThanOrEqual(reloads, 40)
+    }
+
+    func testRenderedFaceKeyIsTheWidgetsOwn() {
+        XCTAssertEqual(WidgetSharedState.renderedFaceKey, "widget_rendered_face")
+        XCTAssertNotEqual(WidgetSharedState.renderedFaceKey, WidgetSharedState.lastPublishedFaceKey)
     }
 }

@@ -32,9 +32,20 @@ struct ConnectTimelineProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<ConnectEntry>) -> Void) {
-        // Nothing here changes on its own: the tunnel extension requests a reload when the face
-        // changes and the app when the language does, so no scheduled refresh (and no budget spent).
-        completion(Timeline(entries: [current()], policy: .never))
+        let entry = current()
+        // The one thing the widget writes: what it is about to show, so the app can tell a reload
+        // WidgetKit deferred (budgeted while the app was not in front) from one it honoured.
+        if !context.isPreview {
+            WidgetSharedState.recordRenderedFace(entry.face)
+        }
+        // A settled face changes only when someone asks: the tunnel extension when the face
+        // changes, the app when the language does or when this face lags the snapshot while it is
+        // in the foreground. So no scheduled refresh there (and no budget spent). A transitional
+        // face asks to be rebuilt, paced by how long the tunnel has been in it: the tunnel's own
+        // request for the next face may be deferred when the app is not in front.
+        let delay = WidgetSelfRefresh.delay(for: entry.face, age: WidgetSharedState.age(of: entry.face))
+        let policy: TimelineReloadPolicy = delay.map { .after(Date().addingTimeInterval($0)) } ?? .never
+        completion(Timeline(entries: [entry], policy: policy))
     }
 
     private func current() -> ConnectEntry {

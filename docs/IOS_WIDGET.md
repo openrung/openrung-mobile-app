@@ -50,13 +50,34 @@ selects a relay, talks to the broker, or holds a VPN entitlement.
 | --- | --- | --- | --- |
 | `connection_state` | PacketTunnel only | app, widget | The existing `ConnectionStateSnapshot`; the widget decodes `status` only. |
 | `widget_language_tag` | app (`OpenRungWidget.setLanguageTag`) | widget | In-app language selection, `''` = system. |
-| `widget_last_face` | `WidgetReloadGate` (PacketTunnel) | PacketTunnel | Last face WidgetKit was asked to render. |
+| `widget_last_face`, `widget_last_face_at` | `WidgetReloadGate` (PacketTunnel) | PacketTunnel, widget | Last face WidgetKit was asked to render, and when the tunnel entered it. |
+| `widget_rendered_face` | widget (its only write) | app, PacketTunnel | Face of the last timeline the widget built. |
 | `widget_system_tunnel_down` | app (`WidgetStaleTunnelMarker`, set only) · PacketTunnel (removed on every snapshot write) | widget | The OS reported no tunnel while the snapshot still said connected/connecting: the widget shows Disconnected. |
 
 The app never writes `connection_state`. `WidgetReloadGate` asks WidgetKit to reload
 only when the face (`disconnected` / `connecting` / `connected` / `disconnecting` /
 `failed`; `preparing` collapses into `connecting`) changed — never per log line or
 engine event — and the app reloads once per language change.
+
+A reload request is not a render. WidgetKit applies reloads at once while the app is
+in the foreground and budgets them otherwise, so a request the tunnel makes after
+the app has gone (connect in the app, leave while it is still connecting) may be
+deferred and would leave the widget on "Connecting". Two things cover that:
+
+- **The widget refreshes a transitional face itself.** A timeline built on
+  `connecting` or `disconnecting` asks to be rebuilt (`WidgetSelfRefresh`), paced by
+  how long the tunnel has been in that face (`widget_last_face_at`): every 10 s for
+  the first minute, every minute up to ten, hourly after that. A rebuilt timeline on
+  a settled face asks for nothing, so a normal connect costs one or two extra
+  reloads and a tunnel stuck in transition stays inside the daily budget. Settled
+  faces (`disconnected` / `connected` / `failed`) keep the `.never` policy.
+- **The app catches up when it is in front.** The widget records the face of every
+  timeline it builds (`widget_rendered_face`). Whenever the app is active and that
+  record lags the current face, `WidgetRenderCatchUp` requests a reload, once per
+  face per activation. The reload gate skips a face the widget has already rendered.
+
+Both are requests to WidgetKit, which still decides when a widget is redrawn while
+the app is not in the foreground.
 
 Extension killed under the tunnel: when iOS stops the extension (memory limit, crash)
 the snapshot keeps saying "connected". Once the app has loaded its tunnel manager,
@@ -137,6 +158,11 @@ Run on a signed iPhone with the VPN profile already saved once from the app.
       switched.
 - [ ] Double-tap CONNECT quickly: exactly one connect attempt in the console.
 - [ ] Disconnect in the app: widget shows "Disconnected" and offers CONNECT again.
+- [ ] Press CONNECT in the app and go to the home screen while it is still
+      connecting: the widget moves from "Connecting" to "Connected" without the app
+      being reopened. Repeat with the app swiped away from the app switcher.
+- [ ] With the widget showing a stale face (if one can be produced), open the app:
+      the widget is correct as soon as the app is in front.
 - [ ] Open `openrung://connect` from Safari on iOS 17+: the app opens and does
       **not** connect (the URL acts only on iOS 16). On an iOS 16 device,
       `openrung://connect?country=JP` and `openrung://connect/x` open the app without
