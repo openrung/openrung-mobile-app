@@ -88,11 +88,11 @@ iOS 17+ the widget switches to a second intent:
      rebuild lands on "Connected" or "Failed". A connect that takes longer leaves
      the rebuild on "Connecting", and the tunnel's own reloads and
      `WidgetSelfRefresh` take over as for a connect made in the app.
-   - Everything under the header is a `Toggle` rather than a status line and a
-     `Button`: the system draws a toggle's other side the moment it is tapped and
-     keeps it until the rebuild, and that side is the whole connecting face. A tap
-     on the status text therefore starts the connect too; the header still opens
-     the app.
+   - The control is a `Toggle` rather than a `Button`: the system draws a toggle's
+     other side the moment it is tapped and keeps it until the rebuild, and that
+     side is the whole connecting face. So the toggle draws the status line as
+     well, above itself and outside its own frame: only the control starts a
+     connect, and a tap on the status opens the app like a tap anywhere else.
 
 A tap that finds a tunnel connecting, connected, reasserting or disconnecting is
 ignored exactly as on the app-opening path. The request still carries nothing: no
@@ -263,7 +263,8 @@ Run on a signed iPhone with the VPN profile already saved once from the app.
       does **not** open, the widget shows "Connecting" at once and keeps it while
       the VPN indicator appears, then moves to "Connected" with the automatically
       chosen relay (no country/relay pin) within a few seconds of the tunnel coming
-      up. Repeat with the app in the background: its status follows.
+      up. Repeat with the app in the background: its status follows. A tap on the
+      status text, not the control, opens the app and starts nothing.
 - [ ] iOS 17+: remove the VPN profile in Settings (or install fresh), open the app
       once without connecting, then tap CONNECT on the widget: the app opens and
       asks for consent. After that connect, later taps no longer open it. Without

@@ -102,24 +102,39 @@ struct ConnectWidgetView: View {
         }
     }
 
-    /// Everything under the header. Where Connect runs in the background it is one toggle, not a
-    /// button: the system draws a toggle's other side the moment it is tapped and keeps it until
-    /// the widget is rebuilt, which is only once the app has run the intent and the connect has an
-    /// outcome. That other side is the connecting face, status and all.
+    /// Everything under the header. Where Connect runs in the background the control is a toggle,
+    /// not a button: the system draws a toggle's other side the moment it is tapped and keeps it
+    /// until the widget is rebuilt, which is only once the app has run the intent and the connect
+    /// has an outcome. That other side is the connecting face, status and all, so the toggle draws
+    /// the status too. It draws it above itself, outside its own frame: only the control is the
+    /// toggle's to be tapped, and a tap on the status opens the app like any other tap.
     @ViewBuilder
     private var content: some View {
         if #available(iOS 17.0, *), entry.face.offersConnect, entry.connectsInBackground {
-            Toggle(isOn: false, intent: WidgetBackgroundConnectIntent()) {
-                panel(face: entry.face) { connectLabel }
+            GeometryReader { proxy in
+                let room = max(0, proxy.size.height - Self.controlHeight - Self.spacing)
+                Toggle(isOn: false, intent: WidgetBackgroundConnectIntent()) {
+                    connectLabel
+                }
+                .toggleStyle(PendingToggleStyle(pending: inlineStatus(for: .connecting)) { pending in
+                    status(for: pending ? .connecting : entry.face)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(height: room)
+                        .alignmentGuide(.top) { $0[.bottom] + Self.spacing }
+                })
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
-            .toggleStyle(PendingToggleStyle(pending: panel(face: .connecting) { inlineStatus(for: .connecting) }))
         } else {
             panel(face: entry.face) { control }
         }
     }
 
+    private static let spacing: CGFloat = 4
+    /// The height of the Connect control and of the inline status that stands in for it.
+    private static let controlHeight: CGFloat = 36
+
     private func panel<Control: View>(face: WidgetFace, @ViewBuilder control: () -> Control) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: Self.spacing) {
             Spacer(minLength: 0)
             status(for: face)
             Spacer(minLength: 0)
@@ -198,7 +213,7 @@ struct ConnectWidgetView: View {
             .lineLimit(1)
             .minimumScaleFactor(0.6)
             .padding(.horizontal, 6)
-            .frame(maxWidth: .infinity, minHeight: 36)
+            .frame(maxWidth: .infinity, minHeight: Self.controlHeight, maxHeight: Self.controlHeight)
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(WidgetPalette.border, lineWidth: 1)
@@ -212,7 +227,7 @@ struct ConnectWidgetView: View {
             .lineLimit(1)
             .minimumScaleFactor(0.6)
             .padding(.horizontal, 6)
-            .frame(maxWidth: .infinity, minHeight: 36)
+            .frame(maxWidth: .infinity, minHeight: Self.controlHeight, maxHeight: Self.controlHeight)
             .background(WidgetPalette.green, in: RoundedRectangle(cornerRadius: 8))
     }
 
@@ -237,11 +252,21 @@ struct ConnectWidgetView: View {
     }
 }
 
-/// Shows `pending` in place of the label from the tap until the widget is rebuilt.
-private struct PendingToggleStyle<Pending: View>: ToggleStyle {
+/// Shows `pending` in place of the label from the tap until the widget is rebuilt, and `status`
+/// (told whether the tap has happened) above it, outside the toggle's frame.
+private struct PendingToggleStyle<Pending: View, Status: View>: ToggleStyle {
     let pending: Pending
+    @ViewBuilder let status: (Bool) -> Status
 
     func makeBody(configuration: Configuration) -> some View {
+        control(configuration)
+            .overlay(alignment: .top) {
+                status(configuration.isOn).allowsHitTesting(false)
+            }
+    }
+
+    @ViewBuilder
+    private func control(_ configuration: Configuration) -> some View {
         if configuration.isOn {
             pending
         } else {
