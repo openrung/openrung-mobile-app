@@ -165,4 +165,19 @@ export const zhCN: Partial<Strings> = {
   errorAccessDenied:
     '此设备的访问权限已被停用，无法连接。请联系 OpenRung 支持。',
   errorEnrollmentRefused: '注册失败。请断开其他 VPN 后重试。',
+  // Desktop client only: the local proxy rows in Settings (DesktopProxySection).
+  desktopProxyHeader: '本地代理',
+  desktopProxyEndpointTitle: '端点',
+  desktopProxyEndpointConnected: (endpoint: string) => `${endpoint} · 现在可用`,
+  desktopProxyEndpointIdle: (endpoint: string) => `${endpoint} · 连接后可用`,
+  desktopProxyPreparing: '正在准备本地代理端点…',
+  desktopProxyPersistenceTitle: '端点持久性',
+  desktopShellIntegrationTitle: 'Shell 集成',
+  desktopShellEnableTitle: '在此 Shell 中启用',
+  desktopShellEnableSubtitle: '保留现有的代理设置和未设置状态。',
+  desktopShellEnableRequiresConnection: '请先连接 OpenRung，再在此 Shell 中启用。',
+  desktopShellRestoreTitle: '恢复此 Shell',
+  desktopShellRestoreSubtitle: '在断开连接、失败、退出或崩溃后运行。',
+  actionCopy: '复制',
+  actionCopied: '已复制',
 };

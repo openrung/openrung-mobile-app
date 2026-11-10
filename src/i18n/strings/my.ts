@@ -189,4 +189,19 @@ export const my: Partial<Strings> = {
     'ဤစက်၏ ဝင်ရောက်ခွင့်ကို ပိတ်ထားသဖြင့် ချိတ်ဆက်၍ မရပါ။ OpenRung အကူအညီဌာနကို ဆက်သွယ်ပါ။',
   errorEnrollmentRefused:
     'မှတ်ပုံတင်၍ မရပါ။ အခြား VPN များကို ဖြုတ်ပြီး ထပ်စမ်းပါ။',
+  // Desktop client only: the local proxy rows in Settings (DesktopProxySection).
+  desktopProxyHeader: 'ဒေသတွင်း ပရောက်စီ',
+  desktopProxyEndpointTitle: 'လိပ်စာ',
+  desktopProxyEndpointConnected: (endpoint: string) => `${endpoint} · ယခု အသုံးပြုနိုင်သည်`,
+  desktopProxyEndpointIdle: (endpoint: string) => `${endpoint} · ချိတ်ဆက်ထားစဉ် အသုံးပြုနိုင်သည်`,
+  desktopProxyPreparing: 'ဒေသတွင်း ပရောက်စီ လိပ်စာကို ပြင်ဆင်နေသည်…',
+  desktopProxyPersistenceTitle: 'လိပ်စာ တည်မြဲမှု',
+  desktopShellIntegrationTitle: 'Shell ပေါင်းစည်းမှု',
+  desktopShellEnableTitle: 'ဤ shell တွင် ဖွင့်ရန်',
+  desktopShellEnableSubtitle: 'ရှိပြီးသား ပရောက်စီတန်ဖိုးများနှင့် မသတ်မှတ်ထားသော အခြေအနေကို ထိန်းသိမ်းထားသည်။',
+  desktopShellEnableRequiresConnection: 'ဤ shell တွင် မဖွင့်မီ OpenRung ကို ချိတ်ဆက်ပါ။',
+  desktopShellRestoreTitle: 'ဤ shell ကို ပြန်လည်ရယူရန်',
+  desktopShellRestoreSubtitle: 'ချိတ်ဆက်မှုဖြတ်ပြီးနောက်၊ မအောင်မြင်ပါက၊ ထွက်ပြီးနောက် သို့မဟုတ် ပျက်ကျပြီးနောက် လုပ်ဆောင်ပါ။',
+  actionCopy: 'ကူးယူရန်',
+  actionCopied: 'ကူးယူပြီး',
 };

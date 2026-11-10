@@ -317,6 +317,33 @@ that walks preparing → connecting → connected with fake log lines, so the UI
 demoable without native builds. Selection is automatic; a `isMock` flag is
 exported for the Debug screen to display.
 
+### Desktop host
+
+The desktop client (macOS / Windows / Linux, built from the `openrung` repository)
+runs this TypeScript unchanged through react-native-web, so `Platform.OS === 'web'`
+means "desktop client" (`isDesktop` in `src/native/OpenRungDesktop.ts`). Its host
+provides `OpenRungVpn` and `OpenRungBroker` with the shapes above, backed by the
+same `connectcore` engine, with these differences:
+
+- `setSplitTunnelConfig` is accepted and ignored, and `OpenRungBroker` implements
+  only `firstReachable`. TS therefore hides split tunneling and the speed test and
+  skips the update check (the manifest describes mobile releases) when `isDesktop`.
+- An additional module, `OpenRungDesktop`, carries what has no mobile counterpart:
+
+```ts
+interface OpenRungDesktopModule {
+  appVersion: string;                       // the desktop client's version; replaces package.json's
+  getProxyInfo(): Promise<DesktopProxyInfo>; // loopback proxy endpoint + shell commands
+  copyText(text: string): Promise<void>;     // clipboard write through the host
+}
+```
+
+  Settings renders its Local proxy section only when the module is present, so a
+  browser preview without a host shows neither it nor any mobile-only row.
+- The back gesture is the Escape key (`src/native/backPress.ts`).
+
+Mobile-only features must key off `isDesktop`, never off the absence of a module.
+
 ## 4. TypeScript layout
 
 ```

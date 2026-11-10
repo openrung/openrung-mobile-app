@@ -9,20 +9,23 @@
  * underneath the other tabs so the MapLibre view keeps its camera/tiles, and
  * Settings/About render as opaque overlays above it.
  *
- * On both platforms, deep screens (debug console, split tunneling, licenses,
+ * On every platform, deep screens (debug console, split tunneling, licenses,
  * license full text) push over everything including the tab bar, with
- * hardware back mapped exactly like their in-header back arrows:
+ * hardware back (Escape in the desktop client) mapped exactly like their
+ * in-header back arrows:
  * LICENSE_TEXT -> LICENSES -> ABOUT, DEBUG -> SETTINGS,
  * SPLIT_TUNNELING -> SETTINGS, any tab -> HOME, HOME -> system default
  * (exit).
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { AppState, BackHandler, Platform, StatusBar, StyleSheet, View } from 'react-native';
+import { AppState, Platform, StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { NativeTabs } from './src/components/NativeTabs';
 import { TabBar, type AppTab } from './src/components/TabBar';
 import { LanguageProvider } from './src/i18n';
+import { subscribeBackPress } from './src/native/backPress';
+import { isDesktop } from './src/native/OpenRungDesktop';
 import { AboutScreen } from './src/screens/AboutScreen';
 import { DebugScreen } from './src/screens/DebugScreen';
 import { LicenseTextScreen } from './src/screens/LicenseTextScreen';
@@ -45,7 +48,8 @@ type SubRoute = 'DEBUG' | 'SPLIT_TUNNELING' | 'LICENSES' | 'LICENSE_TEXT' | null
 function App(): React.JSX.Element {
   // Kick off the fail-open update check (hydrate + throttled fetch + foreground re-checks).
   // It never gates rendering: the manifest only ever changes what AppRoutes shows.
-  useEffect(() => startUpdateCheck(), []);
+  // The manifest describes mobile releases, so the desktop client does not consult it.
+  useEffect(() => (isDesktop ? undefined : startUpdateCheck()), []);
 
   // Publish this session's split-tunnel default at launch (not only when the sub-screen mounts):
   // selections are session-scoped, so native may still be routing the PREVIOUS session's choice
@@ -100,10 +104,7 @@ function AppRoutes(): React.JSX.Element {
     return false; // system default on home: exit
   }, [subRoute, tab]);
 
-  useEffect(() => {
-    const subscription = BackHandler.addEventListener('hardwareBackPress', goBack);
-    return () => subscription.remove();
-  }, [goBack]);
+  useEffect(() => subscribeBackPress(goBack), [goBack]);
 
   const onSelectTab = useCallback((next: AppTab) => {
     setSubRoute(null);

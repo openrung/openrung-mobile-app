@@ -2,6 +2,7 @@
 // surface (Android versionName, iOS MARKETING_VERSION, this constant) derives from it so
 // they cannot drift. scripts/check-versions.mjs enforces this in CI.
 import { version } from '../package.json';
+import { isDesktop, OpenRungDesktop } from './native/OpenRungDesktop';
 
 /**
  * App configuration, ported 1:1 from the production `config/AppConfig.kt`
@@ -32,6 +33,9 @@ export const AppConfig = {
    * GPL-3.0 corresponding-source offer for the (GPL-licensed) app.
    */
   SOURCE_URL: 'https://github.com/openrung/openrung-mobile-app',
+
+  /** The same offer for the desktop client, whose build lives in the main repository. */
+  DESKTOP_SOURCE_URL: 'https://github.com/openrung/openrung',
 
   /** Public policy covering app and network data handling. */
   PRIVACY_URL: 'https://www.openrung.org/privacy',
@@ -121,5 +125,11 @@ export const AppConfig = {
   ],
 } as const;
 
-/** App version reported in X-OpenRung-App-Version (production uses BuildConfig.VERSION_NAME). */
-export const APP_VERSION = version;
+/**
+ * App version reported in X-OpenRung-App-Version (production uses BuildConfig.VERSION_NAME). The
+ * desktop client is versioned by its own host, not by this package.
+ */
+export const APP_VERSION = OpenRungDesktop?.appVersion ?? version;
+
+/** Corresponding-source location for the build that is running. */
+export const APP_SOURCE_URL = isDesktop ? AppConfig.DESKTOP_SOURCE_URL : AppConfig.SOURCE_URL;

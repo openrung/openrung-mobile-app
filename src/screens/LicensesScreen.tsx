@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ScreenHeader } from '../components/ScreenHeader';
 import { SettingPanel } from '../components/SettingPanel';
-import { AppConfig } from '../config';
+import { APP_SOURCE_URL } from '../config';
 import { useStrings } from '../i18n';
 import { edgePadding, layout } from '../layout';
 import { components } from '../licenses/notices';
@@ -30,7 +30,7 @@ export function LicensesScreen({
   const insets = useSafeAreaInsets();
 
   const onOpenSource = useCallback(() => {
-    Linking.openURL(AppConfig.SOURCE_URL).catch(() => {
+    Linking.openURL(APP_SOURCE_URL).catch(() => {
       // Ignore: no browser available.
     });
   }, []);
@@ -44,7 +44,7 @@ export function LicensesScreen({
 
         <SettingPanel
           title={s.licensesSourceTitle}
-          subtitle={AppConfig.SOURCE_URL}
+          subtitle={APP_SOURCE_URL}
           onPress={onOpenSource}
         />
 

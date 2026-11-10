@@ -2,7 +2,9 @@
  * Settings tab. Large title (it's a root tab now — no back arrow), then
  * sectioned panels: GENERAL (language, split tunneling, plus per-platform
  * sharing — Android offline APK, iOS TestFlight invite link) and DIAGNOSTICS
- * (relay speed test, debug console). Version and licenses live on the About tab. The language
+ * (relay speed test, debug console). The desktop client swaps the rows its host
+ * does not implement (split tunneling, speed test) for a LOCAL PROXY section.
+ * Version and licenses live on the About tab. The language
  * picker mirrors the production dropdown semantics with a dark-styled modal
  * list; the speed test RUN button is enabled only while connected and not
  * already running.
@@ -21,6 +23,7 @@ import {
   View,
 } from 'react-native';
 
+import { DesktopProxySection } from '../components/DesktopProxySection';
 import { SettingPanel } from '../components/SettingPanel';
 import { APP_VERSION, AppConfig } from '../config';
 import { languageOptions, useLanguage, useStrings } from '../i18n';
@@ -31,6 +34,7 @@ import {
   shareInstalledApk,
 } from '../native/OpenRungApkShare';
 import { OpenRungBrokerError } from '../native/OpenRungBroker';
+import { isDesktop, OpenRungDesktop } from '../native/OpenRungDesktop';
 import { OpenRungVpn } from '../native/OpenRungVpn';
 import { runSpeedTest, type SpeedTestResult } from '../net/speedTestClient';
 import { useAppSelector } from '../state/store';
@@ -203,15 +207,18 @@ export function SettingsScreen({
               subtitle={s.languageSettingSubtitle}
               trailing={<LanguagePicker />}
             />
-            <SettingPanel
-              title={s.splitTunnelSettingTitle}
-              subtitle={
-                splitTunnel.enabled
-                  ? s.splitTunnelSettingSubtitleOn
-                  : s.splitTunnelSettingSubtitleOff
-              }
-              onPress={onOpenSplitTunneling}
-            />
+            {isDesktop ? null : (
+              // The desktop host applies no split-tunnel config, so it must not offer the toggle.
+              <SettingPanel
+                title={s.splitTunnelSettingTitle}
+                subtitle={
+                  splitTunnel.enabled
+                    ? s.splitTunnelSettingSubtitleOn
+                    : s.splitTunnelSettingSubtitleOff
+                }
+                onPress={onOpenSplitTunneling}
+              />
+            )}
             {isApkShareAvailable ? (
               <SettingPanel
                 title={s.shareApkTitle}
@@ -226,25 +233,33 @@ export function SettingsScreen({
                 onPress={onShareTestFlight}
               />
             ) : null}
+            {OpenRungDesktop != null ? (
+              <>
+                <Text style={styles.sectionHeader}>{s.desktopProxyHeader.toUpperCase()}</Text>
+                <DesktopProxySection desktop={OpenRungDesktop} isConnected={isConnected} />
+              </>
+            ) : null}
           </View>
           <View style={[styles.sectionColumn, columnStyle]}>
             <Text style={styles.sectionHeader}>{s.settingsDiagnosticsHeader.toUpperCase()}</Text>
-            <SettingPanel
-              title={s.speedTestSettingTitle}
-              subtitle={speedTestSubtitle}
-              trailing={
-                <Pressable
-                  onPress={onRunSpeedTest}
-                  disabled={!runEnabled}
-                  style={[styles.runButton, !runEnabled && styles.runButtonDisabled]}
-                  accessibilityRole="button"
-                >
-                  <Text style={[styles.runLabel, !runEnabled && styles.runLabelDisabled]}>
-                    {s.speedTestAction}
-                  </Text>
-                </Pressable>
-              }
-            />
+            {isDesktop ? null : (
+              <SettingPanel
+                title={s.speedTestSettingTitle}
+                subtitle={speedTestSubtitle}
+                trailing={
+                  <Pressable
+                    onPress={onRunSpeedTest}
+                    disabled={!runEnabled}
+                    style={[styles.runButton, !runEnabled && styles.runButtonDisabled]}
+                    accessibilityRole="button"
+                  >
+                    <Text style={[styles.runLabel, !runEnabled && styles.runLabelDisabled]}>
+                      {s.speedTestAction}
+                    </Text>
+                  </Pressable>
+                }
+              />
+            )}
             <SettingPanel
               title={s.debugSettingTitle}
               subtitle={s.debugSettingSubtitle}

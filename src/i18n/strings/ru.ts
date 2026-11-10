@@ -182,4 +182,19 @@ export const ru: Partial<Strings> = {
     'Доступ для этого устройства отключён, подключение невозможно. Обратитесь в поддержку OpenRung.',
   errorEnrollmentRefused:
     'Ошибка регистрации. Отключите другие VPN и повторите.',
+  // Desktop client only: the local proxy rows in Settings (DesktopProxySection).
+  desktopProxyHeader: 'Локальный прокси',
+  desktopProxyEndpointTitle: 'Адрес',
+  desktopProxyEndpointConnected: (endpoint: string) => `${endpoint} · доступен сейчас`,
+  desktopProxyEndpointIdle: (endpoint: string) => `${endpoint} · доступен после подключения`,
+  desktopProxyPreparing: 'Подготовка адреса локального прокси…',
+  desktopProxyPersistenceTitle: 'Постоянство адреса',
+  desktopShellIntegrationTitle: 'Интеграция с оболочкой',
+  desktopShellEnableTitle: 'Включить в этой оболочке',
+  desktopShellEnableSubtitle: 'Сохраняет существующие значения прокси и их отсутствие.',
+  desktopShellEnableRequiresConnection: 'Сначала подключите OpenRung, затем включайте в этой оболочке.',
+  desktopShellRestoreTitle: 'Восстановить эту оболочку',
+  desktopShellRestoreSubtitle: 'Выполните после отключения, сбоя, выхода или аварийного завершения.',
+  actionCopy: 'Копировать',
+  actionCopied: 'Скопировано',
 };
