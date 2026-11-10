@@ -180,4 +180,19 @@ export const fa: Partial<Strings> = {
     'دسترسی این دستگاه غیرفعال شده است و نمی‌تواند وصل شود. با پشتیبانی OpenRung تماس بگیرید.',
   errorEnrollmentRefused:
     'ثبت ناموفق بود. VPNهای دیگر را قطع کنید و دوباره تلاش کنید.',
+  // Desktop client only: the local proxy rows in Settings (DesktopProxySection).
+  desktopProxyHeader: 'پراکسی محلی',
+  desktopProxyEndpointTitle: 'نشانی',
+  desktopProxyEndpointConnected: (endpoint: string) => `${endpoint} · اکنون در دسترس است`,
+  desktopProxyEndpointIdle: (endpoint: string) => `${endpoint} · پس از اتصال در دسترس است`,
+  desktopProxyPreparing: 'در حال آماده‌سازی نشانی پراکسی محلی…',
+  desktopProxyPersistenceTitle: 'ماندگاری نشانی',
+  desktopShellIntegrationTitle: 'یکپارچه‌سازی با شل',
+  desktopShellEnableTitle: 'فعال‌سازی در این شل',
+  desktopShellEnableSubtitle: 'مقادیر فعلی پراکسی و حالت تنظیم‌نشده را حفظ می‌کند.',
+  desktopShellEnableRequiresConnection: 'پیش از فعال‌سازی در این شل، OpenRung را متصل کنید.',
+  desktopShellRestoreTitle: 'بازگردانی این شل',
+  desktopShellRestoreSubtitle: 'پس از قطع اتصال، خطا، خروج یا ازکارافتادن اجرا کنید.',
+  actionCopy: 'کپی',
+  actionCopied: 'کپی شد',
 };

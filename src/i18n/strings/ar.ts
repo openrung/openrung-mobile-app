@@ -170,4 +170,19 @@ export const ar: Partial<Strings> = {
   errorAccessDenied:
     'تم تعطيل وصول هذا الجهاز، لذا لا يمكنه الاتصال. تواصل مع دعم OpenRung.',
   errorEnrollmentRefused: 'فشل التسجيل. افصل شبكات VPN الأخرى وأعد المحاولة.',
+  // Desktop client only: the local proxy rows in Settings (DesktopProxySection).
+  desktopProxyHeader: 'الوكيل المحلي',
+  desktopProxyEndpointTitle: 'العنوان',
+  desktopProxyEndpointConnected: (endpoint: string) => `${endpoint} · متاح الآن`,
+  desktopProxyEndpointIdle: (endpoint: string) => `${endpoint} · متاح عند الاتصال`,
+  desktopProxyPreparing: 'جارٍ تجهيز عنوان الوكيل المحلي…',
+  desktopProxyPersistenceTitle: 'ثبات العنوان',
+  desktopShellIntegrationTitle: 'تكامل الطرفية',
+  desktopShellEnableTitle: 'التفعيل في هذه الطرفية',
+  desktopShellEnableSubtitle: 'يحافظ على قيم الوكيل الحالية وحالة عدم التعيين.',
+  desktopShellEnableRequiresConnection: 'اتصل بـ OpenRung قبل التفعيل في هذه الطرفية.',
+  desktopShellRestoreTitle: 'استعادة هذه الطرفية',
+  desktopShellRestoreSubtitle: 'شغّله بعد قطع الاتصال أو الفشل أو الإغلاق أو التعطل.',
+  actionCopy: 'نسخ',
+  actionCopied: 'تم النسخ',
 };

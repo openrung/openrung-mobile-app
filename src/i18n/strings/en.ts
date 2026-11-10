@@ -168,6 +168,21 @@ export const en = {
   // Replaces the native lastError when lastErrorCode is 'enrollment_refused' (see nativeErrorText).
   errorEnrollmentRefused:
     'Registration failed. Disconnect other VPNs and retry.',
+  // Desktop client only: the local proxy rows in Settings (DesktopProxySection).
+  desktopProxyHeader: 'Local proxy',
+  desktopProxyEndpointTitle: 'Endpoint',
+  desktopProxyEndpointConnected: (endpoint: string) => `${endpoint} · available now`,
+  desktopProxyEndpointIdle: (endpoint: string) => `${endpoint} · available while connected`,
+  desktopProxyPreparing: 'Preparing the local proxy endpoint…',
+  desktopProxyPersistenceTitle: 'Endpoint persistence',
+  desktopShellIntegrationTitle: 'Shell integration',
+  desktopShellEnableTitle: 'Enable in this shell',
+  desktopShellEnableSubtitle: 'Preserves existing proxy values and unset state.',
+  desktopShellEnableRequiresConnection: 'Connect OpenRung before enabling this shell.',
+  desktopShellRestoreTitle: 'Restore this shell',
+  desktopShellRestoreSubtitle: 'Run after disconnect, failure, quit, or crash.',
+  actionCopy: 'Copy',
+  actionCopied: 'Copied',
 };
 
 export type Strings = typeof en;

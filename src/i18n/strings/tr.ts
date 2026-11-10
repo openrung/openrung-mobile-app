@@ -178,4 +178,19 @@ export const tr: Partial<Strings> = {
     'Bu cihazın erişimi devre dışı bırakıldı, bu yüzden bağlanamıyor. OpenRung destek ekibiyle iletişime geçin.',
   errorEnrollmentRefused:
     "Kayıt başarısız. Diğer VPN'leri kapatıp tekrar deneyin.",
+  // Desktop client only: the local proxy rows in Settings (DesktopProxySection).
+  desktopProxyHeader: 'Yerel proxy',
+  desktopProxyEndpointTitle: 'Uç nokta',
+  desktopProxyEndpointConnected: (endpoint: string) => `${endpoint} · şu anda kullanılabilir`,
+  desktopProxyEndpointIdle: (endpoint: string) => `${endpoint} · bağlıyken kullanılabilir`,
+  desktopProxyPreparing: 'Yerel proxy uç noktası hazırlanıyor…',
+  desktopProxyPersistenceTitle: 'Uç nokta kalıcılığı',
+  desktopShellIntegrationTitle: 'Kabuk entegrasyonu',
+  desktopShellEnableTitle: 'Bu kabukta etkinleştir',
+  desktopShellEnableSubtitle: 'Mevcut proxy değerlerini ve ayarlanmamış durumu korur.',
+  desktopShellEnableRequiresConnection: "Bu kabukta etkinleştirmeden önce OpenRung'a bağlanın.",
+  desktopShellRestoreTitle: 'Bu kabuğu geri yükle',
+  desktopShellRestoreSubtitle: 'Bağlantı kesildikten, hata, çıkış veya çökmeden sonra çalıştırın.',
+  actionCopy: 'Kopyala',
+  actionCopied: 'Kopyalandı',
 };

@@ -157,4 +157,19 @@ export const zhTW: Partial<Strings> = {
   errorAccessDenied:
     '此裝置的存取權限已被停用，無法連線。請聯絡 OpenRung 支援。',
   errorEnrollmentRefused: '註冊失敗。請中斷其他 VPN 後重試。',
+  // Desktop client only: the local proxy rows in Settings (DesktopProxySection).
+  desktopProxyHeader: '本機代理',
+  desktopProxyEndpointTitle: '端點',
+  desktopProxyEndpointConnected: (endpoint: string) => `${endpoint} · 現在可用`,
+  desktopProxyEndpointIdle: (endpoint: string) => `${endpoint} · 連線後可用`,
+  desktopProxyPreparing: '正在準備本機代理端點…',
+  desktopProxyPersistenceTitle: '端點持續性',
+  desktopShellIntegrationTitle: 'Shell 整合',
+  desktopShellEnableTitle: '在此 Shell 中啟用',
+  desktopShellEnableSubtitle: '保留現有的代理設定與未設定狀態。',
+  desktopShellEnableRequiresConnection: '請先連線 OpenRung，再於此 Shell 中啟用。',
+  desktopShellRestoreTitle: '還原此 Shell',
+  desktopShellRestoreSubtitle: '在中斷連線、失敗、結束或當機後執行。',
+  actionCopy: '複製',
+  actionCopied: '已複製',
 };

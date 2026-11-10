@@ -178,4 +178,19 @@ export const vi: Partial<Strings> = {
   errorAccessDenied:
     'Quyền truy cập của thiết bị này đã bị vô hiệu hóa nên không thể kết nối. Hãy liên hệ bộ phận hỗ trợ OpenRung.',
   errorEnrollmentRefused: 'Đăng ký thất bại. Hãy ngắt các VPN khác và thử lại.',
+  // Desktop client only: the local proxy rows in Settings (DesktopProxySection).
+  desktopProxyHeader: 'Proxy cục bộ',
+  desktopProxyEndpointTitle: 'Điểm cuối',
+  desktopProxyEndpointConnected: (endpoint: string) => `${endpoint} · hiện có thể dùng`,
+  desktopProxyEndpointIdle: (endpoint: string) => `${endpoint} · dùng được khi đã kết nối`,
+  desktopProxyPreparing: 'Đang chuẩn bị điểm cuối proxy cục bộ…',
+  desktopProxyPersistenceTitle: 'Tính ổn định của điểm cuối',
+  desktopShellIntegrationTitle: 'Tích hợp shell',
+  desktopShellEnableTitle: 'Bật trong shell này',
+  desktopShellEnableSubtitle: 'Giữ nguyên các giá trị proxy hiện có và trạng thái chưa đặt.',
+  desktopShellEnableRequiresConnection: 'Hãy kết nối OpenRung trước khi bật trong shell này.',
+  desktopShellRestoreTitle: 'Khôi phục shell này',
+  desktopShellRestoreSubtitle: 'Chạy sau khi ngắt kết nối, lỗi, thoát hoặc sự cố.',
+  actionCopy: 'Sao chép',
+  actionCopied: 'Đã sao chép',
 };

@@ -23,6 +23,10 @@ export function EdgeFade(): React.JSX.Element {
       // Recreate percentage-based SVG geometry when the native tab scene resizes.
       key={`${width}:${height}`}
       style={StyleSheet.absoluteFill}
+      // Explicit size for react-native-web: a browser gives an absolutely positioned <svg> its
+      // intrinsic 300x150 box instead of stretching it between the insets.
+      width="100%"
+      height="100%"
       pointerEvents="none"
     >
       <Defs>
