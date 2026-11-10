@@ -64,7 +64,7 @@ blocks traffic or fails a connect.
 | iOS widget bundle id | `com.openrung.app.OpenRungWidget` (WidgetKit; app group only, no VPN entitlement) |
 | iOS URL scheme | `openrung` — on iOS 16 only, the app acts on exactly `openrung://connect` (no path/query/fragment/user/port); on iOS 17+ the widget uses its intent and the URL, like any other URL under the scheme, only opens the app |
 | iOS app group | `group.com.openrung.app` |
-| iOS app-group keys | `connection_state` (PacketTunnel writes, app + widget read), `split_tunnel_config` (app writes, PacketTunnel reads), `widget_language_tag` (app writes, widget reads), `widget_last_face` + `widget_last_face_at` (PacketTunnel's reload gate writes; widget reads the pair to pace its own refresh), `widget_last_relay` (PacketTunnel's reload gate writes and reads the connected relay it last asked the widget to show), `widget_rendered_face` (widget writes the face of the last timeline it built; app + PacketTunnel read), `widget_disconnect_request` (widget writes the time of a Disconnect tap; PacketTunnel consumes it, ignoring one older than 15 s, and clears it at tunnel start), `widget_system_tunnel_down` (app sets when the OS reports no tunnel against a live snapshot; PacketTunnel removes it on every snapshot write; widget reads) |
+| iOS app-group keys | `connection_state` (PacketTunnel writes, app + widget read), `split_tunnel_config` (app writes, PacketTunnel reads), `widget_language_tag` (app writes, widget reads), `widget_last_face` + `widget_last_face_at` (PacketTunnel's reload gate writes; widget reads the pair to pace its own refresh), `widget_last_relay` (PacketTunnel's reload gate writes and reads the connected relay it last asked the widget to show), `widget_rendered_face` (widget writes the face of the last timeline it built; app + PacketTunnel read), `widget_disconnect_request` (widget writes the time of a Disconnect tap; PacketTunnel consumes it, ignoring one older than 15 s, and clears it at tunnel start), `widget_system_tunnel_down` (app sets when the OS reports no tunnel against a live snapshot; PacketTunnel removes it on every snapshot write; widget reads), `widget_background_connect` (app writes whether a saved VPN profile exists; widget reads it to choose between its background and app-opening Connect) |
 | iOS VPN profile localizedDescription | `OpenRung VPN` |
 | iOS deployment target | 16.0 |
 | DEVELOPMENT_TEAM | `9VLV9A7KS9` |
@@ -171,6 +171,8 @@ on the same emitter when a home-screen widget tap has passed the native handoff 
 (§7, [IOS_WIDGET.md](IOS_WIDGET.md)). TS answers it by running the same
 `prepareAndConnect(null, null)` the in-app CONNECT button uses — no target, the engine
 picks the relay. Android and the mock never emit it; subscribing is harmless there.
+A widget Connect that iOS 17+ runs in the background (saved profile, app not opened)
+starts the same no-target tunnel natively and does **not** emit this event.
 
 ### Dedicated widget module (iOS only)
 
@@ -819,6 +821,13 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   country-pinned tunnel) and emits `openrungConnectRequested`. Nothing is
   collected until a manager has loaded (a failed load or the simulator drops
   the request), so the pre-load `.invalid` placeholder never reads as "down".
+  Once a VPN profile is saved the app publishes `widget_background_connect` and
+  the iOS 17+ control becomes `WidgetBackgroundConnectIntent`, which the system
+  performs in the app's process without opening the app. It calls
+  `VpnProfile.startFromWidget()` (`OpenRung/VpnProfile.swift`, installed by
+  `AppDelegate` so it does not depend on JavaScript): same policy, default
+  broker, no target, never creates a profile, no `openrungConnectRequested`. A
+  start that is unavailable withdraws the key, so the next tap opens the app.
   The app never writes the snapshot; when a loaded manager reports no tunnel against a snapshot that still says
   connected/connecting (extension killed) it sets `widget_system_tunnel_down`
   once (`WidgetStaleTunnelMarker`), which the widget renders as Disconnected and
@@ -841,7 +850,8 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   and records what it rendered in `widget_rendered_face`, which
   lets the active app re-request a lagging face (`WidgetRenderCatchUp`). Hostless `OpenRungTests` cover the policy, mailbox, URL rejection,
   face/reload gate, relay decoding, disconnect-request freshness, self-refresh
-  pacing, catch-up and string resolution.
+  pacing, catch-up, the background-connect readiness key and outcomes, and string
+  resolution.
 - Both targets retain the packet-tunnel-provider/app-group entitlements and
   ATS defaults. The app and extension import the same generated Libbox headers
   and link the single dynamic `LibboxKit` wrapper, which carries the static Go

@@ -2,14 +2,18 @@
 
 One WidgetKit widget (`OpenRungConnect`, small family only) that shows the tunnel's
 current status and offers a Connect control. A tap starts a tunnel to an
-**automatically chosen relay** through the app's own connect path; the widget never
-selects a relay, talks to the broker, or holds a VPN entitlement.
+**automatically chosen relay** through the app; the widget never selects a relay,
+talks to the broker, or holds a VPN entitlement. On iOS 17+, once the app has a
+saved VPN profile, that happens **without opening the app**
+([below](#connect-without-opening-the-app)).
 
 While connected it also shows the relay's display name with its country flag, how
 long the tunnel has been up, and (iOS 17+) a Disconnect control that ends the tunnel
 **without opening the app**. The OpenRung mark sits in the top trailing corner.
 
 ## How a tap becomes a tunnel
+
+The path that opens the app: iOS 16 always, and iOS 17+ until a VPN profile is saved.
 
 ```text
   widget extension (com.openrung.app.OpenRungWidget)      app process (com.openrung.app)
@@ -47,6 +51,48 @@ long the tunnel has been up, and (iOS 17+) a Disconnect control that ends the tu
 - The accepted request reaches JavaScript as `openrungConnectRequested` and runs the
   same `prepareAndConnect(null, null)` the in-app CONNECT button uses (split-tunnel
   flush, consent, `connect(brokerUrl, null, null)`), so connectcore chooses the relay.
+
+## Connect without opening the app
+
+Saving the first VPN profile brings up the OS consent dialog, which needs the app
+in front. After that nothing about a no-target connect needs the app's UI, so on
+iOS 17+ the widget switches to a second intent:
+
+1. **Readiness.** `OpenRungVpnModule` publishes `widget_background_connect` wherever
+   it has just read or written the profile: true when a saved profile exists, false
+   when it does not. It reloads the widget only when the value changes. The widget
+   offers `WidgetBackgroundConnectIntent` when the key is true and the app-opening
+   `WidgetConnectIntent` otherwise.
+2. **Routing.** `WidgetBackgroundConnectIntent` conforms to `LiveActivityIntent`.
+   That is used for one thing: the system performs such an intent in the app's
+   process without bringing the app to the front, launching it in the background
+   when it is not running. No Live Activity is started.
+3. **Start.** The intent may run before JavaScript is up, so it does not go through
+   the mailbox or `openrungConnectRequested`. `AppDelegate` installs a native
+   starter at launch, `VpnProfile.startFromWidget()`, which loads the saved profile,
+   reconciles the snapshot with `NEVPNStatus`, applies the same `WidgetConnectPolicy`
+   and, only on `.start`, writes the default broker with no target country or relay
+   and calls `startVPNTunnel()`. It never creates a profile. It uses the split-tunnel
+   configuration the app last persisted to the app group; the JavaScript-side flush
+   and consent steps of `prepareAndConnect` are not run.
+4. **Fallback.** If the profile is gone or the start throws, the intent sets
+   `widget_background_connect` to false. The rebuilt widget offers the app-opening
+   intent again, so the next tap opens the app, which can ask for consent.
+5. **Feedback.** WidgetKit holds a widget's reloads while its intent runs and
+   rebuilds the timeline a few seconds after `perform()` returns. So the control is
+   a `Toggle` rather than a `Button`: the system draws a toggle's other side the
+   moment it is tapped, and that side is the "Connecting" placeholder. After a start
+   the intent waits up to 3 s for the tunnel's first snapshot, so the rebuild lands
+   on "Connecting"; from there the tunnel's own reloads and `WidgetSelfRefresh` take
+   over as for a connect made in the app.
+
+A tap that finds a tunnel connecting, connected, reasserting or disconnecting is
+ignored exactly as on the app-opening path. The request still carries nothing: no
+relay, country, broker or credential leaves the widget.
+
+`VpnProfile` (`ios/OpenRung/VpnProfile.swift`) is the one place the profile is
+found, written and, for this path, started; `OpenRungVpnModule` uses the same
+helpers.
 
 ## Disconnect without opening the app
 
@@ -102,6 +148,7 @@ the app.
 | `widget_last_relay` | `WidgetReloadGate` (PacketTunnel) | PacketTunnel | The connected relay WidgetKit was last asked to show; absent on other faces. |
 | `widget_rendered_face` | widget | app, PacketTunnel | Face of the last timeline the widget built. |
 | `widget_disconnect_request` | widget (set on a Disconnect tap) · PacketTunnel (removed when consumed and at tunnel start) | PacketTunnel, widget | Tap time of an unanswered Disconnect; ignored after 15 s. |
+| `widget_background_connect` | app (`OpenRungVpnModule`, true/false as a saved profile exists; the app-process intent sets false when a start is unavailable) | widget | Whether Connect can run without opening the app. |
 | `widget_system_tunnel_down` | app (`WidgetStaleTunnelMarker`, set only) · PacketTunnel (removed on every snapshot write) | widget | The OS reported no tunnel while the snapshot still said connected/connecting: the widget shows Disconnected. |
 
 The app and the widget never write `connection_state`. `WidgetReloadGate` asks
@@ -144,7 +191,8 @@ A widget tap is also never acted on without a loaded manager: `OpenRungVpnModule
 leaves the request in the mailbox until both JavaScript is listening and the
 manager has loaded, so the placeholder `.invalid` status can never pass for "down"
 and let a running country-pinned tunnel be replaced. A failed load (or the
-simulator) never delivers; the request expires in the mailbox.
+simulator) never delivers; the request expires in the mailbox. The background path
+keeps the same rule by loading the profile itself before it reads any status.
 
 ## Strings
 
@@ -190,7 +238,11 @@ xcodebuild -project ios/OpenRung.xcodeproj -scheme OpenRungWidget \
 ```
 
 The simulator cannot load a tunnel manager, so a widget tap there only opens the
-app: the request is dropped, since nothing is delivered without a loaded manager.
+app: the request is dropped, since nothing is delivered without a loaded manager,
+and `widget_background_connect` is never published. Setting that key by hand in the
+simulator's app-group preferences exercises the routing and the fallback (the
+intent runs in the app without opening it, withdraws the key, and the next tap
+opens the app); a real start needs a device.
 
 ## Physical-device checklist
 
@@ -200,9 +252,15 @@ Run on a signed iPhone with the VPN profile already saved once from the app.
       "Not connected" status and CONNECT in the in-app language (change the language in Settings and confirm
       the widget re-renders once; set Persian or Arabic and confirm right-to-left).
 - [ ] iOS 17+: tap CONNECT from a disconnected state with the app killed. The app
-      opens, the console shows the normal connect sequence, the relay is the
-      automatically chosen one (no country/relay pin), and the widget moves to
-      "Connecting" then "Connected".
+      does **not** open, the control shows "Connecting" at once, the VPN indicator
+      appears, the relay is the automatically chosen one (no country/relay pin), and
+      the widget moves to "Connecting" then "Connected". Repeat with the app in the
+      background: its status follows.
+- [ ] iOS 17+: remove the VPN profile in Settings (or install fresh), open the app
+      once without connecting, then tap CONNECT on the widget: the app opens and
+      asks for consent. After that connect, later taps no longer open it. Without
+      opening the app after removing the profile: the first tap returns to CONNECT
+      within a few seconds, the second opens the app.
 - [ ] While connected the widget shows the relay name with its flag, a running
       timer and a red DISCONNECT control. Tap outside the control: the app opens,
       nothing restarts, the tunnel stays on the same relay.
@@ -213,7 +271,7 @@ Run on a signed iPhone with the VPN profile already saved once from the app.
       line is redacted.
 - [ ] Connect to a chosen country in the app, then tap the widget: the tunnel is not
       switched.
-- [ ] Double-tap CONNECT quickly: exactly one connect attempt in the console.
+- [ ] Double-tap CONNECT quickly: exactly one tunnel start.
 - [ ] Disconnect in the app: widget shows "Not connected" and offers CONNECT again.
 - [ ] Press CONNECT in the app and go to the home screen while it is still
       connecting: the widget moves from "Connecting" to "Connected" without the app
@@ -226,7 +284,6 @@ Run on a signed iPhone with the VPN profile already saved once from the app.
       connecting; plain `openrung://connect` connects.
 - [ ] iOS 16 device (if available): tapping the widget opens the app via the URL and
       connects; while connected the tap only opens the app.
-- [ ] Kill the app, wait a minute, tap CONNECT: still connects (request is fresh at
-      collection). Then simulate a stale request only if a debug build exposes it.
+- [ ] Kill the app, wait a minute, tap CONNECT: still connects.
 - [ ] Watch WidgetKit reloads over one connect/disconnect cycle (Console.app,
       subsystem `com.apple.chronod`): two reloads for connect, two for disconnect (the timer costs none).

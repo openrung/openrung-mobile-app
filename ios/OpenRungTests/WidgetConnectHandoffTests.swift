@@ -170,4 +170,99 @@ final class WidgetConnectHandoffTests: XCTestCase {
             XCTAssertTrue(WidgetConnectURL.acceptsURLHandoff)
         }
     }
+
+    // MARK: - Background connect
+
+    /// A `WidgetBackgroundConnect` over an in-memory key, counting reload requests.
+    private final class BackgroundConnectHarness {
+        var available = false
+        var reloads = 0
+        lazy var subject = WidgetBackgroundConnect(
+            readAvailable: { [unowned self] in self.available },
+            writeAvailable: { [unowned self] in self.available = $0 },
+            reload: { [unowned self] in self.reloads += 1 }
+        )
+    }
+
+    func testBackgroundConnectIsOfferedOnlyOnceTheAppSaysSo() {
+        let harness = BackgroundConnectHarness()
+        XCTAssertFalse(harness.subject.isAvailable, "a fresh install opens the app")
+        XCTAssertTrue(harness.subject.publish(available: true))
+        XCTAssertTrue(harness.subject.isAvailable)
+        XCTAssertEqual(harness.reloads, 1)
+    }
+
+    func testRepublishingTheSameAvailabilityCostsNoReload() {
+        let harness = BackgroundConnectHarness()
+        XCTAssertFalse(harness.subject.publish(available: false))
+        harness.subject.publish(available: true)
+        XCTAssertFalse(harness.subject.publish(available: true))
+        XCTAssertEqual(harness.reloads, 1)
+        XCTAssertTrue(harness.subject.publish(available: false))
+        XCTAssertEqual(harness.reloads, 2)
+    }
+
+    func testAnUnavailableStartSendsTheNextTapToTheApp() async {
+        let harness = BackgroundConnectHarness()
+        harness.available = true
+        let outcome = await harness.subject.run(start: { .unavailable }, tunnelHasAnswered: { false })
+        XCTAssertEqual(outcome, .unavailable)
+        XCTAssertFalse(harness.available)
+        XCTAssertEqual(harness.reloads, 0, "the rebuild after the intent picks it up")
+    }
+
+    func testWithoutAnInstalledStartTheTapFallsBackToo() async {
+        let harness = BackgroundConnectHarness()
+        harness.available = true
+        let outcome = await harness.subject.run(start: nil, tunnelHasAnswered: { false })
+        XCTAssertEqual(outcome, .unavailable)
+        XCTAssertFalse(harness.available)
+    }
+
+    func testAnIgnoredTapKeepsBackgroundConnectAndDoesNotWait() async {
+        let harness = BackgroundConnectHarness()
+        harness.available = true
+        var pauses = 0
+        let outcome = await harness.subject.run(
+            start: { .ignored }, tunnelHasAnswered: { false }, pause: { pauses += 1 }
+        )
+        XCTAssertEqual(outcome, .ignored)
+        XCTAssertTrue(harness.available)
+        XCTAssertEqual(pauses, 0)
+    }
+
+    func testAStartWaitsForTheTunnelsFirstSnapshot() async {
+        let harness = BackgroundConnectHarness()
+        harness.available = true
+        var pauses = 0
+        let outcome = await harness.subject.run(
+            start: { .started }, tunnelHasAnswered: { pauses >= 2 }, pause: { pauses += 1 }
+        )
+        XCTAssertEqual(outcome, .started)
+        XCTAssertEqual(pauses, 2)
+        XCTAssertTrue(harness.available)
+        XCTAssertEqual(harness.reloads, 0)
+    }
+
+    func testAStartStopsWaitingAtTheSettleLimit() async {
+        let harness = BackgroundConnectHarness()
+        var clock = epoch
+        var pauses = 0
+        let outcome = await harness.subject.run(
+            start: { .started },
+            tunnelHasAnswered: { false },
+            now: { clock },
+            pause: {
+                pauses += 1
+                clock = clock.addingTimeInterval(1)
+            }
+        )
+        XCTAssertEqual(outcome, .started)
+        XCTAssertEqual(pauses, Int(WidgetBackgroundConnect.settleWait))
+    }
+
+    func testBackgroundConnectKeyIsTheWidgetsOwn() {
+        XCTAssertEqual(WidgetSharedState.backgroundConnectKey, "widget_background_connect")
+        XCTAssertNotEqual(WidgetSharedState.backgroundConnectKey, WidgetSharedState.connectionSnapshotKey)
+    }
 }

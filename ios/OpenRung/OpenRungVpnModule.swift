@@ -105,11 +105,12 @@ final class OpenRungVpnModule: RCTEventEmitter {
                 return
             }
             do {
-                let manager = try await self.loadOrCreateManager()
+                let manager = try await VpnProfile.loadOrCreate()
                 if manager.protocolConfiguration == nil {
-                    try await self.configure(manager: manager, brokerURL: AppConfig.defaultBrokerURL, targetCountry: nil)
+                    try await VpnProfile.configure(manager: manager, brokerURL: AppConfig.defaultBrokerURL, targetCountry: nil)
                 }
                 self.manager = manager
+                self.publishWidgetBackgroundConnect()
                 self.refreshVPNStatus()
                 resolve(true)
             } catch {
@@ -138,13 +139,13 @@ final class OpenRungVpnModule: RCTEventEmitter {
                     throw AppError.networkExtensionUnavailableInSimulator
                 }
                 let brokerURL = URL(string: brokerUrl) ?? AppConfig.defaultBrokerURL
-                let manager = try await self.loadOrCreateManager()
+                let manager = try await VpnProfile.loadOrCreate()
                 if shouldSwitchRelay {
                     manager.connection.stopVPNTunnel()
                     self.refreshVPNStatus()
                     try? await Task.sleep(nanoseconds: 350_000_000)
                 }
-                try await self.configure(
+                try await VpnProfile.configure(
                     manager: manager,
                     brokerURL: brokerURL,
                     targetCountry: normalizedCountry,
@@ -152,6 +153,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
                 )
                 try manager.connection.startVPNTunnel()
                 self.manager = manager
+                self.publishWidgetBackgroundConnect()
                 self.refreshVPNStatus()
                 resolve(nil)
             } catch {
@@ -280,7 +282,8 @@ final class OpenRungVpnModule: RCTEventEmitter {
         defer { deliverWidgetConnectRequest() }
         guard Self.canUseNetworkExtension else { return }
         do {
-            manager = try await loadOrCreateManager()
+            manager = try await VpnProfile.loadOrCreate()
+            publishWidgetBackgroundConnect()
             // `manager` is set before this refresh, so the stale-tunnel marker (which requires a
             // loaded manager) is published on this very launch if the extension died earlier.
             refreshVPNStatus()
@@ -291,46 +294,12 @@ final class OpenRungVpnModule: RCTEventEmitter {
         }
     }
 
-    private func loadOrCreateManager() async throws -> NETunnelProviderManager {
-        let managers = try await NETunnelProviderManager.loadAllFromPreferences()
-        if let existing = managers.first(where: {
-            $0.localizedDescription == AppConfig.vpnProfileName
-        }) {
-            return existing
-        }
-        if let existing = managers.first(where: {
-            $0.localizedDescription == AppConfig.legacyVPNProfileName
-        }) {
-            // The next configure/save migrates profiles created before the terminology change.
-            existing.localizedDescription = AppConfig.vpnProfileName
-            return existing
-        }
-        let manager = NETunnelProviderManager()
-        manager.localizedDescription = AppConfig.vpnProfileName
-        return manager
-    }
-
-    private func configure(
-        manager: NETunnelProviderManager,
-        brokerURL: URL,
-        targetCountry: String?,
-        targetRelayID: String? = nil
-    ) async throws {
-        let tunnelProtocol = NETunnelProviderProtocol()
-        tunnelProtocol.providerBundleIdentifier = AppConfig.packetTunnelBundleIdentifier
-        tunnelProtocol.serverAddress = brokerURL.host ?? brokerURL.absoluteString
-        var providerConfiguration = [AppConfig.providerBrokerURLKey: brokerURL.absoluteString]
-        if let targetCountry {
-            providerConfiguration[AppConfig.providerTargetCountryKey] = targetCountry
-        }
-        if let targetRelayID {
-            providerConfiguration[AppConfig.providerTargetRelayIDKey] = targetRelayID
-        }
-        tunnelProtocol.providerConfiguration = providerConfiguration
-        manager.protocolConfiguration = tunnelProtocol
-        manager.isEnabled = true
-        try await manager.saveToPreferences()
-        try await manager.loadFromPreferences()
+    /// Tells the widget whether its Connect can run without opening the app: only once a saved
+    /// profile exists, since saving the first one needs the app in front for the consent dialog.
+    /// Called wherever the profile was just read from or written to the OS.
+    @MainActor
+    private func publishWidgetBackgroundConnect() {
+        WidgetBackgroundConnect.shared.publish(available: manager?.protocolConfiguration != nil)
     }
 
     // MARK: - State observation
@@ -489,13 +458,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
 
     // MARK: - Helpers
 
-    private static var canUseNetworkExtension: Bool {
-        #if targetEnvironment(simulator)
-        false
-        #else
-        true
-        #endif
-    }
+    private static var canUseNetworkExtension: Bool { VpnProfile.canUseNetworkExtension }
 
     private static func normalizedCountryCode(_ countryCode: String?) -> String? {
         guard let normalized = countryCode?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(),

@@ -37,6 +37,9 @@ enum WidgetSharedState {
     /// Widget-written (`WidgetDisconnectRequest`): when its Disconnect control was tapped (seconds
     /// since 1970). The tunnel acts on a fresh one and removes it.
     static let disconnectRequestKey = "widget_disconnect_request"
+    /// App-written (`WidgetBackgroundConnect`): true once the app has a saved VPN profile, which is
+    /// when the widget's Connect can run without opening the app.
+    static let backgroundConnectKey = "widget_background_connect"
     /// Darwin notification telling the tunnel to look at `disconnectRequestKey`. It carries no
     /// authority of its own: any process can post it, only an app-group member can write the key.
     static let disconnectNotificationName = "com.openrung.app.widget-disconnect"

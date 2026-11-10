@@ -2,10 +2,10 @@ import SwiftUI
 import WidgetKit
 
 /// The one OpenRung widget: current tunnel status, a Connect control that starts a tunnel to an
-/// automatically chosen relay through the app's own connect path (see `WidgetConnectHandoff.swift`)
-/// and, while connected, the relay, how long the tunnel has been up and a Disconnect control that
-/// asks the tunnel to end itself (`WidgetDisconnectIntent`). Small family only; the extension holds
-/// no VPN entitlement and never touches the tunnel.
+/// automatically chosen relay through the app (see `WidgetConnectHandoff.swift`; without opening
+/// it once a VPN profile is saved) and, while connected, the relay, how long the tunnel has been
+/// up and a Disconnect control that asks the tunnel to end itself (`WidgetDisconnectIntent`).
+/// Small family only; the extension holds no VPN entitlement and never touches the tunnel.
 struct ConnectWidget: Widget {
     var body: some WidgetConfiguration {
         let strings = WidgetStrings.current()
@@ -22,6 +22,8 @@ struct ConnectEntry: TimelineEntry {
     let date: Date
     let display: WidgetDisplay
     let strings: WidgetStrings
+    /// Whether Connect can run without opening the app (`WidgetBackgroundConnect`).
+    var connectsInBackground = false
 
     var face: WidgetFace { display.face }
 }
@@ -63,8 +65,14 @@ struct ConnectTimelineProvider: TimelineProvider {
     /// the request goes stale, so the widget leaves "disconnecting" then without needing a reload.
     private func entries(from now: Date) -> [ConnectEntry] {
         let strings = WidgetStrings.current()
+        let connectsInBackground = WidgetBackgroundConnect.shared.isAvailable
         return WidgetSharedState.timelineDisplays(now: now) { WidgetSharedState.currentDisplay(now: $0) }
-            .map { ConnectEntry(date: $0.date, display: $0.display, strings: strings) }
+            .map {
+                ConnectEntry(
+                    date: $0.date, display: $0.display, strings: strings,
+                    connectsInBackground: connectsInBackground
+                )
+            }
     }
 }
 
@@ -132,7 +140,8 @@ struct ConnectWidgetView: View {
         }
     }
 
-    /// Disconnected or failed: Connect. iOS 17+ runs its intent inside the app; on iOS 16 the same
+    /// Disconnected or failed: Connect. iOS 17+ runs an intent inside the app: in the background
+    /// once the app has a saved VPN profile, by opening the app until then. On iOS 16 the same
     /// label is shown and the whole widget carries the `openrung://connect` URL.
     /// Connected: Disconnect, iOS 17+ only (a button is the only thing a widget can offer that
     /// does not open the app). In between: the face, restated where the control will be.
@@ -140,10 +149,19 @@ struct ConnectWidgetView: View {
     private var control: some View {
         if entry.face.offersConnect {
             if #available(iOS 17.0, *) {
-                Button(intent: WidgetConnectIntent()) {
-                    connectLabel
+                if entry.connectsInBackground {
+                    // A toggle, not a button: the system draws its other side the moment it is
+                    // tapped, and the widget is rebuilt only once the app has run the intent.
+                    Toggle(isOn: false, intent: WidgetBackgroundConnectIntent()) {
+                        connectLabel
+                    }
+                    .toggleStyle(PendingToggleStyle(pending: inlineStatus(for: .connecting)))
+                } else {
+                    Button(intent: WidgetConnectIntent()) {
+                        connectLabel
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             } else {
                 connectLabel
             }
@@ -155,18 +173,22 @@ struct ConnectWidgetView: View {
                 .buttonStyle(.plain)
             }
         } else {
-            Text(entry.strings.inlineLabel(for: entry.face))
-                .font(.system(.footnote, design: .monospaced))
-                .foregroundStyle(WidgetPalette.dim)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-                .padding(.horizontal, 6)
-                .frame(maxWidth: .infinity, minHeight: 36)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(WidgetPalette.border, lineWidth: 1)
-                )
+            inlineStatus(for: entry.face)
         }
+    }
+
+    private func inlineStatus(for face: WidgetFace) -> some View {
+        Text(entry.strings.inlineLabel(for: face))
+            .font(.system(.footnote, design: .monospaced))
+            .foregroundStyle(WidgetPalette.dim)
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+            .padding(.horizontal, 6)
+            .frame(maxWidth: .infinity, minHeight: 36)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(WidgetPalette.border, lineWidth: 1)
+            )
     }
 
     private var connectLabel: some View {
@@ -198,6 +220,19 @@ struct ConnectWidgetView: View {
             return WidgetConnectURL.open
         }
         return entry.face.offersConnect ? WidgetConnectURL.connect : WidgetConnectURL.open
+    }
+}
+
+/// Shows `pending` in place of the label from the tap until the widget is rebuilt.
+private struct PendingToggleStyle<Pending: View>: ToggleStyle {
+    let pending: Pending
+
+    func makeBody(configuration: Configuration) -> some View {
+        if configuration.isOn {
+            pending
+        } else {
+            configuration.label
+        }
     }
 }
 

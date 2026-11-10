@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(WidgetKit)
+import WidgetKit
+#endif
 
 /// One "connect" request from the home-screen widget on its way to the app's existing connect path.
 /// It carries no target on purpose: the widget cannot name a relay, country, broker or credential,
@@ -114,4 +117,81 @@ enum WidgetConnectURL {
         guard enabled, urls.contains(where: isConnectRequest) else { return false }
         return mailbox.submit(WidgetConnectRequest(source: .url, issuedAt: now))
     }
+}
+
+/// The widget's Connect without opening the app (iOS 17+). The system runs
+/// `WidgetBackgroundConnectIntent` inside the app's process, launching the app in the background
+/// when it is not running; no JavaScript may exist there, so the app installs a native `start` at
+/// launch. That can only work once a VPN profile is saved (saving the first one brings up the OS
+/// consent dialog, which needs the app in front), so the app says so under its own app-group key
+/// and the widget offers this intent only then, the app-opening `WidgetConnectIntent` otherwise.
+/// A start that turns out to be unavailable withdraws the key: the next tap opens the app.
+struct WidgetBackgroundConnect {
+    enum Outcome: Equatable {
+        /// The tunnel was asked to start.
+        case started
+        /// Nothing to start: a tunnel is up or in motion (`WidgetConnectPolicy`).
+        case ignored
+        /// No saved profile, or it would not start; only the app, in front, can sort that out.
+        case unavailable
+    }
+
+    /// Installed by the app at launch (`AppDelegate`). Nil in the widget extension, which cannot
+    /// reach a tunnel manager and where the intent is not expected to run.
+    static var start: (() async -> Outcome)?
+    /// How long the intent waits for the tunnel's first snapshot before its timeline is rebuilt.
+    static let settleWait: TimeInterval = 3
+
+    var readAvailable: () -> Bool
+    var writeAvailable: (Bool) -> Void
+    var reload: () -> Void
+
+    /// Widget side: which Connect intent to put behind the button.
+    var isAvailable: Bool { readAvailable() }
+
+    /// App side, with the app in front: returns true when the value changed (and the widget was
+    /// asked to rebuild so its button carries the right intent).
+    @discardableResult
+    func publish(available: Bool) -> Bool {
+        guard readAvailable() != available else { return false }
+        writeAvailable(available)
+        reload()
+        return true
+    }
+
+    /// The intent's body. WidgetKit holds the widget's reloads while the intent runs and rebuilds
+    /// the timeline once it is over, so nothing here asks for a reload: a withdrawn key is picked
+    /// up by that rebuild, and after a start it waits briefly for the tunnel's first snapshot so
+    /// the rebuild lands on "connecting".
+    @discardableResult
+    func run(
+        start: (() async -> Outcome)? = WidgetBackgroundConnect.start,
+        tunnelHasAnswered: () -> Bool = { !WidgetSharedState.currentFace().offersConnect },
+        now: () -> Date = Date.init,
+        pause: () async -> Void = { _ = try? await Task.sleep(nanoseconds: 150_000_000) }
+    ) async -> Outcome {
+        let outcome = await start?() ?? .unavailable
+        switch outcome {
+        case .unavailable:
+            writeAvailable(false)
+        case .ignored:
+            break
+        case .started:
+            let deadline = now().addingTimeInterval(Self.settleWait)
+            while !tunnelHasAnswered(), now() < deadline {
+                await pause()
+            }
+        }
+        return outcome
+    }
+
+    static let shared = WidgetBackgroundConnect(
+        readAvailable: { WidgetSharedState.defaults?.bool(forKey: WidgetSharedState.backgroundConnectKey) ?? false },
+        writeAvailable: { WidgetSharedState.defaults?.set($0, forKey: WidgetSharedState.backgroundConnectKey) },
+        reload: {
+            #if canImport(WidgetKit)
+            WidgetCenter.shared.reloadTimelines(ofKind: WidgetSharedState.widgetKind)
+            #endif
+        }
+    )
 }

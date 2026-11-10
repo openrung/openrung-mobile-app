@@ -20,3 +20,22 @@ struct WidgetConnectIntent: AppIntent {
         return .result()
     }
 }
+
+/// The same button once the app has a saved VPN profile (`WidgetBackgroundConnect`). Conforming to
+/// `LiveActivityIntent` is what makes the system run `perform()` in the app's process without
+/// opening the app, launching it in the background when it is not running; that is all the
+/// conformance is used for. Like `WidgetConnectIntent` it has no parameters.
+@available(iOS 17.0, *)
+struct WidgetBackgroundConnectIntent: LiveActivityIntent {
+    static let title: LocalizedStringResource = "Connect OpenRung in the background"
+    static let description = IntentDescription(
+        "Connects OpenRung to an automatically chosen relay without opening the app."
+    )
+    /// Widget-only: keep it out of Shortcuts and Spotlight.
+    static let isDiscoverable = false
+
+    func perform() async throws -> some IntentResult {
+        await WidgetBackgroundConnect.shared.run()
+        return .result()
+    }
+}

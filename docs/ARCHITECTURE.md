@@ -453,12 +453,16 @@ template app target plus the `PacketTunnel` app-extension target);
   stop → 350 ms → reconfigure → start relay-switch dance. It also collects
   home-screen widget taps (`WidgetConnectMailbox`) and, when `WidgetConnectPolicy`
   finds nothing running, emits `openrungConnectRequested` so JavaScript runs the
-  ordinary no-target connect.
+  ordinary no-target connect. `VpnProfile` holds how the one profile is found and
+  written, and starts it natively for a widget Connect the system runs in the
+  background.
 - `OpenRungWidget` (`ios/OpenRungWidget/`) is a WidgetKit extension with only the
   app-group entitlement: it reads the tunnel's snapshot status (and, while connected,
   the relay's display name and country) and the app-published language tag, and hands
   a Connect tap to the app through an `openAppWhenRun` AppIntent (iOS 17+) or the
-  strict `openrung://connect` URL (iOS 16). Its Disconnect control (iOS 17+) runs in
+  strict `openrung://connect` URL (iOS 16). Once a VPN profile is saved, the iOS 17+
+  tap is instead an intent the system performs in the app's process without opening
+  the app. Its Disconnect control (iOS 17+) runs in
   the widget extension and leaves a short-lived request in the app group that the
   tunnel extension acts on by stopping itself. It never touches NetworkExtension, the
   broker or relay selection; the tunnel extension reloads it only when what it shows
