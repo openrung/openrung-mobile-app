@@ -340,7 +340,9 @@ interface OpenRungDesktopModule {
 
   Settings renders its Local proxy section only when the module is present, so a
   browser preview without a host shows neither it nor any mobile-only row.
-- The back gesture is the Escape key (`src/native/backPress.ts`).
+- The back gesture is the Escape key (`src/native/backPress.ts`). As with Android's
+  hardware back, a visible `Modal` takes it instead: Escape closes the modal and the
+  route does not move.
 
 Mobile-only features must key off `isDesktop`, never off the absence of a module.
 
