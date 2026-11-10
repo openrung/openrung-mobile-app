@@ -82,10 +82,7 @@ struct ConnectWidgetView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             header
-            Spacer(minLength: 0)
-            status
-            Spacer(minLength: 0)
-            control
+            content
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .environment(\.layoutDirection, entry.strings.isRightToLeft ? .rightToLeft : .leftToRight)
@@ -105,19 +102,45 @@ struct ConnectWidgetView: View {
         }
     }
 
+    /// Everything under the header. Where Connect runs in the background it is one toggle, not a
+    /// button: the system draws a toggle's other side the moment it is tapped and keeps it until
+    /// the widget is rebuilt, which is only once the app has run the intent and the connect has an
+    /// outcome. That other side is the connecting face, status and all.
+    @ViewBuilder
+    private var content: some View {
+        if #available(iOS 17.0, *), entry.face.offersConnect, entry.connectsInBackground {
+            Toggle(isOn: false, intent: WidgetBackgroundConnectIntent()) {
+                panel(face: entry.face) { connectLabel }
+            }
+            .toggleStyle(PendingToggleStyle(pending: panel(face: .connecting) { inlineStatus(for: .connecting) }))
+        } else {
+            panel(face: entry.face) { control }
+        }
+    }
+
+    private func panel<Control: View>(face: WidgetFace, @ViewBuilder control: () -> Control) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Spacer(minLength: 0)
+            status(for: face)
+            Spacer(minLength: 0)
+            control()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+
     /// The status label, then (connected only) the relay and how long the tunnel has been up.
-    private var status: some View {
+    private func status(for face: WidgetFace) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             // One Text per line: a label wraps only where its translation says, and a long word
             // is scaled down instead of being broken mid-word.
-            ForEach(Array(entry.strings.labelLines(for: entry.face).enumerated()), id: \.offset) { _, line in
+            ForEach(Array(entry.strings.labelLines(for: face).enumerated()), id: \.offset) { _, line in
                 Text(line)
                     .font(.system(.headline, design: .monospaced))
-                    .foregroundStyle(entry.face == .connected ? WidgetPalette.connected : WidgetPalette.green)
+                    .foregroundStyle(face == .connected ? WidgetPalette.connected : WidgetPalette.green)
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
             }
-            if entry.face == .connected {
+            if face == .connected {
                 if let relay = entry.display.relay {
                     Text(relay.flag.map { "\(relay.name) \($0)" } ?? relay.name)
                         .font(.system(.caption, design: .monospaced))
@@ -140,28 +163,19 @@ struct ConnectWidgetView: View {
         }
     }
 
-    /// Disconnected or failed: Connect. iOS 17+ runs an intent inside the app: in the background
-    /// once the app has a saved VPN profile, by opening the app until then. On iOS 16 the same
-    /// label is shown and the whole widget carries the `openrung://connect` URL.
+    /// Disconnected or failed: Connect. On iOS 17+ before the app has a saved VPN profile it is a
+    /// button whose intent opens the app (with one, `content` draws the toggle instead); on iOS 16
+    /// the same label is shown and the whole widget carries the `openrung://connect` URL.
     /// Connected: Disconnect, iOS 17+ only (a button is the only thing a widget can offer that
     /// does not open the app). In between: the face, restated where the control will be.
     @ViewBuilder
     private var control: some View {
         if entry.face.offersConnect {
             if #available(iOS 17.0, *) {
-                if entry.connectsInBackground {
-                    // A toggle, not a button: the system draws its other side the moment it is
-                    // tapped, and the widget is rebuilt only once the app has run the intent.
-                    Toggle(isOn: false, intent: WidgetBackgroundConnectIntent()) {
-                        connectLabel
-                    }
-                    .toggleStyle(PendingToggleStyle(pending: inlineStatus(for: .connecting)))
-                } else {
-                    Button(intent: WidgetConnectIntent()) {
-                        connectLabel
-                    }
-                    .buttonStyle(.plain)
+                Button(intent: WidgetConnectIntent()) {
+                    connectLabel
                 }
+                .buttonStyle(.plain)
             } else {
                 connectLabel
             }

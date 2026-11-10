@@ -205,7 +205,7 @@ final class WidgetConnectHandoffTests: XCTestCase {
     func testAnUnavailableStartSendsTheNextTapToTheApp() async {
         let harness = BackgroundConnectHarness()
         harness.available = true
-        let outcome = await harness.subject.run(start: { .unavailable }, tunnelHasAnswered: { false })
+        let outcome = await harness.subject.run(start: { .unavailable }, face: { .disconnected })
         XCTAssertEqual(outcome, .unavailable)
         XCTAssertFalse(harness.available)
         XCTAssertEqual(harness.reloads, 0, "the rebuild after the intent picks it up")
@@ -214,7 +214,7 @@ final class WidgetConnectHandoffTests: XCTestCase {
     func testWithoutAnInstalledStartTheTapFallsBackToo() async {
         let harness = BackgroundConnectHarness()
         harness.available = true
-        let outcome = await harness.subject.run(start: nil, tunnelHasAnswered: { false })
+        let outcome = await harness.subject.run(start: nil, face: { .disconnected })
         XCTAssertEqual(outcome, .unavailable)
         XCTAssertFalse(harness.available)
     }
@@ -224,33 +224,23 @@ final class WidgetConnectHandoffTests: XCTestCase {
         harness.available = true
         var pauses = 0
         let outcome = await harness.subject.run(
-            start: { .ignored }, tunnelHasAnswered: { false }, pause: { pauses += 1 }
+            start: { .ignored }, face: { .disconnected }, pause: { pauses += 1 }
         )
         XCTAssertEqual(outcome, .ignored)
         XCTAssertTrue(harness.available)
         XCTAssertEqual(pauses, 0)
     }
 
-    func testAStartWaitsForTheTunnelsFirstSnapshot() async {
+    /// Runs a started connect against a scripted tunnel: `faces[n]` is what the widget would show
+    /// after `n` one-second pauses (the last one from then on). Returns the pauses taken.
+    private func pausesWaited(for faces: [WidgetFace]) async -> Int {
         let harness = BackgroundConnectHarness()
         harness.available = true
-        var pauses = 0
-        let outcome = await harness.subject.run(
-            start: { .started }, tunnelHasAnswered: { pauses >= 2 }, pause: { pauses += 1 }
-        )
-        XCTAssertEqual(outcome, .started)
-        XCTAssertEqual(pauses, 2)
-        XCTAssertTrue(harness.available)
-        XCTAssertEqual(harness.reloads, 0)
-    }
-
-    func testAStartStopsWaitingAtTheSettleLimit() async {
-        let harness = BackgroundConnectHarness()
         var clock = epoch
         var pauses = 0
         let outcome = await harness.subject.run(
             start: { .started },
-            tunnelHasAnswered: { false },
+            face: { faces[min(pauses, faces.count - 1)] },
             now: { clock },
             pause: {
                 pauses += 1
@@ -258,7 +248,52 @@ final class WidgetConnectHandoffTests: XCTestCase {
             }
         )
         XCTAssertEqual(outcome, .started)
+        XCTAssertTrue(harness.available)
+        XCTAssertEqual(harness.reloads, 0, "the rebuild after the intent is the reload")
+        return pauses
+    }
+
+    func testAStartWaitsUntilTheTunnelIsConnected() async {
+        let pauses = await pausesWaited(for: [.disconnected, .connecting, .connecting, .connecting, .connected])
+        XCTAssertEqual(pauses, 4)
+    }
+
+    func testAStartWaitsOutAFailedConnect() async {
+        // "failed" before the tunnel answers is the previous attempt's; after, it is this one's.
+        let pauses = await pausesWaited(for: [.failed, .failed, .connecting, .connecting, .failed])
+        XCTAssertEqual(pauses, 4)
+    }
+
+    func testAStartStopsWaitingWhenTheTunnelGoesAwayAgain() async {
+        let pauses = await pausesWaited(for: [.disconnected, .connecting, .disconnected])
+        XCTAssertEqual(pauses, 2)
+    }
+
+    func testAStartGivesUpOnATunnelThatNeverAnswers() async {
+        let pauses = await pausesWaited(for: [.disconnected])
         XCTAssertEqual(pauses, Int(WidgetBackgroundConnect.settleWait))
+    }
+
+    func testAStartGivesUpOnAConnectThatTakesTooLong() async {
+        let pauses = await pausesWaited(for: [.disconnected, .connecting])
+        XCTAssertEqual(pauses, Int(WidgetBackgroundConnect.resultWait))
+    }
+
+    func testTheWaitEndsOnAnOutcomeOrWhenItsTimeIsUp() {
+        typealias Subject = WidgetBackgroundConnect
+        XCTAssertEqual(Subject.wait(face: .disconnected, answered: false, elapsed: 0), .forAnswer)
+        XCTAssertEqual(Subject.wait(face: .failed, answered: false, elapsed: 1), .forAnswer)
+        XCTAssertEqual(Subject.wait(face: .disconnected, answered: false, elapsed: Subject.settleWait), .done)
+        XCTAssertEqual(Subject.wait(face: .connecting, answered: false, elapsed: 0), .forResult)
+        XCTAssertEqual(Subject.wait(face: .connecting, answered: true, elapsed: Subject.settleWait), .forResult)
+        XCTAssertEqual(Subject.wait(face: .connecting, answered: true, elapsed: Subject.resultWait), .done)
+        for face in [WidgetFace.connected, .failed, .disconnected, .disconnecting] {
+            XCTAssertEqual(Subject.wait(face: face, answered: true, elapsed: 1), .done, "\(face)")
+        }
+        // A tunnel that was already up when the intent looked needs no wait.
+        XCTAssertEqual(Subject.wait(face: .connected, answered: false, elapsed: 0), .done)
+        XCTAssertEqual(Subject.wait(face: .disconnecting, answered: false, elapsed: 0), .done)
+        XCTAssertLessThan(Subject.settleWait, Subject.resultWait)
     }
 
     func testBackgroundConnectKeyIsTheWidgetsOwn() {

@@ -828,6 +828,9 @@ phases, ENABLE_USER_SCRIPT_SANDBOXING=NO, current pbxproj settings), plus the
   `AppDelegate` so it does not depend on JavaScript): same policy, default
   broker, no target, never creates a profile, no `openrungConnectRequested`. A
   start that is unavailable withdraws the key, so the next tap opens the app.
+  WidgetKit rebuilds the widget when the intent ends, so after a start the
+  intent stays open until the connect has an outcome (3 s for the tunnel's
+  first snapshot, 20 s overall).
   The app never writes the snapshot; when a loaded manager reports no tunnel against a snapshot that still says
   connected/connecting (extension killed) it sets `widget_system_tunnel_down`
   once (`WidgetStaleTunnelMarker`), which the widget renders as Disconnected and

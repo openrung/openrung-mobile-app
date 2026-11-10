@@ -79,12 +79,20 @@ iOS 17+ the widget switches to a second intent:
    `widget_background_connect` to false. The rebuilt widget offers the app-opening
    intent again, so the next tap opens the app, which can ask for consent.
 5. **Feedback.** WidgetKit holds a widget's reloads while its intent runs and
-   rebuilds the timeline a few seconds after `perform()` returns. So the control is
-   a `Toggle` rather than a `Button`: the system draws a toggle's other side the
-   moment it is tapped, and that side is the "Connecting" placeholder. After a start
-   the intent waits up to 3 s for the tunnel's first snapshot, so the rebuild lands
-   on "Connecting"; from there the tunnel's own reloads and `WidgetSelfRefresh` take
-   over as for a connect made in the app.
+   rebuilds the timeline a few seconds after `perform()` returns. That rebuild is
+   the one reload this path can count on: the app is never in front, so every later
+   request, the tunnel's or the widget's own, may be deferred. Two things follow.
+   - The intent stays open until the connect has an outcome. After a start it waits
+     up to 3 s for the tunnel's first snapshot and then, while the tunnel is
+     connecting, up to 20 s from the start (`WidgetBackgroundConnect.wait`), so the
+     rebuild lands on "Connected" or "Failed". A connect that takes longer leaves
+     the rebuild on "Connecting", and the tunnel's own reloads and
+     `WidgetSelfRefresh` take over as for a connect made in the app.
+   - Everything under the header is a `Toggle` rather than a status line and a
+     `Button`: the system draws a toggle's other side the moment it is tapped and
+     keeps it until the rebuild, and that side is the whole connecting face. A tap
+     on the status text therefore starts the connect too; the header still opens
+     the app.
 
 A tap that finds a tunnel connecting, connected, reasserting or disconnecting is
 ignored exactly as on the app-opening path. The request still carries nothing: no
@@ -252,10 +260,10 @@ Run on a signed iPhone with the VPN profile already saved once from the app.
       "Not connected" status and CONNECT in the in-app language (change the language in Settings and confirm
       the widget re-renders once; set Persian or Arabic and confirm right-to-left).
 - [ ] iOS 17+: tap CONNECT from a disconnected state with the app killed. The app
-      does **not** open, the control shows "Connecting" at once, the VPN indicator
-      appears, the relay is the automatically chosen one (no country/relay pin), and
-      the widget moves to "Connecting" then "Connected". Repeat with the app in the
-      background: its status follows.
+      does **not** open, the widget shows "Connecting" at once and keeps it while
+      the VPN indicator appears, then moves to "Connected" with the automatically
+      chosen relay (no country/relay pin) within a few seconds of the tunnel coming
+      up. Repeat with the app in the background: its status follows.
 - [ ] iOS 17+: remove the VPN profile in Settings (or install fresh), open the app
       once without connecting, then tap CONNECT on the widget: the app opens and
       asks for consent. After that connect, later taps no longer open it. Without
