@@ -5,7 +5,6 @@ import {
   createBrokerRequestId,
   fetchManifestCandidate,
   firstReachable,
-  runSpeedTest,
   sendTelemetryBatchJSON,
   toOpenRungBrokerError,
 } from '../../src/native/OpenRungBroker';
@@ -18,7 +17,6 @@ type Deferred<T> = {
 
 interface NativeBrokerMock {
   firstReachable: jest.Mock;
-  runSpeedTest: jest.Mock;
   sendTelemetryBatchJSON: jest.Mock;
   fetchManifestCandidate: jest.Mock;
   cancel: jest.Mock;
@@ -38,17 +36,11 @@ const RELAY_RESULT = {
   signatureVerified: true,
 };
 
-const SPEED_RESULT = {
-  bytes: 10_000_000,
-  ttfbMillis: 81,
-  downloadDurationMillis: 920,
-  totalDurationMillis: 1_037,
-  mbps: 77.145612,
-};
+const MANIFEST_URL = 'https://broker.openrung.org/api/v1/app-manifest';
 
 const MANIFEST_RESULT = {
   bodyJson: '{"schema":1,"payload_b64":"e30="}',
-  sourceUrl: 'https://broker.openrung.org/api/v1/app-manifest',
+  sourceUrl: MANIFEST_URL,
 };
 
 function deferred<T>(): Deferred<T> {
@@ -64,7 +56,6 @@ function deferred<T>(): Deferred<T> {
 function nativeMock(): NativeBrokerMock {
   return {
     firstReachable: jest.fn(async () => RELAY_RESULT),
-    runSpeedTest: jest.fn(async () => SPEED_RESULT),
     sendTelemetryBatchJSON: jest.fn(async () => ({})),
     fetchManifestCandidate: jest.fn(async () => MANIFEST_RESULT),
     cancel: jest.fn(async () => true),
@@ -110,9 +101,6 @@ describe('OpenRungBroker native result mapping', () => {
         sessionId: 'session-a',
       }),
     ).resolves.toEqual(RELAY_RESULT);
-    await expect(runSpeedTest({ brokerUrl: 'https://speed.example/' })).resolves.toEqual(
-      SPEED_RESULT,
-    );
     await expect(
       fetchManifestCandidate({
         candidateUrl: 'https://broker.openrung.org/api/v1/app-manifest',
@@ -127,11 +115,10 @@ describe('OpenRungBroker native result mapping', () => {
 
     const requestIds = [
       module.firstReachable.mock.calls[0][0],
-      module.runSpeedTest.mock.calls[0][0],
       module.fetchManifestCandidate.mock.calls[0][0],
       module.sendTelemetryBatchJSON.mock.calls[0][0],
     ];
-    expect(new Set(requestIds).size).toBe(4);
+    expect(new Set(requestIds).size).toBe(3);
     expect(module.firstReachable).toHaveBeenCalledWith(
       requestIds[0],
       'https://primary.example/',
@@ -139,16 +126,12 @@ describe('OpenRungBroker native result mapping', () => {
       'client-a',
       'session-a',
     );
-    expect(module.runSpeedTest).toHaveBeenCalledWith(
-      requestIds[1],
-      'https://speed.example/',
-    );
     expect(module.fetchManifestCandidate).toHaveBeenCalledWith(
-      requestIds[2],
+      requestIds[1],
       'https://broker.openrung.org/api/v1/app-manifest',
     );
     expect(module.sendTelemetryBatchJSON).toHaveBeenCalledWith(
-      requestIds[3],
+      requestIds[2],
       'https://telemetry.example/',
       '{"events":[]}',
     );
@@ -174,15 +157,11 @@ describe('OpenRungBroker native result mapping', () => {
     expect(error.kind).toBe('decode');
   });
 
-  it('maps malformed speed and manifest snapshots to decode', async () => {
+  it('maps a malformed manifest snapshot to decode', async () => {
     const module = nativeMock();
-    module.runSpeedTest.mockResolvedValue({ ...SPEED_RESULT, mbps: Number.NaN });
     module.fetchManifestCandidate.mockResolvedValue({ bodyJson: '{}', sourceUrl: null });
     installNative(module);
 
-    expect((await capturedError(runSpeedTest({ brokerUrl: 'https://speed/' }))).kind).toBe(
-      'decode',
-    );
     expect(
       (
         await capturedError(
@@ -269,7 +248,9 @@ describe('OpenRungBroker structured errors and availability', () => {
   it('rejects a missing module as unavailable and requests a native rebuild', async () => {
     delete nativeModules.OpenRungBroker;
 
-    const error = await capturedError(runSpeedTest({ brokerUrl: 'https://broker/' }));
+    const error = await capturedError(
+      fetchManifestCandidate({ candidateUrl: MANIFEST_URL }),
+    );
     expect(error.kind).toBe('unavailable');
     expect(error.message).toMatch(/rebuild the native app/i);
   });
@@ -308,23 +289,26 @@ describe('OpenRungBroker request IDs and AbortSignal behavior', () => {
     controller.abort();
 
     const error = await capturedError(
-      runSpeedTest({ brokerUrl: 'https://broker/' }, controller.signal),
+      fetchManifestCandidate({ candidateUrl: MANIFEST_URL }, controller.signal),
     );
     expect(error.kind).toBe('cancelled');
-    expect(module.runSpeedTest).not.toHaveBeenCalled();
+    expect(module.fetchManifestCandidate).not.toHaveBeenCalled();
     expect(module.cancel).not.toHaveBeenCalled();
   });
 
   it('cancels an in-flight request by its exact ID and suppresses late success', async () => {
     const module = nativeMock();
-    const pending = deferred<typeof SPEED_RESULT>();
-    module.runSpeedTest.mockReturnValue(pending.promise);
+    const pending = deferred<typeof MANIFEST_RESULT>();
+    module.fetchManifestCandidate.mockReturnValue(pending.promise);
     installNative(module);
     const controller = new AbortController();
     const remove = jest.spyOn(controller.signal, 'removeEventListener');
 
-    const outcome = runSpeedTest({ brokerUrl: 'https://broker/' }, controller.signal);
-    const requestId = module.runSpeedTest.mock.calls[0][0];
+    const outcome = fetchManifestCandidate(
+      { candidateUrl: MANIFEST_URL },
+      controller.signal,
+    );
+    const requestId = module.fetchManifestCandidate.mock.calls[0][0];
     controller.abort();
 
     const error = await capturedError(outcome);
@@ -334,20 +318,23 @@ describe('OpenRungBroker request IDs and AbortSignal behavior', () => {
     expect(remove).toHaveBeenCalledWith('abort', expect.any(Function));
 
     // The native completion can still race back across the bridge, but it cannot settle twice.
-    pending.resolve(SPEED_RESULT);
+    pending.resolve(MANIFEST_RESULT);
     await Promise.resolve();
     remove.mockRestore();
   });
 
   it('lets cancellation win when native success is queued in the same turn', async () => {
     const module = nativeMock();
-    const pending = deferred<typeof SPEED_RESULT>();
-    module.runSpeedTest.mockReturnValue(pending.promise);
+    const pending = deferred<typeof MANIFEST_RESULT>();
+    module.fetchManifestCandidate.mockReturnValue(pending.promise);
     installNative(module);
     const controller = new AbortController();
 
-    const outcome = runSpeedTest({ brokerUrl: 'https://broker/' }, controller.signal);
-    pending.resolve(SPEED_RESULT);
+    const outcome = fetchManifestCandidate(
+      { candidateUrl: MANIFEST_URL },
+      controller.signal,
+    );
+    pending.resolve(MANIFEST_RESULT);
     controller.abort();
 
     expect((await capturedError(outcome)).kind).toBe('cancelled');
@@ -356,14 +343,17 @@ describe('OpenRungBroker request IDs and AbortSignal behavior', () => {
 
   it('still rejects as cancelled when a stale native cancel method throws synchronously', async () => {
     const module = nativeMock();
-    module.runSpeedTest.mockReturnValue(deferred<typeof SPEED_RESULT>().promise);
+    module.fetchManifestCandidate.mockReturnValue(deferred<typeof MANIFEST_RESULT>().promise);
     module.cancel.mockImplementation(() => {
       throw new Error('stale native bridge');
     });
     installNative(module);
     const controller = new AbortController();
 
-    const outcome = runSpeedTest({ brokerUrl: 'https://broker/' }, controller.signal);
+    const outcome = fetchManifestCandidate(
+      { candidateUrl: MANIFEST_URL },
+      controller.signal,
+    );
     controller.abort();
 
     expect((await capturedError(outcome)).kind).toBe('cancelled');
@@ -377,8 +367,8 @@ describe('OpenRungBroker request IDs and AbortSignal behavior', () => {
     const remove = jest.spyOn(controller.signal, 'removeEventListener');
 
     await expect(
-      runSpeedTest({ brokerUrl: 'https://broker/' }, controller.signal),
-    ).resolves.toEqual(SPEED_RESULT);
+      fetchManifestCandidate({ candidateUrl: MANIFEST_URL }, controller.signal),
+    ).resolves.toEqual(MANIFEST_RESULT);
     expect(remove).toHaveBeenCalledWith('abort', expect.any(Function));
 
     controller.abort();
@@ -388,26 +378,32 @@ describe('OpenRungBroker request IDs and AbortSignal behavior', () => {
 
   it('isolates concurrent requests when only one is cancelled', async () => {
     const module = nativeMock();
-    const firstPending = deferred<typeof SPEED_RESULT>();
-    const secondPending = deferred<typeof SPEED_RESULT>();
-    module.runSpeedTest
+    const firstPending = deferred<typeof MANIFEST_RESULT>();
+    const secondPending = deferred<typeof MANIFEST_RESULT>();
+    module.fetchManifestCandidate
       .mockReturnValueOnce(firstPending.promise)
       .mockReturnValueOnce(secondPending.promise);
     installNative(module);
     const firstController = new AbortController();
     const secondController = new AbortController();
 
-    const first = runSpeedTest({ brokerUrl: 'https://one/' }, firstController.signal);
-    const second = runSpeedTest({ brokerUrl: 'https://two/' }, secondController.signal);
-    const firstId = module.runSpeedTest.mock.calls[0][0];
-    const secondId = module.runSpeedTest.mock.calls[1][0];
+    const first = fetchManifestCandidate(
+      { candidateUrl: 'https://one/' },
+      firstController.signal,
+    );
+    const second = fetchManifestCandidate(
+      { candidateUrl: 'https://two/' },
+      secondController.signal,
+    );
+    const firstId = module.fetchManifestCandidate.mock.calls[0][0];
+    const secondId = module.fetchManifestCandidate.mock.calls[1][0];
     expect(firstId).not.toBe(secondId);
 
     firstController.abort();
-    secondPending.resolve({ ...SPEED_RESULT, bytes: 22 });
+    secondPending.resolve({ ...MANIFEST_RESULT, bodyJson: '{"second":true}' });
 
     expect((await capturedError(first)).kind).toBe('cancelled');
-    await expect(second).resolves.toMatchObject({ bytes: 22 });
+    await expect(second).resolves.toMatchObject({ bodyJson: '{"second":true}' });
     expect(module.cancel).toHaveBeenCalledTimes(1);
     expect(module.cancel).toHaveBeenCalledWith(firstId);
 

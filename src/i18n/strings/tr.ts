@@ -56,15 +56,10 @@ export const tr: Partial<Strings> = {
   // Content description for the open action.
   openContentDescription: 'Aç',
 
-  // Relay speed test (diagnostics).
-  speedTestSettingTitle: 'Röle hız testi',
-  speedTestReady: 'Aktif röle üzerinden 10 MB indirin ve sonucu bildirin.',
-  speedTestRequiresConnection:
-    'Hız testini çalıştırmadan önce bir röleye bağlanın.',
-  speedTestRunning: 'Röle üzerinden indirme hızı test ediliyor…',
-  speedTestResult: (mbps: number) => `İndirme hızı: ${mbps.toFixed(1)} Mbps`,
-  speedTestError: (error: string) => `Hız testi başarısız: ${error}`,
-  speedTestAction: 'ÇALIŞTIR',
+  // Speed test link (settings).
+  speedTestSettingTitle: 'Hız testi',
+  speedTestSettingSubtitle: 'fast.com adresini tarayıcınızda açar',
+  speedTestRequiresConnection: 'Tüneli ölçmek için önce bağlanın',
 
   // Exit node map view.
   mapContentDescription:
