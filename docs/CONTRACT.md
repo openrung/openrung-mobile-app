@@ -348,9 +348,16 @@ means "desktop client" (`isDesktop` in `src/native/OpenRungDesktop.ts`). Its hos
 provides `OpenRungVpn` and `OpenRungBroker` with the shapes above, backed by the
 same `connectcore` engine, with these differences:
 
-- `setSplitTunnelConfig` is accepted and ignored, and `OpenRungBroker` implements
-  only `firstReachable`. TS therefore hides split tunneling and skips the update
-  check (the manifest describes mobile releases) when `isDesktop`.
+- `setSplitTunnelConfig` applies `enabled`, `bypass_lan` and `bypass_countries`
+  with the reapply rule above. The host ignores `excluded_packages` (it has no
+  per-app exclusion) and `country_source`: it uses the `bypass_countries` it was
+  last sent rather than re-deriving them, because no desktop tunnel outlives the
+  app and RN re-derives an automatic country before every connect. The desktop
+  client runs in proxy mode, where a destination is matched by hostname, so a
+  country preset bypasses the hostnames in its domain list and literal addresses
+  in its address list.
+- `OpenRungBroker` implements only `firstReachable`. TS therefore skips the
+  update check (the manifest describes mobile releases) when `isDesktop`.
 - The host routes `Linking.openURL` to the system browser, so external links
   (About, the Settings speed test link) leave the webview.
 - An additional module, `OpenRungDesktop`, carries what has no mobile counterpart:
