@@ -7,8 +7,7 @@
       "react-native": ["./.design-sync/web-shims/react-native-web.ts"],
       "react-native-svg": ["./.design-sync/web-shims/react-native-svg.ts"],
       "react-native-safe-area-context": ["./.design-sync/web-shims/safe-area-context.tsx"],
-      "@react-native-async-storage/async-storage": ["./.design-sync/web-shims/async-storage.ts"],
-      "@maplibre/maplibre-react-native": ["./.design-sync/web-shims/maplibre.tsx"]
+      "@react-native-async-storage/async-storage": ["./.design-sync/web-shims/async-storage.ts"]
     }
   }
 }

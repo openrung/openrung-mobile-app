@@ -19,8 +19,6 @@ conversion (user-approved 2026-07-07).
   - `safe-area-context.tsx` — zero-inset provider/hook; never throws without a
     provider (so no cfg.provider is needed).
   - `async-storage.ts` — in-memory map (store hydration only).
-  - `maplibre.tsx` — `Marker` renders children in place; no synced component
-    consumes it since OceanTelemetry was removed.
 - **Excluded components**: ExitNodeMap (MapLibre map view), NativeTabs
   (react-native-bottom-tabs native host) — nothing web-renderable to ship.
 - **Grouping** comes from `.design-sync/docs/<Name>.md` frontmatter stubs
@@ -39,7 +37,7 @@ conversion (user-approved 2026-07-07).
 ## Preview authoring recipes (wave 1 learnings)
 
 - Review/capture sheets composite cells on WHITE despite the dark live page —
-  translucent glass components (OceanTelemetry) and light-on-dark text need an
+  translucent glass components (ConnectCard) and light-on-dark text need an
   explicit dark backdrop div (background '#030604') inside the cell.
 - RN `alignSelf` content-hugging is inert inside a plain block div (RNW Views
   stretch): make the preview frame a flex container
@@ -90,8 +88,9 @@ conversion (user-approved 2026-07-07).
 ## Pending re-sync (2026-11-11, home screen refresh)
 
 - Definitions/previews updated but NOT yet re-captured: `OceanTelemetry` removed
-  (component, docs stub, preview, dtsPropsFor, web-entry export — the maplibre
-  web shim's `Marker` now has no consumer); ConnectCard gained
+  (component, docs stub, preview, dtsPropsFor, web-entry export, and the
+  maplibre web shim + tsconfig alias that only its `Marker` needed — no synced
+  component imports the map library now); ConnectCard gained
   `relayCountryCode` / `connectedAtMs` / `errorText` (connected row = name +
   flag + badge + uptime clock, failed state shows the reason); MapStatusChip
   takes `relayCount` instead of `regionCount` and shows a live dot before
