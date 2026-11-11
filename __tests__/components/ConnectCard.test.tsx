@@ -21,6 +21,9 @@ async function renderTexts(props: Partial<ConnectCardProps> = {}): Promise<strin
       <ConnectCard
         status="connected"
         relayName="proud-falcon"
+        relayCountryCode={null}
+        connectedAtMs={null}
+        errorText={null}
         relayClass={null}
         isConnected
         isWorking={false}
@@ -44,6 +47,56 @@ describe('ConnectCard', () => {
     const text = await renderTexts();
     expect(text).toContain('proud-falcon');
     expect(text).not.toContain('traffic route: device -> OpenRung VPN -> relay');
+  });
+
+  it('names the session while connected: relay, flag and uptime instead of the status word', async () => {
+    const text = await renderTexts({
+      relayCountryCode: 'US',
+      connectedAtMs: Date.now() - 65_000,
+    });
+    expect(text).toContain('proud-falcon');
+    expect(text).toContain('🇺🇸');
+    expect(text).toContain('00:01:05');
+    expect(text).not.toContain('CONNECTED');
+  });
+
+  it('draws no flag when the relay country is unknown', async () => {
+    const text = await renderTexts({ connectedAtMs: Date.now() });
+    expect(text).toContain('proud-falcon');
+    expect(text.some(value => /[\u{1F1E6}-\u{1F1FF}]/u.test(value))).toBe(false);
+  });
+
+  it('shows the status word and the relay target until connected', async () => {
+    const text = await renderTexts({
+      status: 'connecting',
+      relayName: null,
+      isConnected: false,
+      isWorking: true,
+      // A stale stamp must not start a clock before the tunnel is up.
+      connectedAtMs: Date.now() - 65_000,
+    });
+    expect(text).toContain('auto select relay');
+    expect(text).not.toContain('00:01:05');
+  });
+
+  it('shows why the connect failed, and only while failed', async () => {
+    const failed = await renderTexts({
+      status: 'failed',
+      relayName: null,
+      isConnected: false,
+      errorText: 'no relay reachable',
+    });
+    expect(failed).toContain('! no relay reachable');
+
+    // A stale error must not linger once the next attempt is under way.
+    const retrying = await renderTexts({
+      status: 'connecting',
+      relayName: null,
+      isConnected: false,
+      isWorking: true,
+      errorText: 'no relay reachable',
+    });
+    expect(retrying).not.toContain('! no relay reachable');
   });
 
   it('shows the relay-class badge while connected: foundation renders OFFICIAL', async () => {
@@ -79,6 +132,9 @@ describe('ConnectCard', () => {
     const baseProps: ConnectCardProps = {
       status: 'disconnected',
       relayName: null,
+      relayCountryCode: null,
+      connectedAtMs: null,
+      errorText: null,
       relayClass: null,
       isConnected: false,
       isWorking: false,

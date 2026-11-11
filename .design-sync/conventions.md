@@ -55,9 +55,13 @@ const { ConnectCard, RecentsSection, TabBar } = window.OpenRungUI;
   <div style={{ position: 'absolute', left: 20, right: 20, bottom: 86,
                 display: 'flex', flexDirection: 'column', gap: 14 }}>
     <RecentsSection
-      recents={[{ countryCode: 'JP', label: 'Tokyo, Japan', latitude: 35.68, longitude: 139.69 }]}
+      recents={[{ countryCode: 'JP', relayId: 'relay_tokyo', label: 'Tokyo, Japan',
+                  relayName: 'silly-lemur', latitude: 35.68, longitude: 139.69 }]}
+      liveRelayIds={null}
       onPress={() => {}} />
-    <ConnectCard status="connected" relayLabel="Tokyo, Japan"
+    <ConnectCard status="connected" relayName="silly-lemur" relayCountryCode="JP"
+                 connectedAtMs={Date.now() - 754000} errorText={null}
+                 relayClass="foundation"
                  isConnected isWorking={false} onToggle={() => {}} />
   </div>
   <TabBar active="home" onSelect={() => {}} />

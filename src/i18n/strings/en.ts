@@ -41,7 +41,8 @@ export const en = {
     'Map of available exit nodes across the Asia-Pacific region',
   mapLoading: 'locating available exit nodes…',
   mapFailed: "couldn't load exit nodes — tap to retry",
-  mapNodesAvailable: (count: number) => `${count} locations available`,
+  mapRelaysOnline: (count: number) =>
+    count === 1 ? '1 relay online' : `${count} relays online`,
   mapNoNodes: 'no exit nodes available right now',
   recentsLabel: 'Recents',
   viewToggleMap: 'Map',
@@ -83,7 +84,9 @@ export const en = {
   tabSettings: 'Settings',
   tabAbout: 'About us',
   homeTagline: 'relay network',
-  relayAuto: 'auto relay',
+  // Home header slogan. Each line of this value is drawn on its own line.
+  homeSlogan: 'Internet access is a right,\nnot a privilege',
+  relayAuto: 'auto select relay',
   // iOS home-screen widget: gallery name and description. Rendered into Swift by
   // `npm run widget:strings` together with the status/connect/disconnect labels above.
   // The widget's disconnected face. It is narrow, so the label is broken where it should wrap:
@@ -107,14 +110,6 @@ export const en = {
     'Help keep the ladder standing. Donations go to the OpenRung Foundation.',
   aboutLegalHeader: 'Legal',
   aboutFollowHeader: 'Follow us',
-
-  // --- Ocean telemetry panel (map view, anchored over the Pacific) ---
-  telemetryNetworkHeader: 'NETWORK',
-  telemetryLinkHeader: 'LINK',
-  telemetryRelaysLabel: 'relays',
-  telemetryLocationsLabel: 'locations',
-  telemetryCountriesLabel: 'countries',
-  telemetryUptimeLabel: 'uptime',
 
   // --- Split tunneling (settings row + screen + Android app picker) ---
   splitTunnelSettingTitle: 'Split tunneling',

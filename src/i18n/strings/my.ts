@@ -36,7 +36,7 @@ export const my: Partial<Strings> = {
   tabSettings: 'ဆက်တင်များ',
   tabAbout: 'ကျွန်ုပ်တို့အကြောင်း',
   aboutTitle: 'ကျွန်ုပ်တို့အကြောင်း',
-  relayAuto: 'အလိုအလျောက် relay',
+  relayAuto: 'relay အလိုအလျောက် ရွေးချယ်',
   widgetStatusDisconnected: 'ချိတ်ဆက်မှု\nပြတ်နေသည်',
   widgetName: 'အမြန်ချိတ်ဆက်ရန်',
   widgetDescription:
@@ -45,14 +45,6 @@ export const my: Partial<Strings> = {
   relayClassVolunteer: 'စေတနာ့ဝန်ထမ်း',
   settingsGeneralHeader: 'အထွေထွေ',
   settingsDiagnosticsHeader: 'စစ်ဆေးခြင်း',
-
-  // Ocean telemetry panel (map view).
-  telemetryNetworkHeader: 'ကွန်ရက်',
-  telemetryLinkHeader: 'ချိတ်ဆက်မှု',
-  telemetryRelaysLabel: 'relay',
-  telemetryLocationsLabel: 'တည်နေရာ',
-  telemetryCountriesLabel: 'နိုင်ငံ',
-  telemetryUptimeLabel: 'ကြာချိန်',
 
   // Open action (accessibility).
   openContentDescription: 'ဖွင့်ရန်',
@@ -67,7 +59,7 @@ export const my: Partial<Strings> = {
     'အာရှ-ပစိဖိတ် ဒေသတစ်ဝှမ်းရှိ ရနိုင်သော ထွက်ပေါက်ဆုံမှတ်များ၏ မြေပုံ',
   mapLoading: 'ရနိုင်သော ထွက်ပေါက်ဆုံမှတ်များကို ရှာဖွေနေသည်…',
   mapFailed: 'ထွက်ပေါက်ဆုံမှတ်များ ရယူ၍မရပါ — ပြန်စမ်းရန် တို့ပါ',
-  mapNodesAvailable: (count: number) => `တည်နေရာ ${count} ခု ရနိုင်သည်`,
+  mapRelaysOnline: (count: number) => `ရီလေး ${count} ခု အွန်လိုင်း`,
   mapNoNodes: 'ယခုအချိန်တွင် ထွက်ပေါက်ဆုံမှတ် မရနိုင်ပါ',
 
   // Recent locations.
@@ -118,6 +110,7 @@ export const my: Partial<Strings> = {
 
   // Home overlay and about screen.
   homeTagline: 'ရီလေး ကွန်ရက်',
+  homeSlogan: 'အင်တာနက် အသုံးပြုခွင့်သည် အခွင့်ထူးမဟုတ်ဘဲ အခွင့်အရေးဖြစ်သည်',
   aboutMissionLead:
     'အင်တာနက် အသုံးပြုခွင့်သည် အခွင့်ထူးမဟုတ်ဘဲ အခွင့်အရေးဖြစ်သည်ဟု ကျွန်ုပ်တို့ ယုံကြည်သည်',
   aboutMissionBody:

@@ -9,8 +9,8 @@ import WidgetKit
 /// keys of its own (`widget_rendered_face`, `widget_disconnect_request`).
 ///
 /// The PacketTunnel extension stays the sole writer of the `connection_state` snapshot; the widget
-/// decodes just what it shows (`status`, the connected relay's display name and that relay's
-/// country) as raw strings, so this file needs nothing else from Shared/. Everything the app and
+/// decodes just what it shows (`status`, the connected relay's display name and location, and that
+/// relay's country) as raw strings, so this file needs nothing else from Shared/. Everything the app and
 /// the widget publish lives under their own `widget_*` keys, so neither can clobber the snapshot.
 enum WidgetSharedState {
     static let appGroupIdentifier = "group.com.openrung.app"
@@ -57,7 +57,10 @@ enum WidgetSharedState {
         }
         let face = WidgetFace(statusRawValue: slice.status ?? "")
         guard face == .connected else { return WidgetDisplay(face: face) }
-        return WidgetDisplay(face: face, relay: WidgetRelay(name: slice.relayName, recents: slice.recents))
+        return WidgetDisplay(
+            face: face,
+            relay: WidgetRelay(name: slice.relayName, location: slice.relayLabel, recents: slice.recents)
+        )
     }
 
     static func face(fromSnapshotData data: Data?) -> WidgetFace {
@@ -153,16 +156,18 @@ enum WidgetSharedState {
     private struct SnapshotSlice: Decodable {
         let status: String?
         let relayName: String?
+        let relayLabel: String?
         let recents: [WidgetRelay.Recent]
 
         enum CodingKeys: String, CodingKey {
-            case status, relayName, recentRegions
+            case status, relayName, relayLabel, recentRegions
         }
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             status = try? container.decodeIfPresent(String.self, forKey: .status)
             relayName = try? container.decodeIfPresent(String.self, forKey: .relayName)
+            relayLabel = try? container.decodeIfPresent(String.self, forKey: .relayLabel)
             recents = (try? container.decodeIfPresent([WidgetRelay.Recent].self, forKey: .recentRegions)) ?? []
         }
     }
@@ -189,7 +194,8 @@ struct WidgetDisplay: Equatable {
 }
 
 /// The connected relay as the widget shows it: its display name (already sanitized by the tunnel)
-/// and, when the snapshot's most recent region is this relay, that region's country.
+/// and, when the snapshot's most recent region is this relay at this location, that region's
+/// country.
 struct WidgetRelay: Equatable {
     let name: String
     /// ISO 3166-1 alpha-2, uppercased.
@@ -198,31 +204,41 @@ struct WidgetRelay: Equatable {
     struct Recent: Decodable, Equatable {
         let countryCode: String?
         let relayName: String?
+        /// The entry's location string; the tunnel writes the snapshot's `relayLabel` here.
+        let label: String?
 
         enum CodingKeys: String, CodingKey {
-            case countryCode, relayName
+            case countryCode, relayName, label
         }
 
-        init(countryCode: String?, relayName: String?) {
+        init(countryCode: String?, relayName: String?, label: String?) {
             self.countryCode = countryCode
             self.relayName = relayName
+            self.label = label
         }
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             countryCode = try? container.decodeIfPresent(String.self, forKey: .countryCode)
             relayName = try? container.decodeIfPresent(String.self, forKey: .relayName)
+            label = try? container.decodeIfPresent(String.self, forKey: .label)
         }
     }
 
-    init?(name: String?, recents: [Recent] = []) {
+    /// `location` is the snapshot's `relayLabel`.
+    init?(name: String?, location: String? = nil, recents: [Recent] = []) {
         guard let name = name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else {
             return nil
         }
         self.name = name
-        // The tunnel records the connected relay at the head of the recents; an older entry is
-        // some other session's and says nothing about this one.
-        let code = recents.first.flatMap { $0.relayName == name ? $0.countryCode : nil }
+        // The tunnel records the connected relay at the head of the recents, but a relay without
+        // a location adds no entry, so the head may still be the previous session's. The snapshot
+        // carries no relay id and names are not unique (operators choose them), so the entry must
+        // match on the name and on the location string. The app applies the same rule
+        // (`sessionRecent` in src/model/exitNode.ts).
+        let code = recents.first.flatMap { head in
+            location != nil && head.relayName == name && head.label == location ? head.countryCode : nil
+        }
         countryCode = code.flatMap(Self.normalizedCountryCode)
     }
 

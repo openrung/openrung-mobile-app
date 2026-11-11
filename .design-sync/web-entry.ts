@@ -20,8 +20,6 @@ export {
 export type { IconProps } from '../src/components/Icons';
 export { MapStatusChip } from '../src/components/MapStatusChip';
 export type { MapStatusChipProps } from '../src/components/MapStatusChip';
-export { OceanTelemetry, formatUptime } from '../src/components/OceanTelemetry';
-export type { OceanTelemetryProps } from '../src/components/OceanTelemetry';
 export { RecentsSection } from '../src/components/RecentsSection';
 export type { RecentsSectionProps } from '../src/components/RecentsSection';
 export { RelayClassBadge } from '../src/components/RelayClassBadge';
@@ -51,7 +49,7 @@ export {
 export { LanguageProvider, languageOptions, statusLabel, stringsForTag, useLanguage, useStrings } from '../src/i18n';
 export type { Strings } from '../src/i18n';
 
-// Model helpers used when composing RelayList / OceanTelemetry data.
+// Model helpers used when composing RelayList data.
 export { relayDisplayName } from '../src/model/exitNode';
 export type { DirectoryStatus, ExitNodeRegion, ExitNodeRelay, HomeViewMode, RelayNodeClass } from '../src/model/exitNode';
 export type { ConnectionStatus, RecentNode } from '../src/native/types';

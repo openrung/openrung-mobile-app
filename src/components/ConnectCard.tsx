@@ -1,7 +1,12 @@
 /**
  * Floating glass control card anchored above the tab bar on the home screen:
- * a live status row (pulsing dot + uppercase status + connected relay name)
- * and the primary connect action.
+ * a live status row and the primary connect action.
+ *
+ * The status row reads "● STATUS … auto select relay" until the tunnel is up. Once
+ * connected it names the session instead, like the iOS widget's connected face:
+ * the relay's name and country flag, its class badge, and a ticking uptime
+ * clock on the trailing edge. A failed connect adds the reason on its own line
+ * under the row, so it is readable without opening the debug console.
  *
  * The connect button narrates the whole connection lifecycle instead of
  * flipping between two labels:
@@ -32,13 +37,22 @@ import {
 
 import { statusLabel, useStrings, type Strings } from '../i18n';
 import type { ConnectionStatus, NativeVpnState } from '../native/types';
-import { monoFont, palette, statusDotColor, tokens } from '../theme';
+import { monoFont, palette, tokens } from '../theme';
+import { countryFlag } from './countryFlag';
 import { PowerIcon } from './Icons';
 import { RelayClassBadge } from './RelayClassBadge';
+import { SessionTimer } from './SessionTimer';
+import { StatusDot } from './StatusDot';
 
 export interface ConnectCardProps {
   status: ConnectionStatus;
   relayName: string | null;
+  /** Connected relay's country (ISO 3166-1 alpha-2) for the flag; null when unknown. */
+  relayCountryCode: string | null;
+  /** Store stamp of the moment the tunnel entered 'connected'; null while down. */
+  connectedAtMs: number | null;
+  /** Why the last connect failed, already localized; shown only in the 'failed' state. */
+  errorText: string | null;
   /** Connected relay's node class (badge next to the relay name); null when not connected. */
   relayClass: NativeVpnState['relayClass'];
   isConnected: boolean;
@@ -61,54 +75,6 @@ function buttonLabel(s: Strings, status: ConnectionStatus): string {
   }
 }
 
-/** 10px status dot with a soft breathing halo while connected or working. */
-function StatusDot({ status }: { status: ConnectionStatus }): React.JSX.Element {
-  const pulse = useRef(new Animated.Value(0)).current;
-  const animate = status !== 'disconnected' && status !== 'failed';
-
-  useEffect(() => {
-    if (!animate) {
-      pulse.setValue(0);
-      return;
-    }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 1100,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulse, {
-          toValue: 0,
-          duration: 1100,
-          easing: Easing.in(Easing.quad),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [animate, pulse]);
-
-  const color = statusDotColor(status);
-  return (
-    <View style={styles.dotWrap}>
-      <Animated.View
-        style={[
-          styles.dotHalo,
-          {
-            backgroundColor: color,
-            opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0, 0.35] }),
-            transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }],
-          },
-        ]}
-      />
-      <View style={[styles.dot, { backgroundColor: color }]} />
-    </View>
-  );
-}
-
 /** Origin + radius of the fill disc; radius always reaches the farthest corner. */
 interface FillGeometry {
   x: number;
@@ -119,6 +85,9 @@ interface FillGeometry {
 export const ConnectCard = React.memo(function ConnectCardComponent({
   status,
   relayName,
+  relayCountryCode,
+  connectedAtMs,
+  errorText,
   relayClass,
   isConnected,
   isWorking,
@@ -223,14 +192,47 @@ export const ConnectCard = React.memo(function ConnectCardComponent({
     <View style={styles.card}>
       <View style={styles.statusRow}>
         <StatusDot status={status} />
-        <Text style={styles.statusText} numberOfLines={1} ellipsizeMode="tail">
-          {statusLabel(s, status).toUpperCase()}
-        </Text>
-        <Text style={styles.relayText} numberOfLines={1}>
-          {relayName ?? s.relayAuto}
-        </Text>
-        {isConnected && relayClass != null ? <RelayClassBadge nodeClass={relayClass} /> : null}
+        {isConnected && relayName != null ? (
+          <>
+            <Text
+              style={styles.sessionRelayText}
+              numberOfLines={1}
+              // The status word is not drawn in this state; keep it for screen readers.
+              accessibilityLabel={`${statusLabel(s, status)}: ${relayName}`}
+            >
+              {relayName}
+            </Text>
+            {relayCountryCode != null ? (
+              <Text style={styles.flag}>{countryFlag(relayCountryCode)}</Text>
+            ) : null}
+            {relayClass != null ? <RelayClassBadge nodeClass={relayClass} /> : null}
+            <View style={styles.rowFill} />
+            {connectedAtMs != null ? (
+              <SessionTimer connectedAtMs={connectedAtMs} style={styles.timerText} />
+            ) : null}
+          </>
+        ) : (
+          <>
+            <Text style={styles.statusText} numberOfLines={1} ellipsizeMode="tail">
+              {statusLabel(s, status).toUpperCase()}
+            </Text>
+            <Text style={styles.relayText} numberOfLines={1}>
+              {relayName ?? s.relayAuto}
+            </Text>
+          </>
+        )}
       </View>
+
+      {status === 'failed' && errorText != null && errorText.length > 0 ? (
+        <Text
+          style={styles.errorText}
+          numberOfLines={3}
+          accessibilityRole="alert"
+          accessibilityLiveRegion="polite"
+        >
+          {s.errorLineFormat(errorText)}
+        </Text>
+      ) : null}
 
       <Pressable
         onLayout={onLayout}
@@ -291,33 +293,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  dotWrap: {
-    width: 18,
-    height: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dotHalo: {
-    position: 'absolute',
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-  },
-  dot: {
-    width: 9,
-    height: 9,
-    borderRadius: 4.5,
-  },
   statusText: {
     color: palette.bodyText,
     fontFamily: monoFont,
     fontWeight: 'bold',
     fontSize: 12,
     letterSpacing: 1.5,
-    // Yoga's default flexShrink is 0 — without this, a verbose localized status plus the
-    // relay-class badge would squeeze the flex:1 relay name down to a bare ellipsis on
-    // narrow screens; sharing the shrink keeps the name readable.
+    // Yoga's default flexShrink is 0 — without this, a verbose localized status would
+    // squeeze the flex:1 relay line down to a bare ellipsis on narrow screens; sharing
+    // the shrink keeps it readable.
     flexShrink: 1,
+  },
+  // Connected: the relay's name leads the row. It is the only part that gives way on a
+  // narrow screen — the flag, badge and clock keep their width.
+  sessionRelayText: {
+    color: palette.bodyText,
+    fontFamily: monoFont,
+    fontWeight: 'bold',
+    fontSize: 13,
+    flexShrink: 1,
+  },
+  flag: {
+    fontSize: 14,
+    marginLeft: -4,
+  },
+  rowFill: {
+    flex: 1,
+  },
+  timerText: {
+    color: palette.relayLine,
+    fontFamily: monoFont,
+    fontSize: 12,
+    fontVariant: ['tabular-nums'],
   },
   relayText: {
     flex: 1,
@@ -325,6 +332,12 @@ const styles = StyleSheet.create({
     color: palette.relayLine,
     fontFamily: monoFont,
     fontSize: 12,
+  },
+  errorText: {
+    color: palette.consoleError,
+    fontFamily: monoFont,
+    fontSize: 12,
+    lineHeight: 17,
   },
   // Outlined base at every stage; the green disc growing inside it is what
   // turns it into the "solid" connected button.

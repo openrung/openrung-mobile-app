@@ -30,6 +30,47 @@ export interface ExitNodeRegion {
   relays: ExitNodeRelay[]; // broker order; nodeCount === relays.length
 }
 
+/**
+ * The recents entry that describes the connected relay, or null. The tunnel records the
+ * connected relay at the head of the recents, but a relay without a location adds no entry, so
+ * the head may still be the previous session's. The bridge state carries no relay id to compare,
+ * and names are not unique (operators choose them), so the entry must match on both the relay's
+ * name and its location string — native writes the same string to the entry's `label` and to
+ * `relayLabel`.
+ */
+export function sessionRecent<
+  Recent extends { relayName?: string; label: string },
+>(relayName: string | null, relayLabel: string | null, recents: readonly Recent[]): Recent | null {
+  const head = recents[0];
+  return relayName != null &&
+    relayLabel != null &&
+    head != null &&
+    head.relayName === relayName &&
+    head.label === relayLabel
+    ? head
+    : null;
+}
+
+/**
+ * Where the connected relay sits on the exit-node map: its region's marker when the loaded
+ * directory lists the relay, else the coordinates native recorded for the session (a country
+ * centroid). Null when neither is known — native records 0,0 for an unlocated relay.
+ */
+export function connectedRelayLngLat(
+  recent: { relayId?: string; latitude: number; longitude: number } | null,
+  regions: ExitNodeRegion[],
+): [number, number] | null {
+  if (recent == null) {
+    return null;
+  }
+  const region =
+    recent.relayId == null
+      ? undefined
+      : regions.find(candidate => candidate.relays.some(relay => relay.id === recent.relayId));
+  const { latitude, longitude } = region ?? recent;
+  return latitude === 0 && longitude === 0 ? null : [longitude, latitude];
+}
+
 // One code point per class test; `for..of` iterates code points, so astral-plane
 // format characters (e.g. U+E00xx tags) are classified whole, never as surrogates.
 const CONTROL_OR_FORMAT = /[\p{Cc}\p{Cf}]/u;

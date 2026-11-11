@@ -35,7 +35,7 @@ export const ru: Partial<Strings> = {
   tabSettings: 'Настройки',
   tabAbout: 'О нас',
   aboutTitle: 'О нас',
-  relayAuto: 'авто-реле',
+  relayAuto: 'автовыбор реле',
   widgetStatusDisconnected: 'Не\nподключено',
   widgetName: 'Быстрое подключение',
   widgetDescription:
@@ -44,14 +44,6 @@ export const ru: Partial<Strings> = {
   relayClassVolunteer: 'волонтёр',
   settingsGeneralHeader: 'Основные',
   settingsDiagnosticsHeader: 'Диагностика',
-
-  // Ocean telemetry panel (map view).
-  telemetryNetworkHeader: 'СЕТЬ',
-  telemetryLinkHeader: 'КАНАЛ',
-  telemetryRelaysLabel: 'реле',
-  telemetryLocationsLabel: 'локации',
-  telemetryCountriesLabel: 'страны',
-  telemetryUptimeLabel: 'аптайм',
 
   // Content description (open action).
   openContentDescription: 'Открыть',
@@ -66,7 +58,7 @@ export const ru: Partial<Strings> = {
     'Карта доступных выходных узлов в Азиатско-Тихоокеанском регионе',
   mapLoading: 'поиск доступных выходных узлов…',
   mapFailed: 'не удалось загрузить выходные узлы — нажмите, чтобы повторить',
-  mapNodesAvailable: (count: number) => `доступно локаций: ${count}`,
+  mapRelaysOnline: (count: number) => `${count} реле в сети`,
   mapNoNodes: 'сейчас нет доступных выходных узлов',
 
   // Recents, view toggle & list view.
@@ -112,6 +104,7 @@ export const ru: Partial<Strings> = {
 
   // Home overlay / about screen.
   homeTagline: 'сеть ретрансляторов',
+  homeSlogan: 'Доступ в интернет — это право,\nа не привилегия',
   aboutMissionLead:
     'Мы верим, что доступ в интернет — это право, а не привилегия',
   aboutMissionBody:
