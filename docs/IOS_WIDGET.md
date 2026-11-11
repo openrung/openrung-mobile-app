@@ -136,9 +136,11 @@ the app.
 
 ## Connected details
 
-- **Relay and flag.** The widget decodes `relayName` and the head of
+- **Relay and flag.** The widget decodes `relayName`, `relayLabel` and the head of
   `recentRegions` from the snapshot. The country is used only when that head entry
-  is the connected relay; the flag is derived from its two-letter code. The line is
+  is the connected relay — its `relayName` and its `label` both match the snapshot's
+  `relayName` and `relayLabel`, since a relay without a location adds no entry and
+  relay names are not unique; the flag is derived from its two-letter code. The line is
   `privacySensitive`, so it is redacted where the system hides sensitive content.
 - **Timer.** `Text(_:style: .timer)` counts from `widget_last_face_at` (when the
   tunnel entered the connected face). The system animates it; no timeline entries or
@@ -150,7 +152,7 @@ the app.
 
 | Key | Writer | Reader | Meaning |
 | --- | --- | --- | --- |
-| `connection_state` | PacketTunnel only | app, widget | The existing `ConnectionStateSnapshot`; the widget decodes `status`, `relayName` and the head of `recentRegions` (`countryCode`, `relayName`) only. |
+| `connection_state` | PacketTunnel only | app, widget | The existing `ConnectionStateSnapshot`; the widget decodes `status`, `relayName`, `relayLabel` and the head of `recentRegions` (`countryCode`, `relayName`, `label`) only. |
 | `widget_language_tag` | app (`OpenRungWidget.setLanguageTag`) | widget | In-app language selection, `''` = system. |
 | `widget_last_face`, `widget_last_face_at` | `WidgetReloadGate` (PacketTunnel) | PacketTunnel, widget | Last face WidgetKit was asked to render, and when the tunnel entered it. |
 | `widget_last_relay` | `WidgetReloadGate` (PacketTunnel) | PacketTunnel | The connected relay WidgetKit was last asked to show; absent on other faces. |

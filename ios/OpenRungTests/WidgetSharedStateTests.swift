@@ -23,8 +23,8 @@ final class WidgetSharedStateTests: XCTestCase {
 
     // MARK: - What the connected face shows
 
-    private func recent(_ country: String, _ name: String?) -> RecentNode {
-        RecentNode(countryCode: country, relayId: "relay-1", label: "Somewhere", relayName: name, latitude: 0, longitude: 0)
+    private func recent(_ country: String, _ name: String?, label: String = "Ashburn, United States") -> RecentNode {
+        RecentNode(countryCode: country, relayId: "relay-1", label: label, relayName: name, latitude: 0, longitude: 0)
     }
 
     func testConnectedSnapshotCarriesTheRelayAndItsCountry() throws {
@@ -46,7 +46,8 @@ final class WidgetSharedStateTests: XCTestCase {
     func testTheCountryIsTakenOnlyFromTheConnectedRelaysOwnRecentEntry() throws {
         // The head of the recents is another relay (this one was not recorded): no flag, not a wrong one.
         let snapshot = ConnectionStateSnapshot(
-            status: .connected, brokerURL: "https://broker.example", relayName: "suave-mantis",
+            status: .connected, brokerURL: "https://broker.example",
+            relayLabel: "Ashburn, United States", relayName: "suave-mantis",
             recentRegions: [recent("JP", "calm-otter"), recent("US", "suave-mantis")]
         )
         let relay = WidgetSharedState.display(fromSnapshotData: try JSONEncoder().encode(snapshot)).relay
@@ -55,8 +56,27 @@ final class WidgetSharedStateTests: XCTestCase {
         XCTAssertNil(relay?.flag)
     }
 
+    func testASameNamedRelaySomewhereElseLendsNoFlag() throws {
+        // An unlocated relay adds no recents entry, so the head is still the previous session's;
+        // operators choose relay names, so that entry can carry this relay's name.
+        func relay(location: String?) throws -> WidgetRelay? {
+            let snapshot = ConnectionStateSnapshot(
+                status: .connected, brokerURL: "https://broker.example",
+                relayLabel: location, relayName: "suave-mantis",
+                recentRegions: [recent("JP", "suave-mantis", label: "Tokyo, Japan")]
+            )
+            return WidgetSharedState.display(fromSnapshotData: try JSONEncoder().encode(snapshot)).relay
+        }
+        XCTAssertEqual(try relay(location: "Tokyo, Japan")?.flag, "🇯🇵")
+        for elsewhere in ["Unknown location", "Ashburn, United States", nil] {
+            let other = try relay(location: elsewhere)
+            XCTAssertEqual(other?.name, "suave-mantis", elsewhere ?? "nil")
+            XCTAssertNil(other?.flag, elsewhere ?? "nil")
+        }
+    }
+
     func testTheRelayIsShownOnlyOnTheConnectedFace() throws {
-        let json = #"{"status":"connecting","relayName":"suave-mantis","recentRegions":[{"countryCode":"US","relayName":"suave-mantis"}]}"#
+        let json = #"{"status":"connecting","relayName":"suave-mantis","relayLabel":"Ashburn","recentRegions":[{"countryCode":"US","relayName":"suave-mantis","label":"Ashburn"}]}"#
         let display = WidgetSharedState.display(fromSnapshotData: Data(json.utf8))
         XCTAssertEqual(display, WidgetDisplay(face: .connecting))
         XCTAssertNil(WidgetSharedState.display(fromSnapshotData: Data(#"{"status":"connected"}"#.utf8)).relay)
@@ -75,7 +95,10 @@ final class WidgetSharedStateTests: XCTestCase {
 
     func testFlagNeedsATwoLetterCountry() {
         func relay(_ country: String) -> WidgetRelay? {
-            WidgetRelay(name: "suave-mantis", recents: [.init(countryCode: country, relayName: "suave-mantis")])
+            WidgetRelay(
+                name: "suave-mantis", location: "Ashburn",
+                recents: [.init(countryCode: country, relayName: "suave-mantis", label: "Ashburn")]
+            )
         }
         XCTAssertEqual(relay("de")?.flag, "🇩🇪")
         XCTAssertEqual(relay(" JP ")?.flag, "🇯🇵")
@@ -318,7 +341,8 @@ final class WidgetSharedStateTests: XCTestCase {
         )
         func connected(_ name: String?, _ country: String = "US") -> WidgetDisplay {
             WidgetDisplay(face: .connected, relay: WidgetRelay(
-                name: name, recents: [.init(countryCode: country, relayName: name)]
+                name: name, location: "Somewhere",
+                recents: [.init(countryCode: country, relayName: name, label: "Somewhere")]
             ))
         }
         XCTAssertTrue(gate.publish(connected("suave-mantis")))
@@ -345,7 +369,8 @@ final class WidgetSharedStateTests: XCTestCase {
             reload: {}
         )
         let snapshot = ConnectionStateSnapshot(
-            status: .connected, brokerURL: "https://broker.example", relayName: "suave-mantis",
+            status: .connected, brokerURL: "https://broker.example",
+            relayLabel: "Ashburn, United States", relayName: "suave-mantis",
             recentRegions: [recent("US", "suave-mantis")]
         )
         XCTAssertTrue(gate.publish(snapshotData: try JSONEncoder().encode(snapshot)))
