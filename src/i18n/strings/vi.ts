@@ -56,17 +56,10 @@ export const vi: Partial<Strings> = {
   // Content description (open action).
   openContentDescription: 'Mở',
 
-  // Relay speed test (diagnostics).
-  speedTestSettingTitle: 'Kiểm tra tốc độ relay',
-  speedTestReady:
-    'Tải xuống 10 MB qua relay đang hoạt động và báo cáo kết quả.',
-  speedTestRequiresConnection:
-    'Kết nối với relay trước khi chạy kiểm tra tốc độ.',
-  speedTestRunning: 'Đang kiểm tra tốc độ tải xuống qua relay…',
-  speedTestResult: (mbps: number) =>
-    `Tốc độ tải xuống: ${mbps.toFixed(1)} Mbps`,
-  speedTestError: (error: string) => `Kiểm tra tốc độ thất bại: ${error}`,
-  speedTestAction: 'CHẠY',
+  // Speed test link (settings).
+  speedTestSettingTitle: 'Kiểm tra tốc độ',
+  speedTestSettingSubtitle: 'Mở fast.com trong trình duyệt của bạn',
+  speedTestRequiresConnection: 'Hãy kết nối trước để đo đường hầm',
 
   // Map and list views (exit nodes).
   mapContentDescription:

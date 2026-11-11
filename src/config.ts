@@ -16,7 +16,7 @@ export const AppConfig = {
   DEFAULT_BROKER_URL: 'https://broker.openrung.org/',
 
   /**
-   * Native brokerapi target for the React Native speed test and its small telemetry batch.
+   * Native brokerapi target for telemetry batches sent from React Native.
    * General VPN telemetry remains owned by the Android VPN service and iOS PacketTunnel.
    */
   TELEMETRY_BROKER_URL: 'https://broker.openrung.org/',
@@ -45,6 +45,12 @@ export const AppConfig = {
    * About screen's donate button. The `code` query param attributes donations to the mobile app.
    */
   DONATE_URL: 'https://www.every.org/openrung-foundation?code=af922628#/donate',
+
+  /**
+   * External speed test opened in the system browser from Settings. The row is enabled only
+   * while connected, so the page measures the tunnel.
+   */
+  SPEED_TEST_URL: 'https://fast.com',
 
   /** Public website and official social profiles shown on the About screen. */
   WEBSITE_URL: 'https://openrung.org/',

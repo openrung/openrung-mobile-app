@@ -56,15 +56,10 @@ export const fa: Partial<Strings> = {
   // Content descriptions.
   openContentDescription: 'باز کردن',
 
-  // Relay speed test.
-  speedTestSettingTitle: 'تست سرعت رله',
-  speedTestReady:
-    'از طریق رله فعال، 10 MB دانلود می‌کند و نتیجه را گزارش می‌دهد.',
-  speedTestRequiresConnection: 'پیش از اجرای تست سرعت، به یک رله متصل شوید.',
-  speedTestRunning: 'در حال تست سرعت دانلود از طریق رله…',
-  speedTestResult: (mbps: number) => `سرعت دانلود: ${mbps.toFixed(1)} Mbps`,
-  speedTestError: (error: string) => `تست سرعت ناموفق بود: ${error}`,
-  speedTestAction: 'اجرا',
+  // Speed test link (settings).
+  speedTestSettingTitle: 'تست سرعت',
+  speedTestSettingSubtitle: 'fast.com را در مرورگر شما باز می‌کند',
+  speedTestRequiresConnection: 'برای سنجش تونل، ابتدا متصل شوید',
 
   // Map view (exit nodes).
   mapContentDescription:

@@ -335,7 +335,7 @@ from simulator/unit results:
 - directory refresh while disconnected;
 - normal VPN connect and WSS fallback/recovery;
 - telemetry delivery;
-- speed test and cancellation;
+- request cancellation;
 - direct, CloudFront, and GitHub manifest paths;
 - Wi-Fi/cellular transitions and captive-portal behavior;
 - system proxy behavior;
@@ -384,9 +384,9 @@ answers must match [`ios/OpenRung/PrivacyInfo.xcprivacy`](ios/OpenRung/PrivacyIn
 | --- | --- | --- | --- |
 | Coarse Location | IP-derived country and city | Yes | App Functionality; Analytics |
 | Device ID | Persistent installation ID plus connection/session/event IDs linked to it | Yes | App Functionality; Analytics |
-| Product Interaction | Connection attempts and outcomes, relay choice, manual speed tests | Yes | App Functionality; Analytics |
+| Product Interaction | Connection attempts and outcomes, relay choice | Yes | App Functionality; Analytics |
 | Other Usage Data | Session/connection duration, heartbeats, and cumulative traffic totals | Yes | App Functionality; Analytics |
-| Performance Data | Broker, relay, tunnel, probe, and speed-test timings | Yes | App Functionality; Analytics |
+| Performance Data | Broker, relay, tunnel, and probe timings | Yes | App Functionality; Analytics |
 | Other Diagnostic Data | Failure details plus app, OS, device, and network diagnostics | Yes | App Functionality; Analytics |
 | Other Data Types | Public/source IP, provider/organization/ASN, locale, time zone, and network state | Yes | App Functionality; Analytics |
 

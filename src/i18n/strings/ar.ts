@@ -55,14 +55,10 @@ export const ar: Partial<Strings> = {
   // Content description (accessibility).
   openContentDescription: 'فتح',
 
-  // Relay speed test (settings + diagnostics).
-  speedTestSettingTitle: 'اختبار سرعة المُرحّل',
-  speedTestReady: 'تنزيل 10 MB عبر المُرحّل النشط والإبلاغ عن النتيجة.',
-  speedTestRequiresConnection: 'اتصل بمُرحّل قبل إجراء اختبار السرعة.',
-  speedTestRunning: 'جار اختبار سرعة التنزيل عبر المُرحّل…',
-  speedTestResult: (mbps: number) => `سرعة التنزيل: ${mbps.toFixed(1)} Mbps`,
-  speedTestError: (error: string) => `فشل اختبار السرعة: ${error}`,
-  speedTestAction: 'تشغيل',
+  // Speed test link (settings).
+  speedTestSettingTitle: 'اختبار السرعة',
+  speedTestSettingSubtitle: 'يفتح fast.com في متصفحك',
+  speedTestRequiresConnection: 'اتصل أولاً لقياس النفق',
 
   // Map view (relay exit nodes).
   mapContentDescription:

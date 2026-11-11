@@ -25,8 +25,8 @@ lifecycle, recents recording, and status/log persistence. If the RN process
 dies, the tunnel keeps running.
 
 **TypeScript owns everything the production app processes own**: all screens
-and navigation, exit-node directory modeling, speed-test UI and telemetry event
-construction, manifest verification/selection, language selection, and the
+and navigation, exit-node directory modeling, manifest
+verification/selection, language selection, and the
 licenses screens. Eligible network requests for those features are executed by
 native brokerapi operations.
 
@@ -113,8 +113,8 @@ weaken the production OS policy.
   VPN clients and `OpenRungBroker`. ECH is opportunistic, not guaranteed; this
   wording does not claim that SNI is never visible or that every app request
   uses ECH.
-- **React Native broker surface** — each directory, speed-test, speed-test
-  telemetry, or broker-hosted manifest call receives a new single-use native
+- **React Native broker surface** — each directory, telemetry, or
+  broker-hosted manifest call receives a new single-use native
   operation. Cancelling its Kotlin coroutine or Swift task makes the shared
   PR 2 runner call `Close`; generated objects are copied into value snapshots
   before close. The RN-only directory projection removes `wss_fronts` before
@@ -503,8 +503,8 @@ the scene has enough usable width, and stack their sections in narrower windows.
 - In-app language switch does not relayout RTL (fa/ar) without app restart.
 - iOS simulator: UI + map + directory work; connect fails by design
   (NetworkExtension requires a signed device build).
-- Telemetry from TS covers only speed-test events; the native connect path
-  keeps full production telemetry.
+- TS builds no telemetry events of its own; the native connect path keeps
+  full production telemetry.
 - Per-app split-tunnel bypass is Android-only; iOS parses and ignores
   `excluded_packages`.
 - With a country bypass preset on, DNS for bypassed domains resolves via that
