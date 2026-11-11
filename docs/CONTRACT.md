@@ -31,8 +31,8 @@ connectcore pin (including the shared builder's explicit tunneled-QUIC rejection
 
 **TypeScript (RN shell)** owns everything the production *app processes* own:
 all UI, navigation, exit-node map directory modeling (grouped by broker-served
-relay locations — relay IPs are never geolocated client-side), speed-test UI
-and telemetry event construction, update-manifest verification/selection,
+relay locations — relay IPs are never geolocated client-side),
+update-manifest verification/selection,
 language selection, and licenses screens. Eligible broker networking for those
 features is performed by the separate native `OpenRungBroker` module.
 
@@ -194,6 +194,10 @@ fetchManifestCandidate(requestId, candidateUrl): Promise<ManifestSnapshot>
 cancel(requestId): Promise<boolean>
 ```
 
+The app no longer calls `runSpeedTest` (Settings links to an external speed
+test instead) and TypeScript does not require a host to provide it; the native
+modules still export it.
+
 Each request ID owns a new single-use gomobile operation. Android constructs it
 with `NewOpenRungBrokerOperationForReactNative(appVersion, "android")`; iOS
 uses the same constructor with `"ios"`. The VPN service and PacketTunnel keep
@@ -345,8 +349,10 @@ provides `OpenRungVpn` and `OpenRungBroker` with the shapes above, backed by the
 same `connectcore` engine, with these differences:
 
 - `setSplitTunnelConfig` is accepted and ignored, and `OpenRungBroker` implements
-  only `firstReachable`. TS therefore hides split tunneling and the speed test and
-  skips the update check (the manifest describes mobile releases) when `isDesktop`.
+  only `firstReachable`. TS therefore hides split tunneling and skips the update
+  check (the manifest describes mobile releases) when `isDesktop`.
+- The host routes `Linking.openURL` to the system browser, so external links
+  (About, the Settings speed test link) leave the webview.
 - An additional module, `OpenRungDesktop`, carries what has no mobile counterpart:
 
 ```ts
@@ -383,8 +389,7 @@ src/
   net/
     brokerClient.ts    # decode native firstReachable relay snapshot
     exitNodeDirectory.ts # groups relays by broker-served geo (no client-side GeoIP)
-    speedTestClient.ts # map native brokerapi speed snapshot
-    telemetryClient.ts # build + serialize speed-test event batches
+    telemetryClient.ts # serialize telemetry event batches for the native broker module
   state/
     store.ts           # app store: native slice (mirrored) + directory slice
     useVpnState.ts     # hook wiring native events into the store
@@ -418,11 +423,9 @@ Derived: `isWorking` = preparing|connecting|disconnecting; `isConnected` = conne
 `refreshDirectory(force?)` reproduces `OpenRungStatusStore.refreshDirectory`
 (no-op while loading or after a successful non-empty load unless forced).
 
-Speed test runs only while connected, against `config.TELEMETRY_BROKER_URL`,
-and posts `speed_test_completed` / `speed_test_failed` telemetry with the
-identity from `getIdentity()` (skipped when `sessionId` is null).
-`OpenRungBroker.runSpeedTest` runs brokerapi's warmup/measurement flow; Go
-`TotalDurationMillis` maps to the established TypeScript `durationMs`.
+The Settings speed test row opens `config.SPEED_TEST_URL` in the system browser
+through `Linking.openURL`. It is enabled only while connected, so the page
+measures the tunnel; the app neither reads nor reports the result.
 
 ## 5. UI fidelity
 
@@ -908,7 +911,7 @@ hidden legacy transport switch.
 - In-app language switch does not relayout RTL (fa/ar) without app restart.
 - iOS simulator: UI + map + directory work; connect fails by design
   (NetworkExtension requires a signed device build).
-- Telemetry from TS covers only speed-test events; the native connect path keeps
+- TS builds no telemetry events of its own; the native connect path keeps
   production telemetry except that `application_connection` is reduced client-side:
   DNS flows are skipped; destination ip/port/protocol and client
   geo/device/network attributes are never sent; and repeated flows normally collapse

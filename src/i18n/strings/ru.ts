@@ -48,17 +48,10 @@ export const ru: Partial<Strings> = {
   // Content description (open action).
   openContentDescription: 'Открыть',
 
-  // Relay speed test (diagnostics).
-  speedTestSettingTitle: 'Тест скорости ретранслятора',
-  speedTestReady:
-    'Загрузить 10 MB через активный ретранслятор и показать результат.',
-  speedTestRequiresConnection:
-    'Перед запуском теста скорости подключитесь к ретранслятору.',
-  speedTestRunning: 'Проверка скорости загрузки через ретранслятор…',
-  speedTestResult: (mbps: number) =>
-    `Скорость загрузки: ${mbps.toFixed(1)} Mbps`,
-  speedTestError: (error: string) => `Ошибка теста скорости: ${error}`,
-  speedTestAction: 'ЗАПУСК',
+  // Speed test link (settings).
+  speedTestSettingTitle: 'Тест скорости',
+  speedTestSettingSubtitle: 'Открывает fast.com в браузере',
+  speedTestRequiresConnection: 'Сначала подключитесь, чтобы измерить туннель',
 
   // Map view (exit-node overview).
   mapContentDescription:

@@ -2,14 +2,14 @@
  * Settings tab. Large title (it's a root tab now — no back arrow), then
  * sectioned panels: GENERAL (language, split tunneling, plus per-platform
  * sharing — Android offline APK, iOS TestFlight invite link) and DIAGNOSTICS
- * (relay speed test, debug console). The desktop client swaps the rows its host
- * does not implement (split tunneling, speed test) for a LOCAL PROXY section.
+ * (speed test link, debug console). The desktop client swaps the row its host
+ * does not implement (split tunneling) for a LOCAL PROXY section.
  * Version and licenses live on the About tab. The language
  * picker mirrors the production dropdown semantics with a dark-styled modal
- * list; the speed test RUN button is enabled only while connected and not
- * already running.
+ * list; the speed test row opens an external speed test in the system browser
+ * and is enabled only while connected, so it measures the tunnel.
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   Alert,
   Linking,
@@ -33,16 +33,8 @@ import {
   isApkShareAvailable,
   shareInstalledApk,
 } from '../native/OpenRungApkShare';
-import { OpenRungBrokerError } from '../native/OpenRungBroker';
 import { isDesktop, OpenRungDesktop } from '../native/OpenRungDesktop';
-import { OpenRungVpn } from '../native/OpenRungVpn';
-import { runSpeedTest, type SpeedTestResult } from '../net/speedTestClient';
 import { useAppSelector } from '../state/store';
-import {
-  buildSpeedTestCompletedEvent,
-  buildSpeedTestFailedEvent,
-  sendTelemetry,
-} from '../net/telemetryClient';
 import { monoFont, palette, tokens } from '../theme';
 
 export interface SettingsScreenProps {
@@ -69,35 +61,6 @@ export function SettingsScreen({
   const isConnected = useAppSelector(current => current.native.status === 'connected');
   const update = useAppSelector(current => current.update);
   const splitTunnel = useAppSelector(current => current.splitTunnel);
-
-  const [speedTestRunning, setSpeedTestRunning] = useState(false);
-  const [speedTestResult, setSpeedTestResult] = useState<SpeedTestResult | null>(null);
-  const [speedTestError, setSpeedTestError] = useState<string | null>(null);
-
-  const mountedRef = useRef(true);
-  const runControllerRef = useRef<AbortController | null>(null);
-
-  useEffect(() => {
-    return () => {
-      // Android unmounts inactive tabs. Abort an in-flight native speed test on unmount so its
-      // single-use broker operation is closed instead of finishing in the background.
-      mountedRef.current = false;
-      runControllerRef.current?.abort();
-    };
-  }, []);
-
-  // Same precedence as production: running > error > result > requires-connection > ready.
-  const speedTestSubtitle = speedTestRunning
-    ? s.speedTestRunning
-    : speedTestError != null
-      ? s.speedTestError(speedTestError)
-      : speedTestResult != null
-        ? s.speedTestResult(speedTestResult.downloadMbps)
-        : !isConnected
-          ? s.speedTestRequiresConnection
-          : s.speedTestReady;
-
-  const runEnabled = isConnected && !speedTestRunning;
 
   const onShareApk = useCallback(() => {
     shareInstalledApk(s.shareApkTitle).catch(error => {
@@ -126,63 +89,10 @@ export function SettingsScreen({
     });
   }, [s]);
 
-  const onRunSpeedTest = useCallback(() => {
-    const controller = new AbortController();
-    runControllerRef.current = controller;
-    setSpeedTestRunning(true);
-    setSpeedTestResult(null);
-    setSpeedTestError(null);
-    (async () => {
-      try {
-        const result = await runSpeedTest(AppConfig.TELEMETRY_BROKER_URL, controller.signal);
-        if (!mountedRef.current) {
-          return;
-        }
-        setSpeedTestResult(result);
-        try {
-          const identity = await OpenRungVpn.getIdentity();
-          if (identity.sessionId != null) {
-            // Telemetry is skipped when no session is active (contract §4).
-            await sendTelemetry(AppConfig.TELEMETRY_BROKER_URL, [
-              buildSpeedTestCompletedEvent(identity, result),
-            ]);
-          }
-        } catch {
-          // Telemetry is best-effort; never surfaces in the UI.
-        }
-      } catch (error) {
-        // A run cancelled by unmount/navigation is not a real failure: don't surface it or report
-        // a bogus speed_test_failed event. Native timeout failures leave this caller signal intact
-        // and therefore still fall through to the structured failure path below.
-        if (controller.signal.aborted || !mountedRef.current) {
-          return;
-        }
-        // Mirrors production: message ?: exception simple name for the subtitle,
-        // the error type name for the telemetry attribute.
-        const errorType =
-          error instanceof OpenRungBrokerError
-            ? error.kind
-            : error instanceof Error
-              ? error.constructor.name || error.name
-              : 'Error';
-        const message = error instanceof Error ? error.message || errorType : String(error);
-        setSpeedTestError(message);
-        try {
-          const identity = await OpenRungVpn.getIdentity();
-          if (identity.sessionId != null) {
-            await sendTelemetry(AppConfig.TELEMETRY_BROKER_URL, [
-              buildSpeedTestFailedEvent(identity, errorType),
-            ]);
-          }
-        } catch {
-          // Best-effort.
-        }
-      } finally {
-        if (mountedRef.current) {
-          setSpeedTestRunning(false);
-        }
-      }
-    })();
+  const onOpenSpeedTest = useCallback(() => {
+    Linking.openURL(AppConfig.SPEED_TEST_URL).catch(() => {
+      // Best-effort: ignore devices without a browser handler.
+    });
   }, []);
 
   return (
@@ -242,24 +152,14 @@ export function SettingsScreen({
           </View>
           <View style={[styles.sectionColumn, columnStyle]}>
             <Text style={styles.sectionHeader}>{s.settingsDiagnosticsHeader.toUpperCase()}</Text>
-            {isDesktop ? null : (
-              <SettingPanel
-                title={s.speedTestSettingTitle}
-                subtitle={speedTestSubtitle}
-                trailing={
-                  <Pressable
-                    onPress={onRunSpeedTest}
-                    disabled={!runEnabled}
-                    style={[styles.runButton, !runEnabled && styles.runButtonDisabled]}
-                    accessibilityRole="button"
-                  >
-                    <Text style={[styles.runLabel, !runEnabled && styles.runLabelDisabled]}>
-                      {s.speedTestAction}
-                    </Text>
-                  </Pressable>
-                }
-              />
-            )}
+            <SettingPanel
+              title={s.speedTestSettingTitle}
+              subtitle={
+                isConnected ? s.speedTestSettingSubtitle : s.speedTestRequiresConnection
+              }
+              onPress={onOpenSpeedTest}
+              disabled={!isConnected}
+            />
             <SettingPanel
               title={s.debugSettingTitle}
               subtitle={s.debugSettingSubtitle}
@@ -350,28 +250,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 1.5,
     marginTop: 8,
-  },
-  // Material3 filled button metrics: 40dp tall pill, 24dp horizontal padding.
-  runButton: {
-    height: 40,
-    borderRadius: 20,
-    paddingHorizontal: 24,
-    backgroundColor: palette.terminalGreen,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  // Material3 default disabled colors (onSurface @ 12% / 38%), as in production.
-  runButtonDisabled: {
-    backgroundColor: 'rgba(29, 27, 32, 0.12)',
-  },
-  runLabel: {
-    color: palette.onGreenText,
-    fontFamily: monoFont,
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  runLabelDisabled: {
-    color: 'rgba(29, 27, 32, 0.38)',
   },
   // Material TextButton-ish: label-only button, terminal green mono.
   languageButton: {

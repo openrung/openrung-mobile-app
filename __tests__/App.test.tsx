@@ -145,7 +145,6 @@ jest.mock('../src/native/OpenRungBroker', () => {
     ...actual,
     firstReachable: jest.fn(unavailable),
     fetchManifestCandidate: jest.fn(unavailable),
-    runSpeedTest: jest.fn(unavailable),
     sendTelemetryBatchJSON: jest.fn(unavailable),
   };
 });

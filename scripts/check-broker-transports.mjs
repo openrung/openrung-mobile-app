@@ -107,7 +107,6 @@ function requirePolicy(condition, message) {
 
 const brokerSensitiveFiles = [
   'src/net/brokerClient.ts',
-  'src/net/speedTestClient.ts',
   'src/net/telemetryClient.ts',
 ];
 for (const relativePath of brokerSensitiveFiles) {
@@ -250,10 +249,6 @@ requirePolicy(
 requirePolicy(
   /\bnativeFirstReachable\s*\(/.test(stripComments(read('src/net/brokerClient.ts'))),
   'brokerClient.ts: directory selection must call native firstReachable',
-);
-requirePolicy(
-  /\bnativeRunSpeedTest\s*\(/.test(stripComments(read('src/net/speedTestClient.ts'))),
-  'speedTestClient.ts: speed tests must call native runSpeedTest',
 );
 requirePolicy(
   /\bsendTelemetryBatchJSON\s*\(/.test(

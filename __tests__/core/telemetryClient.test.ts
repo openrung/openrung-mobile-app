@@ -13,19 +13,15 @@ import {
 const EVENT: TelemetryEvent = {
   schema_version: 1,
   event_id: 'event-1',
-  event: 'speed_test_completed',
+  event: 'example_event',
   occurred_at: '2026-07-26T12:34:56.000Z',
   client_id: 'client-a',
   session_id: 'session-a',
   attributes: {
     provider: 'openrung_broker',
-    test_type: 'manual_download',
   },
   measurements: {
-    bytes_downloaded: 10_000_000,
-    download_duration_ms: 1_025,
-    time_to_first_byte_ms: 75,
-    download_mbps_milli: 78_048,
+    duration_ms: 1_025,
   },
 };
 

@@ -49,18 +49,10 @@ export const my: Partial<Strings> = {
   // Open action (accessibility).
   openContentDescription: 'ဖွင့်ရန်',
 
-  // Relay speed test.
-  speedTestSettingTitle: 'ရီလေး အမြန်နှုန်း စမ်းသပ်ခြင်း',
-  speedTestReady:
-    'လက်ရှိ ရီလေးမှတစ်ဆင့် 10 MB ကို ဒေါင်းလုဒ်လုပ်ပြီး ရလဒ်ကို ဖော်ပြပါ။',
-  speedTestRequiresConnection:
-    'အမြန်နှုန်း စမ်းသပ်မှု မလုပ်မီ ရီလေးတစ်ခုသို့ ချိတ်ဆက်ပါ။',
-  speedTestRunning: 'ရီလေးမှတစ်ဆင့် ဒေါင်းလုဒ် အမြန်နှုန်းကို စမ်းသပ်နေသည်…',
-  speedTestResult: (mbps: number) =>
-    `ဒေါင်းလုဒ် အမြန်နှုန်း: ${mbps.toFixed(1)} Mbps`,
-  speedTestError: (error: string) =>
-    `အမြန်နှုန်း စမ်းသပ်မှု မအောင်မြင်ပါ: ${error}`,
-  speedTestAction: 'စမ်းသပ်မည်',
+  // Speed test link (settings).
+  speedTestSettingTitle: 'အမြန်နှုန်း စမ်းသပ်ခြင်း',
+  speedTestSettingSubtitle: 'သင့်ဘရောက်ဇာတွင် fast.com ကို ဖွင့်သည်',
+  speedTestRequiresConnection: 'ဥမင်ကို တိုင်းတာရန် ဦးစွာ ချိတ်ဆက်ပါ',
 
   // Map view (exit nodes).
   mapContentDescription:

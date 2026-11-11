@@ -61,18 +61,6 @@ export interface FirstReachableResult {
   signatureVerified: boolean;
 }
 
-export interface RunSpeedTestRequest {
-  brokerUrl: string;
-}
-
-export interface RunSpeedTestResult {
-  bytes: number;
-  ttfbMillis: number;
-  downloadDurationMillis: number;
-  totalDurationMillis: number;
-  mbps: number;
-}
-
 export interface SendTelemetryBatchJSONRequest {
   brokerUrl: string;
   batchJson: string;
@@ -95,7 +83,6 @@ interface NativeBrokerModule {
     clientId: string,
     sessionId: string,
   ): Promise<unknown>;
-  runSpeedTest(requestId: string, brokerUrl: string): Promise<unknown>;
   sendTelemetryBatchJSON(
     requestId: string,
     brokerUrl: string,
@@ -159,17 +146,6 @@ export function firstReachable(
         request.sessionId,
       ),
     decodeFirstReachable,
-    signal,
-  );
-}
-
-export function runSpeedTest(
-  request: RunSpeedTestRequest,
-  signal?: AbortSignal,
-): Promise<RunSpeedTestResult> {
-  return runRequest(
-    (module, requestId) => module.runSpeedTest(requestId, request.brokerUrl),
-    decodeSpeedTest,
     signal,
   );
 }
@@ -282,7 +258,6 @@ function requireNativeModule(): NativeBrokerModule {
   const record = module as Record<string, unknown>;
   const methods: (keyof NativeBrokerModule)[] = [
     'firstReachable',
-    'runSpeedTest',
     'sendTelemetryBatchJSON',
     'fetchManifestCandidate',
     'cancel',
@@ -300,17 +275,6 @@ function decodeFirstReachable(value: unknown): FirstReachableResult {
     relayJson: requiredString(record.relayJson),
     keyId: requiredString(record.keyId),
     signatureVerified: requiredBoolean(record.signatureVerified),
-  };
-}
-
-function decodeSpeedTest(value: unknown): RunSpeedTestResult {
-  const record = requiredRecord(value);
-  return {
-    bytes: requiredNumber(record.bytes),
-    ttfbMillis: requiredNumber(record.ttfbMillis),
-    downloadDurationMillis: requiredNumber(record.downloadDurationMillis),
-    totalDurationMillis: requiredNumber(record.totalDurationMillis),
-    mbps: requiredNumber(record.mbps),
   };
 }
 
@@ -339,13 +303,6 @@ function requiredString(value: unknown): string {
 
 function requiredBoolean(value: unknown): boolean {
   if (typeof value !== 'boolean') {
-    throw decodeError();
-  }
-  return value;
-}
-
-function requiredNumber(value: unknown): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
     throw decodeError();
   }
   return value;

@@ -44,15 +44,11 @@ export const zhTW: Partial<Strings> = {
   settingsGeneralHeader: '一般',
   settingsDiagnosticsHeader: '診斷',
 
-  // Open control + relay speed test.
+  // Open control + speed test link.
   openContentDescription: '開啟',
-  speedTestSettingTitle: '中繼速度測試',
-  speedTestReady: '透過使用中的中繼下載 10 MB 並回報結果。',
-  speedTestRequiresConnection: '執行速度測試前，請先連線至中繼。',
-  speedTestRunning: '正在透過中繼測試下載速度…',
-  speedTestResult: (mbps: number) => `下載速度：${mbps.toFixed(1)} Mbps`,
-  speedTestError: (error: string) => `速度測試失敗：${error}`,
-  speedTestAction: '執行',
+  speedTestSettingTitle: '速度測試',
+  speedTestSettingSubtitle: '在瀏覽器中開啟 fast.com',
+  speedTestRequiresConnection: '請先連線，再測量通道速度',
 
   // Map / list views.
   mapContentDescription: '橫跨亞太地區的可用出口節點地圖',

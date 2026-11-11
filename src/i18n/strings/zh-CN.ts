@@ -47,14 +47,10 @@ export const zhCN: Partial<Strings> = {
   // Generic open affordance (accessibility).
   openContentDescription: '打开',
 
-  // Relay speed test (settings screen).
-  speedTestSettingTitle: '中继测速',
-  speedTestReady: '通过当前活动的中继下载 10 MB 并报告结果。',
-  speedTestRequiresConnection: '请先连接中继，再运行测速。',
-  speedTestRunning: '正在通过中继测试下载速度…',
-  speedTestResult: (mbps: number) => `下载速度：${mbps.toFixed(1)} Mbps`,
-  speedTestError: (error: string) => `测速失败：${error}`,
-  speedTestAction: '运行',
+  // Speed test link (settings).
+  speedTestSettingTitle: '测速',
+  speedTestSettingSubtitle: '在浏览器中打开 fast.com',
+  speedTestRequiresConnection: '请先连接，再测量隧道速度',
 
   // Map view (relay exit nodes).
   mapContentDescription: '亚太地区可用出口节点的地图',

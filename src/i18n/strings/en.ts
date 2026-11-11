@@ -18,15 +18,9 @@ export const en = {
   openContentDescription: 'Open',
   languageSettingTitle: 'Language',
   languageSettingSubtitle: 'Use system language or choose one for OpenRung.',
-  speedTestSettingTitle: 'Relay speed test',
-  speedTestReady:
-    'Download 10 MB through the active relay and report the result.',
-  speedTestRequiresConnection:
-    'Connect to a relay before running the speed test.',
-  speedTestRunning: 'Testing download speed through the relay…',
-  speedTestResult: (mbps: number) => `Download speed: ${mbps.toFixed(1)} Mbps`,
-  speedTestError: (error: string) => `Speed test failed: ${error}`,
-  speedTestAction: 'RUN',
+  speedTestSettingTitle: 'Speed test',
+  speedTestSettingSubtitle: 'Opens fast.com in your browser',
+  speedTestRequiresConnection: 'Connect first to measure the tunnel',
   languageSystem: 'System default',
   languageEnglish: 'English',
   languageSimplifiedChinese: 'Simplified Chinese',

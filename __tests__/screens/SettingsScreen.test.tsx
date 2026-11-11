@@ -51,8 +51,10 @@ jest.mock('../../src/native/OpenRungApkShare', () => ({
       : null,
 }));
 
+import type { NativeVpnState } from '../../src/native/types';
 import { AboutScreen } from '../../src/screens/AboutScreen';
 import { SettingsScreen } from '../../src/screens/SettingsScreen';
+import { applyNativeState, resetStoreForTests } from '../../src/state/store';
 
 async function renderSettings(
   onOpenSplitTunneling: () => void = jest.fn(),
@@ -236,6 +238,80 @@ describe('SettingsScreen split tunneling', () => {
     });
 
     expect(onOpenSplitTunneling).toHaveBeenCalledTimes(1);
+    await unmount(tree);
+  });
+});
+
+describe('SettingsScreen speed test link', () => {
+  const CONNECTED: NativeVpnState = {
+    status: 'connected',
+    relayLabel: 'Tokyo, Japan',
+    relayName: null,
+    relayClass: null,
+    lastError: null,
+    lastErrorCode: null,
+    logLines: [],
+    recents: [],
+  };
+
+  function speedTestRow(
+    tree: ReactTestRenderer.ReactTestRenderer,
+  ): ReactTestRenderer.ReactTestInstance {
+    // The row's Pressable, not the SettingPanel wrapping it: the one that carries the
+    // accessibility props a disabled row must expose.
+    return tree.root
+      .findAll(
+        node =>
+          node.props.accessibilityRole === 'button' &&
+          typeof node.props.onPress === 'function',
+      )
+      .find(node =>
+        node.findAllByType(Text).some(text => text.props.children === 'Speed test'),
+      )!;
+  }
+
+  function labelsOf(tree: ReactTestRenderer.ReactTestRenderer): unknown[] {
+    return tree.root.findAllByType(Text).map(text => text.props.children);
+  }
+
+  afterEach(() => {
+    resetStoreForTests();
+  });
+
+  it('stays in Diagnostics, disabled with a hint, while disconnected', async () => {
+    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+    const tree = await renderSettings();
+    const labels = labelsOf(tree);
+
+    expect(labels.indexOf('DIAGNOSTICS')).toBeLessThan(labels.indexOf('Speed test'));
+    expect(labels).toContain('Connect first to measure the tunnel');
+    expect(labels).not.toContain('Opens fast.com in your browser');
+    expect(speedTestRow(tree).props.disabled).toBe(true);
+    expect(speedTestRow(tree).props.accessibilityState).toEqual({ disabled: true });
+    expect(openURL).not.toHaveBeenCalled();
+
+    openURL.mockRestore();
+    await unmount(tree);
+  });
+
+  it('opens the speed test in the system browser while connected', async () => {
+    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+    const tree = await renderSettings();
+    await ReactTestRenderer.act(async () => {
+      applyNativeState(CONNECTED);
+    });
+
+    expect(labelsOf(tree)).toContain('Opens fast.com in your browser');
+    expect(speedTestRow(tree).props.disabled).toBe(false);
+
+    await ReactTestRenderer.act(async () => {
+      speedTestRow(tree).props.onPress();
+      await Promise.resolve();
+    });
+
+    expect(openURL).toHaveBeenCalledTimes(1);
+    expect(openURL).toHaveBeenCalledWith('https://fast.com');
+    openURL.mockRestore();
     await unmount(tree);
   });
 });

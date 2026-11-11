@@ -2,7 +2,8 @@
  * Shared settings/licenses row panel. Mirrors the production Compose
  * SettingPanel/LicensePanel: 8dp-rounded #07110B panel with a 1dp #294F35
  * border, 14dp padding, bold title + 13sp dim subtitle, and either a custom
- * trailing element or (when clickable) a terminal-green chevron.
+ * trailing element or (when clickable) a terminal-green chevron. A disabled
+ * clickable row stays in place, dimmed, and ignores presses.
  */
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -14,6 +15,8 @@ export interface SettingPanelProps {
   title: string;
   subtitle: string;
   onPress?: () => void;
+  /** Only meaningful with `onPress`: dims the row and ignores presses. */
+  disabled?: boolean;
   trailing?: React.ReactNode;
 }
 
@@ -21,6 +24,7 @@ export function SettingPanel({
   title,
   subtitle,
   onPress,
+  disabled = false,
   trailing,
 }: SettingPanelProps): React.JSX.Element {
   const s = useStrings();
@@ -45,8 +49,14 @@ export function SettingPanel({
     return (
       <Pressable
         onPress={onPress}
-        style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+        disabled={disabled}
+        style={({ pressed }) => [
+          styles.row,
+          pressed && styles.rowPressed,
+          disabled && styles.rowDisabled,
+        ]}
         accessibilityRole="button"
+        accessibilityState={{ disabled }}
       >
         {inner}
       </Pressable>
@@ -69,6 +79,9 @@ const styles = StyleSheet.create({
   },
   rowPressed: {
     opacity: 0.85,
+  },
+  rowDisabled: {
+    opacity: 0.45,
   },
   textColumn: {
     flex: 1,
