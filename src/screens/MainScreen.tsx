@@ -32,7 +32,7 @@ import { ViewModeToggle } from '../components/ViewModeToggle';
 import { AppConfig } from '../config';
 import { nativeErrorText, resolveLanguage, useLanguage, useStrings } from '../i18n';
 import { layout, useTabSceneInsets } from '../layout';
-import { connectedRelayLngLat } from '../model/exitNode';
+import { connectedRelayLngLat, sessionRecent } from '../model/exitNode';
 import { pickLocalizedText } from '../model/updateStatus';
 import {
   hydrateHomeViewMode,
@@ -79,6 +79,7 @@ function Wordmark(): React.JSX.Element {
 function selectMainScreenState(current: AppState) {
   return {
     status: current.native.status,
+    relayLabel: current.native.relayLabel,
     relayName: current.native.relayName,
     relayClass: current.native.relayClass,
     lastError: current.native.lastError,
@@ -99,6 +100,7 @@ export function MainScreen(): React.JSX.Element {
   const { disconnect, prepareAndConnect } = useVpnActions();
   const {
     status,
+    relayLabel,
     relayName,
     relayClass,
     lastError,
@@ -114,10 +116,8 @@ export function MainScreen(): React.JSX.Element {
   const isWorking =
     status === 'preparing' || status === 'connecting' || status === 'disconnecting';
   const isListMode = homeViewMode === 'list';
-  // The tunnel records the connected relay at the head of the recents (the iOS widget reads
-  // its flag the same way); an older entry is some other session's and says nothing here.
-  const connectedRecent =
-    isConnected && relayName != null && recents[0]?.relayName === relayName ? recents[0] : null;
+  // The flag, the map marker and the camera all come from the recents entry of this session.
+  const connectedRecent = isConnected ? sessionRecent(relayName, relayLabel, recents) : null;
   const relayCountryCode = connectedRecent?.countryCode ?? null;
   const connectedLngLat = useMemo(
     () => connectedRelayLngLat(connectedRecent, availableRegions),
