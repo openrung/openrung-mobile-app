@@ -33,7 +33,7 @@ import {
   isApkShareAvailable,
   shareInstalledApk,
 } from '../native/OpenRungApkShare';
-import { isDesktop, OpenRungDesktop } from '../native/OpenRungDesktop';
+import { OpenRungDesktop } from '../native/OpenRungDesktop';
 import { useAppSelector } from '../state/store';
 import { monoFont, palette, tokens } from '../theme';
 
@@ -117,18 +117,15 @@ export function SettingsScreen({
               subtitle={s.languageSettingSubtitle}
               trailing={<LanguagePicker />}
             />
-            {isDesktop ? null : (
-              // The desktop host applies no split-tunnel config, so it must not offer the toggle.
-              <SettingPanel
-                title={s.splitTunnelSettingTitle}
-                subtitle={
-                  splitTunnel.enabled
-                    ? s.splitTunnelSettingSubtitleOn
-                    : s.splitTunnelSettingSubtitleOff
-                }
-                onPress={onOpenSplitTunneling}
-              />
-            )}
+            <SettingPanel
+              title={s.splitTunnelSettingTitle}
+              subtitle={
+                splitTunnel.enabled
+                  ? s.splitTunnelSettingSubtitleOn
+                  : s.splitTunnelSettingSubtitleOff
+              }
+              onPress={onOpenSplitTunneling}
+            />
             {isApkShareAvailable ? (
               <SettingPanel
                 title={s.shareApkTitle}
