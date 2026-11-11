@@ -22,6 +22,20 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<!-- `openrung://connect` is how the iOS 16 home-screen widget asks the app to connect; the app
+	     accepts exactly that URL (no path, query, fragment, user, port), only on iOS 16, and
+	     ignores any other (contract §2, WidgetConnectURL). -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.openrung.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>openrung</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>

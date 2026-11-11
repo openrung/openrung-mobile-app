@@ -7,6 +7,7 @@ import { INITIAL_UPDATE_UI, type UpdateUiState } from '../model/updateStatus';
 import { firstReachable } from '../net/brokerClient';
 import { loadExitNodeDirectory } from '../net/exitNodeDirectory';
 import { OpenRungVpn } from '../native/OpenRungVpn';
+import { publishWidgetLanguage } from '../native/OpenRungWidget';
 import type { NativeVpnState, RecentNode } from '../native/types';
 
 /**
@@ -125,6 +126,11 @@ function initialState(): AppState {
 }
 
 let state: AppState = initialState();
+
+/** The current store value, for module-level code that cannot use a hook. */
+export function getAppState(): AppState {
+  return state;
+}
 const listeners = new Set<() => void>();
 
 // Supersession token for directory loads: mirrors production's `directoryJob?.cancel()` — a
@@ -362,6 +368,8 @@ export function setLanguageTag(tag: string): void {
   AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, tag).catch(() => {
     // Persistence is best-effort, like production's autoStoreLocales.
   });
+  // The iOS home-screen widget renders in this language too (no-op elsewhere).
+  publishWidgetLanguage(tag);
 }
 
 /** Loads the persisted language selection (called once by the LanguageProvider on mount). */
@@ -371,6 +379,8 @@ export async function hydrateLanguage(): Promise<void> {
     if (persisted !== null && persisted !== state.languageTag) {
       setState({ ...state, languageTag: persisted });
     }
+    // Re-publish the stored selection for the widget: a build that predates the widget never did.
+    publishWidgetLanguage(persisted ?? '');
   } catch {
     // Best-effort: fall back to the in-memory default ('' = system).
   }

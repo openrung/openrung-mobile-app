@@ -36,6 +36,10 @@ export const ru: Partial<Strings> = {
   tabAbout: 'О нас',
   aboutTitle: 'О нас',
   relayAuto: 'авто-реле',
+  widgetStatusDisconnected: 'Не\nподключено',
+  widgetName: 'Быстрое подключение',
+  widgetDescription:
+    'Подключайтесь к автоматически выбранному реле с главного экрана.',
   relayClassOfficial: 'официальный',
   relayClassVolunteer: 'волонтёр',
   settingsGeneralHeader: 'Основные',

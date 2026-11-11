@@ -109,10 +109,12 @@ framework; only the hostless `OpenRungTests` target uses fakes without loading
 Libbox. If the React Native broker operation is unavailable at runtime it
 rejects explicitly and never falls back to JavaScript networking.
 
-**Signing:** both targets need a development team (production uses `9VLV9A7KS9`)
-with the **Network Extension (packet-tunnel-provider)** capability and the app
-group `group.com.openrung.app`. Bundle ids are `com.openrung.app` (app) and
-`com.openrung.app.PacketTunnel` (extension).
+**Signing:** the app and the tunnel extension need a development team (production
+uses `9VLV9A7KS9`) with the **Network Extension (packet-tunnel-provider)**
+capability and the app group `group.com.openrung.app`. Bundle ids are
+`com.openrung.app` (app) and `com.openrung.app.PacketTunnel` (extension). The
+home-screen widget, `com.openrung.app.OpenRungWidget`, needs the app group only —
+see [IOS_WIDGET.md](IOS_WIDGET.md) for its provisioning and device checklist.
 
 > [!NOTE]
 > **Simulator limitation:** the iOS simulator runs the UI, map, and relay
@@ -149,6 +151,9 @@ npm run transport:check
 npm run contract:check
 npm run version:check
 ```
+
+After editing any `src/i18n/strings/*.ts` key the iOS widget shows, run
+`npm run widget:strings` and commit the regenerated Swift table (Jest fails otherwise).
 
 For native bindings, run `go test -race ./...` from `android/punchbridge/`.
 With the generated AAR and Android prerequisites installed, run

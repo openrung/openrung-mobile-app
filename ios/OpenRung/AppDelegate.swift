@@ -22,6 +22,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
     self.launchOptions = launchOptions
+    // Installed here, not with React Native in SceneDelegate: the system may launch the app in the
+    // background just to run the widget's Connect, and does not wait for JavaScript to do it.
+    WidgetBackgroundConnect.start = { await VpnProfile.startFromWidget() }
     return true
   }
 

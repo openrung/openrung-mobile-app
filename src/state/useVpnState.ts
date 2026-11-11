@@ -1,7 +1,16 @@
 import { useCallback, useEffect } from 'react';
 import { AppConfig } from '../config';
-import { OpenRungVpn, subscribeVpnState } from '../native/OpenRungVpn';
-import { applyNativeState, flushSplitTunnelPush, useAppState } from './store';
+import {
+  OpenRungVpn,
+  subscribeConnectRequests,
+  subscribeVpnState,
+} from '../native/OpenRungVpn';
+import {
+  applyNativeState,
+  flushSplitTunnelPush,
+  getAppState,
+  useAppState,
+} from './store';
 import type { AppState } from './store';
 
 export interface VpnActions {
@@ -38,11 +47,57 @@ interface VpnStateHook extends VpnActions {
  */
 let nativeStateWired = false;
 
+/**
+ * Start (or switch) the tunnel; country: ISO alpha-2 or null = broker picks. relayId: connect to
+ * that exact broker relay (takes precedence over country). Module-level so the widget handoff and
+ * the hook below share one path.
+ */
+async function connectVpn(country: string | null, relayId: string | null): Promise<void> {
+  // Persist any just-changed split-tunnel config before the native connect reads its snapshot,
+  // so a setting flipped moments before tapping Connect takes effect this session. No-op when
+  // no push is pending, so the normal connect path is unaffected.
+  await flushSplitTunnelPush();
+  return OpenRungVpn.connect(AppConfig.DEFAULT_BROKER_URL, country, relayId);
+}
+
+/**
+ * Mirrors production `beginConnect`: request OS consent via prepare(), then start the tunnel.
+ * Production proceeds with the start on ANY return from the consent flow (a declined dialog
+ * simply makes the service fail and the status comes back through the store), so the prepare
+ * result/failure is deliberately not gated on.
+ */
+async function prepareAndConnectVpn(
+  country: string | null,
+  relayId: string | null,
+): Promise<void> {
+  try {
+    await OpenRungVpn.prepare();
+  } catch {
+    // See doc comment: production starts the service on any consent-flow return.
+  }
+  await connectVpn(country, relayId);
+}
+
 function ensureNativeStateWired(): void {
   if (nativeStateWired) {
     return;
   }
   nativeStateWired = true;
+  // Subscribed BEFORE the state subscription on purpose: registering the first listener is what
+  // makes native start emitting, and it hands over a pending widget tap right then — both
+  // listeners must already exist when that event lands.
+  subscribeConnectRequests(() => {
+    // iOS home-screen widget tap (contract §3). Native forwards it only while the tunnel is down,
+    // and the store check below is the same guard against a request that raced a connect. No
+    // target: the broker/connectcore picks the relay, exactly like the in-app CONNECT button.
+    const status = getAppState().native.status;
+    if (status !== 'disconnected' && status !== 'failed') {
+      return;
+    }
+    prepareAndConnectVpn(null, null).catch(() => {
+      // Failures surface through the mirrored native state like any other connect.
+    });
+  });
   let receivedEvent = false;
   subscribeVpnState(nativeState => {
     receivedEvent = true;
@@ -70,28 +125,17 @@ export function useVpnActions(): VpnActions {
   }, []);
 
   const connect = useCallback(
-    async (country?: string | null, relayId?: string | null) => {
-      // Persist any just-changed split-tunnel config before the native connect reads its snapshot,
-      // so a setting flipped moments before tapping Connect takes effect this session. No-op when
-      // no push is pending, so the normal connect path is unaffected.
-      await flushSplitTunnelPush();
-      return OpenRungVpn.connect(AppConfig.DEFAULT_BROKER_URL, country ?? null, relayId ?? null);
-    },
+    (country?: string | null, relayId?: string | null) =>
+      connectVpn(country ?? null, relayId ?? null),
     [],
   );
 
   const disconnect = useCallback(() => OpenRungVpn.disconnect(), []);
 
   const prepareAndConnect = useCallback(
-    async (country?: string | null, relayId?: string | null) => {
-      try {
-        await OpenRungVpn.prepare();
-      } catch {
-        // See doc comment: production starts the service on any consent-flow return.
-      }
-      await connect(country ?? null, relayId ?? null);
-    },
-    [connect],
+    (country?: string | null, relayId?: string | null) =>
+      prepareAndConnectVpn(country ?? null, relayId ?? null),
+    [],
   );
 
   return { connect, disconnect, prepareAndConnect };

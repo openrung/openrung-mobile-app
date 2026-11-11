@@ -1,7 +1,8 @@
 # XcodeGen spec — the source of truth for ios/OpenRung.xcodeproj (contract §7).
 # Replicates the React Native 0.86 template app target as it existed in the checked-in
 # pbxproj (Bundle React Native code and images phase, folly flags, -ObjC/-lc++, etc.),
-# plus the PacketTunnel network-extension target ported from the production app.
+# plus the PacketTunnel network-extension target ported from the production app and the
+# OpenRungWidget WidgetKit extension.
 # Regenerate with scripts/generate-project.sh (xcodegen generate + pod install).
 name: OpenRung
 options:
@@ -64,6 +65,8 @@ targets:
     dependencies:
       # Embeds the PacketTunnel appex into PlugIns/.
       - target: PacketTunnel
+      # Embeds the home-screen widget appex into PlugIns/.
+      - target: OpenRungWidget
       # Compile-time only: FRAMEWORK_SEARCH_PATHS entry so `import Libbox`
       # resolves against the gomobile headers/modulemap. The static archive is
       # NOT linked here — the symbols come from LibboxKit at link time, so the
@@ -118,6 +121,13 @@ targets:
     sources:
       - path: PacketTunnel
       - path: Shared
+        excludes:
+          # App/widget-only: the widget → app handoff, its policy and its AppIntent. The tunnel
+          # only compiles WidgetSharedState (the reload gate it drives from SharedConnectionState,
+          # and the widget's disconnect request it answers).
+          - WidgetConnectHandoff.swift
+          - WidgetConnectIntent.swift
+          - WidgetConnectPolicy.swift
       # Bundled split-tunnel rule sets (provenance + hashes in rulesets/README.md). The provider
       # verifies each enabled country's pair exists at connect time and drops the country
       # (fail-open) otherwise.
@@ -143,12 +153,45 @@ targets:
       - target: LibboxKit
         embed: false
       - sdk: UIKit.framework
+      # WidgetReloadGate asks WidgetKit to re-render the home-screen widget on face changes.
+      - sdk: WidgetKit.framework
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.openrung.app.PacketTunnel
         INFOPLIST_FILE: PacketTunnel/Info.plist
         CODE_SIGN_ENTITLEMENTS: PacketTunnel/PacketTunnel.entitlements
         APPLICATION_EXTENSION_API_ONLY: "YES"
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@executable_path/Frameworks"
+          - "@executable_path/../../Frameworks"
+
+  # Home-screen widget (WidgetKit, small family only). Reads the tunnel's app-group snapshot,
+  # hands a Connect tap to the app (AppIntent on iOS 17+, `openrung://connect` on iOS 16) and
+  # leaves a Disconnect tap for the tunnel to act on (iOS 17+, without opening the app); it
+  # holds the app-group entitlement only — no packet-tunnel entitlement, no Libbox, no React.
+  OpenRungWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: OpenRungWidget
+      # Only the widget-facing slice of Shared/: no snapshot, broker or engine types.
+      - path: Shared/WidgetSharedState.swift
+      - path: Shared/WidgetConnectHandoff.swift
+      - path: Shared/WidgetConnectIntent.swift
+    dependencies:
+      - sdk: SwiftUI.framework
+      - sdk: WidgetKit.framework
+      - sdk: AppIntents.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.openrung.app.OpenRungWidget
+        INFOPLIST_FILE: OpenRungWidget/Info.plist
+        CODE_SIGN_ENTITLEMENTS: OpenRungWidget/OpenRungWidget.entitlements
+        APPLICATION_EXTENSION_API_ONLY: "YES"
+        SKIP_INSTALL: "YES"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
         LD_RUNPATH_SEARCH_PATHS:
           - "$(inherited)"
           - "@executable_path/Frameworks"
@@ -229,6 +272,13 @@ targets:
       - path: Shared/RelayDescriptor.swift
       - path: Shared/SingBoxConfiguration.swift
       - path: Shared/SplitTunnelConfig.swift
+      # Home-screen widget logic: handoff policy/mailbox/URL, face + reload gate, string resolution.
+      - path: Shared/WidgetConnectHandoff.swift
+      - path: Shared/WidgetConnectPolicy.swift
+      - path: Shared/WidgetSharedState.swift
+      - path: OpenRung/WidgetSystemTunnel.swift
+      - path: OpenRungWidget/WidgetStrings.swift
+      - path: OpenRungWidget/WidgetStrings.generated.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.openrung.app.OpenRungTests
@@ -273,6 +323,10 @@ schemes:
     build:
       targets:
         PacketTunnel: all
+  OpenRungWidget:
+    build:
+      targets:
+        OpenRungWidget: all
   EngineDeviceTests:
     build:
       targets:

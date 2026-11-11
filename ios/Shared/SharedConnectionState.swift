@@ -135,6 +135,8 @@ enum SharedConnectionState {
         // Retire the pre-connectcore session shadow after publishing its replacement.
         defaults?.removeObject(forKey: "telemetry_session")
         postDarwinNotification()
+        // The home-screen widget re-reads this snapshot; it is only asked to when what it shows changed.
+        WidgetReloadGate.shared.publish(snapshotData: data)
     }
 
     static func postDarwinNotification() {

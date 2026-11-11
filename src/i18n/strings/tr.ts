@@ -36,6 +36,10 @@ export const tr: Partial<Strings> = {
   tabAbout: 'Hakkımızda',
   aboutTitle: 'Hakkımızda',
   relayAuto: 'otomatik röle',
+  widgetStatusDisconnected: 'Bağlı\ndeğil',
+  widgetName: 'Hızlı bağlantı',
+  widgetDescription:
+    'Ana ekrandan otomatik seçilen bir röleye bağlanın.',
   relayClassOfficial: 'resmi',
   relayClassVolunteer: 'gönüllü',
   settingsGeneralHeader: 'Genel',

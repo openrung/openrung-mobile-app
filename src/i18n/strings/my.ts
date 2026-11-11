@@ -37,6 +37,10 @@ export const my: Partial<Strings> = {
   tabAbout: 'ကျွန်ုပ်တို့အကြောင်း',
   aboutTitle: 'ကျွန်ုပ်တို့အကြောင်း',
   relayAuto: 'အလိုအလျောက် relay',
+  widgetStatusDisconnected: 'ချိတ်ဆက်မှု\nပြတ်နေသည်',
+  widgetName: 'အမြန်ချိတ်ဆက်ရန်',
+  widgetDescription:
+    'ပင်မစာမျက်နှာမှ အလိုအလျောက် ရွေးချယ်ထားသော relay သို့ ချိတ်ဆက်ပါ။',
   relayClassOfficial: 'တရားဝင်',
   relayClassVolunteer: 'စေတနာ့ဝန်ထမ်း',
   settingsGeneralHeader: 'အထွေထွေ',

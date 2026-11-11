@@ -1,6 +1,7 @@
 import Foundation
 import NetworkExtension
 import React
+import UIKit
 
 /// React Native bridge for the OpenRung VPN (contract §3). Port of the manager/state half of the
 /// production `AppViewModel`: owns the `NETunnelProviderManager` (found by localizedDescription
@@ -10,6 +11,9 @@ import React
 @objc(OpenRungVpn)
 final class OpenRungVpnModule: RCTEventEmitter {
     private static let stateChangedEvent = "openrungStateChanged"
+    /// iOS-only (contract §3): a home-screen widget tap that passed `WidgetConnectPolicy`. JS runs
+    /// the same prepare-and-connect path as the in-app button with no target country or relay.
+    private static let connectRequestedEvent = "openrungConnectRequested"
 
     private var manager: NETunnelProviderManager?
     private var vpnStatus: NEVPNStatus = .invalid
@@ -33,6 +37,11 @@ final class OpenRungVpnModule: RCTEventEmitter {
     /// sleeping and aborts the restart if a newer command (e.g. the user tapping Disconnect)
     /// arrived meanwhile — so a settings reapply never resurrects a tunnel the user just stopped.
     private var controlEpoch = 0
+    /// Re-requests a widget reload while the app is in the foreground (where WidgetKit honours it
+    /// at once) whenever the face the widget last rendered lags the snapshot — a reload the tunnel
+    /// requested while the app was away may have been deferred.
+    private var widgetRenderCatchUp = WidgetRenderCatchUp.live()
+    private var didBecomeActiveObserver: NSObjectProtocol?
 
     override init() {
         super.init()
@@ -41,6 +50,10 @@ final class OpenRungVpnModule: RCTEventEmitter {
         apply(SharedConnectionState.sanitizedForColdStart(), emit: false)
         observeVPNStatus()
         observeSharedState()
+        observeActivation()
+        WidgetConnectMailbox.shared.onSubmit = { [weak self] in
+            Task { @MainActor in self?.deliverWidgetConnectRequest() }
+        }
         Task { @MainActor in
             await self.loadExistingManager()
         }
@@ -49,6 +62,9 @@ final class OpenRungVpnModule: RCTEventEmitter {
     deinit {
         if let vpnStatusObserver {
             NotificationCenter.default.removeObserver(vpnStatusObserver)
+        }
+        if let didBecomeActiveObserver {
+            NotificationCenter.default.removeObserver(didBecomeActiveObserver)
         }
         CFNotificationCenterRemoveEveryObserver(
             CFNotificationCenterGetDarwinNotifyCenter(),
@@ -60,13 +76,15 @@ final class OpenRungVpnModule: RCTEventEmitter {
 
     override static func requiresMainQueueSetup() -> Bool { true }
 
-    override func supportedEvents() -> [String]! { [Self.stateChangedEvent] }
+    override func supportedEvents() -> [String]! { [Self.stateChangedEvent, Self.connectRequestedEvent] }
 
     override func startObserving() {
         hasListeners = true
-        // Sync JS with the current snapshot as soon as it subscribes.
+        // Sync JS with the current snapshot as soon as it subscribes, then hand over a widget tap
+        // that arrived before JS was listening (a cold launch from the widget).
         Task { @MainActor in
             self.emitStateChanged()
+            self.deliverWidgetConnectRequest()
         }
     }
 
@@ -87,11 +105,12 @@ final class OpenRungVpnModule: RCTEventEmitter {
                 return
             }
             do {
-                let manager = try await self.loadOrCreateManager()
+                let manager = try await VpnProfile.loadOrCreate()
                 if manager.protocolConfiguration == nil {
-                    try await self.configure(manager: manager, brokerURL: AppConfig.defaultBrokerURL, targetCountry: nil)
+                    try await VpnProfile.configure(manager: manager, brokerURL: AppConfig.defaultBrokerURL, targetCountry: nil)
                 }
                 self.manager = manager
+                self.publishWidgetBackgroundConnect()
                 self.refreshVPNStatus()
                 resolve(true)
             } catch {
@@ -120,13 +139,13 @@ final class OpenRungVpnModule: RCTEventEmitter {
                     throw AppError.networkExtensionUnavailableInSimulator
                 }
                 let brokerURL = URL(string: brokerUrl) ?? AppConfig.defaultBrokerURL
-                let manager = try await self.loadOrCreateManager()
+                let manager = try await VpnProfile.loadOrCreate()
                 if shouldSwitchRelay {
                     manager.connection.stopVPNTunnel()
                     self.refreshVPNStatus()
                     try? await Task.sleep(nanoseconds: 350_000_000)
                 }
-                try await self.configure(
+                try await VpnProfile.configure(
                     manager: manager,
                     brokerURL: brokerURL,
                     targetCountry: normalizedCountry,
@@ -134,6 +153,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
                 )
                 try manager.connection.startVPNTunnel()
                 self.manager = manager
+                self.publishWidgetBackgroundConnect()
                 self.refreshVPNStatus()
                 resolve(nil)
             } catch {
@@ -256,9 +276,16 @@ final class OpenRungVpnModule: RCTEventEmitter {
 
     @MainActor
     private func loadExistingManager() async {
+        // Every exit re-offers a pending widget request; only a SUCCESSFUL load lets it through
+        // (deliverWidgetConnectRequest requires a manager), so a failed load or the simulator
+        // drops it instead of reading the placeholder `.invalid` status as "down".
+        defer { deliverWidgetConnectRequest() }
         guard Self.canUseNetworkExtension else { return }
         do {
-            manager = try await loadOrCreateManager()
+            manager = try await VpnProfile.loadOrCreate()
+            publishWidgetBackgroundConnect()
+            // `manager` is set before this refresh, so the stale-tunnel marker (which requires a
+            // loaded manager) is published on this very launch if the extension died earlier.
             refreshVPNStatus()
         } catch {
             lastError = AppError.message(for: error)
@@ -267,46 +294,12 @@ final class OpenRungVpnModule: RCTEventEmitter {
         }
     }
 
-    private func loadOrCreateManager() async throws -> NETunnelProviderManager {
-        let managers = try await NETunnelProviderManager.loadAllFromPreferences()
-        if let existing = managers.first(where: {
-            $0.localizedDescription == AppConfig.vpnProfileName
-        }) {
-            return existing
-        }
-        if let existing = managers.first(where: {
-            $0.localizedDescription == AppConfig.legacyVPNProfileName
-        }) {
-            // The next configure/save migrates profiles created before the terminology change.
-            existing.localizedDescription = AppConfig.vpnProfileName
-            return existing
-        }
-        let manager = NETunnelProviderManager()
-        manager.localizedDescription = AppConfig.vpnProfileName
-        return manager
-    }
-
-    private func configure(
-        manager: NETunnelProviderManager,
-        brokerURL: URL,
-        targetCountry: String?,
-        targetRelayID: String? = nil
-    ) async throws {
-        let tunnelProtocol = NETunnelProviderProtocol()
-        tunnelProtocol.providerBundleIdentifier = AppConfig.packetTunnelBundleIdentifier
-        tunnelProtocol.serverAddress = brokerURL.host ?? brokerURL.absoluteString
-        var providerConfiguration = [AppConfig.providerBrokerURLKey: brokerURL.absoluteString]
-        if let targetCountry {
-            providerConfiguration[AppConfig.providerTargetCountryKey] = targetCountry
-        }
-        if let targetRelayID {
-            providerConfiguration[AppConfig.providerTargetRelayIDKey] = targetRelayID
-        }
-        tunnelProtocol.providerConfiguration = providerConfiguration
-        manager.protocolConfiguration = tunnelProtocol
-        manager.isEnabled = true
-        try await manager.saveToPreferences()
-        try await manager.loadFromPreferences()
+    /// Tells the widget whether its Connect can run without opening the app: only once a saved
+    /// profile exists, since saving the first one needs the app in front for the consent dialog.
+    /// Called wherever the profile was just read from or written to the OS.
+    @MainActor
+    private func publishWidgetBackgroundConnect() {
+        WidgetBackgroundConnect.shared.publish(available: manager?.protocolConfiguration != nil)
     }
 
     // MARK: - State observation
@@ -318,6 +311,21 @@ final class OpenRungVpnModule: RCTEventEmitter {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in self?.refreshVPNStatus() }
+        }
+    }
+
+    /// Back in the foreground: a widget reload deferred while the app was away is free now, so
+    /// forget the per-face dedupe and re-check the widget against the snapshot.
+    private func observeActivation() {
+        didBecomeActiveObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.widgetRenderCatchUp.resetForActivation()
+                self?.refreshVPNStatus(emit: false)
+            }
         }
     }
 
@@ -357,9 +365,26 @@ final class OpenRungVpnModule: RCTEventEmitter {
     @MainActor
     private func refreshVPNStatus(emit: Bool = true) {
         vpnStatus = manager?.connection.status ?? .invalid
+        let systemTunnelIsDown = vpnStatus == .disconnected || vpnStatus == .invalid
         var snapshot = SharedConnectionState.snapshot()
-        snapshot.reconcileSystemTunnel(isDown: vpnStatus == .disconnected || vpnStatus == .invalid)
+        // The widget cannot ask the OS, so when a loaded manager says the tunnel is down while the
+        // tunnel-written snapshot still claims it is live (the extension was killed), publish that
+        // under the widget's own key. Before a manager exists `vpnStatus` is only a placeholder,
+        // so nothing is published then. The snapshot itself is never written from here; the next
+        // tunnel write clears the marker (WidgetReloadGate).
+        if manager != nil {
+            WidgetStaleTunnelMarker.shared.publish(
+                systemTunnelIsDown: systemTunnelIsDown,
+                snapshotFace: WidgetFace(statusRawValue: snapshot.status.rawValue)
+            )
+        }
+        snapshot.reconcileSystemTunnel(isDown: systemTunnelIsDown)
         apply(snapshot, emit: emit)
+        // Only while in front: there a reload is free and immediate; from the background it would
+        // just join the budgeted queue the tunnel's own request is already in.
+        if UIApplication.shared.applicationState == .active {
+            widgetRenderCatchUp.publish(currentFace: WidgetSharedState.currentFace())
+        }
     }
 
     private func apply(_ snapshot: ConnectionStateSnapshot, emit: Bool = true) {
@@ -375,6 +400,30 @@ final class OpenRungVpnModule: RCTEventEmitter {
         if emit {
             emitStateChanged()
         }
+    }
+
+    // MARK: - Widget handoff
+
+    /// Collects the pending widget request and forwards it only when neither the shared snapshot
+    /// nor the OS reports a tunnel in motion. A request that fails the policy is consumed, not
+    /// retried: the user sees the live state in the app that just opened.
+    ///
+    /// Ordering: the request stays in the mailbox until BOTH JavaScript is listening (so the event
+    /// can be received) AND a tunnel manager has been loaded (so `vpnStatus` is the OS's answer,
+    /// not the `.invalid` placeholder that would read as "down" and let a country-pinned tunnel be
+    /// replaced). A failed load, or the simulator, never satisfies the second condition, so the
+    /// request simply expires. Each of those events calls this again, and the mailbox's 30 s
+    /// freshness bounds how long an early tap may wait.
+    @MainActor
+    private func deliverWidgetConnectRequest() {
+        guard hasListeners, manager != nil, let request = WidgetConnectMailbox.shared.collect() else { return }
+        refreshVPNStatus(emit: false)
+        let decision = WidgetConnectPolicy.decide(
+            sharedStatus: status,
+            systemTunnel: WidgetConnectPolicy.SystemTunnel(vpnStatus)
+        )
+        guard decision == .start else { return }
+        sendEvent(withName: Self.connectRequestedEvent, body: ["source": request.source.rawValue])
     }
 
     // MARK: - Event emission
@@ -409,13 +458,7 @@ final class OpenRungVpnModule: RCTEventEmitter {
 
     // MARK: - Helpers
 
-    private static var canUseNetworkExtension: Bool {
-        #if targetEnvironment(simulator)
-        false
-        #else
-        true
-        #endif
-    }
+    private static var canUseNetworkExtension: Bool { VpnProfile.canUseNetworkExtension }
 
     private static func normalizedCountryCode(_ countryCode: String?) -> String? {
         guard let normalized = countryCode?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(),

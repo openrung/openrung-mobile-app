@@ -11,7 +11,8 @@
     "contract:sync": "node scripts/check-contract-vectors.mjs --sync",
     "test": "jest",
     "transport:check": "node scripts/check-broker-transports.mjs",
-    "version:check": "node scripts/check-versions.mjs"
+    "version:check": "node scripts/check-versions.mjs",
+    "widget:strings": "node --experimental-strip-types --no-warnings scripts/generate-widget-strings.mjs"
   },
   "dependencies": {
     "@maplibre/maplibre-react-native": "^11.3.6",

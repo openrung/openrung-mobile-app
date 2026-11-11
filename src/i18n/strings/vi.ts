@@ -36,6 +36,10 @@ export const vi: Partial<Strings> = {
   tabAbout: 'Về chúng tôi',
   aboutTitle: 'Về chúng tôi',
   relayAuto: 'relay tự động',
+  widgetStatusDisconnected: 'Chưa\nkết nối',
+  widgetName: 'Kết nối nhanh',
+  widgetDescription:
+    'Kết nối tới relay được chọn tự động ngay từ màn hình chính.',
   relayClassOfficial: 'chính thức',
   relayClassVolunteer: 'tình nguyện',
   settingsGeneralHeader: 'Chung',
