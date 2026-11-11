@@ -35,7 +35,7 @@ export const fa: Partial<Strings> = {
   tabSettings: 'تنظیمات',
   tabAbout: 'درباره ما',
   aboutTitle: 'درباره ما',
-  relayAuto: 'رله خودکار',
+  relayAuto: 'انتخاب خودکار رله',
   widgetStatusDisconnected: 'متصل\nنیست',
   widgetName: 'اتصال سریع',
   widgetDescription:
@@ -44,14 +44,6 @@ export const fa: Partial<Strings> = {
   relayClassVolunteer: 'داوطلب',
   settingsGeneralHeader: 'عمومی',
   settingsDiagnosticsHeader: 'عیب‌یابی',
-
-  // Ocean telemetry panel (map view).
-  telemetryNetworkHeader: 'شبکه',
-  telemetryLinkHeader: 'پیوند',
-  telemetryRelaysLabel: 'رله‌ها',
-  telemetryLocationsLabel: 'مکان‌ها',
-  telemetryCountriesLabel: 'کشورها',
-  telemetryUptimeLabel: 'مدت اتصال',
 
   // Content descriptions.
   openContentDescription: 'باز کردن',
@@ -71,7 +63,7 @@ export const fa: Partial<Strings> = {
     'نقشهٔ گره‌های خروجی موجود در سراسر منطقهٔ آسیا-اقیانوسیه',
   mapLoading: 'در حال یافتن گره‌های خروجی موجود…',
   mapFailed: 'بارگذاری گره‌های خروجی ناموفق بود — برای تلاش دوباره ضربه بزنید',
-  mapNodesAvailable: (count: number) => `${count} مکان موجود`,
+  mapRelaysOnline: (count: number) => `${count} رله آنلاین`,
   mapNoNodes: 'در حال حاضر هیچ گره خروجی موجود نیست',
 
   // Recent locations.
@@ -119,6 +111,7 @@ export const fa: Partial<Strings> = {
 
   // Home tagline + about screen.
   homeTagline: 'شبکهٔ رله‌ها',
+  homeSlogan: 'دسترسی به اینترنت یک حق است،\nنه یک امتیاز',
   aboutMissionLead: 'ما باور داریم دسترسی به اینترنت یک حق است، نه یک امتیاز',
   aboutMissionBody:
     'و نه ابزار چانه‌زنی در دست صاحبان قدرت. حق دسترسی به اطلاعات در سرشت انسانی ما ریشه دارد و هیچ دیوار آتشی نباید اجازه داشته باشد آن را از بین ببرد. با این حال، امروز میلیاردها نفر پشت دیوارهایی زندگی می‌کنند که برای بیرون نگه داشتن اطلاعات و درون نگه داشتن سکوت ساخته شده‌اند؛ جایی که جست‌وجوی Google خطای 404 برمی‌گرداند، پرسیدن یک سؤال می‌تواند خطرناک باشد و کنجکاوی به یک صفحهٔ مسدودشده ختم می‌شود.\n\nOpenRung برای تغییر این وضعیت به وجود آمده است.\n\nما در حال ساختن نردبانی بر فراز این دیوارها هستیم. مردم عادی در سراسر جهان اتصال خود را به اشتراک می‌گذارند تا کسی در سوی دیگر یک دیوار آتش بتواند به اینترنت آزاد دسترسی پیدا کند.\n\nاطلاعات قدرت است و این قدرت به ما تعلق دارد، نه به کسانی که می‌خواهند آن را از ما بگیرند.',

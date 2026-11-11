@@ -1,5 +1,4 @@
-// Preview: MapStatusChip — directory-status chip overlaid on the exit-node
-// map, one cell per directoryStatus outcome (the variant axis).
+// Preview: MapStatusChip — directory-status chip in the home header, one cell per directoryStatus outcome (the variant axis).
 import React from 'react';
 import { MapStatusChip } from 'openrung-mobile-app';
 
@@ -11,16 +10,16 @@ const frame: React.CSSProperties = { width: 360, display: 'flex', alignItems: 'f
 export function Loading(): React.JSX.Element {
   return (
     <div style={frame}>
-      <MapStatusChip directoryStatus="loading" regionCount={0} onRetry={() => {}} />
+      <MapStatusChip directoryStatus="loading" relayCount={0} onRetry={() => {}} />
     </div>
   );
 }
 
-/** Directory loaded: "%d locations available" count line. */
+/** Directory loaded: live dot + "%d relays online" count line. */
 export function Loaded(): React.JSX.Element {
   return (
     <div style={frame}>
-      <MapStatusChip directoryStatus="loaded" regionCount={12} onRetry={() => {}} />
+      <MapStatusChip directoryStatus="loaded" relayCount={12} onRetry={() => {}} />
     </div>
   );
 }
@@ -29,7 +28,7 @@ export function Loaded(): React.JSX.Element {
 export function Failed(): React.JSX.Element {
   return (
     <div style={frame}>
-      <MapStatusChip directoryStatus="failed" regionCount={0} onRetry={() => {}} />
+      <MapStatusChip directoryStatus="failed" relayCount={0} onRetry={() => {}} />
     </div>
   );
 }
@@ -38,7 +37,7 @@ export function Failed(): React.JSX.Element {
 export function EmptyLoaded(): React.JSX.Element {
   return (
     <div style={frame}>
-      <MapStatusChip directoryStatus="loaded" regionCount={0} onRetry={() => {}} />
+      <MapStatusChip directoryStatus="loaded" relayCount={0} onRetry={() => {}} />
     </div>
   );
 }

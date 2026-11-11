@@ -35,7 +35,7 @@ export const vi: Partial<Strings> = {
   tabSettings: 'Cài đặt',
   tabAbout: 'Về chúng tôi',
   aboutTitle: 'Về chúng tôi',
-  relayAuto: 'relay tự động',
+  relayAuto: 'tự động chọn relay',
   widgetStatusDisconnected: 'Chưa\nkết nối',
   widgetName: 'Kết nối nhanh',
   widgetDescription:
@@ -44,14 +44,6 @@ export const vi: Partial<Strings> = {
   relayClassVolunteer: 'tình nguyện',
   settingsGeneralHeader: 'Chung',
   settingsDiagnosticsHeader: 'Chẩn đoán',
-
-  // Ocean telemetry panel (map view).
-  telemetryNetworkHeader: 'MẠNG',
-  telemetryLinkHeader: 'KẾT NỐI',
-  telemetryRelaysLabel: 'relay',
-  telemetryLocationsLabel: 'địa điểm',
-  telemetryCountriesLabel: 'quốc gia',
-  telemetryUptimeLabel: 'thời lượng',
 
   // Content description (open action).
   openContentDescription: 'Mở',
@@ -73,7 +65,7 @@ export const vi: Partial<Strings> = {
     'Bản đồ các nút thoát khả dụng khắp khu vực Châu Á - Thái Bình Dương',
   mapLoading: 'đang định vị các nút thoát khả dụng…',
   mapFailed: 'không tải được các nút thoát — nhấn để thử lại',
-  mapNodesAvailable: (count: number) => `${count} địa điểm khả dụng`,
+  mapRelaysOnline: (count: number) => `${count} relay trực tuyến`,
   mapNoNodes: 'hiện không có nút thoát nào khả dụng',
   recentsLabel: 'Gần đây',
   viewToggleMap: 'Bản đồ',
@@ -118,6 +110,7 @@ export const vi: Partial<Strings> = {
 
   // Home overlay and about screen.
   homeTagline: 'mạng lưới relay',
+  homeSlogan: 'Truy cập internet là một quyền,\nkhông phải đặc ân',
   aboutMissionLead:
     'Chúng tôi tin rằng truy cập internet là một quyền, không phải đặc ân',
   aboutMissionBody:

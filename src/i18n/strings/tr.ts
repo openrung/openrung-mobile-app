@@ -35,7 +35,7 @@ export const tr: Partial<Strings> = {
   tabSettings: 'Ayarlar',
   tabAbout: 'Hakkımızda',
   aboutTitle: 'Hakkımızda',
-  relayAuto: 'otomatik röle',
+  relayAuto: 'otomatik röle seçimi',
   widgetStatusDisconnected: 'Bağlı\ndeğil',
   widgetName: 'Hızlı bağlantı',
   widgetDescription:
@@ -44,14 +44,6 @@ export const tr: Partial<Strings> = {
   relayClassVolunteer: 'gönüllü',
   settingsGeneralHeader: 'Genel',
   settingsDiagnosticsHeader: 'Tanılama',
-
-  // Ocean telemetry panel (map view).
-  telemetryNetworkHeader: 'AĞ',
-  telemetryLinkHeader: 'BAĞLANTI',
-  telemetryRelaysLabel: 'röleler',
-  telemetryLocationsLabel: 'konumlar',
-  telemetryCountriesLabel: 'ülkeler',
-  telemetryUptimeLabel: 'süre',
 
   // Content description for the open action.
   openContentDescription: 'Aç',
@@ -71,7 +63,7 @@ export const tr: Partial<Strings> = {
     'Asya-Pasifik bölgesindeki mevcut çıkış düğümlerinin haritası',
   mapLoading: 'mevcut çıkış düğümleri bulunuyor…',
   mapFailed: 'çıkış düğümleri yüklenemedi — yeniden denemek için dokunun',
-  mapNodesAvailable: (count: number) => `${count} konum mevcut`,
+  mapRelaysOnline: (count: number) => `${count} röle çevrimiçi`,
   mapNoNodes: 'şu anda mevcut çıkış düğümü yok',
 
   // Recent locations.
@@ -120,6 +112,7 @@ export const tr: Partial<Strings> = {
 
   // Home overlay and about screen.
   homeTagline: 'röle ağı',
+  homeSlogan: 'İnternete erişim bir ayrıcalık değil, haktır',
   aboutMissionLead:
     'İnternete erişimin bir ayrıcalık değil, hak olduğuna inanıyoruz',
   aboutMissionBody:

@@ -19,8 +19,8 @@ conversion (user-approved 2026-07-07).
   - `safe-area-context.tsx` — zero-inset provider/hook; never throws without a
     provider (so no cfg.provider is needed).
   - `async-storage.ts` — in-memory map (store hydration only).
-  - `maplibre.tsx` — `Marker` renders children in place; only OceanTelemetry
-    consumes it (its HUD panel is real code; the map positioning is not).
+  - `maplibre.tsx` — `Marker` renders children in place; no synced component
+    consumes it since OceanTelemetry was removed.
 - **Excluded components**: ExitNodeMap (MapLibre map view), NativeTabs
   (react-native-bottom-tabs native host) — nothing web-renderable to ship.
 - **Grouping** comes from `.design-sync/docs/<Name>.md` frontmatter stubs
@@ -86,6 +86,17 @@ conversion (user-approved 2026-07-07).
   ConnectedVolunteer preview cells), RelayList/OceanTelemetry relay fixtures
   gained `nodeClass`, tokens.css gained `--or-volunteer: #F5A565`. Run the
   design-sync skill to rebuild + re-capture before trusting the hosted cards.
+
+## Pending re-sync (2026-11-11, home screen refresh)
+
+- Definitions/previews updated but NOT yet re-captured: `OceanTelemetry` removed
+  (component, docs stub, preview, dtsPropsFor, web-entry export — the maplibre
+  web shim's `Marker` now has no consumer); ConnectCard gained
+  `relayCountryCode` / `connectedAtMs` / `errorText` (connected row = name +
+  flag + badge + uptime clock, failed state shows the reason); MapStatusChip
+  takes `relayCount` instead of `regionCount` and shows a live dot before
+  "N relays online". Run the design-sync skill to rebuild + re-capture before
+  trusting the hosted cards.
 
 ## Re-sync risks
 

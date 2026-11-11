@@ -34,7 +34,7 @@ export const ar: Partial<Strings> = {
   tabSettings: 'الإعدادات',
   tabAbout: 'من نحن',
   aboutTitle: 'من نحن',
-  relayAuto: 'مرحّل تلقائي',
+  relayAuto: 'اختيار المرحّل تلقائيًا',
   widgetStatusDisconnected: 'غير\nمتصل',
   widgetName: 'اتصال سريع',
   widgetDescription:
@@ -43,14 +43,6 @@ export const ar: Partial<Strings> = {
   relayClassVolunteer: 'متطوع',
   settingsGeneralHeader: 'عام',
   settingsDiagnosticsHeader: 'التشخيص',
-
-  // Ocean telemetry panel (map view).
-  telemetryNetworkHeader: 'الشبكة',
-  telemetryLinkHeader: 'الوصلة',
-  telemetryRelaysLabel: 'مرحّلات',
-  telemetryLocationsLabel: 'مواقع',
-  telemetryCountriesLabel: 'دول',
-  telemetryUptimeLabel: 'مدة الاتصال',
 
   // Content description (accessibility).
   openContentDescription: 'فتح',
@@ -69,7 +61,8 @@ export const ar: Partial<Strings> = {
     'خريطة عقد الخروج المتاحة في منطقة آسيا والمحيط الهادئ',
   mapLoading: 'جار تحديد مواقع عقد الخروج المتاحة…',
   mapFailed: 'تعذّر تحميل عقد الخروج — اضغط لإعادة المحاولة',
-  mapNodesAvailable: (count: number) => `${count} موقع متاح`,
+  mapRelaysOnline: (count: number) =>
+    count === 1 ? 'مُرحّل واحد متاح' : `${count} مُرحّلات متاحة`,
   mapNoNodes: 'لا توجد عقد خروج متاحة الآن',
 
   // Recents, map/list toggle, and list view.
@@ -114,6 +107,7 @@ export const ar: Partial<Strings> = {
 
   // Home overlay and about screen.
   homeTagline: 'شبكة المُرحّلات',
+  homeSlogan: 'الوصول إلى الإنترنت حق،\nوليس امتيازًا',
   aboutMissionLead: 'نؤمن بأن الوصول إلى الإنترنت حق، وليس امتيازًا',
   aboutMissionBody:
     'وليس ورقة مساومة يتداولها أصحاب السلطة. إن الحق في المعلومات متأصل في إنسانيتنا، ولا ينبغي السماح لأي جدار ناري بمَحوه. ومع ذلك، يعيش اليوم مليارات البشر خلف جدران بُنيت لإبقاء المعلومات خارجًا والصمت داخلًا؛ حيث يُرجع بحث Google خطأ 404، وقد يكون طرح سؤال أمرًا خطيرًا، وينتهي الفضول عند صفحة محجوبة.\n\nوُجد OpenRung ليغيّر ذلك.\n\nنحن نبني سُلّمًا يتجاوز تلك الجدران. يشارك أشخاص عاديون حول العالم اتصالاتهم كي يتمكن شخص على الجانب الآخر من جدار ناري من الوصول إلى الإنترنت المفتوح.\n\nالمعلومات قوة، وهذه القوة ملك لنا، لا لمن يريدون انتزاعها منا.',

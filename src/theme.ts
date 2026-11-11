@@ -73,7 +73,7 @@ export const tokens = {
 } as const;
 
 /**
- * Status-dot colour for live-status readouts (connect card, ocean telemetry):
+ * Status-dot colour for live-status readouts (connect card, relay-count chip):
  * green when connected, amber while working, red on failure, dim when idle.
  */
 export function statusDotColor(status: ConnectionStatus): string {

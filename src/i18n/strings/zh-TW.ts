@@ -34,7 +34,7 @@ export const zhTW: Partial<Strings> = {
   tabSettings: '設定',
   tabAbout: '關於我們',
   aboutTitle: '關於我們',
-  relayAuto: '自動中繼',
+  relayAuto: '自動選擇中繼',
   widgetStatusDisconnected: '未連線',
   widgetName: '快速連線',
   widgetDescription:
@@ -43,14 +43,6 @@ export const zhTW: Partial<Strings> = {
   relayClassVolunteer: '志願',
   settingsGeneralHeader: '一般',
   settingsDiagnosticsHeader: '診斷',
-
-  // Ocean telemetry panel (map view).
-  telemetryNetworkHeader: '網路',
-  telemetryLinkHeader: '鏈路',
-  telemetryRelaysLabel: '中繼',
-  telemetryLocationsLabel: '地點',
-  telemetryCountriesLabel: '國家',
-  telemetryUptimeLabel: '連線時長',
 
   // Open control + relay speed test.
   openContentDescription: '開啟',
@@ -66,7 +58,7 @@ export const zhTW: Partial<Strings> = {
   mapContentDescription: '橫跨亞太地區的可用出口節點地圖',
   mapLoading: '正在尋找可用的出口節點…',
   mapFailed: '無法載入出口節點 — 點選以重試',
-  mapNodesAvailable: (count: number) => `${count} 個地點可用`,
+  mapRelaysOnline: (count: number) => `${count} 個可用中繼`,
   mapNoNodes: '目前沒有可用的出口節點',
   recentsLabel: '最近使用',
   viewToggleMap: '地圖',
@@ -106,6 +98,7 @@ export const zhTW: Partial<Strings> = {
 
   // Home tagline + about screen.
   homeTagline: '中繼網路',
+  homeSlogan: '互聯網本非特權',
   aboutMissionLead: '我們相信，網際網路存取是一項權利，而不是特權',
   aboutMissionBody:
     '更不應成為掌權者用來交易的籌碼。取得資訊的權利根植於我們身而為人的本質之中，任何防火牆都不應抹去它。然而今天，數十億人生活在高牆之後；這些牆把資訊擋在外面，把沉默困在裡面。在那裡，Google 搜尋只回傳 404，提出問題可能帶來危險，好奇心止步於遭封鎖的頁面。\n\nOpenRung 的存在就是為了改變這一切。\n\n我們正在搭建一架越過高牆的梯子。世界各地的普通人分享自己的網路連線，讓防火牆另一邊的人能夠存取開放的網際網路。\n\n資訊就是力量，這份力量屬於我們，而不屬於那些企圖從我們手中奪走它的人。',

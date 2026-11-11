@@ -13,6 +13,9 @@ export function Disconnected(): React.JSX.Element {
       <ConnectCard
         status="disconnected"
         relayName={null}
+        relayCountryCode={null}
+        connectedAtMs={null}
+        errorText={null}
         relayClass={null}
         isConnected={false}
         isWorking={false}
@@ -29,6 +32,9 @@ export function Connecting(): React.JSX.Element {
       <ConnectCard
         status="connecting"
         relayName={null}
+        relayCountryCode={null}
+        connectedAtMs={null}
+        errorText={null}
         relayClass={null}
         isConnected={false}
         isWorking={true}
@@ -38,13 +44,16 @@ export function Connecting(): React.JSX.Element {
   );
 }
 
-/** Connected to a Foundation relay: green OFFICIAL badge next to the name. */
+/** Connected to a Foundation relay: name + flag, green OFFICIAL badge, uptime clock. */
 export function ConnectedOfficial(): React.JSX.Element {
   return (
     <div style={frame}>
       <ConnectCard
         status="connected"
         relayName="silly-lemur"
+        relayCountryCode="JP"
+        connectedAtMs={Date.now() - 754_000}
+        errorText={null}
         relayClass="foundation"
         isConnected={true}
         isWorking={false}
@@ -54,13 +63,16 @@ export function ConnectedOfficial(): React.JSX.Element {
   );
 }
 
-/** Connected to a community relay: orange VOLUNTEER badge next to the name. */
+/** Connected to a community relay: name + flag, orange VOLUNTEER badge, uptime clock. */
 export function ConnectedVolunteer(): React.JSX.Element {
   return (
     <div style={frame}>
       <ConnectCard
         status="connected"
         relayName="brave-falcon"
+        relayCountryCode="DE"
+        connectedAtMs={Date.now() - 3_725_000}
+        errorText={null}
         relayClass="volunteer"
         isConnected={true}
         isWorking={false}
@@ -70,13 +82,16 @@ export function ConnectedVolunteer(): React.JSX.Element {
   );
 }
 
-/** Failed: back to the outlined CONNECT button, red status dot. */
+/** Failed: back to the outlined CONNECT button, red status dot, the reason on its own line. */
 export function Failed(): React.JSX.Element {
   return (
     <div style={frame}>
       <ConnectCard
         status="failed"
         relayName={null}
+        relayCountryCode={null}
+        connectedAtMs={null}
+        errorText="no relay reachable"
         relayClass={null}
         isConnected={false}
         isWorking={false}

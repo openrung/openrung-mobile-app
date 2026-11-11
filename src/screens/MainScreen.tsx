@@ -5,16 +5,13 @@
  * dissolves the map into the app background towards every edge. The chrome
  * floats on top:
  *
- *  - header: OpenRung wordmark (with a blinking terminal cursor) + tagline on
- *    the left, the relay-directory status chip on the right;
+ *  - header: OpenRung wordmark (with a blinking terminal cursor) on the left,
+ *    the relay-directory status chip on the right, and the localized slogan on
+ *    its own line beneath them;
  *  - view toggle: a MAP/LIST segmented pill under the header switches the
  *    directory presentation (persisted, store.homeViewMode). In list mode a
  *    scrollable relay list fills the middle; the map stays mounted beneath it
  *    so toggling back keeps the camera position;
- *  - ocean telemetry: a map-space HUD (inside ExitNodeMap) anchored in the
- *    Pacific directly east of Shibuya — just off the default phone view, one
- *    eastward pan away — with network totals, link status/uptime, and the
- *    last tunnel error;
  *  - bottom stack: recents pills + the glass connect card, anchored above the
  *    tab bar.
  *
@@ -28,7 +25,6 @@ import { ConnectCard } from '../components/ConnectCard';
 import { EdgeFade } from '../components/EdgeFade';
 import { ExitNodeMap } from '../components/ExitNodeMap';
 import { MapStatusChip } from '../components/MapStatusChip';
-import { OceanTelemetry } from '../components/OceanTelemetry';
 import { RecentsSection } from '../components/RecentsSection';
 import { RelayList } from '../components/RelayList';
 import { UpdateBanner } from '../components/UpdateBanner';
@@ -36,6 +32,7 @@ import { ViewModeToggle } from '../components/ViewModeToggle';
 import { AppConfig } from '../config';
 import { nativeErrorText, resolveLanguage, useLanguage, useStrings } from '../i18n';
 import { layout, useTabSceneInsets } from '../layout';
+import { connectedRelayLngLat } from '../model/exitNode';
 import { pickLocalizedText } from '../model/updateStatus';
 import {
   hydrateHomeViewMode,
@@ -48,7 +45,7 @@ import { dismissUpdateBanner, dismissUpdateNotice } from '../state/updateCheck';
 import { useVpnActions } from '../state/useVpnState';
 import { monoFont, palette, tokens } from '../theme';
 
-/** Terminal-prompt wordmark: "OpenRung" + blinking block cursor + tagline. */
+/** Terminal-prompt wordmark: "OpenRung" + blinking block cursor. */
 function Wordmark(): React.JSX.Element {
   const s = useStrings();
   const blink = useRef(new Animated.Value(1)).current;
@@ -67,12 +64,9 @@ function Wordmark(): React.JSX.Element {
   }, [blink]);
 
   return (
-    <View>
-      <View style={styles.wordmarkRow}>
-        <Text style={styles.wordmark}>{s.appName}</Text>
-        <Animated.Text style={[styles.cursor, { opacity: blink }]}>▍</Animated.Text>
-      </View>
-      <Text style={styles.tagline}>{s.homeTagline}</Text>
+    <View style={styles.wordmarkRow}>
+      <Text style={styles.wordmark}>{s.appName}</Text>
+      <Animated.Text style={[styles.cursor, { opacity: blink }]}>▍</Animated.Text>
     </View>
   );
 }
@@ -85,7 +79,6 @@ function Wordmark(): React.JSX.Element {
 function selectMainScreenState(current: AppState) {
   return {
     status: current.native.status,
-    relayLabel: current.native.relayLabel,
     relayName: current.native.relayName,
     relayClass: current.native.relayClass,
     lastError: current.native.lastError,
@@ -106,7 +99,6 @@ export function MainScreen(): React.JSX.Element {
   const { disconnect, prepareAndConnect } = useVpnActions();
   const {
     status,
-    relayLabel,
     relayName,
     relayClass,
     lastError,
@@ -122,6 +114,16 @@ export function MainScreen(): React.JSX.Element {
   const isWorking =
     status === 'preparing' || status === 'connecting' || status === 'disconnecting';
   const isListMode = homeViewMode === 'list';
+  // The tunnel records the connected relay at the head of the recents (the iOS widget reads
+  // its flag the same way); an older entry is some other session's and says nothing here.
+  const connectedRecent =
+    isConnected && relayName != null && recents[0]?.relayName === relayName ? recents[0] : null;
+  const relayCountryCode = connectedRecent?.countryCode ?? null;
+  const connectedLngLat = useMemo(
+    () => connectedRelayLngLat(connectedRecent, availableRegions),
+    [connectedRecent, availableRegions],
+  );
+  const errorText = nativeErrorText(s, lastError, lastErrorCode);
   const locale = resolveLanguage(languageTag);
 
   // Populate the exit-node map directory when the home screen is shown (no-op once loaded)
@@ -180,6 +182,11 @@ export function MainScreen(): React.JSX.Element {
     [directoryStatus, availableRegions],
   );
 
+  const relayCount = useMemo(
+    () => availableRegions.reduce((sum, region) => sum + region.nodeCount, 0),
+    [availableRegions],
+  );
+
   const onOpenUpdate = useCallback(() => {
     // Pinned destination only — never a manifest-supplied URL (see AppConfig.UPDATE_URL_ANDROID).
     const url = Platform.OS === 'ios' ? AppConfig.TESTFLIGHT_URL : AppConfig.UPDATE_URL_ANDROID;
@@ -205,17 +212,11 @@ export function MainScreen(): React.JSX.Element {
         accessibilityElementsHidden={isListMode}
         importantForAccessibility={isListMode ? 'no-hide-descendants' : 'auto'}
       >
-        <ExitNodeMap regions={availableRegions} onRegionPress={onConnectRegion}>
-          <OceanTelemetry
-            regions={availableRegions}
-            directoryStatus={directoryStatus}
-            status={status}
-            relayLabel={relayLabel}
-            relayName={relayName}
-            lastError={nativeErrorText(s, lastError, lastErrorCode)}
-            connectedAtMs={connectedAtMs}
-          />
-        </ExitNodeMap>
+        <ExitNodeMap
+          regions={availableRegions}
+          onRegionPress={onConnectRegion}
+          connectedLngLat={connectedLngLat}
+        />
       </View>
       <EdgeFade />
 
@@ -236,11 +237,12 @@ export function MainScreen(): React.JSX.Element {
           <Wordmark />
           <MapStatusChip
             directoryStatus={directoryStatus}
-            regionCount={availableRegions.length}
+            relayCount={relayCount}
             onRetry={onRetryDirectory}
             style={styles.headerChip}
           />
         </View>
+        <Text style={styles.slogan}>{s.homeSlogan}</Text>
 
         {update.tier === 'notify' && update.latestVersion != null ? (
           <UpdateBanner
@@ -287,6 +289,9 @@ export function MainScreen(): React.JSX.Element {
           <ConnectCard
             status={status}
             relayName={relayName}
+            relayCountryCode={relayCountryCode}
+            connectedAtMs={connectedAtMs}
+            errorText={errorText}
             relayClass={relayClass}
             isConnected={isConnected}
             isWorking={isWorking}
@@ -339,12 +344,15 @@ const styles = StyleSheet.create({
     fontSize: 24,
     marginLeft: 2,
   },
-  tagline: {
-    marginTop: 2,
+  // Spans the screen under the header row: the longer translations need the whole width,
+  // and wrap onto a second line where even that is not enough.
+  slogan: {
+    marginTop: 4,
     color: palette.dimText,
     fontFamily: monoFont,
     fontSize: 11,
-    letterSpacing: 1.2,
+    lineHeight: 16,
+    letterSpacing: 0.3,
   },
   updateBanner: {
     marginTop: 14,

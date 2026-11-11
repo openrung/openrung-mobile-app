@@ -34,7 +34,7 @@ export const zhCN: Partial<Strings> = {
   tabSettings: '设置',
   tabAbout: '关于我们',
   aboutTitle: '关于我们',
-  relayAuto: '自动中继',
+  relayAuto: '自动选择中继',
   widgetStatusDisconnected: '未连接',
   widgetName: '快速连接',
   widgetDescription:
@@ -43,14 +43,6 @@ export const zhCN: Partial<Strings> = {
   relayClassVolunteer: '志愿',
   settingsGeneralHeader: '常规',
   settingsDiagnosticsHeader: '诊断',
-
-  // Ocean telemetry panel (map view).
-  telemetryNetworkHeader: '网络',
-  telemetryLinkHeader: '链路',
-  telemetryRelaysLabel: '中继',
-  telemetryLocationsLabel: '地点',
-  telemetryCountriesLabel: '国家',
-  telemetryUptimeLabel: '在线时长',
 
   // Generic open affordance (accessibility).
   openContentDescription: '打开',
@@ -68,7 +60,7 @@ export const zhCN: Partial<Strings> = {
   mapContentDescription: '亚太地区可用出口节点的地图',
   mapLoading: '正在定位可用的出口节点…',
   mapFailed: '无法加载出口节点 — 点按重试',
-  mapNodesAvailable: (count: number) => `${count} 个地点可用`,
+  mapRelaysOnline: (count: number) => `${count} 个可用中继`,
   mapNoNodes: '当前没有可用的出口节点',
 
   // Recent locations.
@@ -114,6 +106,7 @@ export const zhCN: Partial<Strings> = {
 
   // Home tagline and about screen.
   homeTagline: '中继网络',
+  homeSlogan: '互联网本非特权',
   aboutMissionLead: '我们相信，互联网接入是一项权利，而不是特权',
   aboutMissionBody:
     '更不应成为掌权者用来交易的筹码。获取信息的权利根植于我们作为人的本质之中，任何防火墙都不应抹去它。然而今天，数十亿人生活在高墙之后；这些墙把信息挡在外面，把沉默困在里面。在那里，Google 搜索只返回 404，提出问题可能带来危险，好奇心止步于被屏蔽的页面。\n\nOpenRung 的存在就是为了改变这一切。\n\n我们正在搭建一架越过高墙的梯子。世界各地的普通人分享自己的网络连接，让防火墙另一边的人能够访问开放的互联网。\n\n信息就是力量，这份力量属于我们，而不属于那些企图从我们手中夺走它的人。',

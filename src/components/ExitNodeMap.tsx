@@ -16,8 +16,8 @@
  *    collision so dense clusters stay readable);
  *  - tapping a marker (28px-padded hitbox) reports the region's ISO country
  *    code so the caller can connect to a relay there;
- *  - `children` are rendered inside the map above the node layers, for
- *    map-space annotations (e.g. the ocean telemetry panel).
+ *  - while connected, the session's relay is marked with a brighter core, a
+ *    ring and a wider glow, and the camera eases over to it (zoom unchanged).
  */
 import React, { useCallback, useMemo } from 'react';
 import { StyleSheet, type NativeSyntheticEvent } from 'react-native';
@@ -39,6 +39,8 @@ const NODE_HALO_LAYER = 'openrung-exit-nodes-halo';
 const NODE_CORE_LAYER = 'openrung-exit-nodes-core';
 const NODE_COUNT_LAYER = 'openrung-exit-nodes-count';
 const NODE_LABEL_LAYER = 'openrung-exit-nodes-label';
+
+const CONNECTED_SOURCE = 'openrung-connected-relay';
 
 const NODE_GREEN = '#65F58A';
 const NODE_STROKE = '#04140A';
@@ -96,6 +98,26 @@ const LABEL_LAYOUT = {
   'text-anchor': 'top' as const,
   // Unlike the count, labels yield on collision so dense clusters stay readable.
 };
+// The connected relay's marker, drawn over its region's ordinary one.
+const CONNECTED_GLOW_PAINT = {
+  'circle-radius': 30,
+  'circle-color': NODE_GREEN,
+  'circle-opacity': 0.22,
+};
+const CONNECTED_RING_PAINT = {
+  'circle-radius': 10.5,
+  'circle-opacity': 0,
+  'circle-stroke-color': NODE_GREEN,
+  'circle-stroke-width': 1.5,
+};
+const CONNECTED_CORE_PAINT = {
+  'circle-radius': 6,
+  'circle-color': '#D8FFE0',
+  'circle-stroke-color': NODE_STROKE,
+  'circle-stroke-width': 2,
+};
+const CONNECTED_CAMERA_MS = 1000;
+const NO_CAMERA_STOP = {};
 const LABEL_PAINT = {
   'text-color': NODE_GREEN,
   'text-halo-color': NODE_STROKE,
@@ -106,14 +128,14 @@ const LABEL_PAINT = {
 export interface ExitNodeMapProps {
   regions: ExitNodeRegion[];
   onRegionPress: (countryCode: string) => void;
-  /** Map-space annotations (MapLibre children) rendered above the node layers. */
-  children?: React.ReactNode;
+  /** [longitude, latitude] of the connected relay; null while not connected or unlocated. */
+  connectedLngLat?: [number, number] | null;
 }
 
 export function ExitNodeMap({
   regions,
   onRegionPress,
-  children,
+  connectedLngLat = null,
 }: ExitNodeMapProps): React.JSX.Element {
   const s = useStrings();
 
@@ -172,6 +194,26 @@ export function ExitNodeMap({
     [regions],
   );
 
+  // Keyed on the two numbers, so a caller passing a fresh array per render neither rebuilds
+  // the marker nor re-sends the camera stop (which would pull a panned map back).
+  const connectedLongitude = connectedLngLat?.[0];
+  const connectedLatitude = connectedLngLat?.[1];
+  const connected = useMemo(() => {
+    if (connectedLongitude == null || connectedLatitude == null) {
+      return null;
+    }
+    const center: [number, number] = [connectedLongitude, connectedLatitude];
+    return {
+      point: {
+        type: 'Feature' as const,
+        geometry: { type: 'Point' as const, coordinates: center },
+        properties: {},
+      },
+      // A camera stop without a zoom keeps the user's zoom level and only recenters.
+      cameraStop: { center, duration: CONNECTED_CAMERA_MS, easing: 'ease' as const },
+    };
+  }, [connectedLongitude, connectedLatitude]);
+
   const handleNodePress = useCallback(
     (event: NativeSyntheticEvent<PressEventWithFeatures>) => {
       for (const feature of event.nativeEvent.features ?? []) {
@@ -202,7 +244,12 @@ export function ExitNodeMap({
       androidView="texture"
       accessibilityLabel={s.mapContentDescription}
     >
-      <Camera initialViewState={INITIAL_VIEW_STATE} minZoom={MIN_ZOOM} maxZoom={MAX_ZOOM} />
+      <Camera
+        initialViewState={INITIAL_VIEW_STATE}
+        minZoom={MIN_ZOOM}
+        maxZoom={MAX_ZOOM}
+        {...(connected?.cameraStop ?? NO_CAMERA_STOP)}
+      />
       <GeoJSONSource
         id={NODE_SOURCE}
         data={nodeCollection}
@@ -216,7 +263,13 @@ export function ExitNodeMap({
         <Layer id={NODE_COUNT_LAYER} type="symbol" layout={COUNT_LAYOUT} paint={COUNT_PAINT} />
         <Layer id={NODE_LABEL_LAYER} type="symbol" layout={LABEL_LAYOUT} paint={LABEL_PAINT} />
       </GeoJSONSource>
-      {children}
+      {connected != null ? (
+        <GeoJSONSource id={CONNECTED_SOURCE} data={connected.point}>
+          <Layer id={`${CONNECTED_SOURCE}-glow`} type="circle" paint={CONNECTED_GLOW_PAINT} />
+          <Layer id={`${CONNECTED_SOURCE}-ring`} type="circle" paint={CONNECTED_RING_PAINT} />
+          <Layer id={`${CONNECTED_SOURCE}-core`} type="circle" paint={CONNECTED_CORE_PAINT} />
+        </GeoJSONSource>
+      ) : null}
     </MapLibreMap>
   );
 }

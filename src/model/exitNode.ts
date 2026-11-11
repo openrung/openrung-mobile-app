@@ -30,6 +30,26 @@ export interface ExitNodeRegion {
   relays: ExitNodeRelay[]; // broker order; nodeCount === relays.length
 }
 
+/**
+ * Where the connected relay sits on the exit-node map: its region's marker when the loaded
+ * directory lists the relay, else the coordinates native recorded for the session (a country
+ * centroid). Null when neither is known — native records 0,0 for an unlocated relay.
+ */
+export function connectedRelayLngLat(
+  recent: { relayId?: string; latitude: number; longitude: number } | null,
+  regions: ExitNodeRegion[],
+): [number, number] | null {
+  if (recent == null) {
+    return null;
+  }
+  const region =
+    recent.relayId == null
+      ? undefined
+      : regions.find(candidate => candidate.relays.some(relay => relay.id === recent.relayId));
+  const { latitude, longitude } = region ?? recent;
+  return latitude === 0 && longitude === 0 ? null : [longitude, latitude];
+}
+
 // One code point per class test; `for..of` iterates code points, so astral-plane
 // format characters (e.g. U+E00xx tags) are classified whole, never as surrogates.
 const CONTROL_OR_FORMAT = /[\p{Cc}\p{Cf}]/u;
