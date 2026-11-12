@@ -26,6 +26,8 @@ github.com/openrung/openrung/connectcore v0.8.0 h1:dSpGMkRZPzt52RHITcmcdHpmOz5FL
 github.com/openrung/openrung/connectcore v0.8.0/go.mod h1:DhcCLPccvtAAeuzSv2oTo6bES/b0HuoH9kZjXz+d4aA=
 github.com/openrung/openrung/connectcore v0.9.1 h1:Ymymvq+oQ4EPXNLnF6ldX+S4Am6NpBdG279nknG9zUQ=
 github.com/openrung/openrung/connectcore v0.9.1/go.mod h1:DhcCLPccvtAAeuzSv2oTo6bES/b0HuoH9kZjXz+d4aA=
+github.com/openrung/openrung/connectcore v0.14.1 h1:fONCC+/HxHuYOXTVoXLYQ2xZD9zOAhBG9KsnUooig6U=
+github.com/openrung/openrung/connectcore v0.14.1/go.mod h1:DhcCLPccvtAAeuzSv2oTo6bES/b0HuoH9kZjXz+d4aA=
 github.com/openrung/openrung/punchcore v0.1.0 h1:15jV81Fq4WXg4nQOKQxuwS7LRPxxQ+sAsbGvDSVrufc=
 github.com/openrung/openrung/punchcore v0.1.0/go.mod h1:ngh0ZjATF0dujNXQq67Jj1a/ZSsXd781o8S1aYm3ehA=
 github.com/openrung/openrung/wsscore v0.7.0 h1:xT7BL33vEJ0b0bdkRT7QQJmfbZOWyEc3NkkPi4wZbHk=

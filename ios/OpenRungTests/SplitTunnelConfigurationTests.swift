@@ -27,6 +27,7 @@ final class SplitTunnelConfigurationTests: XCTestCase {
         XCTAssertEqual(try canonicalJSON(route["rules"]), try canonicalJSON([
             ["protocol": "dns", "action": "hijack-dns"],
             ["port": 53, "action": "hijack-dns"],
+            ["action": "reject", "ip_cidr": ["198.18.0.0/15", "fc00::/18"], "no_drop": true],
             ["ip_is_private": true, "outbound": "direct"],
             ["action": "reject", "network": "udp", "port": 443, "no_drop": true],
         ] as [[String: Any]]))
@@ -53,6 +54,7 @@ final class SplitTunnelConfigurationTests: XCTestCase {
         XCTAssertEqual(try canonicalJSON(route["rules"]), try canonicalJSON([
             ["protocol": "dns", "action": "hijack-dns"],
             ["port": 53, "action": "hijack-dns"],
+            ["action": "reject", "ip_cidr": ["198.18.0.0/15", "fc00::/18"], "no_drop": true],
             ["action": "sniff"],
             ["network": "tcp", "domain_suffix": ProbeTargets.ruleDomainSuffixes, "outbound": "proxy"],
             ["rule_set": ["geosite-ir", "geoip-ir"], "outbound": "direct"],
@@ -92,6 +94,7 @@ final class SplitTunnelConfigurationTests: XCTestCase {
         XCTAssertEqual(try canonicalJSON(route["rules"]), try canonicalJSON([
             ["protocol": "dns", "action": "hijack-dns"],
             ["port": 53, "action": "hijack-dns"],
+            ["action": "reject", "ip_cidr": ["198.18.0.0/15", "fc00::/18"], "no_drop": true],
             ["action": "sniff"],
             ["network": "tcp", "domain_suffix": ProbeTargets.ruleDomainSuffixes, "outbound": "proxy"],
             ["ip_is_private": true, "outbound": "direct"],
