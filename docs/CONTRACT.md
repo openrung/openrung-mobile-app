@@ -381,9 +381,10 @@ interface DesktopTunnelMode {
   Settings renders its Local proxy section only when the module is present, so a
   browser preview without a host shows neither it nor any mobile-only row.
 
-  `proxy` is the default capture mode: a loopback proxy the system proxy points
-  at. `tun` routes the whole device through a TUN interface, and a country
-  preset then matches by address as on mobile. Settings shows a TUN mode switch
+  `proxy` is a loopback proxy the system proxy points at. `tun` routes the
+  whole device through a TUN interface, and a country preset then matches by
+  address as on mobile. The host chooses the mode a first launch starts in (TUN
+  where it can offer it), and TS only reads it. Settings shows a TUN mode switch
   only when the host reports `available`, and leaves the Local proxy section out
   while the mode is `tun`, when no local proxy is served. `setTunnelMode` applies
   to later connects and rejects while a tunnel is up, so the switch is locked

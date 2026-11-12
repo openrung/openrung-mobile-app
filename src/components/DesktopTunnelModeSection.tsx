@@ -1,9 +1,10 @@
 /**
  * Desktop-only Settings row for the client's capture mode, wrapped around the local proxy rows.
  *
- * The desktop client normally serves a loopback proxy that the system proxy points at, so only
- * proxy-aware apps are carried. Where its host can also capture the whole device through a TUN
- * interface, this row offers that as a switch. Turning it on may restart the client with
+ * In proxy mode the desktop client serves a loopback proxy that the system proxy points at, so
+ * only proxy-aware apps are carried. Where its host can also capture the whole device through a
+ * TUN interface, this row offers that as a switch; which of the two a first launch starts in is
+ * the host's choice. Turning it on may restart the client with
  * administrator rights — the host says so in `requiresRestart`, and the row warns before the
  * switch is used. The mode belongs to a session, so the switch is locked while a tunnel is up.
  *
