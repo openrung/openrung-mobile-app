@@ -1,4 +1,9 @@
-import type { DecodedUpdateManifest, UpdateNotice } from '../net/updateManifestClient';
+import type {
+  DecodedUpdateManifest,
+  UpdateManifest,
+  UpdateNotice,
+  UpdatePlatformInfo,
+} from '../net/updateManifestClient';
 import { compareVersions } from '../net/updateManifestClient';
 
 /**
@@ -36,9 +41,29 @@ export const INITIAL_UPDATE_UI: UpdateUiState = {
   notice: null,
 };
 
+type UpdatePlatformKey = 'android' | 'ios' | 'desktop';
+
+/** The manifest section for a react-native Platform.OS; the desktop client runs as 'web'. */
+function updatePlatformKey(platform: string): UpdatePlatformKey | null {
+  return platform === 'ios' || platform === 'android'
+    ? platform
+    : platform === 'web'
+      ? 'desktop'
+      : null;
+}
+
+/** The running platform's release section of a manifest, or null when it has none. */
+export function updatePlatformInfo(
+  manifest: UpdateManifest,
+  platform: string,
+): UpdatePlatformInfo | null {
+  const key = updatePlatformKey(platform);
+  return key === null ? null : manifest[key];
+}
+
 export interface DeriveUpdateInputs {
   decoded: DecodedUpdateManifest | null;
-  /** react-native Platform.OS; anything but 'android'/'ios' derives no version tier. */
+  /** react-native Platform.OS; anything but 'android'/'ios'/'web' derives no version tier. */
   platform: string;
   currentVersion: string;
   /** Version string whose 'notify' banner the user already dismissed (persisted). */
@@ -56,8 +81,8 @@ export function deriveUpdateUiState(inputs: DeriveUpdateInputs): UpdateUiState {
     return INITIAL_UPDATE_UI;
   }
   const { manifest, verified } = decoded;
-  const info =
-    inputs.platform === 'ios' ? manifest.ios : inputs.platform === 'android' ? manifest.android : null;
+  const info = updatePlatformInfo(manifest, inputs.platform);
+  const platformKey = updatePlatformKey(inputs.platform);
 
   const behind =
     info?.latest != null && compareVersions(inputs.currentVersion, info.latest) === -1;
@@ -86,6 +111,8 @@ export function deriveUpdateUiState(inputs: DeriveUpdateInputs): UpdateUiState {
   const notice =
     verified &&
     manifest.notice !== null &&
+    (manifest.notice.platforms === null ||
+      (platformKey !== null && manifest.notice.platforms.includes(platformKey))) &&
     !inputs.dismissedNoticeIds.includes(manifest.notice.id) &&
     (manifest.notice.expiresMs === null || manifest.notice.expiresMs > inputs.nowMs)
       ? manifest.notice

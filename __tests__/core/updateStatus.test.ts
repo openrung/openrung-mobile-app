@@ -22,6 +22,7 @@ function manifest(overrides: Partial<UpdateManifest> = {}): UpdateManifest {
     generatedAtMs: NOW - 3_600_000,
     android: { latest: '0.4.0', minSupported: null },
     ios: { latest: '0.4.0', minSupported: null },
+    desktop: null,
     promote: 'silent',
     notice: null,
     ...overrides,
@@ -36,6 +37,7 @@ function notice(overrides: Partial<UpdateNotice> = {}): UpdateNotice {
     body: { en: 'Body' },
     url: null,
     expiresMs: null,
+    platforms: null,
     ...overrides,
   };
 }
@@ -133,6 +135,20 @@ describe('deriveUpdateUiState — version tiers', () => {
     expect(derive(verified(iosOnly), { platform: 'ios' }).tier).toBe('available');
     expect(derive(verified(iosOnly), { platform: 'windows' }).tier).toBe('none');
   });
+
+  it('the desktop client (web) follows the desktop section, not the mobile ones', () => {
+    const m = manifest({ desktop: { latest: '1.0.0', minSupported: '0.2.0' } });
+    expect(derive(verified(m), { platform: 'web', currentVersion: '0.5.0' })).toMatchObject({
+      tier: 'available',
+      latestVersion: '1.0.0',
+    });
+    expect(derive(verified(m), { platform: 'web', currentVersion: '0.1.6' }).tier).toBe('blocked');
+    expect(derive(verified(m), { platform: 'web', currentVersion: '1.0.0' }).tier).toBe('none');
+    // No desktop section: mobile versions say nothing about the desktop client.
+    expect(derive(verified(manifest()), { platform: 'web', currentVersion: '0.1.6' }).tier).toBe(
+      'none',
+    );
+  });
 });
 
 describe('deriveUpdateUiState — notices', () => {
@@ -153,6 +169,25 @@ describe('deriveUpdateUiState — notices', () => {
     expect(derive(verified(expired)).notice).toBeNull();
     const live = manifest({ notice: notice({ expiresMs: NOW + 1 }) });
     expect(derive(verified(live)).notice?.id).toBe('n1');
+  });
+});
+
+describe('deriveUpdateUiState — notice platforms', () => {
+  it('shows a scoped notice only on the platforms it names', () => {
+    const m = manifest({ notice: notice({ platforms: ['android', 'ios'] }) });
+    expect(derive(verified(m)).notice?.id).toBe('n1');
+    expect(derive(verified(m), { platform: 'ios' }).notice?.id).toBe('n1');
+    expect(derive(verified(m), { platform: 'web' }).notice).toBeNull();
+    const desktopOnly = manifest({ notice: notice({ platforms: ['desktop'] }) });
+    expect(derive(verified(desktopOnly), { platform: 'web' }).notice?.id).toBe('n1');
+    expect(derive(verified(desktopOnly)).notice).toBeNull();
+  });
+
+  it('an unscoped notice reaches every platform; an empty scope reaches none', () => {
+    expect(derive(verified(manifest({ notice: notice() })), { platform: 'web' }).notice?.id).toBe(
+      'n1',
+    );
+    expect(derive(verified(manifest({ notice: notice({ platforms: [] }) }))).notice).toBeNull();
   });
 });
 

@@ -8,7 +8,7 @@ serving contract: [docs/UPDATE_MANIFEST.md](../docs/UPDATE_MANIFEST.md).
 
 ## Fields
 
-- `min_supported.{android,ios}` — the kill-switch floor (`"x.y.z"`). Clients BELOW this version
+- `min_supported.{android,ios,desktop}` — the kill-switch floor (`"x.y.z"`). Clients BELOW this version
   show the full-screen "Update required" screen (with a "Continue anyway" escape hatch for
   self-hosted-broker users). Raise it only for versions that genuinely cannot work anymore
   (protocol breaks), and only after checking the broker's `X-OpenRung-App-Version` telemetry for
@@ -20,6 +20,9 @@ serving contract: [docs/UPDATE_MANIFEST.md](../docs/UPDATE_MANIFEST.md).
   iOS yet. CI rejects a value above package.json and a `min_supported.ios` above it. (Android
   needs no equivalent: the release path publishes the manifest atomically with the APK, and the
   broadcast workflow reads the latest release tag.)
+- The desktop client's latest version is not in this file: the publisher reads the latest
+  `desktop-vX.Y.Z` release from the `openrung/openrung` repository, hourly and on every publish.
+  `min_supported.desktop` is its floor; the publish fails on a floor above that release.
 - `promote` — `"silent"` (default: no UI beyond the passive Settings row) or `"notify"` (one
   dismissible home-screen banner per version). Set `notify` when cutting a release users should
   actually install (security fixes, protocol changes); set it back to `silent` afterwards.
@@ -40,6 +43,9 @@ serving contract: [docs/UPDATE_MANIFEST.md](../docs/UPDATE_MANIFEST.md).
   `{locale: text}` maps; `en` is required, other app locales (`zh-CN`, `zh-TW`, `fa`, `ru`, `ar`,
   `tr`, `vi`, `my`) fall back to English when missing. `url` (https only) adds a "Learn more"
   button. `expires` (ISO-8601, optional) auto-hides the notice client-side.
+  `platforms` (optional) limits the notice to some of `"android"`, `"ios"` and `"desktop"`;
+  leave it out to reach every client. A notice about a mobile release should name the mobile
+  platforms, or the desktop client shows it too.
 
 Validate locally before pushing:
 

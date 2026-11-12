@@ -5,10 +5,18 @@
  * production seed stays offline.
  */
 const mockNativeFetchManifestCandidate = jest.fn();
+let mockIsDesktop = false;
 
 jest.mock('../../src/native/OpenRungBroker', () => ({
   fetchManifestCandidate: (...args: unknown[]) =>
     mockNativeFetchManifestCandidate(...args),
+}));
+
+jest.mock('../../src/native/OpenRungDesktop', () => ({
+  get isDesktop() {
+    return mockIsDesktop;
+  },
+  OpenRungDesktop: null,
 }));
 
 import * as ed from '@noble/ed25519';
@@ -41,6 +49,7 @@ const GITHUB_MANIFEST_URL =
 beforeEach(() => {
   setManifestSigningKeysForTests([TEST_MANIFEST_KEY]);
   mockNativeFetchManifestCandidate.mockReset();
+  mockIsDesktop = false;
 });
 
 afterEach(() => {
@@ -63,7 +72,10 @@ describe('decodeUpdateEnvelope — committed vector', () => {
       body: { en: 'Test-only manifest vector.' },
       url: null,
       expiresMs: null,
+      platforms: null,
     });
+    // The vector predates the desktop section: an absent section decodes to null.
+    expect(decoded.manifest.desktop).toBeNull();
   });
 
   it('rejects a flipped payload byte', () => {
@@ -174,6 +186,22 @@ describe('decodeUpdateEnvelope — lenient payload rules', () => {
   it('drops a platform section with nothing usable', () => {
     expect(decode({ android: { latest: 42 } }).manifest.android).toBeNull();
     expect(decode({ android: 'nope' }).manifest.android).toBeNull();
+  });
+
+  it('decodes the desktop section like the mobile ones', () => {
+    const decoded = decode({ desktop: { latest: '1.0.0', min_supported: '0.2.0' } });
+    expect(decoded.manifest.desktop).toEqual({ latest: '1.0.0', minSupported: '0.2.0' });
+  });
+
+  it('decodes a notice platform scope, keeping only string entries', () => {
+    const scoped = (platforms: unknown) =>
+      decode({
+        notice: { id: 'x', title: { en: 't' }, body: { en: 'b' }, platforms },
+      }).manifest.notice?.platforms;
+    expect(scoped(['android', 'ios'])).toEqual(['android', 'ios']);
+    expect(scoped(['desktop', 7])).toEqual(['desktop']);
+    expect(scoped(undefined)).toBeNull();
+    expect(scoped('desktop')).toBeNull();
   });
 
   it('treats an unknown promote as silent', () => {
@@ -360,6 +388,35 @@ describe('fetchUpdateManifest — sequential fail-open', () => {
       raw: signedGitHub,
       decoded: { verified: true },
     });
+  });
+
+  it('routes every candidate, GitHub included, through the host in the desktop client', async () => {
+    mockIsDesktop = true;
+    const signedGitHub = envelopeFor(manifestPayload());
+    mockNativeFetchManifestCandidate.mockImplementation(
+      async ({ candidateUrl }: { candidateUrl: string }) => {
+        if (candidateUrl !== GITHUB_MANIFEST_URL) {
+          throw new Error('front unreachable');
+        }
+        return { sourceUrl: candidateUrl, bodyJson: signedGitHub };
+      },
+    );
+    const fetchMock = jest.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const fetched = await fetchUpdateManifest([
+      CLOUDFRONT_MANIFEST_URL,
+      DIRECT_MANIFEST_URL,
+      GITHUB_MANIFEST_URL,
+    ]);
+
+    expect(mockNativeFetchManifestCandidate.mock.calls).toEqual([
+      [{ candidateUrl: CLOUDFRONT_MANIFEST_URL }],
+      [{ candidateUrl: DIRECT_MANIFEST_URL }],
+      [{ candidateUrl: GITHUB_MANIFEST_URL }],
+    ]);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetched).toMatchObject({ url: GITHUB_MANIFEST_URL, decoded: { verified: true } });
   });
 
   it('falls through a native broker failure to a clean native CloudFront candidate', async () => {

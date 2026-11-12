@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, Platform, type NativeEventSubscription } from 'react-native';
 
 import { APP_VERSION, AppConfig } from '../config';
-import { deriveUpdateUiState } from '../model/updateStatus';
+import { deriveUpdateUiState, updatePlatformInfo } from '../model/updateStatus';
 import {
   decodeUpdateEnvelope,
   fetchUpdateManifest,
@@ -12,8 +12,8 @@ import {
 import { applyUpdateUiState } from './store';
 
 /**
- * Update-check orchestration: hydrates the persisted manifest, refreshes it on cold start and on
- * every return to foreground (throttled), and mirrors the derived UI tier into the store. The
+ * Update-check orchestration: hydrates the persisted manifest, refreshes it on cold start, on
+ * every return to foreground and on a timer (throttled), and mirrors the derived UI tier into the store. The
  * whole service is fail-open by construction — every network or storage failure leaves the app
  * exactly as it was, and the check never gates startup or connect.
  *
@@ -42,17 +42,11 @@ let fetchInFlight = false;
 let started = false;
 let lifecycleGeneration = 0;
 let appStateSubscription: NativeEventSubscription | null = null;
+let periodicCheckTimer: ReturnType<typeof setTimeout> | null = null;
 let noticeExpiryTimer: ReturnType<typeof setTimeout> | null = null;
 
 function platformInfo(candidate: DecodedUpdateManifest | null): UpdatePlatformInfo | null {
-  if (candidate === null) {
-    return null;
-  }
-  return Platform.OS === 'ios'
-    ? candidate.manifest.ios
-    : Platform.OS === 'android'
-      ? candidate.manifest.android
-      : null;
+  return candidate === null ? null : updatePlatformInfo(candidate.manifest, Platform.OS);
 }
 
 function clearNoticeExpiryTimer(): void {
@@ -60,6 +54,41 @@ function clearNoticeExpiryTimer(): void {
     clearTimeout(noticeExpiryTimer);
     noticeExpiryTimer = null;
   }
+}
+
+function clearPeriodicCheckTimer(): void {
+  if (periodicCheckTimer !== null) {
+    clearTimeout(periodicCheckTimer);
+    periodicCheckTimer = null;
+  }
+}
+
+/**
+ * Arms one timer for the moment the next refresh stops being throttled: six hours after the last
+ * success, or fifteen minutes after a failed attempt. It is re-armed after each run from the
+ * outcome of the latest check, whichever trigger made it. The desktop client can stay open for
+ * weeks without a foreground event, so this is what keeps its check running.
+ */
+function schedulePeriodicCheck(generation: number): void {
+  clearPeriodicCheckTimer();
+  const now = Date.now();
+  const dueMs = Math.max(
+    lastSuccessAtMs > 0 ? lastSuccessAtMs + AppConfig.UPDATE_CHECK_INTERVAL_MS : 0,
+    lastAttemptAtMs > 0 ? lastAttemptAtMs + AppConfig.UPDATE_CHECK_RETRY_MS : 0,
+  );
+  // At least a second, so a check that stays throttled cannot spin; at most the interval, so a
+  // clock that was set back cannot push the next check out indefinitely.
+  const delayMs = Math.min(Math.max(dueMs - now, 1_000), AppConfig.UPDATE_CHECK_INTERVAL_MS);
+  periodicCheckTimer = setTimeout(() => {
+    periodicCheckTimer = null;
+    refreshUpdateManifest()
+      .catch(() => {})
+      .then(() => {
+        if (generation === lifecycleGeneration) {
+          schedulePeriodicCheck(generation);
+        }
+      });
+  }, delayMs);
 }
 
 function recompute(): void {
@@ -249,6 +278,9 @@ export function startUpdateCheck(): () => void {
       });
     }
     await refreshUpdateManifest();
+    if (generation === lifecycleGeneration) {
+      schedulePeriodicCheck(generation);
+    }
   })().catch(() => {
     // Every stage above is fail-open already; this guards the chain itself.
   });
@@ -259,6 +291,7 @@ export function startUpdateCheck(): () => void {
     lifecycleGeneration += 1;
     appStateSubscription?.remove();
     appStateSubscription = null;
+    clearPeriodicCheckTimer();
     clearNoticeExpiryTimer();
     started = false;
   };
@@ -312,5 +345,6 @@ export function resetUpdateCheckForTests(): void {
   started = false;
   appStateSubscription?.remove();
   appStateSubscription = null;
+  clearPeriodicCheckTimer();
   clearNoticeExpiryTimer();
 }

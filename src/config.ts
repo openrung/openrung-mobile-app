@@ -1,6 +1,8 @@
 // The app version string lives in exactly ONE place — package.json — and every other
 // surface (Android versionName, iOS MARKETING_VERSION, this constant) derives from it so
 // they cannot drift. scripts/check-versions.mjs enforces this in CI.
+import { Platform } from 'react-native';
+
 import { version } from '../package.json';
 import { isDesktop, OpenRungDesktop } from './native/OpenRungDesktop';
 
@@ -106,6 +108,9 @@ export const AppConfig = {
   UPDATE_URL_ANDROID:
     'https://github.com/openrung/openrung-mobile-app/releases/latest',
 
+  /** Where the "Update" buttons send desktop client users: the download page, pinned likewise. */
+  UPDATE_URL_DESKTOP: 'https://openrung.org/download/',
+
   /** Minimum interval between successful update-manifest checks (cold start + app foreground). */
   UPDATE_CHECK_INTERVAL_MS: 6 * 3_600_000,
 
@@ -136,6 +141,13 @@ export const AppConfig = {
  * desktop client is versioned by its own host, not by this package.
  */
 export const APP_VERSION = OpenRungDesktop?.appVersion ?? version;
+
+/** Where the "Update" buttons send this build's users. Pinned: never taken from the manifest. */
+export const APP_UPDATE_URL = isDesktop
+  ? AppConfig.UPDATE_URL_DESKTOP
+  : Platform.OS === 'ios'
+    ? AppConfig.TESTFLIGHT_URL
+    : AppConfig.UPDATE_URL_ANDROID;
 
 /** Corresponding-source location for the build that is running. */
 export const APP_SOURCE_URL = isDesktop ? AppConfig.DESKTOP_SOURCE_URL : AppConfig.SOURCE_URL;

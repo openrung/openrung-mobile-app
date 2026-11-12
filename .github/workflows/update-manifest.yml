@@ -1,10 +1,13 @@
 name: Publish update manifest
 
-# The ONE publisher of update-manifest.json (docs/UPDATE_MANIFEST.md). Three ways in, one
+# The ONE publisher of update-manifest.json (docs/UPDATE_MANIFEST.md). Four ways in, one
 # serialized code path:
 #   - push to main touching release/update-policy.json (the broadcast path — no app release)
 #   - workflow_dispatch (manual re-publish)
 #   - workflow_call from release.yml after each release is created
+#   - an hourly schedule, which picks up a desktop client release: those are published from the
+#     openrung repository, so nothing in this repository runs when one appears. A scheduled run
+#     that generates the manifest already published leaves the release asset alone.
 # Serializing every path behind one concurrency mutex, and ALWAYS generating from latest main,
 # is what prevents the stale-publisher race: a ~30-min release build that generated its own
 # manifest from its job-start checkout could otherwise overwrite a newer policy published while
@@ -21,6 +24,8 @@ on:
       - scripts/update-manifest.mjs
   workflow_dispatch:
   workflow_call:
+  schedule:
+    - cron: '17 * * * *'
 
 jobs:
   publish:
@@ -80,22 +85,75 @@ jobs:
           # ordering stamp (same-commit republishes after a new release must rank strictly newer).
           echo "published_at=$(jq -r .published_at <<<"$release_json")" >> "$GITHUB_OUTPUT"
 
+      # The advertised desktop version is the highest desktop-vX.Y.Z release in the openrung
+      # repository, where the desktop client is built and released. That release is created
+      # with its installers attached, so a listed release is a downloadable one. No such
+      # release leaves the manifest without a desktop section; a failed lookup FAILS the run
+      # rather than publishing a manifest that silently drops the section.
+      - name: Resolve latest desktop client release
+        id: desktop
+        if: steps.latest.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          releases=$(gh api --paginate "repos/openrung/openrung/releases?per_page=100" \
+            --jq '.[] | select((.draft or .prerelease) | not)
+                  | select(.tag_name | test("^desktop-v[0-9]+\\.[0-9]+\\.[0-9]+$"))
+                  | [.tag_name, .published_at] | @tsv')
+          newest=$(printf '%s\n' "$releases" | sort -V | tail -n 1)
+          if [ -z "$newest" ]; then
+            echo "::notice::No desktop client release exists yet — publishing without a desktop section."
+            exit 0
+          fi
+          tag=$(cut -f1 <<<"$newest")
+          echo "version=${tag#desktop-v}" >> "$GITHUB_OUTPUT"
+          echo "published_at=$(cut -f2 <<<"$newest")" >> "$GITHUB_OUTPUT"
+
       - name: Generate update manifest
         if: steps.latest.outputs.tag != ''
         env:
           OPENRUNG_MANIFEST_SIGNING_SEED_B64: ${{ secrets.OPENRUNG_MANIFEST_SIGNING_SEED_B64 }}
           LATEST_TAG: ${{ steps.latest.outputs.tag }}
           LATEST_PUBLISHED_AT: ${{ steps.latest.outputs.published_at }}
+          DESKTOP_VERSION: ${{ steps.desktop.outputs.version }}
+          DESKTOP_PUBLISHED_AT: ${{ steps.desktop.outputs.published_at }}
         run: |
+          desktop_args=()
+          if [ -n "$DESKTOP_VERSION" ]; then
+            desktop_args=(--desktop-latest "$DESKTOP_VERSION" --desktop-published-at "$DESKTOP_PUBLISHED_AT")
+          fi
           node scripts/update-manifest.mjs generate \
             --out update-manifest.json \
             --android-latest "${LATEST_TAG#v}" \
-            --release-published-at "$LATEST_PUBLISHED_AT"
+            --release-published-at "$LATEST_PUBLISHED_AT" \
+            "${desktop_args[@]}"
+
+      # A scheduled run exists to notice a new desktop release. When it generates the bytes
+      # already attached to the latest release (the signature is deterministic), the release
+      # asset is left alone. Every other trigger always uploads it. The R2 mirror below is
+      # written on every run regardless, so a mirror upload that failed is retried within the
+      # hour instead of staying stale behind an up-to-date release asset.
+      - name: Compare with the published manifest
+        id: compare
+        if: steps.latest.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LATEST_TAG: ${{ steps.latest.outputs.tag }}
+        run: |
+          changed=true
+          if [ "${{ github.event_name }}" = "schedule" ] \
+            && gh release download "$LATEST_TAG" --pattern update-manifest.json --output published-manifest.json \
+            && cmp -s update-manifest.json published-manifest.json; then
+            changed=false
+            echo "::notice::The published manifest is already current."
+          fi
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
 
       # Clobber the asset on the LATEST release so the stable
       # releases/latest/download/update-manifest.json URL serves the new policy immediately.
       - name: Upload to latest GitHub release
-        if: steps.latest.outputs.tag != ''
+        if: steps.latest.outputs.tag != '' && steps.compare.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "${{ steps.latest.outputs.tag }}" update-manifest.json --clobber

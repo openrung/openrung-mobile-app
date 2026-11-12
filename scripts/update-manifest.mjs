@@ -18,8 +18,11 @@
 //       --android-latest overrides the advertised Android version (the publisher workflow passes
 //       the latest RELEASE tag so a still-building/failed release is never advertised); iOS
 //       latest always comes from the policy file's ios_latest (TestFlight uploads are manual).
-//       --release-published-at (the resolved release's published_at) folds the release input
-//       into generated_at so equal stamps always mean identical manifests — see generatedAtIso.
+//       --desktop-latest is the desktop client's latest release, which the publisher workflow
+//       resolves from the openrung repository; without it the manifest has no desktop section.
+//       --release-published-at and --desktop-published-at (the resolved releases' published_at)
+//       fold the release inputs into generated_at so equal stamps always mean identical
+//       manifests — see generatedAtIso.
 //   node scripts/update-manifest.mjs check
 //       CI guard: validates release/update-policy.json and the committed test vectors. Run by
 //       .github/workflows/version-check.yml on every PR.
@@ -90,6 +93,8 @@ function verifyBytes(rawPublicKey, bytes, signature) {
 // --- Shared validation ------------------------------------------------------------------------
 
 const SEMVER_RE = /^\d+\.\d+\.\d+$/;
+/** The manifest's release sections; a notice may be scoped to some of them. */
+const NOTICE_PLATFORMS = ['android', 'ios', 'desktop'];
 
 function semverTriple(value) {
   return SEMVER_RE.test(value) ? value.split('.').map(Number) : null;
@@ -158,6 +163,13 @@ function validatePolicy(policy, currentVersion) {
       );
     }
   }
+  // The desktop client (macOS, Windows, Linux) is released from the openrung repository under its
+  // own version, so package.json does not bound its floor; generate checks the floor against
+  // the desktop release the publisher resolved.
+  const minDesktop = policy.min_supported?.desktop;
+  if (typeof minDesktop !== 'string' || !SEMVER_RE.test(minDesktop)) {
+    errors.push(`min_supported.desktop must be "x.y.z", got ${JSON.stringify(minDesktop)}`);
+  }
   if (policy.promote !== 'silent' && policy.promote !== 'notify') {
     errors.push(`promote must be "silent" or "notify", got ${JSON.stringify(policy.promote)}`);
   }
@@ -180,6 +192,18 @@ function validatePolicy(policy, currentVersion) {
       }
       if (notice.url != null && !/^https:\/\//.test(notice.url)) {
         errors.push('notice.url must be null or an https:// URL');
+      }
+      if (
+        notice.platforms != null &&
+        !(
+          Array.isArray(notice.platforms) &&
+          notice.platforms.length > 0 &&
+          notice.platforms.every((platform) => NOTICE_PLATFORMS.includes(platform))
+        )
+      ) {
+        errors.push(
+          `notice.platforms must be absent or a non-empty list drawn from ${JSON.stringify(NOTICE_PLATFORMS)}`,
+        );
       }
       if (notice.expires != null && Number.isNaN(Date.parse(notice.expires))) {
         errors.push(`notice.expires must be null or ISO-8601, got ${JSON.stringify(notice.expires)}`);
@@ -213,16 +237,17 @@ function loadVectors() {
 
 /**
  * generated_at = the NEWEST timestamp among ALL manifest inputs — the generating checkout's HEAD
- * committer time and (when the workflow passes it) the resolved latest release's published_at.
+ * committer time and (when the workflow passes them) the published_at of the resolved latest app
+ * release and of the resolved latest desktop client release.
  * Never plain wall-clock: the inputs' own history is the ordering authority, so a stale-input
  * publish that lands late carries an honestly-older stamp and cached clients reject the
- * rollback. Because BOTH inputs are monotone (new commits and new releases only move forward),
+ * rollback. Because ALL inputs are monotone (new commits and new releases only move forward),
  * any input change strictly increases the stamp — which gives clients the invariant that EQUAL
  * generated_at implies an identical manifest (same policy commit, same release), so they can
  * safely stop walking / keep their cache on ties. A wall-clock stamp would break the rollback
  * direction; a commit-time-only stamp would break the tie invariant (same commit, new release).
  */
-function generatedAtIso(releasePublishedAtIso) {
+function generatedAtIso(releaseStamps) {
   let headIso;
   try {
     headIso = execSync('git log -1 --format=%cI', { cwd: root, encoding: 'utf8' }).trim();
@@ -236,21 +261,25 @@ function generatedAtIso(releasePublishedAtIso) {
     );
     headIso = new Date().toISOString();
   }
-  if (releasePublishedAtIso == null) {
-    return headIso;
+  let newestIso = headIso;
+  for (const [label, iso] of Object.entries(releaseStamps)) {
+    if (iso == null) {
+      continue;
+    }
+    if (Number.isNaN(Date.parse(iso))) {
+      console.error(`✖ ${label} must be ISO-8601, got ${JSON.stringify(iso)}`);
+      process.exit(1);
+    }
+    if (Date.parse(iso) > Date.parse(newestIso)) {
+      newestIso = iso;
+    }
   }
-  if (Number.isNaN(Date.parse(releasePublishedAtIso))) {
-    console.error(
-      `✖ --release-published-at must be ISO-8601, got ${JSON.stringify(releasePublishedAtIso)}`,
-    );
-    process.exit(1);
-  }
-  return Date.parse(releasePublishedAtIso) > Date.parse(headIso) ? releasePublishedAtIso : headIso;
+  return newestIso;
 }
 
 // --- generate ---------------------------------------------------------------------------------
 
-function buildPayload(version, versionCode, policy, androidLatest, generatedAt) {
+function buildPayload(version, versionCode, policy, androidLatest, desktopLatest, generatedAt) {
   return {
     schema: 1,
     generated_at: generatedAt,
@@ -269,12 +298,25 @@ function buildPayload(version, versionCode, policy, androidLatest, generatedAt) 
       latest: policy.ios_latest,
       min_supported: policy.min_supported.ios,
     },
+    // One section for macOS, Windows and Linux: a desktop release ships all three or none.
+    // Null when no desktop release was resolved, so desktop clients derive no update state
+    // rather than acting on a floor with no release behind it.
+    desktop:
+      desktopLatest == null
+        ? null
+        : { latest: desktopLatest, min_supported: policy.min_supported.desktop },
     promote: policy.promote,
     notice: policy.notice ?? null,
   };
 }
 
-function generate(outPath, androidLatestOverride, releasePublishedAt) {
+function generate(
+  outPath,
+  androidLatestOverride,
+  releasePublishedAt,
+  desktopLatest,
+  desktopPublishedAt,
+) {
   const version = currentAppVersion();
   const policy = loadPolicy();
   const policyErrors = validatePolicy(policy, version);
@@ -302,12 +344,32 @@ function generate(outPath, androidLatestOverride, releasePublishedAt) {
     process.exit(1);
   }
 
+  // Desktop latest: the desktop client's latest release in the openrung repository, resolved
+  // by the publisher workflow. It is advertised only once that release exists, like Android's.
+  if (desktopLatest != null) {
+    if (!SEMVER_RE.test(desktopLatest)) {
+      console.error(`✖ --desktop-latest must be "x.y.z", got ${JSON.stringify(desktopLatest)}`);
+      process.exit(1);
+    }
+    if (!semverLte(policy.min_supported.desktop, desktopLatest)) {
+      console.error(
+        `✖ min_supported.desktop (${policy.min_supported.desktop}) is above the published desktop ` +
+          `latest (${desktopLatest}) — would block users with no available fix.`,
+      );
+      process.exit(1);
+    }
+  }
+
   const payload = buildPayload(
     version,
     currentVersionCode(),
     policy,
     androidLatest,
-    generatedAtIso(releasePublishedAt),
+    desktopLatest,
+    generatedAtIso({
+      '--release-published-at': releasePublishedAt,
+      '--desktop-published-at': desktopPublishedAt,
+    }),
   );
   const payloadBytes = Buffer.from(JSON.stringify(payload), 'utf8');
   const envelope = { schema: 1, payload_b64: payloadBytes.toString('base64') };
@@ -461,6 +523,8 @@ switch (mode) {
       flag('--out', 'update-manifest.json'),
       flag('--android-latest', null),
       flag('--release-published-at', null),
+      flag('--desktop-latest', null),
+      flag('--desktop-published-at', null),
     );
     break;
   case 'check':
@@ -471,7 +535,7 @@ switch (mode) {
     break;
   default:
     console.error(
-      'usage: update-manifest.mjs <generate [--out file] [--android-latest x.y.z] [--release-published-at iso8601] | check | keygen [--name n]>',
+      'usage: update-manifest.mjs <generate [--out file] [--android-latest x.y.z] [--release-published-at iso8601] [--desktop-latest x.y.z] [--desktop-published-at iso8601] | check | keygen [--name n]>',
     );
     process.exit(1);
 }

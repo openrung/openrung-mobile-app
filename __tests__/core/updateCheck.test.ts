@@ -30,6 +30,7 @@ jest.mock('../../src/net/updateManifestClient', () => ({
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
 
+import { AppConfig } from '../../src/config';
 import {
   decodeUpdateEnvelope,
   setManifestSigningKeysForTests,
@@ -345,6 +346,81 @@ describe('startUpdateCheck', () => {
     await flush();
     stopAgain();
     stop();
+  });
+});
+
+describe('startUpdateCheck — periodic refresh', () => {
+  /**
+   * The delay of the periodic timer armed last, and a way to fire it now. Firing cancels the
+   * real timeout first: the callback drops its own handle, as it does when the timer really
+   * fires, so the service could no longer clear it and it would keep Jest alive for hours.
+   */
+  function lastArmed(spy: jest.SpyInstance): { delay: number; fire: () => void } {
+    const index = spy.mock.calls
+      .map(([, delay]) => typeof delay === 'number' && delay >= 1_000)
+      .lastIndexOf(true);
+    expect(index).toBeGreaterThanOrEqual(0);
+    const [callback, delay] = spy.mock.calls[index] as [() => void, number];
+    const handle = spy.mock.results[index].value as ReturnType<typeof setTimeout>;
+    return {
+      delay,
+      fire: () => {
+        clearTimeout(handle);
+        callback();
+      },
+    };
+  }
+
+  it('re-arms from when the last check completed: six hours after a success', async () => {
+    const fetchMock = mockFetchReturning(envelopeFor(iosPayload({ latest: '9.9.9' })));
+    const setTimeoutSpy = jest.spyOn(globalThis, 'setTimeout');
+    const nowSpy = jest.spyOn(Date, 'now');
+    try {
+      const stop = startUpdateCheck();
+      await flush();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      const first = lastArmed(setTimeoutSpy);
+      // Armed after the fetch completed, so the tick lands when the throttle has just lapsed.
+      expect(first.delay).toBeGreaterThan(AppConfig.UPDATE_CHECK_INTERVAL_MS - 5_000);
+      expect(first.delay).toBeLessThanOrEqual(AppConfig.UPDATE_CHECK_INTERVAL_MS);
+
+      const realNow = Date.now();
+      nowSpy.mockReturnValue(realNow + first.delay);
+      setTimeoutSpy.mockClear();
+      first.fire();
+      nowSpy.mockRestore();
+      await flush();
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      // The run re-armed the timer for the following check.
+      lastArmed(setTimeoutSpy);
+      stop();
+    } finally {
+      nowSpy.mockRestore();
+      setTimeoutSpy.mockRestore();
+    }
+  });
+
+  it('retries fifteen minutes after a failed check, and stops on cleanup', async () => {
+    const fetchMock = mockFetchReturning(new Error('down'));
+    const setTimeoutSpy = jest.spyOn(globalThis, 'setTimeout');
+    const clearTimeoutSpy = jest.spyOn(globalThis, 'clearTimeout');
+    try {
+      const stop = startUpdateCheck();
+      await flush();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      const { delay } = lastArmed(setTimeoutSpy);
+      expect(delay).toBeGreaterThan(AppConfig.UPDATE_CHECK_RETRY_MS - 5_000);
+      expect(delay).toBeLessThanOrEqual(AppConfig.UPDATE_CHECK_RETRY_MS);
+
+      clearTimeoutSpy.mockClear();
+      stop();
+      expect(clearTimeoutSpy).toHaveBeenCalled();
+    } finally {
+      setTimeoutSpy.mockRestore();
+      clearTimeoutSpy.mockRestore();
+    }
   });
 });
 

@@ -356,8 +356,11 @@ same `connectcore` engine, with these differences:
   desktop client's proxy mode a destination is matched by hostname, so a
   country preset bypasses the hostnames in its domain list and literal addresses
   in its address list.
-- `OpenRungBroker` implements only `firstReachable`. TS therefore skips the
-  update check (the manifest describes mobile releases) when `isDesktop`.
+- `OpenRungBroker` implements `firstReachable` and `fetchManifestCandidate`.
+  The host fetches all three exact update-manifest candidates, including the
+  GitHub release asset that mobile fetches from JavaScript, because the webview
+  cannot read that cross-origin asset. The update check reads the manifest's
+  `desktop` section and compares it with the host's `appVersion`.
 - The host routes `Linking.openURL` to the system browser, so external links
   (About, the Settings speed test link) leave the webview.
 - An additional module, `OpenRungDesktop`, carries what has no mobile counterpart:

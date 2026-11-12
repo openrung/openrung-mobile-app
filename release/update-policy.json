@@ -2,13 +2,15 @@
   "schema": 1,
   "min_supported": {
     "android": "0.0.0",
-    "ios": "0.0.0"
+    "ios": "0.0.0",
+    "desktop": "0.0.0"
   },
   "ios_latest": "0.4.2",
   "promote": "notify",
   "notice": {
     "id": "2026-11-release-0.4.2",
     "level": "info",
+    "platforms": ["android", "ios"],
     "title": {
       "en": "What's new in 0.4.2",
       "zh-CN": "0.4.2 新功能",
