@@ -1,8 +1,8 @@
 import React, { useCallback } from 'react';
-import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { APP_VERSION, AppConfig } from '../config';
+import { APP_UPDATE_URL, APP_VERSION } from '../config';
 import { useStrings } from '../i18n';
 import { edgePadding, layout } from '../layout';
 import { continueDespiteBlock } from '../state/updateCheck';
@@ -22,8 +22,7 @@ export function UpdateRequiredScreen(): React.JSX.Element {
   const { update } = useAppState();
 
   const onUpdate = useCallback(() => {
-    const url = Platform.OS === 'ios' ? AppConfig.TESTFLIGHT_URL : AppConfig.UPDATE_URL_ANDROID;
-    Linking.openURL(url).catch(() => {
+    Linking.openURL(APP_UPDATE_URL).catch(() => {
       // Best-effort: ignore devices without a browser handler.
     });
   }, []);

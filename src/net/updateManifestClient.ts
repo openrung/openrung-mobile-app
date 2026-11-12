@@ -4,6 +4,7 @@ import { sha512 } from '@noble/hashes/sha2.js';
 import { Platform } from 'react-native';
 
 import { APP_VERSION, AppConfig } from '../config';
+import { isDesktop } from '../native/OpenRungDesktop';
 import { fetchManifestCandidate as nativeFetchManifestCandidate } from '../native/OpenRungBroker';
 
 // Hermes has no SubtleCrypto, so @noble/ed25519's async (WebCrypto-hashed) path is unavailable;
@@ -63,6 +64,8 @@ export interface UpdateNotice {
   url: string | null;
   /** Epoch ms after which the notice is hidden client-side; null = no expiry. */
   expiresMs: number | null;
+  /** Manifest sections ('android', 'ios', 'desktop') the notice is for; null = every client. */
+  platforms: readonly string[] | null;
 }
 
 export interface UpdateManifest {
@@ -70,6 +73,8 @@ export interface UpdateManifest {
   generatedAtMs: number;
   android: UpdatePlatformInfo | null;
   ios: UpdatePlatformInfo | null;
+  /** The desktop client on macOS, Windows and Linux: one release covers all three. */
+  desktop: UpdatePlatformInfo | null;
   promote: 'silent' | 'notify';
   notice: UpdateNotice | null;
 }
@@ -266,6 +271,10 @@ function decodeNotice(value: unknown): UpdateNotice | null {
     body,
     url: typeof record.url === 'string' && record.url.startsWith('https://') ? record.url : null,
     expiresMs,
+    // A list that is present but malformed scopes the notice to nobody rather than everybody.
+    platforms: Array.isArray(record.platforms)
+      ? record.platforms.filter((entry): entry is string => typeof entry === 'string')
+      : null,
   };
 }
 
@@ -364,6 +373,7 @@ export function decodeUpdateEnvelope(raw: string): DecodedUpdateManifest {
       generatedAtMs: Number.isNaN(generatedAt) ? 0 : generatedAt,
       android: decodePlatform(record.android),
       ios: decodePlatform(record.ios),
+      desktop: decodePlatform(record.desktop),
       promote: record.promote === 'notify' ? 'notify' : 'silent',
       notice: decodeNotice(record.notice),
     },
@@ -413,7 +423,10 @@ async function fetchGitHubAttempt(): Promise<FetchedUpdateManifest> {
 }
 
 async function fetchAttempt(url: string): Promise<FetchedUpdateManifest> {
-  if (url === DIRECT_MANIFEST_URL || url === CLOUDFRONT_MANIFEST_URL) {
+  // The desktop client's webview cannot read the cross-origin GitHub asset, so its host fetches
+  // that exact candidate as well; on mobile it stays the one JavaScript fetch.
+  const hostFetchesGitHub = isDesktop && url === GITHUB_MANIFEST_URL;
+  if (url === DIRECT_MANIFEST_URL || url === CLOUDFRONT_MANIFEST_URL || hostFetchesGitHub) {
     const result = await nativeFetchManifestCandidate({ candidateUrl: url });
     return {
       url: result.sourceUrl,

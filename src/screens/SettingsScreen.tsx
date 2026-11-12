@@ -26,7 +26,7 @@ import {
 import { DesktopProxySection } from '../components/DesktopProxySection';
 import { DesktopTunnelModeSection } from '../components/DesktopTunnelModeSection';
 import { SettingPanel } from '../components/SettingPanel';
-import { APP_VERSION, AppConfig } from '../config';
+import { APP_UPDATE_URL, APP_VERSION, AppConfig } from '../config';
 import { languageOptions, useLanguage, useStrings } from '../i18n';
 import { edgePadding, layout, useTabSceneColumns } from '../layout';
 import {
@@ -77,9 +77,8 @@ export function SettingsScreen({
   }, [s]);
 
   const onOpenUpdate = useCallback(() => {
-    // Pinned destination only — never a manifest-supplied URL (see AppConfig.UPDATE_URL_ANDROID).
-    const url = Platform.OS === 'ios' ? AppConfig.TESTFLIGHT_URL : AppConfig.UPDATE_URL_ANDROID;
-    Linking.openURL(url).catch(() => {
+    // Pinned destination only — never a manifest-supplied URL (see APP_UPDATE_URL).
+    Linking.openURL(APP_UPDATE_URL).catch(() => {
       // Best-effort: ignore devices without a browser handler.
     });
   }, []);

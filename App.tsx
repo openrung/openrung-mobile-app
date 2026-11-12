@@ -25,7 +25,6 @@ import { NativeTabs } from './src/components/NativeTabs';
 import { TabBar, type AppTab } from './src/components/TabBar';
 import { LanguageProvider } from './src/i18n';
 import { subscribeBackPress } from './src/native/backPress';
-import { isDesktop } from './src/native/OpenRungDesktop';
 import { AboutScreen } from './src/screens/AboutScreen';
 import { DebugScreen } from './src/screens/DebugScreen';
 import { LicenseTextScreen } from './src/screens/LicenseTextScreen';
@@ -48,8 +47,7 @@ type SubRoute = 'DEBUG' | 'SPLIT_TUNNELING' | 'LICENSES' | 'LICENSE_TEXT' | null
 function App(): React.JSX.Element {
   // Kick off the fail-open update check (hydrate + throttled fetch + foreground re-checks).
   // It never gates rendering: the manifest only ever changes what AppRoutes shows.
-  // The manifest describes mobile releases, so the desktop client does not consult it.
-  useEffect(() => (isDesktop ? undefined : startUpdateCheck()), []);
+  useEffect(() => startUpdateCheck(), []);
 
   // Publish this session's split-tunnel default at launch (not only when the sub-screen mounts):
   // selections are session-scoped, so native may still be routing the PREVIOUS session's choice

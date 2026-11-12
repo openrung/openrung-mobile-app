@@ -4,8 +4,8 @@ The update check exists because of a hard lesson: a breaking change once shipped
 versions simply stopped working, with **no way to tell users to update**. The manifest is the
 standing channel that fixes that for every version from now on. It is one mechanism serving three
 features: the update check, the kill-switch floor (`min_supported`), and freeform operator
-broadcasts (`notice`). Checking happens silently on every cold start and app foreground (throttled
-to 6h); what the user *sees* is decided entirely by the manifest contents — so routine daily
+broadcasts (`notice`). Checking happens silently on every cold start and app foreground, and on a timer
+for a client that stays open (throttled to 6h); what the user *sees* is decided entirely by the manifest contents — so routine daily
 releases produce zero prompts.
 
 Client pieces: `src/net/updateManifestClient.ts` (transport routing + verify + decode),
@@ -14,8 +14,8 @@ Client pieces: `src/net/updateManifestClient.ts` (transport routing + verify + d
 `src/screens/UpdateRequiredScreen.tsx` + `src/components/UpdateBanner.tsx` (UI).
 Publishing pieces: `release/update-policy.json` (operator knobs, see `release/README.md`),
 `scripts/update-manifest.mjs` (generate/sign/check), and `.github/workflows/update-manifest.yml` —
-the **one** publisher, invoked by policy edits on main, by manual dispatch, and (via
-`workflow_call`) by `release.yml` after each release. Every invocation runs behind a shared
+the **one** publisher, invoked by policy edits on main, by manual dispatch, hourly on a schedule,
+and (via `workflow_call`) by `release.yml` after each release. Every invocation runs behind a shared
 concurrency mutex and generates from **latest main**, so publishers can never race each other and
 a stale checkout can never be the source; `release.yml` itself only fail-fast-validates the
 policy/seed and never generates the published manifest.
@@ -35,7 +35,9 @@ that is the entire point. Therefore:
   The first two exact candidates use the native `OpenRungBroker` brokerapi
   transport. The exact GitHub release URL is the narrow JavaScript `fetch`
   exception because it redirects and the native binding intentionally rejects
-  redirects and arbitrary hosts. There is no generic native HTTP method and no
+  redirects and arbitrary hosts. In the desktop client the host fetches all
+  three exact candidates, the GitHub one included, because its webview cannot
+  read that cross-origin asset. There is no generic native HTTP method and no
   JavaScript fallback for either broker-hosted candidate.
   These URLs are pinned independently in `AppConfig.UPDATE_MANIFEST_URLS` (what
   the walk consumes) and `MANIFEST_CANDIDATE_URLS` in `updateManifestClient.ts`
@@ -79,6 +81,7 @@ raw 32-byte public key — advisory routing only, all pinned keys are tried.
   "generated_at": "2026-07-22T12:00:00.000Z",
   "android": { "latest": "0.4.0", "latest_code": 12, "min_supported": "0.2.0" },
   "ios":     { "latest": "0.4.0", "min_supported": "0.2.0" },
+  "desktop": { "latest": "1.0.0", "min_supported": "0.2.0" },
   "promote": "silent",
   "notice": null
 }
@@ -98,9 +101,18 @@ sourced per platform:
   TestFlight upload. CI rejects `ios_latest` above package.json and any `min_supported` above the
   advertised latest (a floor above what users can install would block them with no fix).
 
+- **desktop.latest** — the highest `desktop-vX.Y.Z` release in the `openrung/openrung`
+  repository, where the desktop client (macOS, Windows, Linux) is released under its own version.
+  The publisher resolves it on every run, and an hourly scheduled run picks up a new desktop
+  release without a change here. One section covers all three systems because a desktop release
+  ships all of them or none. With no such release the manifest has no `desktop` section. The
+  publish fails on a `min_supported.desktop` above the resolved release. Mobile clients ignore
+  the section, and a desktop client reads only this one.
+
 `min_supported`, `promote` and `notice` come from `release/update-policy.json`. `generated_at` is
 the newest timestamp among **all** manifest inputs — the generating checkout's HEAD committer
-time and the resolved latest release's `published_at` — never plain wall clock. Both inputs are
+time and the `published_at` of the resolved latest app release and desktop client release —
+never plain wall clock. Both inputs are
 monotone, so any input change strictly increases the stamp, which gives clients two guarantees:
 a late publish from stale inputs carries an honestly-older stamp (rollback monotonicity — a
 client never replaces a cached *verified* manifest except with a strictly newer one, so neither
@@ -110,6 +122,10 @@ candidate walk on ties and keep their cache without flapping between fronts. Uns
 can never displace a verified cache at all.
 
 ## Client tier ladder (src/model/updateStatus.ts)
+
+A client reads only its own section: `android`, `ios`, or `desktop` for the desktop client.
+`notice.platforms`, when present, lists the sections a notice is for; without it the notice
+reaches every client, the desktop one included.
 
 | Condition (per-platform section) | Verified required | UI |
 | --- | --- | --- |
@@ -125,7 +141,7 @@ Hard rules, in priority order:
    gates startup, rendering, or connect. All-candidates-fail = no update UI, retry in 15 min.
 2. **Only a verified manifest can prompt or block.** Unsigned tops out at the passive row.
 3. **Update destinations are pinned constants** (`AppConfig.UPDATE_URL_ANDROID`,
-   `AppConfig.TESTFLIGHT_URL`) — never manifest-supplied, so even a signed manifest cannot
+   `AppConfig.TESTFLIGHT_URL`, `AppConfig.UPDATE_URL_DESKTOP`) — never manifest-supplied, so even a signed manifest cannot
    redirect users to a hostile download. `notice.url` (https-only, verified manifests only) is the
    single server-supplied link, behind an explicit "Learn more".
 4. **"Continue anyway" stays.** A custom-broker user on an "unsupported" build may still work;
@@ -173,6 +189,8 @@ fallback, sequential ordering, and fail-open background behavior.
 - **After uploading an iOS build to TestFlight:** bump `ios_latest` in
   `release/update-policy.json` (PR to main) — until then the manifest keeps advertising the
   previous iOS version, by design.
+- **After a desktop client release:** do nothing. The hourly publisher run advertises it; run
+  the publish workflow by hand to advertise it sooner.
 - **Important release** (security fix, protocol change): set `promote: "notify"` in
   `release/update-policy.json` in the version-bump PR; set it back to `silent` in the next one.
 - **Broadcast a notice / raise the floor:** edit `release/update-policy.json`, PR to main —

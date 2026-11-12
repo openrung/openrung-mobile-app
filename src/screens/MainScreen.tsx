@@ -19,7 +19,7 @@
  * through everywhere except the actual controls.
  */
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
-import { Animated, Linking, Platform, StyleSheet, Text, View } from 'react-native';
+import { Animated, Linking, StyleSheet, Text, View } from 'react-native';
 
 import { ConnectCard } from '../components/ConnectCard';
 import { EdgeFade } from '../components/EdgeFade';
@@ -29,7 +29,7 @@ import { RecentsSection } from '../components/RecentsSection';
 import { RelayList } from '../components/RelayList';
 import { UpdateBanner } from '../components/UpdateBanner';
 import { ViewModeToggle } from '../components/ViewModeToggle';
-import { AppConfig } from '../config';
+import { APP_UPDATE_URL } from '../config';
 import { nativeErrorText, resolveLanguage, useLanguage, useStrings } from '../i18n';
 import { layout, useTabSceneInsets } from '../layout';
 import { connectedRelayLngLat, sessionRecent } from '../model/exitNode';
@@ -188,9 +188,8 @@ export function MainScreen(): React.JSX.Element {
   );
 
   const onOpenUpdate = useCallback(() => {
-    // Pinned destination only — never a manifest-supplied URL (see AppConfig.UPDATE_URL_ANDROID).
-    const url = Platform.OS === 'ios' ? AppConfig.TESTFLIGHT_URL : AppConfig.UPDATE_URL_ANDROID;
-    Linking.openURL(url).catch(() => {
+    // Pinned destination only — never a manifest-supplied URL (see APP_UPDATE_URL).
+    Linking.openURL(APP_UPDATE_URL).catch(() => {
       // Best-effort: ignore devices without a browser handler.
     });
   }, []);

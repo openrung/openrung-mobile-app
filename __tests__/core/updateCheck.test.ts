@@ -30,6 +30,7 @@ jest.mock('../../src/net/updateManifestClient', () => ({
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
 
+import { AppConfig } from '../../src/config';
 import {
   decodeUpdateEnvelope,
   setManifestSigningKeysForTests,
@@ -345,6 +346,45 @@ describe('startUpdateCheck', () => {
     await flush();
     stopAgain();
     stop();
+  });
+});
+
+describe('startUpdateCheck — periodic refresh', () => {
+  it('re-checks on a timer once the throttle window has passed, and stops on cleanup', async () => {
+    const setIntervalSpy = jest.spyOn(globalThis, 'setInterval');
+    const clearIntervalSpy = jest.spyOn(globalThis, 'clearInterval');
+    const nowSpy = jest.spyOn(Date, 'now');
+    try {
+      const fetchMock = mockFetchReturning(envelopeFor(iosPayload({ latest: '9.9.9' })));
+      const stop = startUpdateCheck();
+      await flush();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      const scheduled = setIntervalSpy.mock.calls.find(
+        ([, delay]) => delay === AppConfig.UPDATE_CHECK_INTERVAL_MS,
+      );
+      expect(scheduled).toBeDefined();
+      const tick = scheduled![0] as () => void;
+
+      tick(); // still inside the six-hour window
+      await flush();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      const later = Date.now() + AppConfig.UPDATE_CHECK_INTERVAL_MS + 1;
+      nowSpy.mockReturnValue(later);
+      tick();
+      nowSpy.mockRestore();
+      await flush();
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+
+      const timer = setIntervalSpy.mock.results[setIntervalSpy.mock.calls.indexOf(scheduled!)].value;
+      stop();
+      expect(clearIntervalSpy).toHaveBeenCalledWith(timer);
+    } finally {
+      nowSpy.mockRestore();
+      setIntervalSpy.mockRestore();
+      clearIntervalSpy.mockRestore();
+    }
   });
 });
 

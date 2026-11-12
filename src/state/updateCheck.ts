@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, Platform, type NativeEventSubscription } from 'react-native';
 
 import { APP_VERSION, AppConfig } from '../config';
-import { deriveUpdateUiState } from '../model/updateStatus';
+import { deriveUpdateUiState, updatePlatformInfo } from '../model/updateStatus';
 import {
   decodeUpdateEnvelope,
   fetchUpdateManifest,
@@ -12,8 +12,8 @@ import {
 import { applyUpdateUiState } from './store';
 
 /**
- * Update-check orchestration: hydrates the persisted manifest, refreshes it on cold start and on
- * every return to foreground (throttled), and mirrors the derived UI tier into the store. The
+ * Update-check orchestration: hydrates the persisted manifest, refreshes it on cold start, on
+ * every return to foreground and on a timer (throttled), and mirrors the derived UI tier into the store. The
  * whole service is fail-open by construction — every network or storage failure leaves the app
  * exactly as it was, and the check never gates startup or connect.
  *
@@ -42,23 +42,24 @@ let fetchInFlight = false;
 let started = false;
 let lifecycleGeneration = 0;
 let appStateSubscription: NativeEventSubscription | null = null;
+let periodicCheckTimer: ReturnType<typeof setInterval> | null = null;
 let noticeExpiryTimer: ReturnType<typeof setTimeout> | null = null;
 
 function platformInfo(candidate: DecodedUpdateManifest | null): UpdatePlatformInfo | null {
-  if (candidate === null) {
-    return null;
-  }
-  return Platform.OS === 'ios'
-    ? candidate.manifest.ios
-    : Platform.OS === 'android'
-      ? candidate.manifest.android
-      : null;
+  return candidate === null ? null : updatePlatformInfo(candidate.manifest, Platform.OS);
 }
 
 function clearNoticeExpiryTimer(): void {
   if (noticeExpiryTimer !== null) {
     clearTimeout(noticeExpiryTimer);
     noticeExpiryTimer = null;
+  }
+}
+
+function clearPeriodicCheckTimer(): void {
+  if (periodicCheckTimer !== null) {
+    clearInterval(periodicCheckTimer);
+    periodicCheckTimer = null;
   }
 }
 
@@ -248,6 +249,13 @@ export function startUpdateCheck(): () => void {
         }
       });
     }
+    if (started) {
+      // The desktop client can stay open for weeks without a foreground event, so the throttled
+      // refresh is also driven by a timer.
+      periodicCheckTimer = setInterval(() => {
+        refreshUpdateManifest().catch(() => {});
+      }, AppConfig.UPDATE_CHECK_INTERVAL_MS);
+    }
     await refreshUpdateManifest();
   })().catch(() => {
     // Every stage above is fail-open already; this guards the chain itself.
@@ -259,6 +267,7 @@ export function startUpdateCheck(): () => void {
     lifecycleGeneration += 1;
     appStateSubscription?.remove();
     appStateSubscription = null;
+    clearPeriodicCheckTimer();
     clearNoticeExpiryTimer();
     started = false;
   };
@@ -312,5 +321,6 @@ export function resetUpdateCheckForTests(): void {
   started = false;
   appStateSubscription?.remove();
   appStateSubscription = null;
+  clearPeriodicCheckTimer();
   clearNoticeExpiryTimer();
 }
