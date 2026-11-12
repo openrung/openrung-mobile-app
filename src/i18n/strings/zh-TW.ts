@@ -163,6 +163,11 @@ export const zhTW: Partial<Strings> = {
   desktopShellEnableRequiresConnection: '請先連線 OpenRung，再於此 Shell 中啟用。',
   desktopShellRestoreTitle: '還原此 Shell',
   desktopShellRestoreSubtitle: '在中斷連線、失敗、結束或當機後執行。',
+  desktopTunModeTitle: 'TUN 模式',
+  desktopTunModeSubtitleOff: '已關閉。只有使用系統代理的應用程式會經過 OpenRung。',
+  desktopTunModeSubtitleOn: '已開啟。此裝置的所有流量都會經過 OpenRung。',
+  desktopTunModeRestartNote: '開啟後，OpenRung 將以系統管理員權限重新啟動。',
+  desktopTunModeRequiresDisconnect: '請先中斷連線再變更模式。',
   actionCopy: '複製',
   actionCopied: '已複製',
 };

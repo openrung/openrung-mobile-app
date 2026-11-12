@@ -185,6 +185,12 @@ export const fa: Partial<Strings> = {
   desktopShellEnableRequiresConnection: 'پیش از فعال‌سازی در این شل، OpenRung را متصل کنید.',
   desktopShellRestoreTitle: 'بازگردانی این شل',
   desktopShellRestoreSubtitle: 'پس از قطع اتصال، خطا، خروج یا ازکارافتادن اجرا کنید.',
+  desktopTunModeTitle: 'حالت TUN',
+  desktopTunModeSubtitleOff:
+    'خاموش. فقط برنامه‌هایی که از پراکسی سیستم استفاده می‌کنند از OpenRung عبور می‌کنند.',
+  desktopTunModeSubtitleOn: 'روشن. همهٔ ترافیک این دستگاه از OpenRung عبور می‌کند.',
+  desktopTunModeRestartNote: 'روشن کردن آن OpenRung را با دسترسی مدیر دوباره راه‌اندازی می‌کند.',
+  desktopTunModeRequiresDisconnect: 'برای تغییر حالت، اتصال را قطع کنید.',
   actionCopy: 'کپی',
   actionCopied: 'کپی شد',
 };

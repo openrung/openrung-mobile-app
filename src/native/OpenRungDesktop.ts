@@ -20,10 +20,31 @@ export interface DesktopProxyInfo {
   disableCommand: string; // restores that shell's previous proxy variables
 }
 
+/**
+ * How the desktop client captures traffic. `proxy` is the loopback proxy above; `tun` routes the
+ * whole device through a TUN interface, which the host can offer only where it can obtain the
+ * rights to create one.
+ */
+export type DesktopCaptureMode = 'proxy' | 'tun';
+
+export interface DesktopTunnelMode {
+  mode: DesktopCaptureMode; // the mode connects use
+  available: boolean; // TUN mode can be selected on this system
+  requiresRestart: boolean; // selecting it restarts the client with administrator rights
+}
+
 export interface OpenRungDesktopModule {
   /** The desktop client's own version; the mobile package version does not describe it. */
   appVersion: string;
   getProxyInfo(): Promise<DesktopProxyInfo>;
+  /** Absent, with `setTunnelMode`, on a host that predates the capture mode: proxy only. */
+  getTunnelMode?(): Promise<DesktopTunnelMode>;
+  /**
+   * Selects the mode for later connects; rejects while a tunnel is up. Where `requiresRestart`
+   * was reported, selecting `tun` restarts the client and the promise may never settle. A
+   * declined restart rejects and leaves proxy mode in place.
+   */
+  setTunnelMode?(mode: DesktopCaptureMode): Promise<void>;
   /** Clipboard write through the host (a webview may not expose the browser clipboard API). */
   copyText(text: string): Promise<void>;
 }

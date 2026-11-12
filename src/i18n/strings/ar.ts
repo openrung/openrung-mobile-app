@@ -177,6 +177,11 @@ export const ar: Partial<Strings> = {
   desktopShellEnableRequiresConnection: 'اتصل بـ OpenRung قبل التفعيل في هذه الطرفية.',
   desktopShellRestoreTitle: 'استعادة هذه الطرفية',
   desktopShellRestoreSubtitle: 'شغّله بعد قطع الاتصال أو الفشل أو الإغلاق أو التعطل.',
+  desktopTunModeTitle: 'وضع TUN',
+  desktopTunModeSubtitleOff: 'متوقف. تمر عبر OpenRung التطبيقات التي تستخدم وكيل النظام فقط.',
+  desktopTunModeSubtitleOn: 'مفعّل. تمر كل حركة البيانات من هذا الجهاز عبر OpenRung.',
+  desktopTunModeRestartNote: 'تفعيله يعيد تشغيل OpenRung بصلاحيات المسؤول.',
+  desktopTunModeRequiresDisconnect: 'اقطع الاتصال لتغيير الوضع.',
   actionCopy: 'نسخ',
   actionCopied: 'تم النسخ',
 };
