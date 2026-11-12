@@ -181,6 +181,11 @@ export const vi: Partial<Strings> = {
   desktopShellEnableRequiresConnection: 'Hãy kết nối OpenRung trước khi bật trong shell này.',
   desktopShellRestoreTitle: 'Khôi phục shell này',
   desktopShellRestoreSubtitle: 'Chạy sau khi ngắt kết nối, lỗi, thoát hoặc sự cố.',
+  desktopTunModeTitle: 'Chế độ TUN',
+  desktopTunModeSubtitleOff: 'Tắt. Chỉ các ứng dụng dùng proxy hệ thống mới đi qua OpenRung.',
+  desktopTunModeSubtitleOn: 'Bật. Toàn bộ lưu lượng của thiết bị này đi qua OpenRung.',
+  desktopTunModeRestartNote: 'Bật chế độ này sẽ khởi động lại OpenRung với quyền quản trị viên.',
+  desktopTunModeRequiresDisconnect: 'Ngắt kết nối để đổi chế độ.',
   actionCopy: 'Sao chép',
   actionCopied: 'Đã sao chép',
 };

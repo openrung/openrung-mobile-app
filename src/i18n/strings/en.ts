@@ -178,6 +178,12 @@ export const en = {
   desktopShellEnableRequiresConnection: 'Connect OpenRung before enabling this shell.',
   desktopShellRestoreTitle: 'Restore this shell',
   desktopShellRestoreSubtitle: 'Run after disconnect, failure, quit, or crash.',
+  // Desktop client only: the capture-mode switch in Settings (DesktopTunnelModeSection).
+  desktopTunModeTitle: 'TUN mode',
+  desktopTunModeSubtitleOff: 'Off. Only apps that use the system proxy go through OpenRung.',
+  desktopTunModeSubtitleOn: 'On. All traffic from this device goes through OpenRung.',
+  desktopTunModeRestartNote: 'Turning it on restarts OpenRung with administrator rights.',
+  desktopTunModeRequiresDisconnect: 'Disconnect to change the mode.',
   actionCopy: 'Copy',
   actionCopied: 'Copied',
 };

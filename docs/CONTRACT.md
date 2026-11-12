@@ -352,8 +352,8 @@ same `connectcore` engine, with these differences:
   with the reapply rule above. The host ignores `excluded_packages` (it has no
   per-app exclusion) and `country_source`: it uses the `bypass_countries` it was
   last sent rather than re-deriving them, because no desktop tunnel outlives the
-  app and RN re-derives an automatic country before every connect. The desktop
-  client runs in proxy mode, where a destination is matched by hostname, so a
+  app and RN re-derives an automatic country before every connect. In the
+  desktop client's proxy mode a destination is matched by hostname, so a
   country preset bypasses the hostnames in its domain list and literal addresses
   in its address list.
 - `OpenRungBroker` implements only `firstReachable`. TS therefore skips the
@@ -367,11 +367,31 @@ interface OpenRungDesktopModule {
   appVersion: string;                       // the desktop client's version; replaces package.json's
   getProxyInfo(): Promise<DesktopProxyInfo>; // loopback proxy endpoint + shell commands
   copyText(text: string): Promise<void>;     // clipboard write through the host
+  getTunnelMode?(): Promise<DesktopTunnelMode>;         // absent on a host that predates
+  setTunnelMode?(mode: 'proxy' | 'tun'): Promise<void>; // the capture mode: proxy only
+}
+
+interface DesktopTunnelMode {
+  mode: 'proxy' | 'tun';    // the capture mode connects use
+  available: boolean;       // the host can run TUN mode on this system
+  requiresRestart: boolean; // selecting 'tun' restarts the client with administrator rights
 }
 ```
 
   Settings renders its Local proxy section only when the module is present, so a
   browser preview without a host shows neither it nor any mobile-only row.
+
+  `proxy` is a loopback proxy the system proxy points at. `tun` routes the
+  whole device through a TUN interface, and a country preset then matches by
+  address as on mobile. The host chooses the mode a first launch starts in (TUN
+  where it can offer it), and TS only reads it. Settings shows a TUN mode switch
+  only when the host reports `available`, and leaves the Local proxy section out
+  while the mode is `tun`, when no local proxy is served. `setTunnelMode` applies
+  to later connects and rejects while a tunnel is up, so the switch is locked
+  unless the status is `disconnected` or `failed`. Where `requiresRestart` is
+  true, selecting `tun` makes the host restart itself with administrator rights
+  (the promise may never settle); a declined restart rejects and the mode stays
+  `proxy`. The host stores the mode and returns to it at the next launch.
 - The back gesture is the Escape key (`src/native/backPress.ts`). As with Android's
   hardware back, a visible `Modal` takes it instead: Escape closes the modal and the
   route does not move.

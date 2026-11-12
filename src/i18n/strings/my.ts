@@ -191,6 +191,13 @@ export const my: Partial<Strings> = {
   desktopShellEnableRequiresConnection: 'ဤ shell တွင် မဖွင့်မီ OpenRung ကို ချိတ်ဆက်ပါ။',
   desktopShellRestoreTitle: 'ဤ shell ကို ပြန်လည်ရယူရန်',
   desktopShellRestoreSubtitle: 'ချိတ်ဆက်မှုဖြတ်ပြီးနောက်၊ မအောင်မြင်ပါက၊ ထွက်ပြီးနောက် သို့မဟုတ် ပျက်ကျပြီးနောက် လုပ်ဆောင်ပါ။',
+  desktopTunModeTitle: 'TUN မုဒ်',
+  desktopTunModeSubtitleOff:
+    'ပိတ်ထားသည်။ စနစ်ပရောက်စီကို သုံးသော အက်ပ်များသာ OpenRung မှတစ်ဆင့် သွားသည်။',
+  desktopTunModeSubtitleOn: 'ဖွင့်ထားသည်။ ဤစက်မှ ဒေတာအားလုံး OpenRung မှတစ်ဆင့် သွားသည်။',
+  desktopTunModeRestartNote:
+    'ဖွင့်လိုက်ပါက OpenRung ကို စီမံခန့်ခွဲသူအခွင့်အရေးဖြင့် ပြန်လည်စတင်မည်။',
+  desktopTunModeRequiresDisconnect: 'မုဒ်ပြောင်းရန် ချိတ်ဆက်မှုကို ဖြတ်ပါ။',
   actionCopy: 'ကူးယူရန်',
   actionCopied: 'ကူးယူပြီး',
 };

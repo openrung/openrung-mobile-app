@@ -33,6 +33,12 @@ function desktopHost(info: Partial<DesktopProxyInfo> | Error = {}): OpenRungDesk
       return { ...INFO, ...info };
     }),
     copyText: jest.fn(async () => undefined),
+    getTunnelMode: jest.fn(async () => ({
+      mode: 'proxy' as const,
+      available: false,
+      requiresRestart: false,
+    })),
+    setTunnelMode: jest.fn(async () => undefined),
   };
 }
 

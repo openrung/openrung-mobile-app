@@ -183,6 +183,12 @@ export const tr: Partial<Strings> = {
   desktopShellEnableRequiresConnection: "Bu kabukta etkinleştirmeden önce OpenRung'a bağlanın.",
   desktopShellRestoreTitle: 'Bu kabuğu geri yükle',
   desktopShellRestoreSubtitle: 'Bağlantı kesildikten, hata, çıkış veya çökmeden sonra çalıştırın.',
+  desktopTunModeTitle: 'TUN modu',
+  desktopTunModeSubtitleOff:
+    'Kapalı. Yalnızca sistem proxy’sini kullanan uygulamalar OpenRung üzerinden geçer.',
+  desktopTunModeSubtitleOn: 'Açık. Bu cihazın tüm trafiği OpenRung üzerinden geçer.',
+  desktopTunModeRestartNote: 'Açmak, OpenRung’u yönetici haklarıyla yeniden başlatır.',
+  desktopTunModeRequiresDisconnect: 'Modu değiştirmek için bağlantıyı kesin.',
   actionCopy: 'Kopyala',
   actionCopied: 'Kopyalandı',
 };

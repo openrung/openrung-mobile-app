@@ -185,6 +185,12 @@ export const ru: Partial<Strings> = {
   desktopShellEnableRequiresConnection: 'Сначала подключите OpenRung, затем включайте в этой оболочке.',
   desktopShellRestoreTitle: 'Восстановить эту оболочку',
   desktopShellRestoreSubtitle: 'Выполните после отключения, сбоя, выхода или аварийного завершения.',
+  desktopTunModeTitle: 'Режим TUN',
+  desktopTunModeSubtitleOff:
+    'Выключен. Через OpenRung идут только приложения, использующие системный прокси.',
+  desktopTunModeSubtitleOn: 'Включён. Весь трафик этого устройства идёт через OpenRung.',
+  desktopTunModeRestartNote: 'При включении OpenRung перезапустится с правами администратора.',
+  desktopTunModeRequiresDisconnect: 'Отключитесь, чтобы сменить режим.',
   actionCopy: 'Копировать',
   actionCopied: 'Скопировано',
 };

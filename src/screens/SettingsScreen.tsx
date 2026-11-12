@@ -2,8 +2,8 @@
  * Settings tab. Large title (it's a root tab now — no back arrow), then
  * sectioned panels: GENERAL (language, split tunneling, plus per-platform
  * sharing — Android offline APK, iOS TestFlight invite link) and DIAGNOSTICS
- * (speed test link, debug console). The desktop client swaps the row its host
- * does not implement (split tunneling) for a LOCAL PROXY section.
+ * (speed test link, debug console). The desktop client adds a TUN mode switch
+ * where its host offers one, and a LOCAL PROXY section outside TUN mode.
  * Version and licenses live on the About tab. The language
  * picker mirrors the production dropdown semantics with a dark-styled modal
  * list; the speed test row opens an external speed test in the system browser
@@ -24,6 +24,7 @@ import {
 } from 'react-native';
 
 import { DesktopProxySection } from '../components/DesktopProxySection';
+import { DesktopTunnelModeSection } from '../components/DesktopTunnelModeSection';
 import { SettingPanel } from '../components/SettingPanel';
 import { APP_VERSION, AppConfig } from '../config';
 import { languageOptions, useLanguage, useStrings } from '../i18n';
@@ -59,6 +60,9 @@ export function SettingsScreen({
   // Selectors, not the whole store: on iOS this scene stays mounted behind the other tabs, so
   // it must not re-render on every mirrored native event (log lines, recents).
   const isConnected = useAppSelector(current => current.native.status === 'connected');
+  const isIdle = useAppSelector(
+    current => current.native.status === 'disconnected' || current.native.status === 'failed',
+  );
   const update = useAppSelector(current => current.update);
   const splitTunnel = useAppSelector(current => current.splitTunnel);
 
@@ -141,10 +145,10 @@ export function SettingsScreen({
               />
             ) : null}
             {OpenRungDesktop != null ? (
-              <>
+              <DesktopTunnelModeSection desktop={OpenRungDesktop} isIdle={isIdle}>
                 <Text style={styles.sectionHeader}>{s.desktopProxyHeader.toUpperCase()}</Text>
                 <DesktopProxySection desktop={OpenRungDesktop} isConnected={isConnected} />
-              </>
+              </DesktopTunnelModeSection>
             ) : null}
           </View>
           <View style={[styles.sectionColumn, columnStyle]}>

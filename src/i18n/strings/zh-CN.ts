@@ -171,6 +171,11 @@ export const zhCN: Partial<Strings> = {
   desktopShellEnableRequiresConnection: '请先连接 OpenRung，再在此 Shell 中启用。',
   desktopShellRestoreTitle: '恢复此 Shell',
   desktopShellRestoreSubtitle: '在断开连接、失败、退出或崩溃后运行。',
+  desktopTunModeTitle: 'TUN 模式',
+  desktopTunModeSubtitleOff: '已关闭。只有使用系统代理的应用会经过 OpenRung。',
+  desktopTunModeSubtitleOn: '已开启。此设备的所有流量都会经过 OpenRung。',
+  desktopTunModeRestartNote: '开启后，OpenRung 将以管理员权限重新启动。',
+  desktopTunModeRequiresDisconnect: '请先断开连接再更改模式。',
   actionCopy: '复制',
   actionCopied: '已复制',
 };
