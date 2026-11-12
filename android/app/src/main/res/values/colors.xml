@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- palette.screen (src/theme.ts): splash and window background. -->
+    <color name="splash_background">#030604</color>
+</resources>

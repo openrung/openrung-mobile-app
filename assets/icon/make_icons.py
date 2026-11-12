@@ -92,29 +92,34 @@ def circle_crop(img: Image.Image) -> Image.Image:
     return out
 
 
-RES = os.path.join(REPO, 'android/app/src/main/res')
-DENSITIES = {'mdpi': 1, 'hdpi': 1.5, 'xhdpi': 2, 'xxhdpi': 3, 'xxxhdpi': 4}
+def main() -> None:
+    RES = os.path.join(REPO, 'android/app/src/main/res')
+    DENSITIES = {'mdpi': 1, 'hdpi': 1.5, 'xhdpi': 2, 'xxhdpi': 3, 'xxxhdpi': 4}
 
-master = full_icon(1024)
+    master = full_icon(1024)
 
-for density, mult in DENSITIES.items():
-    folder = os.path.join(RES, f'mipmap-{density}')
-    os.makedirs(folder, exist_ok=True)
-    # Legacy launcher icons (48dp base).
-    legacy = master.resize((round(48 * mult),) * 2, Image.LANCZOS)
-    legacy.save(os.path.join(folder, 'ic_launcher.png'))
-    circle_crop(legacy).save(os.path.join(folder, 'ic_launcher_round.png'))
-    # Adaptive foreground (108dp base, glyph shrunk into the 66dp safe zone).
-    fg_size = round(108 * mult)
-    fg = Image.new('RGBA', (fg_size, fg_size), (0, 0, 0, 0))
-    fg.alpha_composite(power_glyph(fg_size, scale=0.85))
-    fg.save(os.path.join(folder, 'ic_launcher_foreground.png'))
+    for density, mult in DENSITIES.items():
+        folder = os.path.join(RES, f'mipmap-{density}')
+        os.makedirs(folder, exist_ok=True)
+        # Legacy launcher icons (48dp base).
+        legacy = master.resize((round(48 * mult),) * 2, Image.LANCZOS)
+        legacy.save(os.path.join(folder, 'ic_launcher.png'))
+        circle_crop(legacy).save(os.path.join(folder, 'ic_launcher_round.png'))
+        # Adaptive foreground (108dp base, glyph shrunk into the 66dp safe zone).
+        fg_size = round(108 * mult)
+        fg = Image.new('RGBA', (fg_size, fg_size), (0, 0, 0, 0))
+        fg.alpha_composite(power_glyph(fg_size, scale=0.85))
+        fg.save(os.path.join(folder, 'ic_launcher_foreground.png'))
 
-# iOS: single 1024 universal icon, opaque (no alpha allowed).
-ios_dir = os.path.join(REPO, 'ios/OpenRung/Images.xcassets/AppIcon.appiconset')
-master.convert('RGB').save(os.path.join(ios_dir, 'AppIcon.png'))
+    # iOS: single 1024 universal icon, opaque (no alpha allowed).
+    ios_dir = os.path.join(REPO, 'ios/OpenRung/Images.xcassets/AppIcon.appiconset')
+    master.convert('RGB').save(os.path.join(ios_dir, 'AppIcon.png'))
 
-# Previews for inspection.
-scratch = os.path.dirname(os.path.abspath(__file__))
-master.resize((256, 256), Image.LANCZOS).save(os.path.join(scratch, 'icon-preview.png'))
-print('icons written')
+    # Previews for inspection.
+    scratch = os.path.dirname(os.path.abspath(__file__))
+    master.resize((256, 256), Image.LANCZOS).save(os.path.join(scratch, 'icon-preview.png'))
+    print('icons written')
+
+
+if __name__ == '__main__':
+    main()
