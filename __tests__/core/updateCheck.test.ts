@@ -350,13 +350,25 @@ describe('startUpdateCheck', () => {
 });
 
 describe('startUpdateCheck — periodic refresh', () => {
-  /** The delay of the periodic timer armed last, and a way to fire it. */
+  /**
+   * The delay of the periodic timer armed last, and a way to fire it now. Firing cancels the
+   * real timeout first: the callback drops its own handle, as it does when the timer really
+   * fires, so the service could no longer clear it and it would keep Jest alive for hours.
+   */
   function lastArmed(spy: jest.SpyInstance): { delay: number; fire: () => void } {
-    const call = spy.mock.calls
-      .filter(([, delay]) => typeof delay === 'number' && delay >= 1_000)
-      .pop();
-    expect(call).toBeDefined();
-    return { delay: call![1] as number, fire: call![0] as () => void };
+    const index = spy.mock.calls
+      .map(([, delay]) => typeof delay === 'number' && delay >= 1_000)
+      .lastIndexOf(true);
+    expect(index).toBeGreaterThanOrEqual(0);
+    const [callback, delay] = spy.mock.calls[index] as [() => void, number];
+    const handle = spy.mock.results[index].value as ReturnType<typeof setTimeout>;
+    return {
+      delay,
+      fire: () => {
+        clearTimeout(handle);
+        callback();
+      },
+    };
   }
 
   it('re-arms from when the last check completed: six hours after a success', async () => {
