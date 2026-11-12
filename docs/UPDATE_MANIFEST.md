@@ -5,7 +5,8 @@ versions simply stopped working, with **no way to tell users to update**. The ma
 standing channel that fixes that for every version from now on. It is one mechanism serving three
 features: the update check, the kill-switch floor (`min_supported`), and freeform operator
 broadcasts (`notice`). Checking happens silently on every cold start and app foreground, and on a timer
-for a client that stays open (throttled to 6h); what the user *sees* is decided entirely by the manifest contents — so routine daily
+for a client that stays open (six hours after a successful check, fifteen minutes after a failed
+one); what the user *sees* is decided entirely by the manifest contents — so routine daily
 releases produce zero prompts.
 
 Client pieces: `src/net/updateManifestClient.ts` (transport routing + verify + decode),

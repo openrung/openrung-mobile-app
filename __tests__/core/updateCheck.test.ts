@@ -350,40 +350,64 @@ describe('startUpdateCheck', () => {
 });
 
 describe('startUpdateCheck — periodic refresh', () => {
-  it('re-checks on a timer once the throttle window has passed, and stops on cleanup', async () => {
-    const setIntervalSpy = jest.spyOn(globalThis, 'setInterval');
-    const clearIntervalSpy = jest.spyOn(globalThis, 'clearInterval');
+  /** The delay of the periodic timer armed last, and a way to fire it. */
+  function lastArmed(spy: jest.SpyInstance): { delay: number; fire: () => void } {
+    const call = spy.mock.calls
+      .filter(([, delay]) => typeof delay === 'number' && delay >= 1_000)
+      .pop();
+    expect(call).toBeDefined();
+    return { delay: call![1] as number, fire: call![0] as () => void };
+  }
+
+  it('re-arms from when the last check completed: six hours after a success', async () => {
+    const fetchMock = mockFetchReturning(envelopeFor(iosPayload({ latest: '9.9.9' })));
+    const setTimeoutSpy = jest.spyOn(globalThis, 'setTimeout');
     const nowSpy = jest.spyOn(Date, 'now');
     try {
-      const fetchMock = mockFetchReturning(envelopeFor(iosPayload({ latest: '9.9.9' })));
       const stop = startUpdateCheck();
       await flush();
       expect(fetchMock).toHaveBeenCalledTimes(1);
 
-      const scheduled = setIntervalSpy.mock.calls.find(
-        ([, delay]) => delay === AppConfig.UPDATE_CHECK_INTERVAL_MS,
-      );
-      expect(scheduled).toBeDefined();
-      const tick = scheduled![0] as () => void;
+      const first = lastArmed(setTimeoutSpy);
+      // Armed after the fetch completed, so the tick lands when the throttle has just lapsed.
+      expect(first.delay).toBeGreaterThan(AppConfig.UPDATE_CHECK_INTERVAL_MS - 5_000);
+      expect(first.delay).toBeLessThanOrEqual(AppConfig.UPDATE_CHECK_INTERVAL_MS);
 
-      tick(); // still inside the six-hour window
-      await flush();
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-
-      const later = Date.now() + AppConfig.UPDATE_CHECK_INTERVAL_MS + 1;
-      nowSpy.mockReturnValue(later);
-      tick();
+      const realNow = Date.now();
+      nowSpy.mockReturnValue(realNow + first.delay);
+      setTimeoutSpy.mockClear();
+      first.fire();
       nowSpy.mockRestore();
       await flush();
       expect(fetchMock).toHaveBeenCalledTimes(2);
-
-      const timer = setIntervalSpy.mock.results[setIntervalSpy.mock.calls.indexOf(scheduled!)].value;
+      // The run re-armed the timer for the following check.
+      lastArmed(setTimeoutSpy);
       stop();
-      expect(clearIntervalSpy).toHaveBeenCalledWith(timer);
     } finally {
       nowSpy.mockRestore();
-      setIntervalSpy.mockRestore();
-      clearIntervalSpy.mockRestore();
+      setTimeoutSpy.mockRestore();
+    }
+  });
+
+  it('retries fifteen minutes after a failed check, and stops on cleanup', async () => {
+    const fetchMock = mockFetchReturning(new Error('down'));
+    const setTimeoutSpy = jest.spyOn(globalThis, 'setTimeout');
+    const clearTimeoutSpy = jest.spyOn(globalThis, 'clearTimeout');
+    try {
+      const stop = startUpdateCheck();
+      await flush();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      const { delay } = lastArmed(setTimeoutSpy);
+      expect(delay).toBeGreaterThan(AppConfig.UPDATE_CHECK_RETRY_MS - 5_000);
+      expect(delay).toBeLessThanOrEqual(AppConfig.UPDATE_CHECK_RETRY_MS);
+
+      clearTimeoutSpy.mockClear();
+      stop();
+      expect(clearTimeoutSpy).toHaveBeenCalled();
+    } finally {
+      setTimeoutSpy.mockRestore();
+      clearTimeoutSpy.mockRestore();
     }
   });
 });

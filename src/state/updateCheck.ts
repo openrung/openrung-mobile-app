@@ -42,7 +42,7 @@ let fetchInFlight = false;
 let started = false;
 let lifecycleGeneration = 0;
 let appStateSubscription: NativeEventSubscription | null = null;
-let periodicCheckTimer: ReturnType<typeof setInterval> | null = null;
+let periodicCheckTimer: ReturnType<typeof setTimeout> | null = null;
 let noticeExpiryTimer: ReturnType<typeof setTimeout> | null = null;
 
 function platformInfo(candidate: DecodedUpdateManifest | null): UpdatePlatformInfo | null {
@@ -58,9 +58,37 @@ function clearNoticeExpiryTimer(): void {
 
 function clearPeriodicCheckTimer(): void {
   if (periodicCheckTimer !== null) {
-    clearInterval(periodicCheckTimer);
+    clearTimeout(periodicCheckTimer);
     periodicCheckTimer = null;
   }
+}
+
+/**
+ * Arms one timer for the moment the next refresh stops being throttled: six hours after the last
+ * success, or fifteen minutes after a failed attempt. It is re-armed after each run from the
+ * outcome of the latest check, whichever trigger made it. The desktop client can stay open for
+ * weeks without a foreground event, so this is what keeps its check running.
+ */
+function schedulePeriodicCheck(generation: number): void {
+  clearPeriodicCheckTimer();
+  const now = Date.now();
+  const dueMs = Math.max(
+    lastSuccessAtMs > 0 ? lastSuccessAtMs + AppConfig.UPDATE_CHECK_INTERVAL_MS : 0,
+    lastAttemptAtMs > 0 ? lastAttemptAtMs + AppConfig.UPDATE_CHECK_RETRY_MS : 0,
+  );
+  // At least a second, so a check that stays throttled cannot spin; at most the interval, so a
+  // clock that was set back cannot push the next check out indefinitely.
+  const delayMs = Math.min(Math.max(dueMs - now, 1_000), AppConfig.UPDATE_CHECK_INTERVAL_MS);
+  periodicCheckTimer = setTimeout(() => {
+    periodicCheckTimer = null;
+    refreshUpdateManifest()
+      .catch(() => {})
+      .then(() => {
+        if (generation === lifecycleGeneration) {
+          schedulePeriodicCheck(generation);
+        }
+      });
+  }, delayMs);
 }
 
 function recompute(): void {
@@ -249,14 +277,10 @@ export function startUpdateCheck(): () => void {
         }
       });
     }
-    if (started) {
-      // The desktop client can stay open for weeks without a foreground event, so the throttled
-      // refresh is also driven by a timer.
-      periodicCheckTimer = setInterval(() => {
-        refreshUpdateManifest().catch(() => {});
-      }, AppConfig.UPDATE_CHECK_INTERVAL_MS);
-    }
     await refreshUpdateManifest();
+    if (generation === lifecycleGeneration) {
+      schedulePeriodicCheck(generation);
+    }
   })().catch(() => {
     // Every stage above is fail-open already; this guards the chain itself.
   });
