@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pre-Android 12 launch window: mirrors the API 31+ system splash (centred
+     288dp logo, 200x80dp slogan near the bottom). Artwork: assets/icon/make_splash.py. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/splash_background" />
+    <item
+        android:width="288dp"
+        android:height="288dp"
+        android:gravity="center"
+        android:drawable="@drawable/splash_logo" />
+    <item
+        android:width="200dp"
+        android:height="80dp"
+        android:bottom="60dp"
+        android:gravity="bottom|center_horizontal"
+        android:drawable="@drawable/splash_branding" />
+</layer-list>

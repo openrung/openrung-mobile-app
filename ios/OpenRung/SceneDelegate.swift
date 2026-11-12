@@ -29,10 +29,22 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     )
     self.window = window
     appDelegate.window = window
+    Self.holdLaunchScreen(over: window.rootViewController?.view)
 
     // Cold launch through the `openrung:` scheme (the iOS 16 widget's Connect tap; a no-op on
     // iOS 17+, where the widget uses the intent instead).
     WidgetConnectURL.handle(connectionOptions.urlContexts.map(\.url))
+  }
+
+  /// Keeps the launch screen up until React renders its first frame, so the splash hands straight
+  /// over to the UI instead of a blank root view (Android does the same in MainActivity).
+  private static func holdLaunchScreen(over rootView: UIView?) {
+    rootView?.backgroundColor = UIColor(red: 3 / 255, green: 6 / 255, blue: 4 / 255, alpha: 1)
+    guard let hosting = rootView as? RCTSurfaceHostingView,
+      let launch = UIStoryboard(name: "LaunchScreen", bundle: nil)
+        .instantiateInitialViewController()?.view
+    else { return }
+    hosting.activityIndicatorViewFactory = { launch }
   }
 
   /// Warm open through the scheme. Only the exact connect URL, and only on iOS 16, does anything;
