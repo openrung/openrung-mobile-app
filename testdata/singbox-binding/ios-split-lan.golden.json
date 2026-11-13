@@ -158,6 +158,14 @@
         "port": 53
       },
       {
+        "action": "reject",
+        "ip_cidr": [
+          "198.18.0.0/15",
+          "fc00::/18"
+        ],
+        "no_drop": true
+      },
+      {
         "ip_is_private": true,
         "outbound": "direct"
       },
