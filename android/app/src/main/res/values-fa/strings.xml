@@ -11,15 +11,6 @@
     <string name="status_connected">متصل</string>
     <string name="status_disconnecting">در حال قطع اتصال</string>
     <string name="status_failed">ناموفق</string>
-    <string name="log_fetching_relays">در حال دریافت رله‌ها از %1$s</string>
-    <string name="log_broker_returned">broker تعداد %1$d رله برگرداند؛ %2$d قابل استفاده است</string>
-    <string name="log_trying_relay">در حال امتحان رله %1$s در %2$s:%3$d</string>
-    <string name="log_checking_relay_reachability">در حال بررسی دسترسی TCP رله</string>
     <string name="log_split_ruleset_missing">مجموعه قواعد تونل تفکیکی برای %1$s موجود نیست؛ آن ترافیک از داخل تونل عبور می‌کند</string>
-    <string name="log_relay_failed">رله %1$s ناموفق بود: %2$s</string>
     <string name="log_error_prefix">خطا: %1$s</string>
-    <string name="error_no_usable_relay">هیچ رله خروج مستقیم VLESS Reality Vision قابل استفاده‌ای موجود نیست.</string>
-    <string name="error_vpn_connection_failed">اتصال VPN ناموفق بود</string>
-    <string name="error_all_relays_failed">همه تلاش‌های اتصال به رله ناموفق بود. آخرین خطا: %1$s</string>
-    <string name="error_unknown">نامشخص</string>
 </resources>

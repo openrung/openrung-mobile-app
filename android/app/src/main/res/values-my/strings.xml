@@ -11,15 +11,6 @@
     <string name="status_connected">ချိတ်ဆက်ပြီး</string>
     <string name="status_disconnecting">ချိတ်ဆက်မှု ဖြုတ်နေသည်</string>
     <string name="status_failed">မအောင်မြင်ပါ</string>
-    <string name="log_fetching_relays">%1$s မှ relay များ ရယူနေသည်</string>
-    <string name="log_broker_returned">broker မှ relay %1$d ခု ပြန်ပေးခဲ့သည်။ %2$d ခု အသုံးပြုနိုင်သည်</string>
-    <string name="log_trying_relay">%2$s:%3$d ရှိ relay %1$s ကို စမ်းနေသည်</string>
-    <string name="log_checking_relay_reachability">relay TCP ရောက်နိုင်မှုကို စစ်ဆေးနေသည်</string>
     <string name="log_split_ruleset_missing">%1$s အတွက် split tunneling စည်းမျဉ်းအစု မရှိပါ။ ထိုအသွားအလာသည် tunnel ထဲမှာ ဆက်ရှိနေသည်</string>
-    <string name="log_relay_failed">relay %1$s မအောင်မြင်ပါ: %2$s</string>
     <string name="log_error_prefix">အမှား: %1$s</string>
-    <string name="error_no_usable_relay">အသုံးပြုနိုင်သော VLESS Reality Vision direct-exit relay မရှိပါ။</string>
-    <string name="error_vpn_connection_failed">VPN ချိတ်ဆက်မှု မအောင်မြင်ပါ</string>
-    <string name="error_all_relays_failed">relay ချိတ်ဆက်ရန် ကြိုးစားမှုအားလုံး မအောင်မြင်ပါ။ နောက်ဆုံး အမှား: %1$s</string>
-    <string name="error_unknown">မသိပါ</string>
 </resources>
