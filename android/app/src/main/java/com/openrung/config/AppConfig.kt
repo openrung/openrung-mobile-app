@@ -43,15 +43,7 @@ object AppConfig {
         "43.201.172.102" to "70c3a26b9ac7315d1975f417eb9eabbecc98ec0e2d5baadb6c224e87fd99c8b5",
     )
 
-    const val RELAY_LIMIT = 5
     const val STATUS_PREFS = "openrung_status"
-
-    /**
-     * Relay fetch used to populate the exit-node map directory (the connect path still uses
-     * [RELAY_LIMIT]). This is the broker's maximum allowed page size — the broker rejects anything
-     * larger with HTTP 400 — so it captures the full set of currently-advertised relays.
-     */
-    const val DIRECTORY_RELAY_LIMIT = 20
 
     /** Most-recently connected locations kept for the main-screen "Recents" row. */
     const val MAX_RECENTS = 8

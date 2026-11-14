@@ -52,15 +52,8 @@ enum AppConfig {
 
     static let loggingSubsystem = "com.openrung.app.PacketTunnel"
     static let engineDirectoryName = "OpenRungPacketTunnel"
-    static let relayLimit = 5
-    static let directoryRelayLimit = 20
     static let maxRecents = 8
 
     // App ↔ extension shared-state plumbing.
     static let darwinNotificationName = "com.openrung.app.state-changed"
-    static let telemetryOutboxFilename = "outbox.json"
-
-    // Heartbeat cadence (random in this range), matching Android.
-    static let heartbeatMinDelayMs: UInt64 = 50_000
-    static let heartbeatMaxDelayMs: UInt64 = 70_000
 }

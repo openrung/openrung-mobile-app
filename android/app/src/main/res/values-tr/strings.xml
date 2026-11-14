@@ -11,15 +11,6 @@
     <string name="status_connected">Bağlandı</string>
     <string name="status_disconnecting">Bağlantı kesiliyor</string>
     <string name="status_failed">Başarısız</string>
-    <string name="log_fetching_relays">%1$s üzerinden röleler alınıyor</string>
-    <string name="log_broker_returned">broker %1$d röle döndürdü; %2$d kullanılabilir</string>
-    <string name="log_trying_relay">%2$s:%3$d adresindeki %1$s rölesi deneniyor</string>
-    <string name="log_checking_relay_reachability">röle TCP erişilebilirliği denetleniyor</string>
     <string name="log_split_ruleset_missing">%1$s için bölünmüş tünel kural kümesi eksik; o trafik tünelden geçmeye devam ediyor</string>
-    <string name="log_relay_failed">%1$s rölesi başarısız oldu: %2$s</string>
     <string name="log_error_prefix">hata: %1$s</string>
-    <string name="error_no_usable_relay">Kullanılabilir VLESS Reality Vision doğrudan çıkış rölesi yok.</string>
-    <string name="error_vpn_connection_failed">VPN bağlantısı başarısız oldu</string>
-    <string name="error_all_relays_failed">Tüm röle bağlantı denemeleri başarısız oldu. Son hata: %1$s</string>
-    <string name="error_unknown">bilinmiyor</string>
 </resources>
