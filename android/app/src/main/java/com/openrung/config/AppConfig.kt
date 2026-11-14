@@ -9,26 +9,6 @@ object AppConfig {
     const val DEFAULT_BROKER_URL = "https://broker.openrung.org/"
 
     /**
-     * Bootstrap telemetry / heartbeat target used until verified relay discovery selects a live
-     * broker front. The active telemetry session then follows that exact winner, so a client that
-     * reached discovery through fallback does not post its diagnostics back to a blocked primary.
-     * Never use a raw-IP HTTP endpoint: that would expose the user's pre-VPN IP, geo and stable
-     * client ID in cleartext.
-     */
-    const val TELEMETRY_BROKER_URL = "https://broker.openrung.org/"
-
-    /**
-     * Stable broker-front order retained for native WSS-ticket failover. Native relay discovery
-     * passes only the configured primary to brokerapi; Go owns its default candidates, override
-     * detection, racing, URL policy, ECH transport selection, and relay verification.
-     */
-    val DEFAULT_BROKER_URLS: List<String> = listOf(
-        DEFAULT_BROKER_URL,
-        // Independent second front: AWS CloudFront (different provider + DNS zone).
-        "https://d2r7mdpyevvs1m.cloudfront.net/",
-    )
-
-    /**
      * SHA-256 pins for self-signed punch-coordinator leaf certificates, keyed by the exact host in
      * the signed relay descriptor. A bare-IP coordinator is accepted only when it appears here;
      * hostname coordinators not listed here use Android/Go's normal public CA validation. The pin

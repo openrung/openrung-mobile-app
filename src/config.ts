@@ -18,12 +18,6 @@ export const AppConfig = {
   DEFAULT_BROKER_URL: 'https://broker.openrung.org/',
 
   /**
-   * Native brokerapi target for telemetry batches sent from React Native.
-   * General VPN telemetry remains owned by the Android VPN service and iOS PacketTunnel.
-   */
-  TELEMETRY_BROKER_URL: 'https://broker.openrung.org/',
-
-  /**
    * Relay fetch used to populate the exit-node map directory. This is the broker's maximum
    * allowed page size — the broker rejects anything larger with HTTP 400 — so it captures the
    * full set of currently-advertised relays.

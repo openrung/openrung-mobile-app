@@ -175,8 +175,9 @@ weaken the production OS policy.
   `NEPacketTunnelProvider.createTCPConnectionThroughTunnel`; a provider-owned
   `URLSession` is excluded from its own TUN and must never authorize fallback
   or recovery.
-- **Telemetry / heartbeat / speed-test** — currently also `https://broker.openrung.org/`
-  (the same Cloudflare-fronted broker); see the trade-off below.
+- **Telemetry / heartbeat** — currently also `https://broker.openrung.org/`
+  (the same Cloudflare-fronted broker), chosen by connectcore rather than the app;
+  see the trade-off below.
 - **Update manifest** — the exact direct broker and CloudFront candidates use
   `OpenRungBroker.fetchManifestCandidate`. The exact redirecting GitHub release
   asset remains the only JavaScript-fetch exception; signature, freshness,
@@ -247,12 +248,17 @@ one each) — so its transport is a cost/security trade-off:
   box a dedicated *unproxied* (DNS-only / "grey-cloud") hostname — e.g.
   `origin.openrung.org` → the origin IP directly — with a publicly-trusted TLS
   certificate (e.g. Let's Encrypt) terminated on the origin, then point
-  `TELEMETRY_BROKER_URL` at `https://origin.openrung.org/`. This keeps telemetry
+  telemetry at `https://origin.openrung.org/`. This keeps telemetry
   TLS-protected *and* bypasses the Cloudflare Worker (so it no longer consumes the
   quota), while remaining a real hostname both platforms' cleartext policies accept.
-  The app-side change is one line of `TELEMETRY_BROKER_URL` in each of the three
-  `AppConfig` files (`src/config.ts`, `android/.../config/AppConfig.kt`,
-  `ios/Shared/AppConfig.swift`); the rest is server-side (DNS record + origin cert).
+  The bootstrap telemetry endpoint is not an app setting: it is
+  `TelemetryBrokerURL` in `connectcore/config.go` in the sibling `openrung` repo,
+  and every session then follows the broker front that won discovery, so moving
+  all telemetry (not just the pre-discovery events) also means changing that
+  follow rule. The client-side change is therefore in connectcore — update it, tag a
+  release, bump the `connectcore` pin in `android/punchbridge/go.mod`, and rebuild
+  both native engine artifacts (see [ENGINE_BINDING.md](ENGINE_BINDING.md)); the
+  rest is server-side (DNS record + origin cert).
   Because the new endpoint is HTTPS, no cleartext exception is needed on either
   platform — unless the origin cannot present a publicly-trusted cert, in which case
   add a scoped `domain-config` in `network_security_config.xml` (Android) and the

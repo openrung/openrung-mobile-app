@@ -6,8 +6,7 @@ import XCTest
 /// This app owns no racing — it hands native brokerapi a primary and Go races the built-in
 /// candidates — so the phases and candidate ordering in the vectors belong to the Go suite and are
 /// deliberately not asserted here. What this side can claim, and what catches a front rotated in
-/// openrung and not here, is that every front the app hardcodes is still one of the canonical ones.
-/// A front that quietly stops existing is a fallback a blocked user no longer has.
+/// openrung and not here, is that the primary the app configures is still one of the canonical ones.
 final class ContractBrokerFrontsTests: XCTestCase {
 
     private static let expectedVersion = 3
@@ -37,25 +36,11 @@ final class ContractBrokerFrontsTests: XCTestCase {
         XCTAssertTrue(declared.contains(Self.suite))
     }
 
-    func testEveryHardcodedFrontIsCanonical() throws {
+    func testConfiguredPrimaryIsCanonical() throws {
         let fronts = try canonicalFronts()
-        XCTAssertFalse(AppConfig.defaultBrokerURLs.isEmpty)
-        for url in AppConfig.defaultBrokerURLs {
-            XCTAssertTrue(fronts.contains(url.absoluteString), "\(url) is not in the canonical front list")
-        }
-    }
-
-    func testPrimaryAndTelemetryTargetsAreCanonical() throws {
-        let fronts = try canonicalFronts()
-        XCTAssertTrue(fronts.contains(AppConfig.defaultBrokerURL.absoluteString))
-        // A telemetry target off the canonical list would carry the pre-VPN IP and the stable
-        // client id to a host the directory contract never vouched for.
-        XCTAssertTrue(fronts.contains(AppConfig.telemetryBrokerURL.absoluteString))
-    }
-
-    func testAppCarriesASubsetOfTheCanonicalFronts() throws {
-        // Recorded rather than asserted as equality: this app deliberately ships fewer fronts than
-        // brokerapi races. If it ever grew to the full list, this is where that shows up.
-        XCTAssertLessThanOrEqual(AppConfig.defaultBrokerURLs.count, try canonicalFronts().count)
+        XCTAssertTrue(
+            fronts.contains(AppConfig.defaultBrokerURL.absoluteString),
+            "\(AppConfig.defaultBrokerURL) is not in the canonical front list"
+        )
     }
 }
