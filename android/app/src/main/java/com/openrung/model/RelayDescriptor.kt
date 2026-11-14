@@ -16,13 +16,8 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.put
-import java.time.Instant
 
 object RelayConstants {
-    const val PROTOCOL_VLESS_REALITY_VISION = "vless-reality-vision"
-    const val FLOW_VISION = "xtls-rprx-vision"
-    const val EXIT_MODE_DIRECT = "direct"
-    const val TRANSPORT_DIRECT = "direct"
     const val NODE_CLASS_FOUNDATION = "foundation"
     const val NODE_CLASS_VOLUNTEER = "volunteer"
 }
@@ -153,23 +148,6 @@ data class RelayDescriptor(
     val latitude: Double? = null,
     val longitude: Double? = null,
 ) {
-    fun isUsable(now: Instant): Boolean {
-        val expires = runCatching { Instant.parse(expiresAt) }.getOrNull() ?: return false
-        return relayProtocol == RelayConstants.PROTOCOL_VLESS_REALITY_VISION &&
-            flow == RelayConstants.FLOW_VISION &&
-            exitMode == RelayConstants.EXIT_MODE_DIRECT &&
-            expires > now &&
-            publicHost.isNotBlank() &&
-            publicPort > 0 &&
-            clientId.isNotBlank() &&
-            realityPublicKey.isNotBlank() &&
-            shortId.isNotBlank() &&
-            serverName.isNotBlank()
-    }
-
-    /** Human-readable exit location such as "Tokyo, Japan", or "" while the broker has no geo. */
-    fun locationLabel(): String = listOf(city, country).filter { it.isNotBlank() }.joinToString(", ")
-
     /**
      * Relay name as surfaced in the UI (connect card status row, recents pills, log lines).
      * [label] is operator-supplied free text, so strip control/format characters (a bidi
@@ -240,27 +218,4 @@ data class RelayDescriptor(
             return collapsed.substring(0, end).trimEnd(' ')
         }
     }
-}
-
-@Serializable
-data class RelayListResponse(
-    val count: Int,
-    @SerialName("server_time")
-    val serverTime: String,
-    val relays: List<RelayDescriptor>,
-    // Relay-list signing metadata (SPEC v1 §2.2) remains part of the decoded wire model.
-    // brokerapi verifies these fields before returning RelayJSON to Kotlin.
-    /** RFC3339 expiry of this snapshot: `server_time` + 30 min on the API channel. */
-    @SerialName("not_after")
-    val notAfter: String = "",
-    /** Advisory id (first 8 SHA-256 bytes of the signing pubkey, hex). */
-    @SerialName("key_id")
-    val keyId: String = "",
-    /** "api" or "mirror"; already verified by brokerapi. */
-    val channel: String = "",
-    /** API channel: echo of the requested `limit`, already verified by brokerapi. */
-    val limit: Int? = null,
-) {
-    val serverInstant: Instant
-        get() = Instant.parse(serverTime)
 }

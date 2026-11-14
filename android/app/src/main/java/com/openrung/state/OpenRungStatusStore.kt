@@ -47,12 +47,6 @@ object OpenRungStatusStore {
         )
     }
 
-    /** Updates only the relay label (e.g. resolved geo location) without emitting a status log line. */
-    fun setRelayLabel(relayLabel: String?) {
-        state.update { it.copy(relayLabel = relayLabel) }
-        persist()
-    }
-
     fun setStatus(
         status: ConnectionStatus,
         relayLabel: String? = state.value.relayLabel,

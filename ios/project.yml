@@ -262,7 +262,7 @@ targets:
       - path: Shared/AppConfig.swift
       # ConnectionStateSnapshot (ConnectionStateSnapshotTests) + the RecentNode type it embeds.
       - path: Shared/ConnectionStatus.swift
-      - path: Shared/CountryGeo.swift
+      - path: Shared/RecentNode.swift
       - path: Shared/DeviceAttributes.swift
       - path: Shared/DnsProbeMessage.swift
       - path: Shared/InternetProbe.swift
