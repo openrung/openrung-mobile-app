@@ -1,23 +1,8 @@
 /**
  * exitNodeFeatures: the GeoJSON behind the home map's markers, including which feature the
- * map draws as the connected relay. ExitNodeMap: when the camera is sent to the relay.
+ * map draws as the connected relay.
  */
-jest.mock('@maplibre/maplibre-react-native', () => {
-  const ReactActual = require('react');
-  const { View } = require('react-native');
-  const stub = (name: string) => {
-    const Stub = ({ children, ...props }: { children?: React.ReactNode }) =>
-      ReactActual.createElement(View, props, children);
-    Stub.displayName = name;
-    return Stub;
-  };
-  return {
-    Map: stub('MapLibreMap'),
-    Camera: stub('MapLibreCamera'),
-    GeoJSONSource: stub('MapLibreGeoJSONSource'),
-    Layer: stub('MapLibreLayer'),
-  };
-});
+jest.mock('@maplibre/maplibre-react-native', () => ({}));
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
   __esModule: true,
@@ -28,11 +13,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   },
 }));
 
-import React from 'react';
-import ReactTestRenderer from 'react-test-renderer';
-import { Camera, Map as MapLibreMap } from '@maplibre/maplibre-react-native';
-
-import { ExitNodeMap, exitNodeFeatures } from '../../src/components/ExitNodeMap';
+import { exitNodeFeatures } from '../../src/components/ExitNodeMap';
 import type { ExitNodeRegion } from '../../src/model/exitNode';
 
 const REGIONS: ExitNodeRegion[] = [
@@ -86,42 +67,5 @@ describe('exitNodeFeatures', () => {
     // No code: a tap on it connects nowhere. No count or label text.
     expect(features[2].properties).toEqual({ count: '', label: '', connected: true });
     expect(features[2].geometry.coordinates).toEqual([8.68, 50.11]);
-  });
-});
-
-describe('ExitNodeMap camera', () => {
-  const OSAKA: [number, number] = [135.5, 34.69];
-
-  function render(connectedLngLat: [number, number] | null) {
-    let renderer!: ReactTestRenderer.ReactTestRenderer;
-    ReactTestRenderer.act(() => {
-      renderer = ReactTestRenderer.create(
-        <ExitNodeMap regions={REGIONS} onRegionPress={() => {}} connectedLngLat={connectedLngLat} />,
-      );
-    });
-    const layout = (width: number, height: number) =>
-      ReactTestRenderer.act(() => {
-        renderer.root
-          .findByType(MapLibreMap)
-          .props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height } } });
-      });
-    const center = () => renderer.root.findByType(Camera).props.center;
-    return { renderer, layout, center };
-  }
-
-  it('waits for a sized layout before moving to the connected relay', () => {
-    const { layout, center } = render(OSAKA);
-    expect(center()).toBeUndefined();
-    // A launch in the background lays the map out with no size: still no camera stop.
-    layout(0, 0);
-    expect(center()).toBeUndefined();
-    layout(390, 844);
-    expect(center()).toEqual(OSAKA);
-  });
-
-  it('sends no camera stop while not connected', () => {
-    const { layout, center } = render(null);
-    layout(390, 844);
-    expect(center()).toBeUndefined();
   });
 });

@@ -20,11 +20,10 @@
  *  - while connected, the session's relay is marked with a brighter core, a
  *    ring and a wider glow — the same layers, switched by the feature's
  *    `connected` property, so the count and city label stay on top — and the
- *    camera eases over to it (zoom unchanged) once the map has a size (see
- *    hasSize below).
+ *    camera eases over to it (zoom unchanged).
  */
-import React, { useCallback, useMemo, useState } from 'react';
-import { StyleSheet, type LayoutChangeEvent, type NativeSyntheticEvent } from 'react-native';
+import React, { useCallback, useMemo } from 'react';
+import { StyleSheet, type NativeSyntheticEvent } from 'react-native';
 import {
   Camera,
   GeoJSONSource,
@@ -227,25 +226,13 @@ export function ExitNodeMap({
     () => exitNodeFeatures(regions, connectedCenter),
     [regions, connectedCenter],
   );
-  // A camera stop on a map with no size crashes the app: MapLibre React Native's iOS camera
-  // divides its padding by the zero frame, and MapLibre aborts on the NaN insets. The app has
-  // no size when the widget's background Connect launches it without a window, and the
-  // connection then completes. So no stop is sent until the map is laid out with a size; it
-  // stays set after that, because changing the stop back to none also runs the camera.
-  const [hasSize, setHasSize] = useState(false);
-  const handleLayout = useCallback((event: LayoutChangeEvent) => {
-    const { width, height } = event.nativeEvent.layout;
-    if (width > 0 && height > 0) {
-      setHasSize(true);
-    }
-  }, []);
   // A camera stop without a zoom keeps the user's zoom level and only recenters.
   const cameraStop = useMemo(
     () =>
-      connectedCenter == null || !hasSize
+      connectedCenter == null
         ? NO_CAMERA_STOP
         : { center: connectedCenter, duration: CONNECTED_CAMERA_MS, easing: 'ease' as const },
-    [connectedCenter, hasSize],
+    [connectedCenter],
   );
 
   const handleNodePress = useCallback(
@@ -277,7 +264,6 @@ export function ExitNodeMap({
       // Texture mode so the map composites cleanly under the RN overlays (vignette, cards).
       androidView="texture"
       accessibilityLabel={s.mapContentDescription}
-      onLayout={handleLayout}
     >
       <Camera
         initialViewState={INITIAL_VIEW_STATE}
