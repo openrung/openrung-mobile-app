@@ -124,12 +124,6 @@ final class DnsConfigurationTests: XCTestCase {
         // outbound, failing on every healthy tunnel.
         XCTAssertEqual(SingBoxConfiguration.defaultTunnelIPv4Address, "172.19.0.1/30")
         XCTAssertEqual(SingBoxConfiguration.defaultTunnelDnsAddress, "172.19.0.2")
-        XCTAssertEqual(
-            SingBoxConfiguration.tunnelDnsAddress(
-                for: SingBoxConfiguration(relay: makeWssTestRelay()).tunnelIPv4Address
-            ),
-            SingBoxConfiguration.defaultTunnelDnsAddress
-        )
         // Octet carry, so a future tunnel address change cannot silently derive a wrong address.
         // The /23 keeps the successor inside the prefix.
         XCTAssertEqual(SingBoxConfiguration.tunnelDnsAddress(for: "10.0.0.255/23"), "10.0.1.0")

@@ -232,37 +232,7 @@ public struct RelayDescriptor: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
-public struct RelayListResponse: Decodable, Equatable, Sendable {
-    public let count: Int
-    public let serverTime: Date
-    public let relays: [RelayDescriptor]
-
-    enum CodingKeys: String, CodingKey {
-        case count
-        case serverTime = "server_time"
-        case relays
-    }
-}
-
 public extension RelayDescriptor {
-    func isUsable(now: Date = Date()) -> Bool {
-        relayProtocol == RelayConstants.protocolVLESSRealityVision &&
-            flow == RelayConstants.flowVision &&
-            exitMode == RelayConstants.exitModeDirect &&
-            expiresAt > now &&
-            publicHost.isEmpty == false &&
-            publicPort > 0 &&
-            clientID.isEmpty == false &&
-            realityPublicKey.isEmpty == false &&
-            shortID.isEmpty == false &&
-            serverName.isEmpty == false
-    }
-
-    /// Human-readable exit location such as "Tokyo, Japan", or "" while the broker has no geo.
-    func locationLabel() -> String {
-        [city, country].compactMap { $0 }.filter { $0.isEmpty == false }.joined(separator: ", ")
-    }
-
     /// Relay name as surfaced in the UI (connect card status row, recents pills, log lines).
     /// `label` is operator-supplied free text, so strip control/format scalars (a bidi override
     /// could reorder or spoof surrounding UI text), collapse whitespace, and clamp the length,

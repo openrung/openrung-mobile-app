@@ -9,15 +9,12 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.openrung.MainActivity
 import com.openrung.R
-import com.openrung.BuildConfig
 import com.openrung.config.AppConfig
 import com.openrung.net.SplitTunnelRules
-import com.openrung.net.ProbeTargets
 import com.openrung.net.SingBoxConfiguration
 import com.openrung.state.ConnectionStatus
 import com.openrung.state.OpenRungStatusStore
 import io.nekohasekai.libbox.OpenRungRunTelemetry
-import kotlinx.serialization.json.*
 import java.io.File
 
 /** Android lifecycle and platform mechanics. Connect/recovery policy lives in connectcore. */
@@ -76,19 +73,7 @@ class OpenRungVpnService : VpnService() {
     internal fun physicalInterface(): EnginePhysicalInterface? = observer?.current?.defaultInterface
     internal fun newRun(telemetry: OpenRungRunTelemetry): AndroidEngineRun = AndroidEngineRun(this, telemetry) { runs.remove(it) }.also { runs.add(it) }
     internal fun refreshRunInterfaces() { runs.forEach { it.refreshInterfaces() } }
-    internal fun settingsJSON(): String = buildJsonObject {
-        put("tunnel_ipv4_address", SingBoxConfiguration.DEFAULT_TUNNEL_IPV4_ADDRESS)
-        put("tunnel_ipv6_address", "fdfe:dcba:9876::1/126")
-        put("mtu", 1400); put("log_level", if (BuildConfig.DEBUG) "info" else "warn")
-        put("route_find_process", true)
-        putJsonArray("probe_domain_suffixes") { ProbeTargets.RULE_DOMAIN_SUFFIXES.forEach { add(it) } }
-        currentSplitTunnelRules()?.let { rules -> putJsonObject("split_tunnel") {
-            put("bypass_lan", rules.bypassLan)
-            putJsonArray("bypass_countries") { rules.bypassCountries.forEach { add(it) } }
-            putJsonArray("excluded_packages") { rules.excludedPackages.forEach { add(it) } }
-            put("rule_set_directory", rules.ruleSetDirectory)
-        } }
-    }.toString()
+    internal fun settingsJSON(): String = SingBoxConfiguration.engineSettingsJson(currentSplitTunnelRules())
     private val stagedRuleSetDirectory by lazy { stageRuleSetAssets() }
 
     private fun currentSplitTunnelRules(): SplitTunnelRules? {

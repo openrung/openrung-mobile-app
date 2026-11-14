@@ -37,7 +37,7 @@ with tempfile.TemporaryDirectory(prefix="openrung-ios-contract-") as directory:
         "name": "EngineContract", "options": {"deploymentTarget": {"iOS": "16.0"}},
         "targets": {"EngineContractTests": {
             "type": "bundle.unit-test", "platform": "iOS",
-            "sources": [{"path": str(root / p)} for p in ["ios/EngineContractTests", "ios/Shared/EngineEventDispatcher.swift", "ios/Shared/ConnectionStatus.swift", "ios/Shared/CountryGeo.swift"]],
+            "sources": [{"path": str(root / p)} for p in ["ios/EngineContractTests", "ios/Shared/EngineEventDispatcher.swift", "ios/Shared/ConnectionStatus.swift", "ios/Shared/RecentNode.swift"]],
             "dependencies": [{"framework": str(framework), "embed": False}, {"sdk": "Network.framework"}, {"sdk": "UIKit.framework"}, {"sdk": "libresolv.tbd"}],
             "settings": {"base": {"PRODUCT_BUNDLE_IDENTIFIER": "com.openrung.enginecontract", "GENERATE_INFOPLIST_FILE": "YES", "CODE_SIGNING_ALLOWED": "NO", "SWIFT_VERSION": "5.0"}}}},
         "schemes": {"EngineContractTests": {"build": {"targets": {"EngineContractTests": ["test"]}}, "test": {"targets": ["EngineContractTests"]}}}}

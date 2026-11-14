@@ -414,7 +414,7 @@ src/
   model/
     relay.ts           # RelayDescriptor (snake_case JSON, optional broker-served
                        #   city/country/country_code/latitude/longitude), isUsable()
-    countryGeo.ts      # 51-entry centroid table, verbatim from CountryGeo.kt
+    countryGeo.ts      # 51-entry country centroid table
     exitNode.ts        # ExitNodeRegion (country+city marker), DirectoryStatus
   net/
     brokerClient.ts    # decode native firstReachable relay snapshot
@@ -579,10 +579,9 @@ used as evidence that Reality or WSS carried end-to-end traffic.
   attribution, readiness, and VPN-Network-bound DNS/HTTPS verification.
   `EngineNetworkObserver.kt` publishes physical network/DNS snapshots; connectcore
   owns epochs, recovery and retry policy.
-- `net/` retains BrokerClient for native/RN directory operations,
-  SingBoxConfiguration for builder inputs/budgets, DnsProbe, InternetProbe,
-  ProbeResource, TunnelPathProbe, and probe targets. `model/` retains
-  RelayDescriptor, CountryGeo and RecentNode. `telemetry/` retains ClientIdentity,
+- `net/` retains SingBoxConfiguration for builder inputs/budgets, DnsProbe,
+  InternetProbe, ProbeResource, TunnelPathProbe, and probe targets. `model/` retains
+  RelayDescriptor and RecentNode. `telemetry/` retains ClientIdentity,
   ApplicationConnectionAggregator and RunApplicationConnections; session events,
   traffic totals, heartbeat and uploads belong to connectcore.
 - The Android ProxyEngine, native connect ladder, WssFallbackPolicy,

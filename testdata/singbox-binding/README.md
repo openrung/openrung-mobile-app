@@ -1,7 +1,7 @@
 # sing-box binding fixtures
 
 One `<scenario>.input.json` per platform scenario — the `OpenRungBuildSingBoxConfig` binding
-input the Kotlin/Swift assembly must produce for that scenario — and one frozen
+input for that scenario — and one frozen
 `<scenario>.golden.json` holding the bound builder's output for it.
 
 The three suites compose into the platform emission expectations running end-to-end against
@@ -13,7 +13,8 @@ the JVM or the pod-free XCTest bundle loading the gomobile engine:
   `UPDATE_SINGBOX_BINDING_GOLDEN=1 go test -run TestOpenRungBuildSingBoxConfigGolden .`
   from `android/punchbridge`.
 - `SingBoxConfigurationBindingInputTest(.kt)` / `SingBoxConfigurationBindingInputTests` (Swift)
-  pin platform construction → input.
+  pin the engine settings each platform hands connectcore against the inputs, minus the
+  `relay` and bridge fields connectcore supplies itself.
 - The platform structural suites (`SingBoxConfigurationDnsTest`, `SingBoxConfigurationSplitTunnelTest`,
   `SingBoxConfigurationPunchTest`, `DnsConfigurationTests`, `SplitTunnelConfigurationTests`, …)
   assert their emission expectations against the goldens.
@@ -22,4 +23,4 @@ The `relay` object in every input carries the broker's canonical wire names and 
 test identity; scenario axes are the platform (`route_find_process` and `excluded_packages`
 are Android-only), an optional loopback bridge, and the split-tunnel variants. All inputs use
 the release log level ("warn"); the debug→"info" mapping is pinned separately by the
-assembly suites.
+settings suites.
