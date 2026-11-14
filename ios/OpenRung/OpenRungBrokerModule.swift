@@ -65,56 +65,6 @@ final class OpenRungBrokerModule: NSObject {
         }
     }
 
-    @objc(runSpeedTest:brokerUrl:resolver:rejecter:)
-    func runSpeedTest(
-        _ requestID: String,
-        brokerUrl: String,
-        resolver resolve: @escaping RCTPromiseResolveBlock,
-        rejecter reject: @escaping RCTPromiseRejectBlock
-    ) {
-        coordinator.runSpeedTest(
-            requestID: requestID,
-            brokerURL: brokerUrl
-        ) { result in
-            switch result {
-            case .success(let snapshot):
-                resolve([
-                    "bytes": NSNumber(value: snapshot.bytes),
-                    "ttfbMillis": NSNumber(value: snapshot.timeToFirstByteMilliseconds),
-                    "downloadDurationMillis": NSNumber(
-                        value: snapshot.downloadDurationMilliseconds
-                    ),
-                    "totalDurationMillis": NSNumber(value: snapshot.totalDurationMilliseconds),
-                    "mbps": NSNumber(value: snapshot.megabitsPerSecond),
-                ] as [String: Any])
-            case .failure(let failure):
-                Self.reject(failure, using: reject)
-            }
-        }
-    }
-
-    @objc(sendTelemetryBatchJSON:brokerUrl:batchJson:resolver:rejecter:)
-    func sendTelemetryBatchJSON(
-        _ requestID: String,
-        brokerUrl: String,
-        batchJson: String,
-        resolver resolve: @escaping RCTPromiseResolveBlock,
-        rejecter reject: @escaping RCTPromiseRejectBlock
-    ) {
-        coordinator.sendTelemetryBatchJSON(
-            requestID: requestID,
-            brokerURL: brokerUrl,
-            batchJSON: batchJson
-        ) { result in
-            switch result {
-            case .success:
-                resolve([String: Any]())
-            case .failure(let failure):
-                Self.reject(failure, using: reject)
-            }
-        }
-    }
-
     @objc(fetchManifestCandidate:candidateUrl:resolver:rejecter:)
     func fetchManifestCandidate(
         _ requestID: String,

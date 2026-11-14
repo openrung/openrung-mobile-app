@@ -57,22 +57,10 @@ final class TestNativeBrokerFactory: NativeBrokerOperationFactory, @unchecked Se
 
 final class TestNativeBrokerOperation: NativeBrokerOperation, @unchecked Sendable {
     typealias RelayHandler = @Sendable (String, Int32, String, String) -> NativeBrokerRelayResultSnapshot?
-    typealias TelemetryHandler = @Sendable (String, String) -> NativeBrokerResultSnapshot?
-    typealias SpeedTestHandler = @Sendable (String) -> NativeBrokerSpeedTestResultSnapshot?
     typealias ManifestHandler = @Sendable (String) -> NativeBrokerManifestResultSnapshot?
-    typealias TicketHandler = @Sendable (
-        String,
-        String,
-        String,
-        String,
-        String
-    ) -> NativeBrokerWSSTicketResultSnapshot?
 
     var relayHandler: RelayHandler?
-    var telemetryHandler: TelemetryHandler?
-    var speedTestHandler: SpeedTestHandler?
     var manifestHandler: ManifestHandler?
-    var ticketHandler: TicketHandler?
     var closeHandler: (@Sendable () -> Void)?
 
     private let lock = NSLock()
@@ -87,33 +75,10 @@ final class TestNativeBrokerOperation: NativeBrokerOperation, @unchecked Sendabl
         relayHandler?(primary, limit, clientID, sessionID)
     }
 
-    func sendTelemetryBatchJSON(
-        brokerURL: String,
-        batchJSON: String
-    ) -> NativeBrokerResultSnapshot? {
-        telemetryHandler?(brokerURL, batchJSON)
-    }
-
-    func runSpeedTest(
-        brokerURL: String
-    ) -> NativeBrokerSpeedTestResultSnapshot? {
-        speedTestHandler?(brokerURL)
-    }
-
     func fetchManifestCandidate(
         candidateURL: String
     ) -> NativeBrokerManifestResultSnapshot? {
         manifestHandler?(candidateURL)
-    }
-
-    func requestWSSTicket(
-        brokerURL: String,
-        relayID: String,
-        frontID: String,
-        clientID: String,
-        sessionID: String
-    ) -> NativeBrokerWSSTicketResultSnapshot? {
-        ticketHandler?(brokerURL, relayID, frontID, clientID, sessionID)
     }
 
     func close() {
@@ -163,38 +128,10 @@ final class BlockingNativeBrokerOperation: NativeBrokerOperation, @unchecked Sen
         )
     }
 
-    func sendTelemetryBatchJSON(
-        brokerURL _: String,
-        batchJSON _: String
-    ) -> NativeBrokerResultSnapshot? {
-        block(NativeBrokerResultSnapshot(succeeded: false, errorKind: "cancelled"))
-    }
-
-    func runSpeedTest(
-        brokerURL _: String
-    ) -> NativeBrokerSpeedTestResultSnapshot? {
-        block(NativeBrokerSpeedTestResultSnapshot(succeeded: false, errorKind: "cancelled"))
-    }
-
     func fetchManifestCandidate(
         candidateURL _: String
     ) -> NativeBrokerManifestResultSnapshot? {
         block(NativeBrokerManifestResultSnapshot(succeeded: false, errorKind: "cancelled"))
-    }
-
-    func requestWSSTicket(
-        brokerURL _: String,
-        relayID _: String,
-        frontID _: String,
-        clientID _: String,
-        sessionID _: String
-    ) -> NativeBrokerWSSTicketResultSnapshot? {
-        block(
-            NativeBrokerWSSTicketResultSnapshot(
-                succeeded: false,
-                errorKind: "cancelled"
-            )
-        )
     }
 
     func close() {

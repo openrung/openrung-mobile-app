@@ -105,10 +105,7 @@ function requirePolicy(condition, message) {
   if (!condition) failures.push(message);
 }
 
-const brokerSensitiveFiles = [
-  'src/net/brokerClient.ts',
-  'src/net/telemetryClient.ts',
-];
+const brokerSensitiveFiles = ['src/net/brokerClient.ts'];
 for (const relativePath of brokerSensitiveFiles) {
   const source = stripComments(read(relativePath));
   requirePolicy(
@@ -249,12 +246,6 @@ requirePolicy(
 requirePolicy(
   /\bnativeFirstReachable\s*\(/.test(stripComments(read('src/net/brokerClient.ts'))),
   'brokerClient.ts: directory selection must call native firstReachable',
-);
-requirePolicy(
-  /\bsendTelemetryBatchJSON\s*\(/.test(
-    stripComments(read('src/net/telemetryClient.ts')),
-  ),
-  'telemetryClient.ts: telemetry must call native sendTelemetryBatchJSON',
 );
 
 const forbiddenBrokerReferences =

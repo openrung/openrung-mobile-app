@@ -100,42 +100,6 @@ private final class LibboxBrokerOperation: NativeBrokerOperation, @unchecked Sen
         )
     }
 
-    func sendTelemetryBatchJSON(
-        brokerURL: String,
-        batchJSON: String
-    ) -> NativeBrokerResultSnapshot? {
-        guard let result = operation.sendTelemetryBatchJSON(brokerURL, batchJSON: batchJSON) else {
-            return nil
-        }
-        return NativeBrokerResultSnapshot(
-            succeeded: result.succeeded(),
-            errorKind: result.errorKind(),
-            errorText: result.errorText(),
-            httpStatus: result.httpStatus(),
-            retryAfterMilliseconds: result.retryAfterMillis()
-        )
-    }
-
-    func runSpeedTest(
-        brokerURL: String
-    ) -> NativeBrokerSpeedTestResultSnapshot? {
-        guard let result = operation.runSpeedTest(brokerURL) else {
-            return nil
-        }
-        return NativeBrokerSpeedTestResultSnapshot(
-            succeeded: result.succeeded(),
-            errorKind: result.errorKind(),
-            errorText: result.errorText(),
-            httpStatus: result.httpStatus(),
-            retryAfterMilliseconds: result.retryAfterMillis(),
-            bytes: result.bytes(),
-            timeToFirstByteMilliseconds: result.ttfbMillis(),
-            downloadDurationMilliseconds: result.downloadDurationMillis(),
-            totalDurationMilliseconds: result.totalDurationMillis(),
-            megabitsPerSecond: result.mbps()
-        )
-    }
-
     func fetchManifestCandidate(
         candidateURL: String
     ) -> NativeBrokerManifestResultSnapshot? {
@@ -150,34 +114,6 @@ private final class LibboxBrokerOperation: NativeBrokerOperation, @unchecked Sen
             retryAfterMilliseconds: result.retryAfterMillis(),
             bodyJSON: result.bodyJSON(),
             sourceURL: result.sourceURL()
-        )
-    }
-
-    func requestWSSTicket(
-        brokerURL: String,
-        relayID: String,
-        frontID: String,
-        clientID: String,
-        sessionID: String
-    ) -> NativeBrokerWSSTicketResultSnapshot? {
-        guard let result = operation.requestWSSTicket(
-            brokerURL,
-            relayID: relayID,
-            frontID: frontID,
-            clientID: clientID,
-            sessionID: sessionID
-        ) else {
-            return nil
-        }
-        return NativeBrokerWSSTicketResultSnapshot(
-            succeeded: result.succeeded(),
-            errorKind: result.errorKind(),
-            errorText: result.errorText(),
-            httpStatus: result.httpStatus(),
-            retryAfterMilliseconds: result.retryAfterMillis(),
-            ticket: result.ticket(),
-            url: result.url(),
-            expiresAtMilliseconds: result.expiresAtMillis()
         )
     }
 

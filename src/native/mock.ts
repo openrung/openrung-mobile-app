@@ -1,5 +1,4 @@
 import { centroid, displayName } from '../model/countryGeo';
-import { uuid4 } from '../net/telemetryClient';
 import type {
   ConnectionStatus,
   NativeIdentity,
@@ -7,6 +6,15 @@ import type {
   OpenRungVpnModule,
   RecentNode,
 } from './types';
+
+/** Tiny local RFC-4122 v4 UUID helper (no crypto dependency needed for mock identities). */
+function uuid4(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, char => {
+    const random = (Math.random() * 16) | 0;
+    const value = char === 'x' ? random : (random & 0x3) | 0x8;
+    return value.toString(16);
+  });
+}
 
 /**
  * Scripted simulator used when the native `OpenRungVpn` module is absent (Jest, fresh Metro

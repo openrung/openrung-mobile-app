@@ -5,7 +5,6 @@ import {
   createBrokerRequestId,
   fetchManifestCandidate,
   firstReachable,
-  sendTelemetryBatchJSON,
   toOpenRungBrokerError,
 } from '../../src/native/OpenRungBroker';
 
@@ -17,7 +16,6 @@ type Deferred<T> = {
 
 interface NativeBrokerMock {
   firstReachable: jest.Mock;
-  sendTelemetryBatchJSON: jest.Mock;
   fetchManifestCandidate: jest.Mock;
   cancel: jest.Mock;
 }
@@ -56,7 +54,6 @@ function deferred<T>(): Deferred<T> {
 function nativeMock(): NativeBrokerMock {
   return {
     firstReachable: jest.fn(async () => RELAY_RESULT),
-    sendTelemetryBatchJSON: jest.fn(async () => ({})),
     fetchManifestCandidate: jest.fn(async () => MANIFEST_RESULT),
     cancel: jest.fn(async () => true),
   };
@@ -106,19 +103,12 @@ describe('OpenRungBroker native result mapping', () => {
         candidateUrl: 'https://broker.openrung.org/api/v1/app-manifest',
       }),
     ).resolves.toEqual(MANIFEST_RESULT);
-    await expect(
-      sendTelemetryBatchJSON({
-        brokerUrl: 'https://telemetry.example/',
-        batchJson: '{"events":[]}',
-      }),
-    ).resolves.toBeUndefined();
 
     const requestIds = [
       module.firstReachable.mock.calls[0][0],
       module.fetchManifestCandidate.mock.calls[0][0],
-      module.sendTelemetryBatchJSON.mock.calls[0][0],
     ];
-    expect(new Set(requestIds).size).toBe(3);
+    expect(new Set(requestIds).size).toBe(2);
     expect(module.firstReachable).toHaveBeenCalledWith(
       requestIds[0],
       'https://primary.example/',
@@ -129,11 +119,6 @@ describe('OpenRungBroker native result mapping', () => {
     expect(module.fetchManifestCandidate).toHaveBeenCalledWith(
       requestIds[1],
       'https://broker.openrung.org/api/v1/app-manifest',
-    );
-    expect(module.sendTelemetryBatchJSON).toHaveBeenCalledWith(
-      requestIds[2],
-      'https://telemetry.example/',
-      '{"events":[]}',
     );
   });
 

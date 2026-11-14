@@ -71,21 +71,6 @@ class OpenRungBrokerModule(
     }
 
     @ReactMethod
-    fun runSpeedTest(requestId: String, brokerUrl: String, promise: Promise) {
-        requests.runSpeedTest(requestId, brokerUrl, promise.callbacks())
-    }
-
-    @ReactMethod
-    fun sendTelemetryBatchJSON(
-        requestId: String,
-        brokerUrl: String,
-        batchJson: String,
-        promise: Promise,
-    ) {
-        requests.sendTelemetryBatchJSON(requestId, brokerUrl, batchJson, promise.callbacks())
-    }
-
-    @ReactMethod
     fun fetchManifestCandidate(requestId: String, candidateUrl: String, promise: Promise) {
         requests.fetchManifestCandidate(requestId, candidateUrl, promise.callbacks())
     }
@@ -220,41 +205,6 @@ internal class OpenRungBrokerRequestCoordinator(
                 "keyId" to result.keyId,
                 "signatureVerified" to result.signatureVerified,
             )
-        }
-    }
-
-    fun runSpeedTest(
-        requestId: String,
-        brokerUrl: String,
-        callbacks: BrokerRequestCallbacks,
-    ) {
-        submit(requestId, callbacks) {
-            val native = runNativeBrokerOperation(operationFactory, nativeIoDispatcher) { operation ->
-                operation.runSpeedTest(brokerUrl)
-            }
-            val result = requireNativeBrokerSuccess(native, "native broker speed test")
-            mapOf(
-                "bytes" to result.bytes.toDouble(),
-                "ttfbMillis" to result.ttfbMillis.toDouble(),
-                "downloadDurationMillis" to result.downloadDurationMillis.toDouble(),
-                "totalDurationMillis" to result.totalDurationMillis.toDouble(),
-                "mbps" to result.mbps,
-            )
-        }
-    }
-
-    fun sendTelemetryBatchJSON(
-        requestId: String,
-        brokerUrl: String,
-        batchJson: String,
-        callbacks: BrokerRequestCallbacks,
-    ) {
-        submit(requestId, callbacks) {
-            val native = runNativeBrokerOperation(operationFactory, nativeIoDispatcher) { operation ->
-                operation.sendTelemetryBatchJSON(brokerUrl, batchJson)
-            }
-            requireNativeBrokerSuccess(native, "native telemetry upload")
-            emptyMap()
         }
     }
 

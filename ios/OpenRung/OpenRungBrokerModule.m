@@ -9,14 +9,6 @@ RCT_EXTERN_METHOD(firstReachable : (NSString *)requestId primary : (NSString *)p
                       sessionId : (NSString *)sessionId resolver : (RCTPromiseResolveBlock)resolve
                       rejecter : (RCTPromiseRejectBlock)reject)
 
-RCT_EXTERN_METHOD(runSpeedTest : (NSString *)requestId brokerUrl : (NSString *)brokerUrl
-                      resolver : (RCTPromiseResolveBlock)resolve
-                      rejecter : (RCTPromiseRejectBlock)reject)
-
-RCT_EXTERN_METHOD(sendTelemetryBatchJSON : (NSString *)requestId brokerUrl : (NSString *)brokerUrl
-                      batchJson : (NSString *)batchJson resolver : (RCTPromiseResolveBlock)resolve
-                      rejecter : (RCTPromiseRejectBlock)reject)
-
 RCT_EXTERN_METHOD(fetchManifestCandidate : (NSString *)requestId candidateUrl : (NSString *)candidateUrl
                       resolver : (RCTPromiseResolveBlock)resolve
                       rejecter : (RCTPromiseRejectBlock)reject)

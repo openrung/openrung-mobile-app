@@ -3,14 +3,10 @@ package com.openrung.bridge
 import com.openrung.net.BrokerNativeFailureKind
 import com.openrung.net.FirstReachableCall
 import com.openrung.net.ManifestCandidateCall
-import com.openrung.net.NativeBrokerCommonResult
 import com.openrung.net.NativeBrokerManifestResult
 import com.openrung.net.NativeBrokerRelayResult
-import com.openrung.net.NativeBrokerSpeedTestResult
 import com.openrung.net.RecordingNativeBrokerOperation
 import com.openrung.net.RecordingNativeBrokerOperationFactory
-import com.openrung.net.SpeedTestCall
-import com.openrung.net.TelemetryCall
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -36,17 +32,6 @@ class OpenRungBrokerModuleTest {
                 signatureVerified = true,
             )
         }
-        val speed = RecordingNativeBrokerOperation().apply {
-            speedTestResult = NativeBrokerSpeedTestResult(
-                succeeded = true,
-                bytes = 1_048_576,
-                ttfbMillis = 11,
-                downloadDurationMillis = 70,
-                totalDurationMillis = 91,
-                mbps = 92.19,
-            )
-        }
-        val telemetry = RecordingNativeBrokerOperation()
         val manifest = RecordingNativeBrokerOperation().apply {
             manifestResult = NativeBrokerManifestResult(
                 succeeded = true,
@@ -54,12 +39,7 @@ class OpenRungBrokerModuleTest {
                 sourceUrl = "https://broker.openrung.org/api/v1/app-manifest",
             )
         }
-        val factory = RecordingNativeBrokerOperationFactory(
-            discovery,
-            speed,
-            telemetry,
-            manifest,
-        )
+        val factory = RecordingNativeBrokerOperationFactory(discovery, manifest)
         val coordinator = OpenRungBrokerRequestCoordinator(factory)
 
         val discoveryCallbacks = RecordingCallbacks()
@@ -90,36 +70,6 @@ class OpenRungBrokerModuleTest {
             discovery.firstReachableCalls.single(),
         )
 
-        val speedCallbacks = RecordingCallbacks()
-        coordinator.runSpeedTest("speed", "https://speed.example/", speedCallbacks.value)
-        assertEquals(
-            mapOf(
-                "bytes" to 1_048_576.0,
-                "ttfbMillis" to 11.0,
-                "downloadDurationMillis" to 70.0,
-                "totalDurationMillis" to 91.0,
-                "mbps" to 92.19,
-            ),
-            speedCallbacks.awaitResult(),
-        )
-        assertEquals(SpeedTestCall("https://speed.example/"), speed.speedTestCalls.single())
-
-        val telemetryCallbacks = RecordingCallbacks()
-        coordinator.sendTelemetryBatchJSON(
-            "telemetry",
-            "https://telemetry.example/",
-            """{"events":[{"event":"speed_test"}]}""",
-            telemetryCallbacks.value,
-        )
-        assertTrue(telemetryCallbacks.awaitResult().isEmpty())
-        assertEquals(
-            TelemetryCall(
-                "https://telemetry.example/",
-                """{"events":[{"event":"speed_test"}]}""",
-            ),
-            telemetry.telemetryCalls.single(),
-        )
-
         val manifestCallbacks = RecordingCallbacks()
         coordinator.fetchManifestCandidate(
             "manifest",
@@ -138,8 +88,8 @@ class OpenRungBrokerModuleTest {
             manifest.manifestCandidateCalls.single(),
         )
 
-        assertEquals(4, factory.createCalls.get())
-        listOf(discovery, speed, telemetry, manifest).forEach { operation ->
+        assertEquals(2, factory.createCalls.get())
+        listOf(discovery, manifest).forEach { operation ->
             assertEquals(1, operation.closeCalls.get())
         }
         assertEquals(0, coordinator.activeRequestCount())
@@ -240,10 +190,10 @@ class OpenRungBrokerModuleTest {
         val started = CountDownLatch(1)
         val release = CountDownLatch(1)
         val operation = RecordingNativeBrokerOperation().apply {
-            telemetryBlock = {
+            manifestBlock = {
                 started.countDown()
                 assertTrue(release.await(2, TimeUnit.SECONDS))
-                NativeBrokerCommonResult(succeeded = true)
+                NativeBrokerManifestResult(succeeded = true)
             }
         }
         val factory = RecordingNativeBrokerOperationFactory(operation)
@@ -251,15 +201,15 @@ class OpenRungBrokerModuleTest {
         val first = RecordingCallbacks()
         val duplicate = RecordingCallbacks()
 
-        coordinator.sendTelemetryBatchJSON("same-id", "https://one.example/", "{}", first.value)
+        coordinator.fetchManifestCandidate("same-id", "https://one.example/", first.value)
         assertTrue(started.await(2, TimeUnit.SECONDS))
-        coordinator.sendTelemetryBatchJSON("same-id", "https://two.example/", "{}", duplicate.value)
+        coordinator.fetchManifestCandidate("same-id", "https://two.example/", duplicate.value)
 
         assertEquals(BrokerNativeFailureKind.VALIDATION, duplicate.awaitFailure().kind)
         assertEquals(1, factory.createCalls.get())
         assertEquals(1, coordinator.activeRequestCount())
         release.countDown()
-        assertTrue(first.awaitResult().isEmpty())
+        assertEquals(EMPTY_MANIFEST, first.awaitResult())
         assertEquals(0, coordinator.activeRequestCount())
         coordinator.invalidate()
     }
@@ -269,10 +219,10 @@ class OpenRungBrokerModuleTest {
         val started = CountDownLatch(1)
         val release = CountDownLatch(1)
         val operation = RecordingNativeBrokerOperation().apply {
-            telemetryBlock = {
+            manifestBlock = {
                 started.countDown()
                 assertTrue(release.await(2, TimeUnit.SECONDS))
-                NativeBrokerCommonResult(succeeded = true)
+                NativeBrokerManifestResult(succeeded = true)
             }
             closeBlock = { release.countDown() }
         }
@@ -280,7 +230,7 @@ class OpenRungBrokerModuleTest {
             OpenRungBrokerRequestCoordinator(RecordingNativeBrokerOperationFactory(operation))
         val callbacks = RecordingCallbacks()
 
-        coordinator.sendTelemetryBatchJSON("cancel-me", "https://one.example/", "{}", callbacks.value)
+        coordinator.fetchManifestCandidate("cancel-me", "https://one.example/", callbacks.value)
         assertTrue(started.await(2, TimeUnit.SECONDS))
         assertTrue(coordinator.cancel("cancel-me"))
         assertFalse(coordinator.cancel("cancel-me"))
@@ -299,18 +249,18 @@ class OpenRungBrokerModuleTest {
         val secondStarted = CountDownLatch(1)
         val secondRelease = CountDownLatch(1)
         val firstOperation = RecordingNativeBrokerOperation().apply {
-            telemetryBlock = {
+            manifestBlock = {
                 firstStarted.countDown()
                 firstRelease.await(2, TimeUnit.SECONDS)
-                NativeBrokerCommonResult(succeeded = true)
+                NativeBrokerManifestResult(succeeded = true)
             }
             closeBlock = { firstRelease.countDown() }
         }
         val secondOperation = RecordingNativeBrokerOperation().apply {
-            speedTestBlock = {
+            manifestBlock = {
                 secondStarted.countDown()
                 secondRelease.await(2, TimeUnit.SECONDS)
-                NativeBrokerSpeedTestResult(succeeded = true)
+                NativeBrokerManifestResult(succeeded = true)
             }
             closeBlock = { secondRelease.countDown() }
         }
@@ -319,9 +269,9 @@ class OpenRungBrokerModuleTest {
         val first = RecordingCallbacks()
         val second = RecordingCallbacks()
 
-        coordinator.sendTelemetryBatchJSON("first", "https://one.example/", "{}", first.value)
+        coordinator.fetchManifestCandidate("first", "https://one.example/", first.value)
         assertTrue(firstStarted.await(2, TimeUnit.SECONDS))
-        coordinator.runSpeedTest("second", "https://two.example/", second.value)
+        coordinator.fetchManifestCandidate("second", "https://two.example/", second.value)
         assertTrue(secondStarted.await(2, TimeUnit.SECONDS))
 
         coordinator.invalidate()
@@ -333,7 +283,7 @@ class OpenRungBrokerModuleTest {
         assertEquals(0, coordinator.activeRequestCount())
 
         val later = RecordingCallbacks()
-        coordinator.sendTelemetryBatchJSON("later", "https://later.example/", "{}", later.value)
+        coordinator.fetchManifestCandidate("later", "https://later.example/", later.value)
         assertEquals(BrokerNativeFailureKind.UNAVAILABLE, later.awaitFailure().kind)
         assertEquals(2, factory.createCalls.get())
     }
@@ -345,18 +295,18 @@ class OpenRungBrokerModuleTest {
         val secondStarted = CountDownLatch(1)
         val secondRelease = CountDownLatch(1)
         val firstOperation = RecordingNativeBrokerOperation().apply {
-            telemetryBlock = {
+            manifestBlock = {
                 firstStarted.countDown()
                 firstRelease.await(2, TimeUnit.SECONDS)
-                NativeBrokerCommonResult(succeeded = true)
+                NativeBrokerManifestResult(succeeded = true)
             }
             closeBlock = { firstRelease.countDown() }
         }
         val secondOperation = RecordingNativeBrokerOperation().apply {
-            telemetryBlock = {
+            manifestBlock = {
                 secondStarted.countDown()
                 secondRelease.await(2, TimeUnit.SECONDS)
-                NativeBrokerCommonResult(succeeded = true)
+                NativeBrokerManifestResult(succeeded = true)
             }
         }
         val coordinator = OpenRungBrokerRequestCoordinator(
@@ -365,9 +315,9 @@ class OpenRungBrokerModuleTest {
         val first = RecordingCallbacks()
         val second = RecordingCallbacks()
 
-        coordinator.sendTelemetryBatchJSON("first", "https://one.example/", "{}", first.value)
+        coordinator.fetchManifestCandidate("first", "https://one.example/", first.value)
         assertTrue(firstStarted.await(2, TimeUnit.SECONDS))
-        coordinator.sendTelemetryBatchJSON("second", "https://two.example/", "{}", second.value)
+        coordinator.fetchManifestCandidate("second", "https://two.example/", second.value)
         assertTrue(secondStarted.await(2, TimeUnit.SECONDS))
 
         assertTrue(coordinator.cancel("first"))
@@ -376,7 +326,7 @@ class OpenRungBrokerModuleTest {
         assertEquals(0, second.failureCount())
 
         secondRelease.countDown()
-        assertTrue(second.awaitResult().isEmpty())
+        assertEquals(EMPTY_MANIFEST, second.awaitResult())
         assertEquals(1, secondOperation.closeCalls.get())
         assertEquals(0, coordinator.activeRequestCount())
         coordinator.invalidate()
@@ -385,7 +335,7 @@ class OpenRungBrokerModuleTest {
     @Test
     fun `structured native failures preserve status retry and sanitized message`() {
         val operation = RecordingNativeBrokerOperation().apply {
-            telemetryResult = NativeBrokerCommonResult(
+            manifestResult = NativeBrokerManifestResult(
                 succeeded = false,
                 errorKind = "rate_limited",
                 errorText = "retry\r\nlater",
@@ -397,7 +347,7 @@ class OpenRungBrokerModuleTest {
             OpenRungBrokerRequestCoordinator(RecordingNativeBrokerOperationFactory(operation))
         val callbacks = RecordingCallbacks()
 
-        coordinator.sendTelemetryBatchJSON("failure", "https://one.example/", "{}", callbacks.value)
+        coordinator.fetchManifestCandidate("failure", "https://one.example/", callbacks.value)
 
         val failure = callbacks.awaitFailure()
         assertEquals(BrokerNativeFailureKind.RATE_LIMITED, failure.kind)
@@ -436,3 +386,5 @@ private class RecordingCallbacks {
 
     fun failureCount(): Int = failures.size
 }
+
+private val EMPTY_MANIFEST = mapOf("bodyJson" to "", "sourceUrl" to "")
