@@ -71,26 +71,13 @@ class NativeBrokerTransportTest {
     }
 
     @Test
-    fun `speed and manifest snapshots retain all platform owned fields`() {
-        val speed = NativeBrokerSpeedTestResult(
-            succeeded = true,
-            bytes = 1_048_576,
-            ttfbMillis = 17,
-            downloadDurationMillis = 81,
-            totalDurationMillis = 101,
-            mbps = 83.05,
-        )
+    fun `manifest snapshots retain all platform owned fields`() {
         val manifest = NativeBrokerManifestResult(
             succeeded = true,
             bodyJson = """{"payload":"exact"}""",
             sourceUrl = "https://broker.openrung.org/api/v1/app-manifest",
         )
 
-        assertEquals(1_048_576L, speed.bytes)
-        assertEquals(17L, speed.ttfbMillis)
-        assertEquals(81L, speed.downloadDurationMillis)
-        assertEquals(101L, speed.totalDurationMillis)
-        assertEquals(83.05, speed.mbps, 0.0)
         assertEquals("""{"payload":"exact"}""", manifest.bodyJson)
         assertEquals("https://broker.openrung.org/api/v1/app-manifest", manifest.sourceUrl)
         assertFalse(manifest.toString().contains("exact"))
@@ -120,7 +107,7 @@ class NativeBrokerTransportTest {
     @Test
     fun `blank and future error kinds normalize to unknown and text is sanitized bounded`() = runBlocking {
         listOf("", "future_kind").forEach { rawKind ->
-            val result = NativeBrokerCommonResult(
+            val result = NativeBrokerManifestResult(
                 succeeded = false,
                 errorKind = rawKind,
                 errorText = "unsafe\r\n\t" + "😀".repeat(200),
@@ -137,7 +124,7 @@ class NativeBrokerTransportTest {
 
     @Test
     fun `native cancelled kind reaching a live caller is a typed failure not cancellation`() = runBlocking {
-        val result = NativeBrokerCommonResult(
+        val result = NativeBrokerManifestResult(
             succeeded = false,
             errorKind = "cancelled",
             errorText = "request cancelled",
@@ -153,7 +140,7 @@ class NativeBrokerTransportTest {
 
     @Test
     fun `native cancelled kind in a cancelled caller propagates real cancellation`() = runBlocking {
-        val result = NativeBrokerCommonResult(succeeded = false, errorKind = "cancelled")
+        val result = NativeBrokerManifestResult(succeeded = false, errorKind = "cancelled")
         val observed = CompletableDeferred<Throwable>()
         val job = launch {
             currentCoroutineContext().cancel(CancellationException("caller cancelled"))
@@ -176,7 +163,7 @@ class NativeBrokerTransportTest {
         val dispatcher = GateFirstDispatchDispatcher()
         val closeThreads = mutableListOf<String>()
         val operation = RecordingNativeBrokerOperation().apply {
-            telemetryResult = NativeBrokerCommonResult(succeeded = true)
+            manifestResult = NativeBrokerManifestResult(succeeded = true)
             closeBlock = {
                 synchronized(closeThreads) { closeThreads += Thread.currentThread().name }
                 dispatcher.releaseFirst()
@@ -189,7 +176,7 @@ class NativeBrokerTransportTest {
                     factory = RecordingNativeBrokerOperationFactory(operation),
                     ioDispatcher = dispatcher,
                 ) {
-                    it.sendTelemetryBatchJSON("https://broker.example/", """{"events":[]}""")
+                    it.fetchManifestCandidate("https://broker.example/")
                 }
             } catch (error: Throwable) {
                 observed.complete(error)
@@ -202,7 +189,7 @@ class NativeBrokerTransportTest {
         request.join()
 
         assertTrue(observed.await() is CancellationException)
-        assertTrue(operation.telemetryCalls.isEmpty())
+        assertTrue(operation.manifestCandidateCalls.isEmpty())
         assertTrue(operation.closeCalls.get() >= 2)
         assertTrue(closeThreads.all { it != "main" })
     }
@@ -213,10 +200,10 @@ class NativeBrokerTransportTest {
         val released = CountDownLatch(1)
         val closeThreads = mutableListOf<String>()
         val operation = RecordingNativeBrokerOperation().apply {
-            telemetryBlock = {
+            manifestBlock = {
                 started.countDown()
                 assertTrue("Close did not unblock native call", released.await(2, TimeUnit.SECONDS))
-                NativeBrokerCommonResult(succeeded = false, errorKind = "cancelled")
+                NativeBrokerManifestResult(succeeded = false, errorKind = "cancelled")
             }
             closeBlock = {
                 synchronized(closeThreads) { closeThreads += Thread.currentThread().name }
@@ -227,7 +214,7 @@ class NativeBrokerTransportTest {
         val request = launch(Dispatchers.Default) {
             try {
                 runNativeBrokerOperation(RecordingNativeBrokerOperationFactory(operation)) {
-                    it.sendTelemetryBatchJSON("https://broker.example/", """{"events":[]}""")
+                    it.fetchManifestCandidate("https://broker.example/")
                 }
             } catch (error: Throwable) {
                 observed.complete(error)
@@ -250,10 +237,10 @@ class NativeBrokerTransportTest {
         val ready = CountDownLatch(1)
         val allowReturn = CountDownLatch(1)
         val operation = RecordingNativeBrokerOperation().apply {
-            telemetryBlock = {
+            manifestBlock = {
                 ready.countDown()
                 assertTrue(allowReturn.await(2, TimeUnit.SECONDS))
-                NativeBrokerCommonResult(succeeded = true)
+                NativeBrokerManifestResult(succeeded = true)
             }
             closeBlock = { allowReturn.countDown() }
         }
@@ -262,7 +249,7 @@ class NativeBrokerTransportTest {
         val request = launch(Dispatchers.Default) {
             try {
                 runNativeBrokerOperation(RecordingNativeBrokerOperationFactory(operation)) {
-                    it.sendTelemetryBatchJSON("https://broker.example/", """{"events":[]}""")
+                    it.fetchManifestCandidate("https://broker.example/")
                 }
                 committed = true
             } catch (error: Throwable) {
@@ -288,30 +275,30 @@ class NativeBrokerTransportTest {
         val secondStarted = CountDownLatch(1)
         val secondReleased = CountDownLatch(1)
         val first = RecordingNativeBrokerOperation().apply {
-            telemetryBlock = {
+            manifestBlock = {
                 firstStarted.countDown()
                 firstReleased.await(2, TimeUnit.SECONDS)
-                NativeBrokerCommonResult(succeeded = false, errorKind = "cancelled")
+                NativeBrokerManifestResult(succeeded = false, errorKind = "cancelled")
             }
             closeBlock = { firstReleased.countDown() }
         }
         val second = RecordingNativeBrokerOperation().apply {
-            telemetryBlock = {
+            manifestBlock = {
                 secondStarted.countDown()
                 secondReleased.await(2, TimeUnit.SECONDS)
-                NativeBrokerCommonResult(succeeded = true)
+                NativeBrokerManifestResult(succeeded = true)
             }
         }
         val firstRequest = launch(Dispatchers.Default) {
             runNativeBrokerOperation(RecordingNativeBrokerOperationFactory(first)) {
-                it.sendTelemetryBatchJSON("https://one.example/", """{"events":[]}""")
+                it.fetchManifestCandidate("https://one.example/")
             }
         }
-        val secondResult = CompletableDeferred<NativeBrokerCommonResult?>()
+        val secondResult = CompletableDeferred<NativeBrokerManifestResult?>()
         val secondRequest = launch(Dispatchers.Default) {
             secondResult.complete(
                 runNativeBrokerOperation(RecordingNativeBrokerOperationFactory(second)) {
-                    it.sendTelemetryBatchJSON("https://two.example/", """{"events":[]}""")
+                    it.fetchManifestCandidate("https://two.example/")
                 },
             )
         }
@@ -326,21 +313,6 @@ class NativeBrokerTransportTest {
         secondRequest.join()
         assertTrue(secondResult.await()?.succeeded == true)
         assertEquals(1, second.closeCalls.get())
-    }
-
-    @Test
-    fun `ticket result snapshot string redacts both credential fields`() {
-        val result = NativeBrokerWssTicketResult(
-            succeeded = true,
-            ticket = "secret-ticket",
-            url = "wss://secret-front.example/path",
-            expiresAtMillis = 123,
-        ).toString()
-
-        assertFalse(result.contains("secret-ticket"))
-        assertFalse(result.contains("secret-front.example"))
-        assertTrue(result.contains("ticket=<redacted>"))
-        assertTrue(result.contains("url=<redacted>"))
     }
 }
 

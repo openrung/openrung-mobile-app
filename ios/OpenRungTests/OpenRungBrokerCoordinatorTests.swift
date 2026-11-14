@@ -150,22 +150,9 @@ final class OpenRungBrokerCoordinatorTests: XCTestCase {
         XCTAssertEqual(malformedOperation.closeCount, 1)
     }
 
-    func testSpeedAndManifestResultsAreForwardedAsPlatformSnapshots() async {
-        let speedOperation = TestNativeBrokerOperation()
+    func testManifestResultsAreForwardedAsPlatformSnapshots() async {
         let manifestOperation = TestNativeBrokerOperation()
-        let speedURL = TestLockedBox("")
         let manifestURL = TestLockedBox("")
-        speedOperation.speedTestHandler = { brokerURL in
-            speedURL.set(brokerURL)
-            return NativeBrokerSpeedTestResultSnapshot(
-                succeeded: true,
-                bytes: 10_000_000,
-                timeToFirstByteMilliseconds: 125,
-                downloadDurationMilliseconds: 2_000,
-                totalDurationMilliseconds: 2_125,
-                megabitsPerSecond: 37.647
-            )
-        }
         manifestOperation.manifestHandler = { candidateURL in
             manifestURL.set(candidateURL)
             return NativeBrokerManifestResultSnapshot(
@@ -175,32 +162,8 @@ final class OpenRungBrokerCoordinatorTests: XCTestCase {
             )
         }
         let coordinator = OpenRungBrokerRequestCoordinator(
-            operationFactory: TestNativeBrokerFactory([
-                speedOperation,
-                manifestOperation,
-            ])
+            operationFactory: TestNativeBrokerFactory([manifestOperation])
         )
-
-        let speedResult = TestLockedBox<NativeBrokerSpeedTestResultSnapshot?>(nil)
-        let speedFinished = expectation(description: "speed result")
-        coordinator.runSpeedTest(
-            requestID: "speed-1",
-            brokerURL: "https://broker.openrung.org/"
-        ) { result in
-            if case .success(let snapshot) = result {
-                speedResult.set(snapshot)
-            }
-            speedFinished.fulfill()
-        }
-        await fulfillment(of: [speedFinished], timeout: 2)
-
-        XCTAssertEqual(speedURL.get(), "https://broker.openrung.org/")
-        XCTAssertEqual(speedResult.get()?.bytes, 10_000_000)
-        XCTAssertEqual(speedResult.get()?.timeToFirstByteMilliseconds, 125)
-        XCTAssertEqual(speedResult.get()?.downloadDurationMilliseconds, 2_000)
-        XCTAssertEqual(speedResult.get()?.totalDurationMilliseconds, 2_125)
-        XCTAssertEqual(speedResult.get()?.megabitsPerSecond, 37.647)
-        XCTAssertEqual(speedOperation.closeCount, 1)
 
         let candidateURL = "https://broker.openrung.org/api/v1/app-manifest"
         let manifestResult = TestLockedBox<NativeBrokerManifestResultSnapshot?>(nil)
@@ -229,10 +192,9 @@ final class OpenRungBrokerCoordinatorTests: XCTestCase {
         let coordinator = OpenRungBrokerRequestCoordinator(operationFactory: factory)
         let firstFailure = TestLockedBox<BrokerNativeFailureKind?>(nil)
         let firstFinished = expectation(description: "first request cancelled")
-        coordinator.sendTelemetryBatchJSON(
+        coordinator.fetchManifestCandidate(
             requestID: "duplicate",
-            brokerURL: "https://broker.openrung.org/",
-            batchJSON: "{\"events\":[{}]}"
+            candidateURL: "https://broker.openrung.org/"
         ) { result in
             if case .failure(let failure) = result {
                 firstFailure.set(failure.kind)
@@ -243,9 +205,9 @@ final class OpenRungBrokerCoordinatorTests: XCTestCase {
 
         let duplicateFailure = TestLockedBox<BrokerNativeFailureKind?>(nil)
         let duplicateFinished = expectation(description: "duplicate rejected")
-        coordinator.runSpeedTest(
+        coordinator.fetchManifestCandidate(
             requestID: "duplicate",
-            brokerURL: "https://broker.openrung.org/"
+            candidateURL: "https://broker.openrung.org/"
         ) { result in
             if case .failure(let failure) = result {
                 duplicateFailure.set(failure.kind)
@@ -273,9 +235,9 @@ final class OpenRungBrokerCoordinatorTests: XCTestCase {
         let receivedFailure = TestLockedBox<BrokerNativeFailure?>(nil)
         let finished = expectation(description: "unavailable native operation")
 
-        coordinator.runSpeedTest(
+        coordinator.fetchManifestCandidate(
             requestID: "unavailable",
-            brokerURL: "https://broker.openrung.org/"
+            candidateURL: "https://broker.openrung.org/"
         ) { result in
             if case .failure(let failure) = result {
                 receivedFailure.set(failure)
@@ -299,9 +261,9 @@ final class OpenRungBrokerCoordinatorTests: XCTestCase {
         )
         let completionKind = TestLockedBox<BrokerNativeFailureKind?>(nil)
         let finished = expectation(description: "cancelled result")
-        coordinator.runSpeedTest(
+        coordinator.fetchManifestCandidate(
             requestID: "race",
-            brokerURL: "https://broker.openrung.org/"
+            candidateURL: "https://broker.openrung.org/"
         ) { result in
             if case .failure(let failure) = result {
                 completionKind.set(failure.kind)
@@ -326,17 +288,16 @@ final class OpenRungBrokerCoordinatorTests: XCTestCase {
         let coordinator = OpenRungBrokerRequestCoordinator(operationFactory: factory)
         let deliveredCompletions = TestLockedBox(0)
 
-        coordinator.sendTelemetryBatchJSON(
+        coordinator.fetchManifestCandidate(
             requestID: "one",
-            brokerURL: "https://broker.openrung.org/",
-            batchJSON: "{\"events\":[{}]}"
+            candidateURL: "https://broker.openrung.org/"
         ) { _ in
             deliveredCompletions.mutate { $0 += 1 }
         }
         XCTAssertTrue(first.waitUntilStarted())
-        coordinator.runSpeedTest(
+        coordinator.fetchManifestCandidate(
             requestID: "two",
-            brokerURL: "https://broker.openrung.org/"
+            candidateURL: "https://broker.openrung.org/"
         ) { _ in
             deliveredCompletions.mutate { $0 += 1 }
         }
@@ -377,10 +338,9 @@ final class OpenRungBrokerCoordinatorTests: XCTestCase {
             )
         weak var weakCoordinator = coordinator
 
-        coordinator?.sendTelemetryBatchJSON(
+        coordinator?.fetchManifestCandidate(
             requestID: "deinit",
-            brokerURL: "https://broker.openrung.org/",
-            batchJSON: "{\"events\":[{}]}"
+            candidateURL: "https://broker.openrung.org/"
         ) { _ in
             deliveredCompletions.mutate { $0 += 1 }
         }
@@ -407,9 +367,9 @@ final class OpenRungBrokerCoordinatorTests: XCTestCase {
         let coordinator = OpenRungBrokerRequestCoordinator(operationFactory: factory)
 
         let blockedFinished = expectation(description: "blocked request cancelled")
-        coordinator.runSpeedTest(
+        coordinator.fetchManifestCandidate(
             requestID: "blocked",
-            brokerURL: "https://broker.openrung.org/"
+            candidateURL: "https://broker.openrung.org/"
         ) { _ in
             blockedFinished.fulfill()
         }

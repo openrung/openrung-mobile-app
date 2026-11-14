@@ -6,9 +6,6 @@ import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.libbox.OpenRungBrokerManifestResult
 import io.nekohasekai.libbox.OpenRungBrokerOperation
 import io.nekohasekai.libbox.OpenRungBrokerRelayResult
-import io.nekohasekai.libbox.OpenRungBrokerResult
-import io.nekohasekai.libbox.OpenRungBrokerSpeedTestResult
-import io.nekohasekai.libbox.OpenRungBrokerWSSTicketResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -86,14 +83,6 @@ interface NativeBrokerResult {
     val retryAfterMillis: Long
 }
 
-data class NativeBrokerCommonResult(
-    override val succeeded: Boolean,
-    override val errorKind: String = "",
-    override val errorText: String = "",
-    override val httpStatus: Int = 0,
-    override val retryAfterMillis: Long = 0,
-) : NativeBrokerResult
-
 data class NativeBrokerRelayResult(
     override val succeeded: Boolean,
     override val errorKind: String = "",
@@ -113,19 +102,6 @@ data class NativeBrokerRelayResult(
             "signatureVerified=$signatureVerified)"
 }
 
-data class NativeBrokerSpeedTestResult(
-    override val succeeded: Boolean,
-    override val errorKind: String = "",
-    override val errorText: String = "",
-    override val httpStatus: Int = 0,
-    override val retryAfterMillis: Long = 0,
-    val bytes: Long = 0,
-    val ttfbMillis: Long = 0,
-    val downloadDurationMillis: Long = 0,
-    val totalDurationMillis: Long = 0,
-    val mbps: Double = 0.0,
-) : NativeBrokerResult
-
 data class NativeBrokerManifestResult(
     override val succeeded: Boolean,
     override val errorKind: String = "",
@@ -142,27 +118,6 @@ data class NativeBrokerManifestResult(
             "bodyJson=<redacted>, sourceUrl=$sourceUrl)"
 }
 
-/**
- * Ticket snapshot with an explicitly redacted representation. The bearer and bound URL are still
- * available as fields for the immediate WSS handoff, but neither can leak through ordinary logs.
- */
-class NativeBrokerWssTicketResult(
-    override val succeeded: Boolean,
-    override val errorKind: String = "",
-    override val errorText: String = "",
-    override val httpStatus: Int = 0,
-    override val retryAfterMillis: Long = 0,
-    val ticket: String = "",
-    val url: String = "",
-    val expiresAtMillis: Long = 0,
-) : NativeBrokerResult {
-    override fun toString(): String =
-        "NativeBrokerWssTicketResult(" +
-            "succeeded=$succeeded, errorKind=${BrokerNativeFailureKind.fromBinding(errorKind).value}, " +
-            "httpStatus=$httpStatus, retryAfterMillis=$retryAfterMillis, " +
-            "ticket=<redacted>, url=<redacted>, expiresAtMillis=$expiresAtMillis)"
-}
-
 /** One single-use operation. Tests implement this interface without loading gomobile or Go. */
 interface NativeBrokerOperation {
     fun firstReachable(
@@ -172,22 +127,7 @@ interface NativeBrokerOperation {
         sessionId: String,
     ): NativeBrokerRelayResult?
 
-    fun sendTelemetryBatchJSON(
-        brokerUrl: String,
-        batchJson: String,
-    ): NativeBrokerCommonResult?
-
-    fun runSpeedTest(brokerUrl: String): NativeBrokerSpeedTestResult?
-
     fun fetchManifestCandidate(candidateUrl: String): NativeBrokerManifestResult?
-
-    fun requestWSSTicket(
-        brokerUrl: String,
-        relayId: String,
-        frontId: String,
-        clientId: String,
-        sessionId: String,
-    ): NativeBrokerWssTicketResult?
 
     fun close()
 }
@@ -288,45 +228,15 @@ private class LibboxNativeBrokerOperation(
         operation.firstReachable(primary, limit, clientId, sessionId)?.snapshot()
     }
 
-    override fun sendTelemetryBatchJSON(
-        brokerUrl: String,
-        batchJson: String,
-    ): NativeBrokerCommonResult? = generatedCall {
-        operation.sendTelemetryBatchJSON(brokerUrl, batchJson)?.snapshot()
-    }
-
-    override fun runSpeedTest(brokerUrl: String): NativeBrokerSpeedTestResult? = generatedCall {
-        operation.runSpeedTest(brokerUrl)?.snapshot()
-    }
-
     override fun fetchManifestCandidate(candidateUrl: String): NativeBrokerManifestResult? =
         generatedCall {
             operation.fetchManifestCandidate(candidateUrl)?.snapshot()
         }
 
-    override fun requestWSSTicket(
-        brokerUrl: String,
-        relayId: String,
-        frontId: String,
-        clientId: String,
-        sessionId: String,
-    ): NativeBrokerWssTicketResult? = generatedCall {
-        operation.requestWSSTicket(brokerUrl, relayId, frontId, clientId, sessionId)?.snapshot()
-    }
-
     override fun close() {
         generatedCall { operation.close() }
     }
 }
-
-private fun OpenRungBrokerResult.snapshot(): NativeBrokerCommonResult =
-    NativeBrokerCommonResult(
-        succeeded = succeeded(),
-        errorKind = errorKind(),
-        errorText = sanitizeNativeErrorText(errorText()),
-        httpStatus = httpStatus(),
-        retryAfterMillis = retryAfterMillis(),
-    )
 
 private fun OpenRungBrokerRelayResult.snapshot(): NativeBrokerRelayResult =
     NativeBrokerRelayResult(
@@ -341,20 +251,6 @@ private fun OpenRungBrokerRelayResult.snapshot(): NativeBrokerRelayResult =
         signatureVerified = signatureVerified(),
     )
 
-private fun OpenRungBrokerSpeedTestResult.snapshot(): NativeBrokerSpeedTestResult =
-    NativeBrokerSpeedTestResult(
-        succeeded = succeeded(),
-        errorKind = errorKind(),
-        errorText = sanitizeNativeErrorText(errorText()),
-        httpStatus = httpStatus(),
-        retryAfterMillis = retryAfterMillis(),
-        bytes = bytes(),
-        ttfbMillis = ttfbMillis(),
-        downloadDurationMillis = downloadDurationMillis(),
-        totalDurationMillis = totalDurationMillis(),
-        mbps = mbps(),
-    )
-
 private fun OpenRungBrokerManifestResult.snapshot(): NativeBrokerManifestResult =
     NativeBrokerManifestResult(
         succeeded = succeeded(),
@@ -364,18 +260,6 @@ private fun OpenRungBrokerManifestResult.snapshot(): NativeBrokerManifestResult 
         retryAfterMillis = retryAfterMillis(),
         bodyJson = bodyJSON(),
         sourceUrl = sourceURL(),
-    )
-
-private fun OpenRungBrokerWSSTicketResult.snapshot(): NativeBrokerWssTicketResult =
-    NativeBrokerWssTicketResult(
-        succeeded = succeeded(),
-        errorKind = errorKind(),
-        errorText = sanitizeNativeErrorText(errorText()),
-        httpStatus = httpStatus(),
-        retryAfterMillis = retryAfterMillis(),
-        ticket = ticket(),
-        url = url(),
-        expiresAtMillis = expiresAtMillis(),
     )
 
 private inline fun <T> generatedCall(block: () -> T): T = try {

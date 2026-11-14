@@ -124,28 +124,6 @@ public protocol NativeBrokerResult: Sendable {
     var retryAfterMilliseconds: Int64 { get }
 }
 
-public struct NativeBrokerResultSnapshot: NativeBrokerResult, Equatable, Sendable {
-    public let succeeded: Bool
-    public let errorKind: String
-    public let errorText: String
-    public let httpStatus: Int32
-    public let retryAfterMilliseconds: Int64
-
-    public init(
-        succeeded: Bool,
-        errorKind: String = "",
-        errorText: String = "",
-        httpStatus: Int32 = 0,
-        retryAfterMilliseconds: Int64 = 0
-    ) {
-        self.succeeded = succeeded
-        self.errorKind = errorKind
-        self.errorText = BrokerNativeFailure.sanitize(errorText)
-        self.httpStatus = httpStatus
-        self.retryAfterMilliseconds = retryAfterMilliseconds
-    }
-}
-
 public struct NativeBrokerRelayResultSnapshot:
     NativeBrokerResult,
     CustomStringConvertible,
@@ -196,43 +174,6 @@ public struct NativeBrokerRelayResultSnapshot:
     public var debugDescription: String { description }
 }
 
-public struct NativeBrokerSpeedTestResultSnapshot: NativeBrokerResult, Equatable, Sendable {
-    public let succeeded: Bool
-    public let errorKind: String
-    public let errorText: String
-    public let httpStatus: Int32
-    public let retryAfterMilliseconds: Int64
-    public let bytes: Int64
-    public let timeToFirstByteMilliseconds: Int64
-    public let downloadDurationMilliseconds: Int64
-    public let totalDurationMilliseconds: Int64
-    public let megabitsPerSecond: Double
-
-    public init(
-        succeeded: Bool,
-        errorKind: String = "",
-        errorText: String = "",
-        httpStatus: Int32 = 0,
-        retryAfterMilliseconds: Int64 = 0,
-        bytes: Int64 = 0,
-        timeToFirstByteMilliseconds: Int64 = 0,
-        downloadDurationMilliseconds: Int64 = 0,
-        totalDurationMilliseconds: Int64 = 0,
-        megabitsPerSecond: Double = 0
-    ) {
-        self.succeeded = succeeded
-        self.errorKind = errorKind
-        self.errorText = BrokerNativeFailure.sanitize(errorText)
-        self.httpStatus = httpStatus
-        self.retryAfterMilliseconds = retryAfterMilliseconds
-        self.bytes = bytes
-        self.timeToFirstByteMilliseconds = timeToFirstByteMilliseconds
-        self.downloadDurationMilliseconds = downloadDurationMilliseconds
-        self.totalDurationMilliseconds = totalDurationMilliseconds
-        self.megabitsPerSecond = megabitsPerSecond
-    }
-}
-
 public struct NativeBrokerManifestResultSnapshot:
     NativeBrokerResult,
     Equatable,
@@ -276,52 +217,6 @@ public struct NativeBrokerManifestResultSnapshot:
     public var debugDescription: String { description }
 }
 
-public struct NativeBrokerWSSTicketResultSnapshot:
-    NativeBrokerResult,
-    Equatable,
-    Sendable,
-    CustomStringConvertible,
-    CustomDebugStringConvertible
-{
-    public let succeeded: Bool
-    public let errorKind: String
-    public let errorText: String
-    public let httpStatus: Int32
-    public let retryAfterMilliseconds: Int64
-    public let ticket: String
-    public let url: String
-    public let expiresAtMilliseconds: Int64
-
-    public init(
-        succeeded: Bool,
-        errorKind: String = "",
-        errorText: String = "",
-        httpStatus: Int32 = 0,
-        retryAfterMilliseconds: Int64 = 0,
-        ticket: String = "",
-        url: String = "",
-        expiresAtMilliseconds: Int64 = 0
-    ) {
-        self.succeeded = succeeded
-        self.errorKind = errorKind
-        self.errorText = BrokerNativeFailure.sanitize(errorText)
-        self.httpStatus = httpStatus
-        self.retryAfterMilliseconds = retryAfterMilliseconds
-        self.ticket = ticket
-        self.url = url
-        self.expiresAtMilliseconds = expiresAtMilliseconds
-    }
-
-    public var description: String {
-        "NativeBrokerWSSTicketResultSnapshot(succeeded: \(succeeded), " +
-            "errorKind: \(errorKind), httpStatus: \(httpStatus), " +
-            "retryAfterMilliseconds: \(retryAfterMilliseconds), ticket: <redacted>, " +
-            "url: <redacted>, expiresAtMilliseconds: \(expiresAtMilliseconds))"
-    }
-
-    public var debugDescription: String { description }
-}
-
 /// A single-use, synchronous native operation. Implementations copy generated results into the
 /// snapshots above before returning. Hostless tests provide fakes and never load the Go runtime.
 public protocol NativeBrokerOperation: AnyObject, Sendable {
@@ -332,26 +227,9 @@ public protocol NativeBrokerOperation: AnyObject, Sendable {
         sessionID: String
     ) -> NativeBrokerRelayResultSnapshot?
 
-    func sendTelemetryBatchJSON(
-        brokerURL: String,
-        batchJSON: String
-    ) -> NativeBrokerResultSnapshot?
-
-    func runSpeedTest(
-        brokerURL: String
-    ) -> NativeBrokerSpeedTestResultSnapshot?
-
     func fetchManifestCandidate(
         candidateURL: String
     ) -> NativeBrokerManifestResultSnapshot?
-
-    func requestWSSTicket(
-        brokerURL: String,
-        relayID: String,
-        frontID: String,
-        clientID: String,
-        sessionID: String
-    ) -> NativeBrokerWSSTicketResultSnapshot?
 
     /// May block until an in-flight Go request exits. It is idempotent and may run concurrently.
     func close()

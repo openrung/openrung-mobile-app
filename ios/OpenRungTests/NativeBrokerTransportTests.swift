@@ -8,19 +8,19 @@ final class NativeBrokerTransportTests: XCTestCase {
         let invocationCount = TestLockedBox(0)
         let closed = expectation(description: "pre-cancelled operation closes")
         closed.assertForOverFulfill = false
-        operation.telemetryHandler = { _, _ in
+        operation.manifestHandler = { _ in
             invocationCount.mutate { $0 += 1 }
-            return NativeBrokerResultSnapshot(succeeded: true)
+            return NativeBrokerManifestResultSnapshot(succeeded: true)
         }
         operation.closeHandler = {
             closed.fulfill()
         }
         let task = Task {
             await gate.wait()
-            let _: NativeBrokerResultSnapshot = try await NativeBrokerRunner.run(
+            let _: NativeBrokerManifestResultSnapshot = try await NativeBrokerRunner.run(
                 factory: TestNativeBrokerFactory(operation: operation)
             ) {
-                $0.sendTelemetryBatchJSON(brokerURL: "https://broker.example/", batchJSON: "{}")
+                $0.fetchManifestCandidate(candidateURL: "https://broker.example/")
             }
         }
 
@@ -44,23 +44,23 @@ final class NativeBrokerTransportTests: XCTestCase {
         let invocationCount = TestLockedBox(0)
         let closed = expectation(description: "operation closes after winning prestart cancellation")
         closed.assertForOverFulfill = false
-        operation.telemetryHandler = { _, _ in
+        operation.manifestHandler = { _ in
             invocationCount.mutate { $0 += 1 }
-            return NativeBrokerResultSnapshot(succeeded: true)
+            return NativeBrokerManifestResultSnapshot(succeeded: true)
         }
         operation.closeHandler = {
             closed.fulfill()
         }
 
         let task = Task {
-            let _: NativeBrokerResultSnapshot = try await NativeBrokerRunner.runForTesting(
+            let _: NativeBrokerManifestResultSnapshot = try await NativeBrokerRunner.runForTesting(
                 factory: TestNativeBrokerFactory(operation: operation),
                 beforeWorkerStart: {
                     await reachedPrestartWindow.open()
                     await releaseWorker.wait()
                 }
             ) {
-                $0.sendTelemetryBatchJSON(brokerURL: "https://broker.example/", batchJSON: "{}")
+                $0.fetchManifestCandidate(candidateURL: "https://broker.example/")
             }
         }
 
@@ -81,10 +81,10 @@ final class NativeBrokerTransportTests: XCTestCase {
     func testCancellationDuringBlockedCallClosesAndUnblocksPromptly() async {
         let operation = BlockingNativeBrokerOperation()
         let task = Task {
-            let _: NativeBrokerResultSnapshot = try await NativeBrokerRunner.run(
+            let _: NativeBrokerManifestResultSnapshot = try await NativeBrokerRunner.run(
                 factory: TestNativeBrokerFactory(operation: operation)
             ) {
-                $0.sendTelemetryBatchJSON(brokerURL: "https://broker.example/", batchJSON: "{}")
+                $0.fetchManifestCandidate(candidateURL: "https://broker.example/")
             }
         }
         XCTAssertTrue(operation.waitUntilStarted())
@@ -104,10 +104,10 @@ final class NativeBrokerTransportTests: XCTestCase {
     func testSuccessRacingWithCancellationCannotCommitAndConcurrentCloseIsSafe() async {
         let operation = CloseGatedSuccessOperation()
         let task = Task {
-            let result: NativeBrokerResultSnapshot = try await NativeBrokerRunner.run(
+            let result: NativeBrokerManifestResultSnapshot = try await NativeBrokerRunner.run(
                 factory: TestNativeBrokerFactory(operation: operation)
             ) {
-                $0.sendTelemetryBatchJSON(brokerURL: "https://broker.example/", batchJSON: "{}")
+                $0.fetchManifestCandidate(candidateURL: "https://broker.example/")
             }
             return result.succeeded
         }
@@ -128,23 +128,23 @@ final class NativeBrokerTransportTests: XCTestCase {
     func testCancellingOneOperationDoesNotCancelAnother() async throws {
         let cancelledOperation = BlockingNativeBrokerOperation()
         let independentOperation = TestNativeBrokerOperation()
-        independentOperation.telemetryHandler = { _, _ in
-            NativeBrokerResultSnapshot(succeeded: true)
+        independentOperation.manifestHandler = { _ in
+            NativeBrokerManifestResultSnapshot(succeeded: true)
         }
 
         let cancelledTask = Task {
-            let _: NativeBrokerResultSnapshot = try await NativeBrokerRunner.run(
+            let _: NativeBrokerManifestResultSnapshot = try await NativeBrokerRunner.run(
                 factory: TestNativeBrokerFactory(operation: cancelledOperation)
             ) {
-                $0.sendTelemetryBatchJSON(brokerURL: "https://one.example/", batchJSON: "{}")
+                $0.fetchManifestCandidate(candidateURL: "https://one.example/")
             }
         }
         XCTAssertTrue(cancelledOperation.waitUntilStarted())
 
-        let independent: NativeBrokerResultSnapshot = try await NativeBrokerRunner.run(
+        let independent: NativeBrokerManifestResultSnapshot = try await NativeBrokerRunner.run(
             factory: TestNativeBrokerFactory(operation: independentOperation)
         ) {
-            $0.sendTelemetryBatchJSON(brokerURL: "https://two.example/", batchJSON: "{}")
+            $0.fetchManifestCandidate(candidateURL: "https://two.example/")
         }
         XCTAssertTrue(independent.succeeded)
         XCTAssertEqual(independentOperation.closeCount, 1)
@@ -160,14 +160,14 @@ final class NativeBrokerTransportTests: XCTestCase {
 
     func testNilResultAndNilFactoryAreUnavailable() async {
         let nilResultOperation = TestNativeBrokerOperation()
-        nilResultOperation.telemetryHandler = { _, _ in nil }
+        nilResultOperation.manifestHandler = { _ in nil }
         for factory in [
             TestNativeBrokerFactory(operation: nilResultOperation),
             TestNativeBrokerFactory(operation: nil),
         ] {
             do {
-                let _: NativeBrokerResultSnapshot = try await NativeBrokerRunner.run(factory: factory) {
-                    $0.sendTelemetryBatchJSON(brokerURL: "https://broker.example/", batchJSON: "{}")
+                let _: NativeBrokerManifestResultSnapshot = try await NativeBrokerRunner.run(factory: factory) {
+                    $0.fetchManifestCandidate(candidateURL: "https://broker.example/")
                 }
                 XCTFail("expected unavailable")
             } catch let failure as BrokerNativeFailure {
@@ -181,7 +181,7 @@ final class NativeBrokerTransportTests: XCTestCase {
     func testBindingCancellationAndFutureKindsAreNormalized() {
         // No cancelled task exists here: a native "cancelled" kind reaching a live caller is a
         // bounded typed failure, never cooperative cancellation minted on the binding's behalf.
-        let cancelled = NativeBrokerResultSnapshot(succeeded: false, errorKind: "cancelled")
+        let cancelled = NativeBrokerManifestResultSnapshot(succeeded: false, errorKind: "cancelled")
         XCTAssertThrowsError(try cancelled.throwIfFailed()) { error in
             guard let failure = error as? BrokerNativeFailure else {
                 return XCTFail("unexpected error: \(error)")
@@ -191,7 +191,7 @@ final class NativeBrokerTransportTests: XCTestCase {
         }
 
         for bindingKind in ["", "future_kind", "unavailable", "decode"] {
-            let future = NativeBrokerResultSnapshot(
+            let future = NativeBrokerManifestResultSnapshot(
                 succeeded: false,
                 errorKind: bindingKind,
                 errorText: "line one\nline two\u{0000}" + String(repeating: "x", count: 400)
@@ -208,7 +208,7 @@ final class NativeBrokerTransportTests: XCTestCase {
     }
 
     func testBindingCancellationInCancelledTaskRemainsCooperativeCancellation() async {
-        let snapshot = NativeBrokerResultSnapshot(succeeded: false, errorKind: "cancelled")
+        let snapshot = NativeBrokerManifestResultSnapshot(succeeded: false, errorKind: "cancelled")
         let task = Task.detached { () -> Error? in
             while Task.isCancelled == false {
                 await Task.yield()
@@ -258,27 +258,7 @@ final class NativeBrokerTransportTests: XCTestCase {
         )
     }
 
-    func testSpeedAndManifestSnapshotsPreserveEveryGeneratedField() {
-        let speed = NativeBrokerSpeedTestResultSnapshot(
-            succeeded: true,
-            errorKind: "",
-            errorText: "",
-            httpStatus: 201,
-            retryAfterMilliseconds: 2_000,
-            bytes: 10_000_000,
-            timeToFirstByteMilliseconds: 125,
-            downloadDurationMilliseconds: 2_000,
-            totalDurationMilliseconds: 2_125,
-            megabitsPerSecond: 37.647
-        )
-        XCTAssertEqual(speed.bytes, 10_000_000)
-        XCTAssertEqual(speed.timeToFirstByteMilliseconds, 125)
-        XCTAssertEqual(speed.downloadDurationMilliseconds, 2_000)
-        XCTAssertEqual(speed.totalDurationMilliseconds, 2_125)
-        XCTAssertEqual(speed.megabitsPerSecond, 37.647)
-        XCTAssertEqual(speed.httpStatus, 201)
-        XCTAssertEqual(speed.retryAfterMilliseconds, 2_000)
-
+    func testManifestSnapshotsPreserveEveryGeneratedField() {
         let manifest = NativeBrokerManifestResultSnapshot(
             succeeded: true,
             bodyJSON: "{\"signed\":\"exact bytes\"}",
@@ -347,23 +327,6 @@ final class CloseGatedSuccessOperation: NativeBrokerOperation, @unchecked Sendab
         NativeBrokerRelayResultSnapshot(succeeded: true)
     }
 
-    func sendTelemetryBatchJSON(
-        brokerURL _: String,
-        batchJSON _: String
-    ) -> NativeBrokerResultSnapshot? {
-        NativeBrokerResultSnapshot(succeeded: true)
-    }
-
-    func runSpeedTest(
-        brokerURL _: String
-    ) -> NativeBrokerSpeedTestResultSnapshot? {
-        NativeBrokerSpeedTestResultSnapshot(
-            succeeded: true,
-            bytes: 1,
-            megabitsPerSecond: 1
-        )
-    }
-
     func fetchManifestCandidate(
         candidateURL _: String
     ) -> NativeBrokerManifestResultSnapshot? {
@@ -372,16 +335,6 @@ final class CloseGatedSuccessOperation: NativeBrokerOperation, @unchecked Sendab
             bodyJSON: "{}",
             sourceURL: "https://broker.openrung.org/api/v1/app-manifest"
         )
-    }
-
-    func requestWSSTicket(
-        brokerURL _: String,
-        relayID _: String,
-        frontID _: String,
-        clientID _: String,
-        sessionID _: String
-    ) -> NativeBrokerWSSTicketResultSnapshot? {
-        NativeBrokerWSSTicketResultSnapshot(succeeded: true)
     }
 
     func close() {

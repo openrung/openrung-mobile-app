@@ -188,15 +188,9 @@ these methods to `OpenRungVpn`):
 
 ```ts
 firstReachable(requestId, primary, limit, clientId, sessionId): Promise<RelaySnapshot>
-runSpeedTest(requestId, brokerUrl): Promise<SpeedSnapshot>
-sendTelemetryBatchJSON(requestId, brokerUrl, batchJson): Promise<void>
 fetchManifestCandidate(requestId, candidateUrl): Promise<ManifestSnapshot>
 cancel(requestId): Promise<boolean>
 ```
-
-The app no longer calls `runSpeedTest` (Settings links to an external speed
-test instead) and TypeScript does not require a host to provide it; the native
-modules still export it.
 
 Each request ID owns a new single-use gomobile operation. Android constructs it
 with `NewOpenRungBrokerOperationForReactNative(appVersion, "android")`; iOS
@@ -419,7 +413,6 @@ src/
   net/
     brokerClient.ts    # decode native firstReachable relay snapshot
     exitNodeDirectory.ts # groups relays by broker-served geo (no client-side GeoIP)
-    telemetryClient.ts # serialize telemetry event batches for the native broker module
   state/
     store.ts           # app store: native slice (mirrored) + directory slice
     useVpnState.ts     # hook wiring native events into the store

@@ -61,11 +61,6 @@ export interface FirstReachableResult {
   signatureVerified: boolean;
 }
 
-export interface SendTelemetryBatchJSONRequest {
-  brokerUrl: string;
-  batchJson: string;
-}
-
 export interface FetchManifestCandidateRequest {
   candidateUrl: string;
 }
@@ -82,11 +77,6 @@ interface NativeBrokerModule {
     limit: number,
     clientId: string,
     sessionId: string,
-  ): Promise<unknown>;
-  sendTelemetryBatchJSON(
-    requestId: string,
-    brokerUrl: string,
-    batchJson: string,
   ): Promise<unknown>;
   fetchManifestCandidate(requestId: string, candidateUrl: string): Promise<unknown>;
   cancel(requestId: string): Promise<boolean>;
@@ -146,18 +136,6 @@ export function firstReachable(
         request.sessionId,
       ),
     decodeFirstReachable,
-    signal,
-  );
-}
-
-export function sendTelemetryBatchJSON(
-  request: SendTelemetryBatchJSONRequest,
-  signal?: AbortSignal,
-): Promise<void> {
-  return runRequest(
-    (module, requestId) =>
-      module.sendTelemetryBatchJSON(requestId, request.brokerUrl, request.batchJson),
-    () => undefined,
     signal,
   );
 }
@@ -258,7 +236,6 @@ function requireNativeModule(): NativeBrokerModule {
   const record = module as Record<string, unknown>;
   const methods: (keyof NativeBrokerModule)[] = [
     'firstReachable',
-    'sendTelemetryBatchJSON',
     'fetchManifestCandidate',
     'cancel',
   ];

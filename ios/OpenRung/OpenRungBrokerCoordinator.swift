@@ -74,58 +74,6 @@ final class OpenRungBrokerRequestCoordinator: @unchecked Sendable {
         }
     }
 
-    func runSpeedTest(
-        requestID: String,
-        brokerURL: String,
-        completion: @escaping Completion<NativeBrokerSpeedTestResultSnapshot>
-    ) {
-        let factory = operationFactory
-        start(requestID: requestID, completion: completion) {
-            let result: NativeBrokerSpeedTestResultSnapshot = try await NativeBrokerRunner.run(
-                factory: factory
-            ) { operation in
-                operation.runSpeedTest(brokerURL: brokerURL)
-            }
-            try result.throwIfFailed()
-
-            guard
-                result.bytes > 0,
-                result.timeToFirstByteMilliseconds >= 0,
-                result.downloadDurationMilliseconds >= 0,
-                result.totalDurationMilliseconds >= 0,
-                result.megabitsPerSecond.isFinite,
-                result.megabitsPerSecond >= 0
-            else {
-                throw BrokerNativeFailure(
-                    kind: .decode,
-                    message: "The native speed-test result is invalid."
-                )
-            }
-            return result
-        }
-    }
-
-    func sendTelemetryBatchJSON(
-        requestID: String,
-        brokerURL: String,
-        batchJSON: String,
-        completion: @escaping Completion<NativeBrokerResultSnapshot>
-    ) {
-        let factory = operationFactory
-        start(requestID: requestID, completion: completion) {
-            let result: NativeBrokerResultSnapshot = try await NativeBrokerRunner.run(
-                factory: factory
-            ) { operation in
-                operation.sendTelemetryBatchJSON(
-                    brokerURL: brokerURL,
-                    batchJSON: batchJSON
-                )
-            }
-            try result.throwIfFailed()
-            return result
-        }
-    }
-
     func fetchManifestCandidate(
         requestID: String,
         candidateURL: String,

@@ -113,7 +113,7 @@ weaken the production OS policy.
   VPN clients and `OpenRungBroker`. ECH is opportunistic, not guaranteed; this
   wording does not claim that SNI is never visible or that every app request
   uses ECH.
-- **React Native broker surface** — each directory, telemetry, or
+- **React Native broker surface** — each directory or
   broker-hosted manifest call receives a new single-use native
   operation. Cancelling its Kotlin coroutine or Swift task makes the shared
   PR 2 runner call `Close`; generated objects are copied into value snapshots
