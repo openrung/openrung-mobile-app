@@ -178,12 +178,6 @@ class SingBoxConfigurationDnsTest {
         // outbound, failing on every healthy tunnel.
         assertEquals("172.19.0.1/30", SingBoxConfiguration.DEFAULT_TUNNEL_IPV4_ADDRESS)
         assertEquals("172.19.0.2", SingBoxConfiguration.DEFAULT_TUNNEL_DNS_ADDRESS)
-        assertEquals(
-            SingBoxConfiguration.DEFAULT_TUNNEL_DNS_ADDRESS,
-            SingBoxConfiguration.tunnelDnsAddress(
-                SingBoxConfiguration(SingBoxBindingFixtures.relay()).tunnelIPv4Address,
-            ),
-        )
         // Octet carry, so a future tunnel address change cannot silently derive a wrong hijack
         // address. The /23 keeps the successor inside the prefix.
         assertEquals("10.0.1.0", SingBoxConfiguration.tunnelDnsAddress("10.0.0.255/23"))

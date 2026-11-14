@@ -1,22 +1,12 @@
 import Foundation
-#if canImport(Libbox)
-import Libbox
-#endif
 
-/// Platform input assembly for the shared sing-box config builder: gathers the iOS-side inputs
-/// (relay identity, TUN addresses, an optional punch/WSS loopback bridge, validated split-tunnel
-/// rules) and hands them to the libbox binding's `OpenRungBuildSingBoxConfig`, whose emission
-/// comes from the one Go builder every OpenRung client runs (`connectcore/client` in the sibling
-/// `openrung` repo — the generator this file used to hand-copy). This file no longer emits any
-/// config JSON; the DNS failover chains, probe pins, split-tunnel rules, route exclusions, and
-/// their ordering all live in the shared builder, and the frozen bound outputs under
+/// iOS-side constants for the shared sing-box config builder, which runs inside connectcore
+/// (`connectcore/client` in the sibling `openrung` repo). Go supplies the relay, bridge
+/// endpoints, DNS chains, probe pins, split-tunnel rules and route exclusions; the platform
+/// settings are assembled by `EngineTunnelSettings`, and this type keeps only the TUN/DNS
+/// constants the probes derive their addresses and budgets from. The frozen bound outputs under
 /// `testdata/singbox-binding/` are what this platform's structural tests assert against.
-///
-/// The assembly (`bindingInput(debug:)`) is engine-free so the pod-free test bundle can pin it;
-/// the input→config half runs in `android/punchbridge`'s Go tests against the same checked-in
-/// inputs. Unlike the Kotlin twin, the assembly never sends `excluded_packages` or
-/// `route_find_process`: iOS has no OS-level per-app exclusion and never emits `find_process`.
-public struct SingBoxConfiguration: Equatable, Sendable {
+public enum SingBoxConfiguration {
     /// The proxied DoH resolvers the shared builder emits by default (its defaults are the same
     /// IP literals). Kept here because the probe budgets below are derived from the chain's
     /// length and timeouts; the bound goldens pin the emitted list, so a builder-side change
@@ -83,125 +73,5 @@ public struct SingBoxConfiguration: Equatable, Sendable {
         let networkShift = UInt64(32 - prefixLength)
         guard value >> networkShift == next >> networkShift else { return nil }
         return [24, 16, 8, 0].map { String((next >> UInt64($0)) & 0xFF) }.joined(separator: ".")
-    }
-
-    public let relay: RelayDescriptor
-    public let tunnelIPv4Address: String
-    public let tunnelIPv6Address: String
-    public let mtu: Int
-    /// Optional loopback endpoint owned by a native access transport such as wsscore.
-    public let bridgeHost: String?
-    public let bridgePort: Int?
-    /// Validated split-tunnel rules, or nil for full-tunnel behavior (byte-identical output to a
-    /// build without split tunneling).
-    public let splitTunnel: SplitTunnelRules?
-
-    public init(
-        relay: RelayDescriptor,
-        tunnelIPv4Address: String = SingBoxConfiguration.defaultTunnelIPv4Address,
-        tunnelIPv6Address: String = "fdfe:dcba:9876::1/126",
-        mtu: Int = 1400,
-        bridgeHost: String? = nil,
-        bridgePort: Int? = nil,
-        splitTunnel: SplitTunnelRules? = nil
-    ) {
-        self.relay = relay
-        self.tunnelIPv4Address = tunnelIPv4Address
-        self.tunnelIPv6Address = tunnelIPv6Address
-        self.mtu = mtu
-        self.bridgeHost = bridgeHost
-        self.bridgePort = bridgePort
-        self.splitTunnel = splitTunnel
-    }
-
-    /// The emitted config from the shared builder. Throws
-    /// `SingBoxConfigurationError.rejected` when the binding rejects the input (an invalid
-    /// relay, a partial bridge, an unsupported split-tunnel country, …) — the same failures the
-    /// deleted generator used to reject locally.
-    public func encodedJSON() throws -> Data {
-        Data(try encodedJSONString().utf8)
-    }
-
-    public func encodedJSONString() throws -> String {
-        #if canImport(Libbox)
-        let result = LibboxOpenRungBuildSingBoxConfig(try serializedBindingInput())
-        guard let result, result.succeeded() else {
-            let reason = result?.errorText() ?? ""
-            throw SingBoxConfigurationError.rejected(
-                reason.isEmpty ? "sing-box config build failed" : reason
-            )
-        }
-        return result.configJSON()
-        #else
-        // Only the engine-free test bundle compiles this branch (see project.yml); it pins the
-        // assembly below and asserts against the frozen bound outputs instead of building live.
-        throw SingBoxConfigurationError.engineUnavailable
-        #endif
-    }
-
-    /// The binding input for this configuration: one JSON object of the platform-assembled
-    /// fields. The relay object carries the broker's canonical wire names, the probe suffixes
-    /// come from `ProbeTargets` so the builder's probe pins can never diverge from the endpoints
-    /// this platform actually probes, and `debug` selects the log level ("info" logs every flow
-    /// and DNS query — each line crosses the gomobile boundary and costs CPU inside the 50 MB
-    /// extension, so release builds keep only warnings). Values are forwarded faithfully — a
-    /// partial bridge is the binding's to reject, not this assembly's to repair.
-    func bindingInput(debug: Bool) -> [String: Any] {
-        var input: [String: Any] = [
-            "relay": [
-                "public_host": relay.publicHost,
-                "public_port": relay.publicPort,
-                "protocol": relay.relayProtocol,
-                "client_id": relay.clientID,
-                "reality_public_key": relay.realityPublicKey,
-                "short_id": relay.shortID,
-                "server_name": relay.serverName,
-                "flow": relay.flow,
-                "exit_mode": relay.exitMode,
-            ] as [String: Any],
-            "tunnel_ipv4_address": tunnelIPv4Address,
-            "tunnel_ipv6_address": tunnelIPv6Address,
-            "mtu": mtu,
-            "log_level": debug ? "info" : "warn",
-            "probe_domain_suffixes": ProbeTargets.ruleDomainSuffixes,
-        ]
-        if let bridgeHost { input["bridge_host"] = bridgeHost }
-        if let bridgePort { input["bridge_port"] = bridgePort }
-        if let splitTunnel {
-            input["split_tunnel"] = [
-                "bypass_lan": splitTunnel.bypassLan,
-                "bypass_countries": splitTunnel.bypassCountries,
-                "excluded_packages": [String](),
-                "rule_set_directory": splitTunnel.ruleSetDirectory,
-            ] as [String: Any]
-        }
-        return input
-    }
-
-    private func serializedBindingInput() throws -> String {
-        #if DEBUG
-        let debug = true
-        #else
-        let debug = false
-        #endif
-        let data = try JSONSerialization.data(withJSONObject: bindingInput(debug: debug))
-        return String(decoding: data, as: UTF8.self)
-    }
-}
-
-/// Failures of the bound sing-box builder, surfaced where the deleted generator used to throw.
-public enum SingBoxConfigurationError: LocalizedError, Equatable {
-    /// The binding rejected the assembled input; the message names the offending field.
-    case rejected(String)
-    /// Only the engine-free test bundle can see this: every shipping target links Libbox.
-    case engineUnavailable
-
-    public var errorDescription: String? {
-        switch self {
-        case .rejected(let reason):
-            return "The sing-box configuration was rejected: \(reason)"
-        case .engineUnavailable:
-            return "The sing-box config builder is unavailable without the engine."
-        }
     }
 }

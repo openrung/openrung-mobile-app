@@ -86,10 +86,6 @@ final class EngineAdapterTests: XCTestCase {
     func testSettingsKeepShippingIOSShapeAndProbePins() throws {
         let rules = SplitTunnelRules(bypassLan: true, bypassCountries: ["cn"], ruleSetDirectory: "/rules")
         let input = try JSONSerialization.jsonObject(with: Data(EngineTunnelSettings.json(rules: rules, debug: false).utf8)) as! [String: Any]
-        let old = SingBoxConfiguration(relay: SingBoxBindingFixtures.relay(), splitTunnel: rules).bindingInput(debug: false)
-        for key in ["tunnel_ipv4_address", "tunnel_ipv6_address", "mtu", "log_level", "probe_domain_suffixes"] {
-            XCTAssertEqual(input[key] as? NSObject, old[key] as? NSObject)
-        }
         XCTAssertNil(input["relay"])
         XCTAssertNil(input["route_find_process"])
         XCTAssertNil((input["split_tunnel"] as? [String: Any])?["excluded_packages"])

@@ -417,113 +417,59 @@ final class SplitTunnelConfigurationTests: XCTestCase {
     }
 }
 
-/// The assembly half of the sing-box builder contract: the configuration each iOS scenario
-/// constructs must produce exactly the checked-in binding input for that scenario. The other half
-/// — those inputs building to the frozen goldens through the real binding — runs in
-/// `android/punchbridge`'s Go tests, and the structural suites above assert against the goldens.
-/// Lives in this file because the OpenRungTests target lists files explicitly (xcodegen); adding
-/// a file means regenerating the project.
+/// The platform half of the sing-box builder contract: the engine settings iOS hands connectcore
+/// for each scenario must match that scenario's checked-in binding input, minus the `relay` and
+/// loopback-bridge fields connectcore supplies itself, and the always-empty `excluded_packages`
+/// iOS never sends. The other half — those inputs building to the frozen goldens through the real
+/// binding — runs in `android/punchbridge`'s Go tests, and the structural suites above assert
+/// against the goldens. Lives in this file because the OpenRungTests target lists files
+/// explicitly (xcodegen); adding a file means regenerating the project.
 final class SingBoxConfigurationBindingInputTests: XCTestCase {
     private let ruleSetDirectory = "/var/mobile/rulesets"
 
-    /// The configuration whose assembly must reproduce each scenario's input file.
-    private func configuration(for scenario: String) throws -> SingBoxConfiguration {
-        let relay = SingBoxBindingFixtures.relay()
+    /// The split-tunnel rules for each scenario; bridge scenarios are connectcore-owned.
+    private func rules(for scenario: String) throws -> SplitTunnelRules? {
         switch scenario {
         case "ios-tun":
-            return SingBoxConfiguration(relay: relay)
-        case "ios-bridge":
-            return SingBoxConfiguration(relay: relay, bridgeHost: "127.0.0.1", bridgePort: 54_321)
+            return nil
         case "ios-split-empty":
-            return SingBoxConfiguration(
-                relay: relay,
-                splitTunnel: SplitTunnelRules(bypassLan: false, bypassCountries: [], ruleSetDirectory: "")
-            )
+            return SplitTunnelRules(bypassLan: false, bypassCountries: [], ruleSetDirectory: "")
         case "ios-split-lan":
-            return SingBoxConfiguration(
-                relay: relay,
-                splitTunnel: SplitTunnelRules(
-                    bypassLan: true,
-                    bypassCountries: [],
-                    ruleSetDirectory: ruleSetDirectory
-                )
-            )
+            return SplitTunnelRules(bypassLan: true, bypassCountries: [], ruleSetDirectory: ruleSetDirectory)
         case "ios-split-ir":
-            return SingBoxConfiguration(
-                relay: relay,
-                splitTunnel: SplitTunnelRules(
-                    bypassLan: false,
-                    bypassCountries: ["ir"],
-                    ruleSetDirectory: ruleSetDirectory
-                )
-            )
+            return SplitTunnelRules(bypassLan: false, bypassCountries: ["ir"], ruleSetDirectory: ruleSetDirectory)
         case "ios-split-cn":
-            return SingBoxConfiguration(
-                relay: relay,
-                splitTunnel: SplitTunnelRules(
-                    bypassLan: false,
-                    bypassCountries: ["cn"],
-                    ruleSetDirectory: ruleSetDirectory
-                )
-            )
+            return SplitTunnelRules(bypassLan: false, bypassCountries: ["cn"], ruleSetDirectory: ruleSetDirectory)
         case "ios-split-ir-cn-lan":
-            return SingBoxConfiguration(
-                relay: relay,
-                splitTunnel: SplitTunnelRules(
-                    bypassLan: true,
-                    bypassCountries: ["ir", "cn"],
-                    ruleSetDirectory: ruleSetDirectory
-                )
-            )
-        case "ios-split-ir-cn-lan-bridge":
-            return SingBoxConfiguration(
-                relay: relay,
-                bridgeHost: "127.0.0.1",
-                bridgePort: 54_321,
-                splitTunnel: SplitTunnelRules(
-                    bypassLan: true,
-                    bypassCountries: ["ir", "cn"],
-                    ruleSetDirectory: ruleSetDirectory
-                )
-            )
+            return SplitTunnelRules(bypassLan: true, bypassCountries: ["ir", "cn"], ruleSetDirectory: ruleSetDirectory)
         default:
-            throw XCTSkip("no construction for scenario \(scenario); add it here when adding a fixture")
+            throw XCTSkip("no rules for scenario \(scenario); add them here when adding a fixture")
         }
     }
 
-    func testEveryIOSScenarioAssemblesToItsCheckedInBindingInput() throws {
-        let scenarios = try SingBoxBindingFixtures.scenarios(platform: "ios")
+    private func settings(_ rules: SplitTunnelRules?, debug: Bool = false) throws -> [String: Any] {
+        let json = try EngineTunnelSettings.json(rules: rules, debug: debug)
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+    }
+
+    func testEveryIOSScenarioSettingsMatchItsCheckedInBindingInput() throws {
+        let scenarios = try SingBoxBindingFixtures.scenarios(platform: "ios").filter { !$0.hasSuffix("bridge") }
         XCTAssertGreaterThanOrEqual(
             scenarios.count, 5,
             "no ios scenarios found; the fixture directory changed shape"
         )
         for scenario in scenarios {
-            let assembled = try configuration(for: scenario).bindingInput(debug: false)
-            XCTAssertEqual(
-                assembled as NSDictionary,
-                try SingBoxBindingFixtures.input(scenario) as NSDictionary,
-                "scenario \(scenario)"
-            )
+            var expected = try SingBoxBindingFixtures.input(scenario)
+            expected.removeValue(forKey: "relay")
+            if var split = expected["split_tunnel"] as? [String: Any] {
+                XCTAssertEqual((split.removeValue(forKey: "excluded_packages") as? [String])?.isEmpty, true, scenario)
+                expected["split_tunnel"] = split
+            }
+            XCTAssertEqual(try settings(rules(for: scenario)) as NSDictionary, expected as NSDictionary, "scenario \(scenario)")
         }
     }
 
-    func testDebugBuildsRequestTheInfoLogLevel() {
-        let assembled = SingBoxConfiguration(relay: SingBoxBindingFixtures.relay())
-            .bindingInput(debug: true)
-        XCTAssertEqual(assembled["log_level"] as? String, "info")
-    }
-
-    func testPartialBridgeIsForwardedFaithfullyForTheBindingToReject() {
-        // The old generator quietly kept a partial bridge off the outbound; rejection is the
-        // binding's now (see the Go suite), so the assembly must not repair or drop the values.
-        let hostOnly = SingBoxConfiguration(relay: SingBoxBindingFixtures.relay(), bridgeHost: "127.0.0.1")
-            .bindingInput(debug: false)
-        XCTAssertEqual(hostOnly["bridge_host"] as? String, "127.0.0.1")
-        XCTAssertNil(hostOnly["bridge_port"])
-
-        let portOnly = SingBoxConfiguration(relay: SingBoxBindingFixtures.relay(), bridgePort: 1_234)
-            .bindingInput(debug: false)
-        XCTAssertEqual(portOnly["bridge_port"] as? Int, 1_234)
-        XCTAssertNil(portOnly["bridge_host"])
+    func testDebugBuildsRequestTheInfoLogLevel() throws {
+        XCTAssertEqual(try settings(nil, debug: true)["log_level"] as? String, "info")
     }
 }

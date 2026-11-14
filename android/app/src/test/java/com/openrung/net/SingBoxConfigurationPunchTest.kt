@@ -11,10 +11,9 @@ import org.junit.Test
 
 /**
  * Punched/bridged emission expectations, asserted against the frozen bound outputs under
- * testdata/singbox-binding (see [SingBoxBindingFixtures]). The partial-bridge rejection the old
- * generator enforced locally lives in the binding now, pinned by android/punchbridge's Go
- * validation tests; [SingBoxConfigurationBindingInputTest] pins that a partial bridge is
- * forwarded faithfully for it to reject.
+ * testdata/singbox-binding (see [SingBoxBindingFixtures]). Bridge endpoints, and the
+ * partial-bridge rejection the old generator enforced locally, belong to connectcore now, pinned
+ * by android/punchbridge's Go validation tests.
  */
 class SingBoxConfigurationPunchTest {
     @Test
