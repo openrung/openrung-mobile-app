@@ -15,7 +15,7 @@
     "widget:strings": "node --experimental-strip-types --no-warnings scripts/generate-widget-strings.mjs"
   },
   "dependencies": {
-    "@maplibre/maplibre-react-native": "^11.3.6",
+    "@maplibre/maplibre-react-native": "^11.5.1",
     "@noble/ed25519": "2.3.0",
     "@noble/hashes": "2.2.0",
     "@react-native-async-storage/async-storage": "^3.1.1",

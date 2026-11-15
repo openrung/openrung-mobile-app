@@ -1247,7 +1247,7 @@ Appendix A.
 
 ### @maplibre/maplibre-react-native
 
-- **Component:** \`@maplibre/maplibre-react-native\` 11.3.6 (React Native
+- **Component:** \`@maplibre/maplibre-react-native\` 11.5.1 (React Native
   bindings for MapLibre Native; renders the exit-node map).
 - **License:** MIT — Copyright (c) 2022 MapLibre contributors,
   Copyright (c) 2015-2020 Mapbox.
