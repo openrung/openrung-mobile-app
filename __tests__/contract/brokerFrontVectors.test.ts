@@ -24,12 +24,6 @@ describe('broker front contract vectors', () => {
     expect(vectors.default_order).toContain(AppConfig.DEFAULT_BROKER_URL);
   });
 
-  it('posts telemetry to a canonical front', () => {
-    // A telemetry target off the canonical list would send the pre-VPN IP and the stable client id
-    // somewhere the directory contract never vouched for.
-    expect(vectors.default_order).toContain(AppConfig.TELEMETRY_BROKER_URL);
-  });
-
   it('keeps the canonical list non-empty and free of duplicates', () => {
     expect(vectors.default_order.length).toBeGreaterThan(0);
     expect(new Set(vectors.default_order).size).toBe(vectors.default_order.length);

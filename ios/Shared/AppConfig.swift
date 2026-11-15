@@ -18,25 +18,6 @@ enum AppConfig {
     /// receives only the winning URL and a verified relay-list snapshot.
     static let defaultBrokerURL = URL(string: "https://broker.openrung.org/")!
 
-    /// Bootstrap native VPN telemetry / heartbeat target used until verified relay discovery
-    /// selects a live broker front. The active telemetry session then follows that exact winner,
-    /// so a client that reached discovery through fallback does not post diagnostics back to a
-    /// blocked primary. React Native speed-test telemetry has its own TypeScript route. Never use
-    /// a raw-IP HTTP endpoint: that would expose the user's pre-VPN IP, geo and stable client ID.
-    static let telemetryBrokerURL = URL(string: "https://broker.openrung.org/")!
-
-    /// Broker fronts retained for WSS-ticket ordering and other paths that have their own explicit
-    /// policy. Native relay discovery no longer constructs candidates here: brokerapi owns its
-    /// default order, custom-override handling, racing, and relay-list verification.
-    ///
-    /// Two independent fronts are deployed — the Cloudflare Worker and an AWS CloudFront distribution
-    /// (different provider AND DNS zone). Keep this order stable for WSS failover.
-    static let defaultBrokerURLs: [URL] = [
-        defaultBrokerURL,
-        // Independent second front: AWS CloudFront (different provider + DNS zone).
-        URL(string: "https://d2r7mdpyevvs1m.cloudfront.net/")!,
-    ]
-
     /// SHA-256 pins for self-signed punch-coordinator leaf certificates, keyed by the exact host in
     /// the signed relay descriptor. A bare-IP coordinator is accepted only when it appears here;
     /// hostname coordinators not listed here use Go's normal public-CA and hostname validation.
