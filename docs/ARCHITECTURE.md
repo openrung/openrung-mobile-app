@@ -176,8 +176,8 @@ weaken the production OS policy.
   `URLSession` is excluded from its own TUN and must never authorize fallback
   or recovery.
 - **Telemetry / heartbeat** — currently also `https://broker.openrung.org/`
-  (the same Cloudflare-fronted broker), chosen by connectcore rather than the app;
-  see the trade-off below.
+  (the same Cloudflare-fronted broker): connectcore sends it to the supplied
+  discovery primary, then to the discovery winner; see the trade-off below.
 - **Update manifest** — the exact direct broker and CloudFront candidates use
   `OpenRungBroker.fetchManifestCandidate`. The exact redirecting GitHub release
   asset remains the only JavaScript-fetch exception; signature, freshness,
@@ -251,12 +251,19 @@ one each) — so its transport is a cost/security trade-off:
   telemetry at `https://origin.openrung.org/`. This keeps telemetry
   TLS-protected *and* bypasses the Cloudflare Worker (so it no longer consumes the
   quota), while remaining a real hostname both platforms' cleartext policies accept.
-  The bootstrap telemetry endpoint is not an app setting: it is
-  `TelemetryBrokerURL` in `connectcore/config.go` in the sibling `openrung` repo,
-  and every session then follows the broker front that won discovery, so moving
-  all telemetry (not just the pre-discovery events) also means changing that
-  follow rule. The client-side change is therefore in connectcore — update it, tag a
-  release, bump the `connectcore` pin in `android/punchbridge/go.mod`, and rebuild
+  Telemetry routing lives in connectcore (sibling `openrung` repo), not in an app
+  setting. connectcore opens each session's telemetry manager on the broker URL
+  the host supplies (`newManager(brokerURL)`), falling back to its
+  `TelemetryBrokerURL` only when that argument is empty — and both hosts always
+  supply a non-empty discovery primary (`DEFAULT_BROKER_URL` /
+  `AppConfig.defaultBrokerURL`), so pre-discovery events go to that primary and
+  `TelemetryBrokerURL` is never consulted on mobile. After a successful fetch the
+  session then follows the broker front that won discovery. Moving telemetry
+  therefore needs two connectcore changes: initialize the telemetry manager from a
+  dedicated telemetry endpoint instead of the supplied discovery primary, and stop
+  the discovery-winner follow from overriding it. Changing the app's
+  `DEFAULT_BROKER_URL` is not a substitute: it also moves discovery. Then tag a
+  connectcore release, bump the pin in `android/punchbridge/go.mod`, and rebuild
   both native engine artifacts (see [ENGINE_BINDING.md](ENGINE_BINDING.md)); the
   rest is server-side (DNS record + origin cert).
   Because the new endpoint is HTTPS, no cleartext exception is needed on either
