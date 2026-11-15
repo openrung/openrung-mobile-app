@@ -5,35 +5,35 @@
     "ios": "0.0.0",
     "desktop": "0.0.0"
   },
-  "ios_latest": "0.4.2",
+  "ios_latest": "1.0.0",
   "promote": "notify",
   "notice": {
-    "id": "2026-11-release-0.4.2",
+    "id": "2026-11-release-1.0.0",
     "level": "info",
     "platforms": ["android", "ios"],
     "title": {
-      "en": "What's new in 0.4.2",
-      "zh-CN": "0.4.2 新功能",
-      "zh-TW": "0.4.2 新功能",
-      "fa": "تازه‌های نسخه ۰.۴.۲",
-      "ru": "Что нового в 0.4.2",
-      "ar": "الجديد في 0.4.2",
-      "tr": "0.4.2'deki yenilikler",
-      "vi": "Có gì mới trong 0.4.2",
-      "my": "0.4.2 အသစ်များ"
+      "en": "What's new in 1.0.0",
+      "zh-CN": "1.0.0 新功能",
+      "zh-TW": "1.0.0 新功能",
+      "fa": "تازه‌های نسخه ۱.۰.۰",
+      "ru": "Что нового в 1.0.0",
+      "ar": "الجديد في 1.0.0",
+      "tr": "1.0.0'daki yenilikler",
+      "vi": "Có gì mới trong 1.0.0",
+      "my": "1.0.0 အသစ်များ"
     },
     "body": {
-      "en": "Version 0.4.2 keeps the app compatible with upcoming relay server updates. Please update to stay connected.",
-      "zh-CN": "0.4.2 版让应用与即将到来的中继服务器更新保持兼容。请更新以保持连接。",
-      "zh-TW": "0.4.2 版讓應用程式與即將推出的中繼伺服器更新保持相容。請更新以維持連線。",
-      "fa": "نسخهٔ ۰.۴.۲ برنامه را با به‌روزرسانی‌های آیندهٔ سرورهای رله سازگار نگه می‌دارد. برای حفظ اتصال، لطفاً برنامه را به‌روز کنید.",
-      "ru": "Версия 0.4.2 сохраняет совместимость приложения с предстоящими обновлениями серверов релеев. Обновитесь, чтобы оставаться на связи.",
-      "ar": "يحافظ الإصدار 0.4.2 على توافق التطبيق مع التحديثات القادمة لخوادم المرحّلات. يُرجى التحديث للبقاء متصلاً.",
-      "tr": "0.4.2 sürümü, uygulamanın aktarıcı sunucularının yaklaşan güncellemeleriyle uyumlu kalmasını sağlar. Bağlı kalmak için lütfen güncelleyin.",
-      "vi": "Phiên bản 0.4.2 giúp ứng dụng tương thích với các bản cập nhật sắp tới của máy chủ relay. Vui lòng cập nhật để duy trì kết nối.",
-      "my": "၀.၄.၂ ဗားရှင်းသည် လာမည့် relay ဆာဗာ အပ်ဒိတ်များနှင့် အက်ပ်ကို ကိုက်ညီစေပါသည်။ ချိတ်ဆက်မှု ဆက်လက်ရရှိရန် ကျေးဇူးပြု၍ အပ်ဒိတ်လုပ်ပါ။"
+      "en": "Version 1.0.0 is here, and OpenRung is now also available for macOS, Windows and Linux. Please update to the latest version.",
+      "zh-CN": "1.0.0 版现已发布，OpenRung 现在也支持 macOS、Windows 和 Linux。请更新到最新版本。",
+      "zh-TW": "1.0.0 版現已推出，OpenRung 現在也支援 macOS、Windows 和 Linux。請更新至最新版本。",
+      "fa": "نسخهٔ ۱.۰.۰ منتشر شد و OpenRung اکنون برای macOS، ویندوز و لینوکس هم در دسترس است. لطفاً به آخرین نسخه به‌روزرسانی کنید.",
+      "ru": "Вышла версия 1.0.0, и OpenRung теперь доступен также для macOS, Windows и Linux. Пожалуйста, обновитесь до последней версии.",
+      "ar": "صدر الإصدار 1.0.0، وأصبح OpenRung متاحاً الآن أيضاً على macOS وWindows وLinux. يُرجى التحديث إلى أحدث إصدار.",
+      "tr": "1.0.0 sürümü yayında ve OpenRung artık macOS, Windows ve Linux için de kullanılabilir. Lütfen en son sürüme güncelleyin.",
+      "vi": "Phiên bản 1.0.0 đã ra mắt, và OpenRung hiện cũng có trên macOS, Windows và Linux. Vui lòng cập nhật lên phiên bản mới nhất.",
+      "my": "1.0.0 ဗားရှင်း ထွက်ရှိပြီဖြစ်ပြီး OpenRung ကို ယခု macOS၊ Windows နှင့် Linux တို့တွင်လည်း အသုံးပြုနိုင်ပါပြီ။ ကျေးဇူးပြု၍ နောက်ဆုံးဗားရှင်းသို့ အပ်ဒိတ်လုပ်ပါ။"
     },
     "url": null,
-    "expires": "2027-02-01T00:00:00Z"
+    "expires": "2027-03-01T00:00:00Z"
   }
 }
