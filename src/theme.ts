@@ -63,6 +63,8 @@ export const tokens = {
   radiusLg: 22,
   /** Fixed tab-bar content height (safe-area inset is added below it). */
   tabBarHeight: 62,
+  /** Fixed width of the tab bar when it runs as a navigation rail (wide layout). */
+  navRailWidth: 84,
   /** Screen edge padding. */
   edge: 20,
   /**

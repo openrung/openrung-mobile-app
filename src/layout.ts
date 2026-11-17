@@ -18,19 +18,39 @@ const TWO_COLUMN_MIN_WIDTH = 760;
 const COLUMN_GAP = 24;
 
 /**
+ * Window width from which the app uses its wide layout: the JS tab bar becomes
+ * a navigation rail on the leading edge, and the home screen docks its
+ * controls in a side panel beside the map instead of floating them over it.
+ */
+const WIDE_MIN_WIDTH = 880;
+
+/** True when the current window (or iOS tab scene) is wide enough for the wide layout. */
+export function useWideLayout(): boolean {
+  return useSafeAreaFrame().width >= WIDE_MIN_WIDTH;
+}
+
+/** Width of the home screen's side panel in the wide layout, growing with the window. */
+export function homeSidePanelWidth(windowWidth: number): number {
+  return Math.round(Math.min(460, Math.max(380, windowWidth * 0.34)));
+}
+
+/**
  * Safe-area insets for a tab scene, tab bar included. iOS: the scene's own
  * SafeAreaProvider (NativeTabs) already reports the native bar on whichever
- * edge it occupies. Android: the JS TabBar is a fixed-height bottom overlay.
+ * edge it occupies. Elsewhere the JS TabBar is a fixed-height bottom overlay,
+ * or a fixed-width rail on the left edge in the wide layout.
  */
 export function useTabSceneInsets(): EdgeInsets {
   const insets = useSafeAreaInsets();
-  return useMemo(
-    () =>
-      Platform.OS === 'ios'
-        ? insets
-        : { ...insets, bottom: insets.bottom + tokens.tabBarHeight },
-    [insets],
-  );
+  const wide = useWideLayout();
+  return useMemo(() => {
+    if (Platform.OS === 'ios') {
+      return insets;
+    }
+    return wide
+      ? { ...insets, left: insets.left + tokens.navRailWidth }
+      : { ...insets, bottom: insets.bottom + tokens.tabBarHeight };
+  }, [insets, wide]);
 }
 
 /** Fit one or two readable columns inside the current scene, including after resizing. */
