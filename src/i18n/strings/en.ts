@@ -165,6 +165,12 @@ export const en = {
   // Replaces the native lastError when lastErrorCode is 'enrollment_refused' (see nativeErrorText).
   errorEnrollmentRefused:
     'Registration failed. Disconnect other VPNs and retry.',
+  // Home-screen warning when the device clock looks wrong (see AppState.directoryClockSkew);
+  // the body also replaces the native lastError when lastErrorCode is 'clock_skew'.
+  clockWarningTitle: "Check your device's date and time",
+  clockWarningBody:
+    "This device's date and time look incorrect, which can stop OpenRung from connecting. Turn on automatic date and time in your device settings, then try again.",
+  clockWarningRetry: 'Try again',
   // Desktop client only: the local proxy rows in Settings (DesktopProxySection).
   desktopProxyHeader: 'Local proxy',
   desktopProxyEndpointTitle: 'Endpoint',

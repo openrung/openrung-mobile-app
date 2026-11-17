@@ -164,6 +164,10 @@ export const ar: Partial<Strings> = {
   errorAccessDenied:
     'تم تعطيل وصول هذا الجهاز، لذا لا يمكنه الاتصال. تواصل مع دعم OpenRung.',
   errorEnrollmentRefused: 'فشل التسجيل. افصل شبكات VPN الأخرى وأعد المحاولة.',
+  clockWarningTitle: 'تحقّق من التاريخ والوقت على جهازك',
+  clockWarningBody:
+    'يبدو أن التاريخ والوقت على هذا الجهاز غير صحيحين، وقد يمنع ذلك OpenRung من الاتصال. فعّل الضبط التلقائي للتاريخ والوقت في إعدادات الجهاز ثم أعد المحاولة.',
+  clockWarningRetry: 'إعادة المحاولة',
   // Desktop client only: the local proxy rows in Settings (DesktopProxySection).
   desktopProxyHeader: 'الوكيل المحلي',
   desktopProxyEndpointTitle: 'العنوان',

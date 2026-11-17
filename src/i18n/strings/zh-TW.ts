@@ -150,6 +150,10 @@ export const zhTW: Partial<Strings> = {
   errorAccessDenied:
     '此裝置的存取權限已被停用，無法連線。請聯絡 OpenRung 支援。',
   errorEnrollmentRefused: '註冊失敗。請中斷其他 VPN 後重試。',
+  clockWarningTitle: '請檢查裝置的日期與時間',
+  clockWarningBody:
+    '此裝置的日期與時間似乎不正確，這可能導致 OpenRung 無法連線。請在裝置設定中開啟自動設定日期與時間，然後重試。',
+  clockWarningRetry: '重試',
   // Desktop client only: the local proxy rows in Settings (DesktopProxySection).
   desktopProxyHeader: '本機代理',
   desktopProxyEndpointTitle: '端點',

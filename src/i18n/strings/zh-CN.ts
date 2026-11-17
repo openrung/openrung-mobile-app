@@ -158,6 +158,10 @@ export const zhCN: Partial<Strings> = {
   errorAccessDenied:
     '此设备的访问权限已被停用，无法连接。请联系 OpenRung 支持。',
   errorEnrollmentRefused: '注册失败。请断开其他 VPN 后重试。',
+  clockWarningTitle: '请检查设备的日期和时间',
+  clockWarningBody:
+    '此设备的日期和时间似乎不正确，这可能导致 OpenRung 无法连接。请在设备设置中开启自动设置日期和时间，然后重试。',
+  clockWarningRetry: '重试',
   // Desktop client only: the local proxy rows in Settings (DesktopProxySection).
   desktopProxyHeader: '本地代理',
   desktopProxyEndpointTitle: '端点',

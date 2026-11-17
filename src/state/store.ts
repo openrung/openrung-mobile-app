@@ -6,6 +6,7 @@ import { bypassCountriesForRegion, deviceRegion } from '../model/splitTunnelDefa
 import { INITIAL_UPDATE_UI, type UpdateUiState } from '../model/updateStatus';
 import { firstReachable } from '../net/brokerClient';
 import { loadExitNodeDirectory } from '../net/exitNodeDirectory';
+import { toOpenRungBrokerError } from '../native/OpenRungBroker';
 import { OpenRungVpn } from '../native/OpenRungVpn';
 import { publishWidgetLanguage } from '../native/OpenRungWidget';
 import type { NativeVpnState, RecentNode } from '../native/types';
@@ -34,6 +35,10 @@ export interface AppState {
   native: NativeVpnState; // mirrored from native
   brokerUrl: string; // fixed to config default (not editable)
   directoryStatus: DirectoryStatus;
+  /** The last directory load points at a wrong device clock, so the home screen asks the user
+   *  to fix the date and time: it failed with broker kind 'clock_skew' (clock ahead, or far off
+   *  either way), or it loaded a list signed in the device's future (clock behind). */
+  directoryClockSkew: boolean;
   availableRegions: ExitNodeRegion[];
   languageTag: string; // '' = system, persisted in AsyncStorage
   homeViewMode: HomeViewMode; // home directory presentation, persisted in AsyncStorage
@@ -116,6 +121,7 @@ function initialState(): AppState {
     native: INITIAL_NATIVE_STATE,
     brokerUrl: AppConfig.DEFAULT_BROKER_URL,
     directoryStatus: 'idle',
+    directoryClockSkew: false,
     availableRegions: [],
     languageTag: '',
     homeViewMode: 'map',
@@ -136,6 +142,13 @@ const listeners = new Set<() => void>();
 // Supersession token for directory loads: mirrors production's `directoryJob?.cancel()` — a
 // newer (forced) refresh makes any in-flight load stale so its completion can't clobber state.
 let directoryGeneration = 0;
+
+/**
+ * How far the broker's signed `server_time` may run ahead of the device clock before the home
+ * screen warns about the date and time. A relay list can be served a while after it was signed
+ * but never before, so a `server_time` in the device's future means the device clock is behind.
+ */
+const CLOCK_BEHIND_TOLERANCE_MS = 5 * 60 * 1000;
 
 function setState(next: AppState): void {
   state = next;
@@ -306,7 +319,9 @@ export function applyNativeState(native: NativeVpnState): void {
       : null;
   // Same for lastErrorCode: older binaries omit it, and an unknown code renders as plain lastError.
   const lastErrorCode =
-    native.lastErrorCode === 'access_denied' || native.lastErrorCode === 'enrollment_refused'
+    native.lastErrorCode === 'access_denied' ||
+    native.lastErrorCode === 'enrollment_refused' ||
+    native.lastErrorCode === 'clock_skew'
       ? native.lastErrorCode
       : null;
   const stabilized = stabilizedNative(state.native, { ...native, relayClass, lastErrorCode });
@@ -336,29 +351,39 @@ export function refreshDirectory(force: boolean = false): Promise<void> {
   const generation = ++directoryGeneration;
   setState({ ...state, directoryStatus: 'loading' });
 
+  let clockBehind = false;
   return loadExitNodeDirectory({
     fetchRelays: async () => {
       const identity = await OpenRungVpn.getIdentity();
-      return (
-        await firstReachable(current.brokerUrl, {
-          limit: AppConfig.DIRECTORY_RELAY_LIMIT,
-          clientId: identity.clientId,
-          sessionId: identity.sessionId,
-        })
-      ).response;
+      const { response } = await firstReachable(current.brokerUrl, {
+        limit: AppConfig.DIRECTORY_RELAY_LIMIT,
+        clientId: identity.clientId,
+        sessionId: identity.sessionId,
+      });
+      clockBehind = Date.parse(response.server_time) - Date.now() > CLOCK_BEHIND_TOLERANCE_MS;
+      return response;
     },
   })
     .then(regions => {
       if (generation !== directoryGeneration) {
         return; // superseded by a newer refresh — don't clobber its result
       }
-      setState({ ...state, availableRegions: regions, directoryStatus: 'loaded' });
+      setState({
+        ...state,
+        availableRegions: regions,
+        directoryStatus: 'loaded',
+        directoryClockSkew: clockBehind,
+      });
     })
-    .catch(() => {
+    .catch((error: unknown) => {
       if (generation !== directoryGeneration) {
         return;
       }
-      setState({ ...state, directoryStatus: 'failed' });
+      setState({
+        ...state,
+        directoryStatus: 'failed',
+        directoryClockSkew: toOpenRungBrokerError(error).kind === 'clock_skew',
+      });
     });
 }
 

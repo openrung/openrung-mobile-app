@@ -1032,6 +1032,18 @@ func TestClassifyOpenRungBrokerErrors(t *testing.T) {
 			wantStatus: http.StatusServiceUnavailable,
 		},
 		{
+			name:     "clock skew",
+			ctx:      context.Background(),
+			err:      fmt.Errorf("outer: %w", &brokerapi.RelayListVerificationError{Reason: "list expired", Expired: true}),
+			wantKind: "clock_skew",
+		},
+		{
+			name:     "clock skew at TLS",
+			ctx:      context.Background(),
+			err:      fmt.Errorf("outer: %w", &tls.CertificateVerificationError{Err: x509.CertificateInvalidError{Reason: x509.Expired}}),
+			wantKind: "clock_skew",
+		},
+		{
 			name:     "verification",
 			ctx:      context.Background(),
 			err:      fmt.Errorf("outer: %w", &brokerapi.RelayListVerificationError{Reason: "secret response"}),

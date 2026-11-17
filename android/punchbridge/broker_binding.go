@@ -945,6 +945,12 @@ func classifyOpenRungBrokerError(
 		)
 	}
 
+	// A genuine response past its freshness bound, or a broker certificate
+	// outside its validity period, points at the device clock, which the user
+	// can fix; every other verification or TLS failure keeps its own kind.
+	if brokerapi.ClockSkewSuspected(err) {
+		return failedOpenRungBrokerOutcome("clock_skew", 0, 0)
+	}
 	var verification *brokerapi.RelayListVerificationError
 	if errors.As(err, &verification) {
 		return failedOpenRungBrokerOutcome("verification", 0, 0)
@@ -1065,6 +1071,8 @@ func openRungBrokerErrorText(kind string, status int32) string {
 		return "Broker network request failed"
 	case "verification":
 		return "Broker response verification failed"
+	case "clock_skew":
+		return "Broker response or certificate is out of date by the device clock"
 	case "validation":
 		return "Broker request validation failed"
 	default:

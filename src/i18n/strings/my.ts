@@ -178,6 +178,10 @@ export const my: Partial<Strings> = {
     'ဤစက်၏ ဝင်ရောက်ခွင့်ကို ပိတ်ထားသဖြင့် ချိတ်ဆက်၍ မရပါ။ OpenRung အကူအညီဌာနကို ဆက်သွယ်ပါ။',
   errorEnrollmentRefused:
     'မှတ်ပုံတင်၍ မရပါ။ အခြား VPN များကို ဖြုတ်ပြီး ထပ်စမ်းပါ။',
+  clockWarningTitle: 'စက်၏ ရက်စွဲနှင့် အချိန်ကို စစ်ဆေးပါ',
+  clockWarningBody:
+    'ဤစက်၏ ရက်စွဲနှင့် အချိန် မှားနေပုံရပြီး ၎င်းကြောင့် OpenRung ချိတ်ဆက်၍ မရနိုင်ပါ။ စက်ဆက်တင်တွင် ရက်စွဲနှင့် အချိန်ကို အလိုအလျောက် သတ်မှတ်ရန် ဖွင့်ပြီး ထပ်စမ်းပါ။',
+  clockWarningRetry: 'ထပ်စမ်းပါ',
   // Desktop client only: the local proxy rows in Settings (DesktopProxySection).
   desktopProxyHeader: 'ဒေသတွင်း ပရောက်စီ',
   desktopProxyEndpointTitle: 'လိပ်စာ',

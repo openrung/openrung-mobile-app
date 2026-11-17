@@ -9,6 +9,7 @@ export type BrokerFailureKind =
   | 'tls'
   | 'network'
   | 'verification'
+  | 'clock_skew'
   | 'validation'
   | 'unknown'
   | 'unavailable'
@@ -23,6 +24,7 @@ const FAILURE_KINDS = new Set<BrokerFailureKind>([
   'tls',
   'network',
   'verification',
+  'clock_skew',
   'validation',
   'unknown',
   'unavailable',
