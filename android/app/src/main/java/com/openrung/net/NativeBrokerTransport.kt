@@ -30,6 +30,7 @@ enum class BrokerNativeFailureKind(val value: String) {
     TLS("tls"),
     NETWORK("network"),
     VERIFICATION("verification"),
+    CLOCK_SKEW("clock_skew"),
     VALIDATION("validation"),
     UNKNOWN("unknown"),
     UNAVAILABLE("unavailable"),
@@ -47,6 +48,7 @@ enum class BrokerNativeFailureKind(val value: String) {
             TLS.value -> TLS
             NETWORK.value -> NETWORK
             VERIFICATION.value -> VERIFICATION
+            CLOCK_SKEW.value -> CLOCK_SKEW
             VALIDATION.value -> VALIDATION
             UNKNOWN.value -> UNKNOWN
             else -> UNKNOWN

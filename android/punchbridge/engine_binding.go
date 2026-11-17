@@ -200,6 +200,9 @@ type openRungEngineSink struct {
 	// attempt then ends FAILED, the state carries ErrorCode so hosts can tell
 	// the user to connect once from another network.
 	enrollmentRefused bool
+	// clockSkew remembers a NoticeClockSkew until the next state, exactly
+	// like accessDenied: the engine goes straight from it to FAILED.
+	clockSkew bool
 }
 
 // openRungEngineState is the state payload plus the binding's stable error
@@ -217,6 +220,10 @@ const openRungErrorAccessDenied = "access_denied"
 // which the broker refused to enroll this installation from the current
 // network (ADR-006 datacenter source).
 const openRungErrorEnrollmentRefused = "enrollment_refused"
+
+// openRungErrorClockSkew marks a FAILED state caused by a signed relay list
+// that is already expired by the device clock (wrong date or time).
+const openRungErrorClockSkew = "clock_skew"
 
 func (s *openRungEngineSink) emit(kind string, payload any) {
 	// Serialize the callback too: delivery order then agrees with sequence.
@@ -248,10 +255,13 @@ func (s *openRungEngineSink) StateChanged(state connectcore.State) {
 	case state.Status != connectcore.StatusFailed:
 	case s.accessDenied:
 		payload.ErrorCode = openRungErrorAccessDenied
+	case s.clockSkew:
+		payload.ErrorCode = openRungErrorClockSkew
 	case s.enrollmentRefused:
 		payload.ErrorCode = openRungErrorEnrollmentRefused
 	}
 	s.accessDenied = false
+	s.clockSkew = false
 	// The enrollment refusal belongs to the attempt in flight: only a
 	// CONNECTING step of that same attempt keeps it.
 	if state.Status != connectcore.StatusConnecting {
@@ -268,6 +278,8 @@ func (s *openRungEngineSink) Notice(notice connectcore.Notice) {
 		s.accessDenied = true
 	case connectcore.NoticeEnrollmentRefused:
 		s.enrollmentRefused = true
+	case connectcore.NoticeClockSkew:
+		s.clockSkew = true
 	}
 	s.emitLocked("notice", notice)
 }

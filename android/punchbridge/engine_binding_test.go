@@ -266,7 +266,11 @@ func TestOpenRungEngineAccessDeniedErrorCode(t *testing.T) {
 	// Other notices never set the code.
 	s.Notice(connectcore.Notice{Kind: connectcore.NoticeFailoverStarted})
 	s.StateChanged(connectcore.State{Status: connectcore.StatusFailed, LastError: &other})
-	want := []string{"connecting:-", "failed:access_denied", "failed:-", "disconnected:-", "failed:-", "connected:-", "failed:-", "failed:-"}
+	// A relay list expired by the device clock labels its failure, once.
+	s.Notice(connectcore.Notice{Kind: connectcore.NoticeClockSkew})
+	s.StateChanged(connectcore.State{Status: connectcore.StatusFailed, LastError: &other})
+	s.StateChanged(connectcore.State{Status: connectcore.StatusFailed, LastError: &other})
+	want := []string{"connecting:-", "failed:access_denied", "failed:-", "disconnected:-", "failed:-", "connected:-", "failed:-", "failed:-", "failed:clock_skew", "failed:-"}
 	if strings.Join(codes, ",") != strings.Join(want, ",") {
 		t.Fatalf("codes = %v, want %v", codes, want)
 	}

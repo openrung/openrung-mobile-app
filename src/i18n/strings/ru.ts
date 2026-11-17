@@ -172,6 +172,10 @@ export const ru: Partial<Strings> = {
     'Доступ для этого устройства отключён, подключение невозможно. Обратитесь в поддержку OpenRung.',
   errorEnrollmentRefused:
     'Ошибка регистрации. Отключите другие VPN и повторите.',
+  clockWarningTitle: 'Проверьте дату и время на устройстве',
+  clockWarningBody:
+    'Дата и время на этом устройстве, похоже, установлены неверно, из-за этого OpenRung может не подключаться. Включите автоматическую установку даты и времени в настройках устройства и повторите попытку.',
+  clockWarningRetry: 'Повторить',
   // Desktop client only: the local proxy rows in Settings (DesktopProxySection).
   desktopProxyHeader: 'Локальный прокси',
   desktopProxyEndpointTitle: 'Адрес',

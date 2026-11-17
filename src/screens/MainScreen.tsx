@@ -86,6 +86,7 @@ function selectMainScreenState(current: AppState) {
     lastErrorCode: current.native.lastErrorCode,
     recents: current.native.recents,
     directoryStatus: current.directoryStatus,
+    directoryClockSkew: current.directoryClockSkew,
     availableRegions: current.availableRegions,
     homeViewMode: current.homeViewMode,
     connectedAtMs: current.connectedAtMs,
@@ -107,6 +108,7 @@ export function MainScreen(): React.JSX.Element {
     lastErrorCode,
     recents,
     directoryStatus,
+    directoryClockSkew,
     availableRegions,
     homeViewMode,
     connectedAtMs,
@@ -243,7 +245,17 @@ export function MainScreen(): React.JSX.Element {
         </View>
         <Text style={styles.slogan}>{s.homeSlogan}</Text>
 
-        {update.tier === 'notify' && update.latestVersion != null ? (
+        {directoryClockSkew ? (
+          // Nothing works until the clock is fixed, so this outranks the update and notice cards.
+          <UpdateBanner
+            style={[styles.updateBanner, layout.column]}
+            level="warn"
+            title={s.clockWarningTitle}
+            body={s.clockWarningBody}
+            dismissLabel={s.clockWarningRetry}
+            onDismiss={onRetryDirectory}
+          />
+        ) : update.tier === 'notify' && update.latestVersion != null ? (
           <UpdateBanner
             style={[styles.updateBanner, layout.column]}
             title={s.updateBannerTitle}

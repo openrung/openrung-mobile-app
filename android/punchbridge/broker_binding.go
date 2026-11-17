@@ -895,6 +895,14 @@ func classifyOpenRungBrokerError(
 		errors.Is(err, context.Canceled) {
 		return failedOpenRungBrokerOutcome("cancelled", 0, 0)
 	}
+	// A genuine response past its freshness bound, or a broker certificate
+	// outside its validity period, points at the device clock, which the user
+	// can fix. Discovery reports one candidate's error and only marks it when
+	// another candidate failed this way, so this runs before the reported
+	// error's own timeout, status, verification or TLS kind is chosen.
+	if brokerapi.ClockSkewSuspected(err) {
+		return failedOpenRungBrokerOutcome("clock_skew", 0, 0)
+	}
 	if (ctx != nil && errors.Is(ctx.Err(), context.DeadlineExceeded)) ||
 		errors.Is(err, context.DeadlineExceeded) {
 		return failedOpenRungBrokerOutcome("timeout", 0, 0)
@@ -1065,6 +1073,8 @@ func openRungBrokerErrorText(kind string, status int32) string {
 		return "Broker network request failed"
 	case "verification":
 		return "Broker response verification failed"
+	case "clock_skew":
+		return "Broker response or certificate is out of date by the device clock"
 	case "validation":
 		return "Broker request validation failed"
 	default:

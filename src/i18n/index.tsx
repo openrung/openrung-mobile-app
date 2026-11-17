@@ -126,6 +126,8 @@ export function nativeErrorText(
       return strings.errorAccessDenied;
     case 'enrollment_refused':
       return strings.errorEnrollmentRefused;
+    case 'clock_skew':
+      return strings.clockWarningBody;
     default:
       return lastError;
   }

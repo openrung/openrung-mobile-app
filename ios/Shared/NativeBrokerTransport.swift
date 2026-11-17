@@ -11,6 +11,7 @@ public enum BrokerNativeFailureKind: String, CaseIterable, Sendable {
     case tls
     case network
     case verification
+    case clockSkew = "clock_skew"
     case validation
     case unknown
     case unavailable
@@ -34,6 +35,8 @@ public enum BrokerNativeFailureKind: String, CaseIterable, Sendable {
             self = .network
         case BrokerNativeFailureKind.verification.rawValue:
             self = .verification
+        case BrokerNativeFailureKind.clockSkew.rawValue:
+            self = .clockSkew
         case BrokerNativeFailureKind.validation.rawValue:
             self = .validation
         case BrokerNativeFailureKind.unknown.rawValue:

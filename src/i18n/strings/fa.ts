@@ -172,6 +172,10 @@ export const fa: Partial<Strings> = {
     'دسترسی این دستگاه غیرفعال شده است و نمی‌تواند وصل شود. با پشتیبانی OpenRung تماس بگیرید.',
   errorEnrollmentRefused:
     'ثبت ناموفق بود. VPNهای دیگر را قطع کنید و دوباره تلاش کنید.',
+  clockWarningTitle: 'تاریخ و ساعت دستگاه را بررسی کنید',
+  clockWarningBody:
+    'تاریخ و ساعت این دستگاه نادرست به نظر می‌رسد و این می‌تواند مانع اتصال OpenRung شود. تنظیم خودکار تاریخ و ساعت را در تنظیمات دستگاه روشن کنید و دوباره تلاش کنید.',
+  clockWarningRetry: 'تلاش دوباره',
   // Desktop client only: the local proxy rows in Settings (DesktopProxySection).
   desktopProxyHeader: 'پراکسی محلی',
   desktopProxyEndpointTitle: 'نشانی',

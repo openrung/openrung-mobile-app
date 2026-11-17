@@ -1032,6 +1032,18 @@ func TestClassifyOpenRungBrokerErrors(t *testing.T) {
 			wantStatus: http.StatusServiceUnavailable,
 		},
 		{
+			name:     "clock skew",
+			ctx:      context.Background(),
+			err:      fmt.Errorf("outer: %w", &brokerapi.RelayListVerificationError{Reason: "list expired", Expired: true}),
+			wantKind: "clock_skew",
+		},
+		{
+			name:     "clock skew at TLS",
+			ctx:      context.Background(),
+			err:      fmt.Errorf("outer: %w", &tls.CertificateVerificationError{Err: x509.CertificateInvalidError{Reason: x509.Expired}}),
+			wantKind: "clock_skew",
+		},
+		{
 			name:     "verification",
 			ctx:      context.Background(),
 			err:      fmt.Errorf("outer: %w", &brokerapi.RelayListVerificationError{Reason: "secret response"}),
@@ -1094,4 +1106,44 @@ func TestClassifyOpenRungBrokerErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Discovery reports the first candidate's error and marks it when another
+// candidate failed in a clock-related way. That mark must win over the
+// reported error's own kind (a timeout or an HTTP status), but never over an
+// explicit cancellation.
+func TestOpenRungClockSkewHintOutranksReportedCandidateKind(t *testing.T) {
+	certDate := &tls.CertificateVerificationError{Err: x509.CertificateInvalidError{Reason: x509.Expired}}
+	for name, first := range map[string]func(*http.Request) (*http.Response, error){
+		"timeout": func(*http.Request) (*http.Response, error) { return nil, context.DeadlineExceeded },
+		"HTTP status": func(request *http.Request) (*http.Response, error) {
+			return &http.Response{StatusCode: http.StatusServiceUnavailable, Body: io.NopCloser(strings.NewReader("")), Request: request}, nil
+		},
+	} {
+		client := brokerapi.NewClient(&http.Client{Transport: clockSkewTestTransport(func(request *http.Request) (*http.Response, error) {
+			if request.URL.Port() == "8001" {
+				return first(request)
+			}
+			return nil, certDate
+		})}, brokerapi.Options{})
+		_, err := client.FirstReachable(context.Background(), brokerapi.Candidates{
+			URLs: []string{"http://127.0.0.1:8001", "http://127.0.0.1:8002"},
+		}, brokerapi.ListOptions{Stagger: time.Millisecond})
+		if err == nil {
+			t.Fatalf("%s: discovery succeeded", name)
+		}
+		if outcome := classifyOpenRungBrokerError(context.Background(), err); outcome.errorKind != "clock_skew" {
+			t.Fatalf("%s: kind = %q for %v, want clock_skew", name, outcome.errorKind, err)
+		}
+		cancelled := errors.Join(context.Canceled, err)
+		if outcome := classifyOpenRungBrokerError(context.Background(), cancelled); outcome.errorKind != "cancelled" {
+			t.Fatalf("%s: kind = %q after cancellation, want cancelled", name, outcome.errorKind)
+		}
+	}
+}
+
+type clockSkewTestTransport func(*http.Request) (*http.Response, error)
+
+func (f clockSkewTestTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	return f(request)
 }

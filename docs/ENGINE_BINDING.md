@@ -1,6 +1,6 @@
 # ADR-003 B1: engine lifecycle binding
 
-B1 introduced the lifecycle binding; B2 now pins connectcore v0.14.1 (with brokerapi v0.10.0) and uses
+B1 introduced the lifecycle binding; B2 now pins connectcore v0.15.0 (with brokerapi v0.11.0) and uses
 its mobile host API as Android's sole orchestrator. B3 uses that API on iOS,
 as documented in [IOS_ENGINE_CUTOVER.md](IOS_ENGINE_CUTOVER.md). The original B1 APIs and measurements below are retained
 for compatibility and historical evidence. The current Android constructor,
@@ -110,7 +110,7 @@ JSON, the binding's actual `TunnelRuntime`, and a local telemetry collector.
 Only the libbox service/network outcomes are simulated. Whole projected status,
 notice, and telemetry streams must equal the upstream vector expectations.
 
-connectcore v0.14.1 exposes its deterministic network/probe seams only to its own
+connectcore v0.15.0 exposes its deterministic network/probe seams only to its own
 package tests. The runner copies that exact tagged module to a temporary test
 workspace and changes only those existing identifiers' visibility. It does not
 change engine logic, modify the module cache, regenerate expectations, or ship
@@ -261,6 +261,11 @@ gomobile interface with connectcore's `InstallationKey` method set:
   and, if the attempt ends FAILED, marks that state with
   `ErrorCode: "enrollment_refused"` (an `access_denied` in the same attempt
   wins); any other state clears it.
+- A relay list fetch that fails the way a wrong device clock makes it fail (a
+  signed list already expired, or a broker certificate outside its validity
+  period) arrives as connectcore's `clock_skew` notice (connectcore 0.15.0),
+  directly before FAILED. The sink marks that state with `ErrorCode: "clock_skew"` so
+  TypeScript can ask the user to correct the date and time.
 - The app stores nothing else for this: the user ID and access token stay in
   the engine (the mobile host has no `UserIDPersistence`), and neither key
   material nor tokens are logged. The telemetry install ID is unrelated.

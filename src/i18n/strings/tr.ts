@@ -170,6 +170,10 @@ export const tr: Partial<Strings> = {
     'Bu cihazın erişimi devre dışı bırakıldı, bu yüzden bağlanamıyor. OpenRung destek ekibiyle iletişime geçin.',
   errorEnrollmentRefused:
     "Kayıt başarısız. Diğer VPN'leri kapatıp tekrar deneyin.",
+  clockWarningTitle: 'Cihazınızın tarih ve saatini kontrol edin',
+  clockWarningBody:
+    'Bu cihazın tarih ve saati yanlış görünüyor; bu, OpenRung bağlantısını engelleyebilir. Cihaz ayarlarından otomatik tarih ve saati açın, sonra tekrar deneyin.',
+  clockWarningRetry: 'Tekrar dene',
   // Desktop client only: the local proxy rows in Settings (DesktopProxySection).
   desktopProxyHeader: 'Yerel proxy',
   desktopProxyEndpointTitle: 'Uç nokta',

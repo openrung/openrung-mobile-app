@@ -168,6 +168,10 @@ export const vi: Partial<Strings> = {
   errorAccessDenied:
     'Quyền truy cập của thiết bị này đã bị vô hiệu hóa nên không thể kết nối. Hãy liên hệ bộ phận hỗ trợ OpenRung.',
   errorEnrollmentRefused: 'Đăng ký thất bại. Hãy ngắt các VPN khác và thử lại.',
+  clockWarningTitle: 'Hãy kiểm tra ngày giờ trên thiết bị',
+  clockWarningBody:
+    'Ngày giờ trên thiết bị này có vẻ không đúng, điều này có thể khiến OpenRung không kết nối được. Hãy bật tự động đặt ngày giờ trong phần cài đặt của thiết bị rồi thử lại.',
+  clockWarningRetry: 'Thử lại',
   // Desktop client only: the local proxy rows in Settings (DesktopProxySection).
   desktopProxyHeader: 'Proxy cục bộ',
   desktopProxyEndpointTitle: 'Điểm cuối',

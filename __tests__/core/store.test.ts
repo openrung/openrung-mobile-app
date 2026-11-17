@@ -182,6 +182,49 @@ describe('refreshDirectory', () => {
     expect(getSnapshot().directoryStatus).toBe('loaded');
     expect(getSnapshot().availableRegions).toHaveLength(1);
   });
+
+  it('flags a relay list expired by the device clock, and clears the flag once a load succeeds', async () => {
+    mockFirstReachable.mockRejectedValue({ userInfo: { kind: 'clock_skew' } });
+    await refreshDirectory();
+    expect(getSnapshot().directoryStatus).toBe('failed');
+    expect(getSnapshot().directoryClockSkew).toBe(true);
+
+    // Any other failure is not blamed on the clock.
+    mockFirstReachable.mockRejectedValue({ userInfo: { kind: 'verification' } });
+    await refreshDirectory(true);
+    expect(getSnapshot().directoryClockSkew).toBe(false);
+
+    mockFirstReachable.mockRejectedValue({ userInfo: { kind: 'clock_skew' } });
+    await refreshDirectory(true);
+    expect(getSnapshot().directoryClockSkew).toBe(true);
+    installNativeDirectory();
+    await refreshDirectory(true);
+    expect(getSnapshot().directoryStatus).toBe('loaded');
+    expect(getSnapshot().directoryClockSkew).toBe(false);
+  });
+
+  it('flags a device clock that is behind the signed server_time, even though the list loads', async () => {
+    const signedAt = (offsetMs: number) => ({
+      ...RELAY_LIST,
+      server_time: new Date(Date.now() + offsetMs).toISOString(),
+      relays: RELAY_LIST.relays.map(relay => ({
+        ...relay,
+        expires_at: new Date(Date.now() + offsetMs + 3_600_000).toISOString(),
+      })),
+    });
+    installNativeDirectory(signedAt(10 * 60_000));
+    await refreshDirectory();
+    expect(getSnapshot().directoryStatus).toBe('loaded');
+    expect(getSnapshot().directoryClockSkew).toBe(true);
+
+    // Small drift, and a list served a while after signing, are both normal.
+    installNativeDirectory(signedAt(2 * 60_000));
+    await refreshDirectory(true);
+    expect(getSnapshot().directoryClockSkew).toBe(false);
+    installNativeDirectory(signedAt(-20 * 60_000));
+    await refreshDirectory(true);
+    expect(getSnapshot().directoryClockSkew).toBe(false);
+  });
 });
 
 describe('homeViewMode', () => {
@@ -698,6 +741,16 @@ describe('applyNativeState lastErrorCode mirroring', () => {
       ru.errorEnrollmentRefused,
     );
     expect(ru.errorEnrollmentRefused).not.toBe(en.errorEnrollmentRefused);
+  });
+
+  it('mirrors clock_skew and shows the translated date-and-time message', () => {
+    applyNativeState(failed({ lastErrorCode: 'clock_skew' }));
+    const native = getSnapshot().native;
+    expect(native.lastErrorCode).toBe('clock_skew');
+    expect(nativeErrorText(en, native.lastError, native.lastErrorCode)).toBe(en.clockWarningBody);
+    const zh = stringsForTag('zh-CN');
+    expect(nativeErrorText(zh, native.lastError, native.lastErrorCode)).toBe(zh.clockWarningBody);
+    expect(zh.clockWarningBody).not.toBe(en.clockWarningBody);
   });
 
   it('publishes a code-only change and keeps uncoded errors as reported', () => {

@@ -169,6 +169,7 @@ describe('OpenRungBroker structured errors and availability', () => {
     'tls',
     'network',
     'verification',
+    'clock_skew',
     'validation',
     'unknown',
     'unavailable',
