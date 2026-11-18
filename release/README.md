@@ -14,8 +14,8 @@ serving contract: [docs/UPDATE_MANIFEST.md](../docs/UPDATE_MANIFEST.md).
   (protocol breaks), and only after checking the broker's `X-OpenRung-App-Version` telemetry for
   how many users you'd be blocking. CI rejects a floor above the current package.json version.
   Blocking requires a SIGNED manifest — see the signing-key section of docs/UPDATE_MANIFEST.md.
-- `ios_latest` — the iOS version **actually live on TestFlight** (`"x.y.z"`). iOS uploads are
-  manual, so CI cannot know this: bump it by PR right after each TestFlight upload. The manifest
+- `ios_latest` — the iOS version **actually live on the App Store** (`"x.y.z"`). iOS releases are
+  manual, so CI cannot know this: bump it by PR once a version is released on the App Store. The manifest
   advertises exactly this to iOS users — never the source version, which may not be built for
   iOS yet. CI rejects a value above package.json and a `min_supported.ios` above it. (Android
   needs no equivalent: the release path publishes the manifest atomically with the APK, and the

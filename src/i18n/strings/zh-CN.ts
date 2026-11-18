@@ -84,7 +84,7 @@ export const zhCN: Partial<Strings> = {
     'OpenRung 是自由软件，依据 GPL-3.0-or-later 授权，因为它链接了 sing-box。本次构建的完整对应源代码可通过下方链接获取。',
   licensesSourceTitle: '源代码',
   privacyPolicyTitle: '隐私政策',
-  privacyPolicySubtitle: 'OpenRung 如何处理测试版诊断数据和个人信息。',
+  privacyPolicySubtitle: 'OpenRung 如何处理诊断数据和个人信息。',
   licensesFullTextTitle: '完整许可文本',
   licensesFullTextSubtitle: 'GNU GPL-3.0 及第三方声明。',
   licensesComponentsHeader: '组件',
@@ -94,11 +94,14 @@ export const zhCN: Partial<Strings> = {
   shareApkErrorBody: '无法分享 APK。请保持 OpenRung 打开并重试。',
   shareApkSplitInstallError:
     '此版本由多个 APK 文件安装，无法安全分享。请安装 OpenRung 独立 APK 后使用离线分享。',
-  shareTestFlightTitle: '分享 OpenRung',
-  shareTestFlightSubtitle: '发送 TestFlight 链接，供他人安装 iOS 测试版。',
-  shareTestFlightMessage: '通过 TestFlight 加入 OpenRung 测试版：',
-  shareTestFlightErrorTitle: '无法分享 OpenRung',
-  shareTestFlightErrorBody: '无法分享 TestFlight 链接。请重试。',
+  shareAppStoreTitle: '分享 OpenRung',
+  shareAppStoreSubtitle:
+    '发送 App Store 链接，供他人安装 OpenRung。',
+  shareAppStoreMessage:
+    '在 App Store 获取 OpenRung：',
+  shareAppStoreErrorTitle: '无法分享 OpenRung',
+  shareAppStoreErrorBody:
+    '无法分享 App Store 链接。请重试。',
 
   // Home tagline and about screen.
   homeTagline: '中继网络',

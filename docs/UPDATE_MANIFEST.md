@@ -97,9 +97,9 @@ sourced per platform:
   which resolves the just-created tag. `latest_code` is present only when the tag matches the
   generating checkout's package.json version (otherwise unknowable and null; informational only,
   clients ignore it).
-- **ios.latest** — always `ios_latest` from `release/update-policy.json`: iOS/TestFlight uploads
+- **ios.latest** — always `ios_latest` from `release/update-policy.json`: iOS App Store releases
   are manual, so the operator records what is actually live and bumps it by policy PR after each
-  TestFlight upload. CI rejects `ios_latest` above package.json and any `min_supported` above the
+  version goes live. CI rejects `ios_latest` above package.json and any `min_supported` above the
   advertised latest (a floor above what users can install would block them with no fix).
 
 - **desktop.latest** — the highest `desktop-vX.Y.Z` release in the `openrung/openrung`
@@ -142,7 +142,7 @@ Hard rules, in priority order:
    gates startup, rendering, or connect. All-candidates-fail = no update UI, retry in 15 min.
 2. **Only a verified manifest can prompt or block.** Unsigned tops out at the passive row.
 3. **Update destinations are pinned constants** (`AppConfig.UPDATE_URL_ANDROID`,
-   `AppConfig.TESTFLIGHT_URL`, `AppConfig.UPDATE_URL_DESKTOP`) — never manifest-supplied, so even a signed manifest cannot
+   `AppConfig.APP_STORE_URL`, `AppConfig.UPDATE_URL_DESKTOP`) — never manifest-supplied, so even a signed manifest cannot
    redirect users to a hostile download. `notice.url` (https-only, verified manifests only) is the
    single server-supplied link, behind an explicit "Learn more".
 4. **"Continue anyway" stays.** A custom-broker user on an "unsupported" build may still work;
@@ -187,7 +187,7 @@ fallback, sequential ordering, and fail-open background behavior.
 ## Runbooks
 
 - **Routine release:** do nothing. `promote` stays `silent`; users see only the passive row.
-- **After uploading an iOS build to TestFlight:** bump `ios_latest` in
+- **After an iOS version goes live on the App Store:** bump `ios_latest` in
   `release/update-policy.json` (PR to main) — until then the manifest keeps advertising the
   previous iOS version, by design.
 - **After a desktop client release:** do nothing. The hourly publisher run advertises it; run

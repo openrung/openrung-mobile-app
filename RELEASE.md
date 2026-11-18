@@ -380,7 +380,7 @@ Before every TestFlight or App Store submission, confirm the public policy at
 Then update and publish the App Privacy answers in App Store Connect. The
 answers must match [`ios/OpenRung/PrivacyInfo.xcprivacy`](ios/OpenRung/PrivacyInfo.xcprivacy):
 
-| App Store Connect data type | Current iOS beta data | Linked to user | Purposes |
+| App Store Connect data type | Current iOS data | Linked to user | Purposes |
 | --- | --- | --- | --- |
 | Coarse Location | IP-derived country and city | Yes | App Functionality; Analytics |
 | Device ID | Persistent installation ID plus connection/session/event IDs linked to it | Yes | App Functionality; Analytics |
@@ -459,7 +459,7 @@ supported-version floor, and operator broadcasts. Per release, decide ONE
 thing: does this release warrant a prompt? If yes, set `promote: "notify"` in
 [`release/update-policy.json`](release/update-policy.json) in the version-bump
 PR (and revert to `"silent"` in the next one); if it's a routine release,
-touch nothing. After manually uploading an iOS build to TestFlight, bump
+touch nothing. After an iOS version goes live on the App Store, bump
 `ios_latest` in the same policy file — the manifest advertises exactly that
 to iOS users, so it stays honest while the (manual) iOS pipeline lags Android. The desktop
 client's version needs no such record: the publisher reads its latest release from the

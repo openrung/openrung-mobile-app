@@ -83,7 +83,7 @@ export const ar: Partial<Strings> = {
   licensesSourceTitle: 'الكود المصدري',
   privacyPolicyTitle: 'سياسة الخصوصية',
   privacyPolicySubtitle:
-    'كيفية تعامل OpenRung مع بيانات تشخيص النسخة التجريبية والمعلومات الشخصية.',
+    'كيفية تعامل OpenRung مع بيانات التشخيص والمعلومات الشخصية.',
   licensesFullTextTitle: 'نصوص التراخيص الكاملة',
   licensesFullTextSubtitle: 'GNU GPL-3.0 وإشعارات الجهات الخارجية.',
   licensesComponentsHeader: 'المكوّنات',
@@ -94,12 +94,14 @@ export const ar: Partial<Strings> = {
     'تعذّرت مشاركة ملف APK. أبقِ OpenRung مفتوحًا وحاول مرة أخرى.',
   shareApkSplitInstallError:
     'ثُبّتت هذه النسخة من عدة ملفات APK ولا يمكن مشاركتها بأمان. ثبّت ملف APK المستقل لـ OpenRung لاستخدام المشاركة دون اتصال.',
-  shareTestFlightTitle: 'مشاركة OpenRung',
-  shareTestFlightSubtitle:
-    'أرسل رابط TestFlight ليتمكّن الآخرون من تثبيت نسخة iOS التجريبية.',
-  shareTestFlightMessage: 'انضم إلى نسخة OpenRung التجريبية عبر TestFlight:',
-  shareTestFlightErrorTitle: 'تعذّرت مشاركة OpenRung',
-  shareTestFlightErrorBody: 'تعذّرت مشاركة رابط TestFlight. حاول مرة أخرى.',
+  shareAppStoreTitle: 'مشاركة OpenRung',
+  shareAppStoreSubtitle:
+    'أرسل رابط App Store ليتمكّن الآخرون من تثبيت OpenRung.',
+  shareAppStoreMessage:
+    'احصل على OpenRung من App Store:',
+  shareAppStoreErrorTitle: 'تعذّرت مشاركة OpenRung',
+  shareAppStoreErrorBody:
+    'تعذّرت مشاركة رابط App Store. حاول مرة أخرى.',
 
   // Home overlay and about screen.
   homeTagline: 'شبكة المُرحّلات',

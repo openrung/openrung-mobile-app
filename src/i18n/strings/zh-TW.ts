@@ -76,7 +76,7 @@ export const zhTW: Partial<Strings> = {
     'OpenRung 是自由軟體；由於連結了 sing-box，因此依 GPL-3.0-or-later 授權。此版本的完整對應原始碼可透過下方連結取得。',
   licensesSourceTitle: '原始碼',
   privacyPolicyTitle: '隱私權政策',
-  privacyPolicySubtitle: 'OpenRung 如何處理測試版診斷資料與個人資訊。',
+  privacyPolicySubtitle: 'OpenRung 如何處理診斷資料與個人資訊。',
   licensesFullTextTitle: '完整授權條款全文',
   licensesFullTextSubtitle: 'GNU GPL-3.0 與第三方聲明。',
   licensesComponentsHeader: '元件',
@@ -86,11 +86,14 @@ export const zhTW: Partial<Strings> = {
   shareApkErrorBody: '無法分享 APK。請保持 OpenRung 開啟並再試一次。',
   shareApkSplitInstallError:
     '此版本由多個 APK 檔案安裝，無法安全分享。請安裝 OpenRung 獨立 APK 後使用離線分享。',
-  shareTestFlightTitle: '分享 OpenRung',
-  shareTestFlightSubtitle: '傳送 TestFlight 連結，供他人安裝 iOS 測試版。',
-  shareTestFlightMessage: '透過 TestFlight 加入 OpenRung 測試版：',
-  shareTestFlightErrorTitle: '無法分享 OpenRung',
-  shareTestFlightErrorBody: '無法分享 TestFlight 連結。請再試一次。',
+  shareAppStoreTitle: '分享 OpenRung',
+  shareAppStoreSubtitle:
+    '傳送 App Store 連結，供他人安裝 OpenRung。',
+  shareAppStoreMessage:
+    '在 App Store 取得 OpenRung：',
+  shareAppStoreErrorTitle: '無法分享 OpenRung',
+  shareAppStoreErrorBody:
+    '無法分享 App Store 連結。請再試一次。',
 
   // Home tagline + about screen.
   homeTagline: '中繼網路',

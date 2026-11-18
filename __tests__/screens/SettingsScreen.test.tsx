@@ -4,7 +4,7 @@ import { Alert, Linking, Share, Text } from 'react-native';
 
 const mockShareInstalledApk = jest.fn<Promise<void>, [string]>();
 
-// Jest's react-native preset resolves Platform.OS to 'ios', so giving the config a TestFlight
+// Jest's react-native preset resolves Platform.OS to 'ios', so giving the config an App Store
 // link is all it takes to make the iOS sharing row available.
 jest.mock('../../src/config', () => {
   const actual = jest.requireActual('../../src/config');
@@ -12,7 +12,7 @@ jest.mock('../../src/config', () => {
     ...actual,
     AppConfig: {
       ...actual.AppConfig,
-      TESTFLIGHT_URL: 'https://testflight.apple.com/join/TESTCODE',
+      APP_STORE_URL: 'https://apps.apple.com/app/id0000000000',
     },
   };
 });
@@ -159,8 +159,8 @@ describe('SettingsScreen Android APK sharing', () => {
   });
 });
 
-describe('SettingsScreen iOS TestFlight sharing', () => {
-  it('places TestFlight sharing in General and opens the system share sheet', async () => {
+describe('SettingsScreen iOS App Store sharing', () => {
+  it('places App Store sharing in General and opens the system share sheet', async () => {
     const share = jest
       .spyOn(Share, 'share')
       .mockResolvedValue({ action: Share.sharedAction });
@@ -184,8 +184,8 @@ describe('SettingsScreen iOS TestFlight sharing', () => {
 
     expect(share).toHaveBeenCalledWith(
       {
-        message: 'Join the OpenRung beta on TestFlight:',
-        url: 'https://testflight.apple.com/join/TESTCODE',
+        message: 'Get OpenRung on the App Store:',
+        url: 'https://apps.apple.com/app/id0000000000',
       },
       { subject: 'Share OpenRung' },
     );
@@ -207,7 +207,7 @@ describe('SettingsScreen iOS TestFlight sharing', () => {
 
     expect(alert).toHaveBeenCalledWith(
       'Unable to share OpenRung',
-      'The TestFlight link could not be shared. Try again.',
+      'The App Store link could not be shared. Try again.',
     );
     share.mockRestore();
     alert.mockRestore();

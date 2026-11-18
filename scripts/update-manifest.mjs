@@ -17,7 +17,7 @@
 //       unsigned manifests can never hard-block clients, only surface the passive update row.
 //       --android-latest overrides the advertised Android version (the publisher workflow passes
 //       the latest RELEASE tag so a still-building/failed release is never advertised); iOS
-//       latest always comes from the policy file's ios_latest (TestFlight uploads are manual).
+//       latest always comes from the policy file's ios_latest (App Store releases are manual).
 //       --desktop-latest is the desktop client's latest release, which the publisher workflow
 //       resolves from the openrung repository; without it the manifest has no desktop section.
 //       --release-published-at and --desktop-published-at (the resolved releases' published_at)
@@ -143,12 +143,12 @@ function validatePolicy(policy, currentVersion) {
       );
     }
   }
-  // iOS releases are manual (TestFlight), so nothing in CI knows what is actually live; the
+  // iOS releases are manual (App Store), so nothing in CI knows what is actually live; the
   // operator records it here and the manifest advertises exactly that — never an unbuilt version.
   const iosLatest = policy.ios_latest;
   if (typeof iosLatest !== 'string' || !SEMVER_RE.test(iosLatest)) {
     errors.push(
-      `ios_latest must be "x.y.z" (the version actually live on TestFlight), got ${JSON.stringify(iosLatest)}`,
+      `ios_latest must be "x.y.z" (the version actually live on the App Store), got ${JSON.stringify(iosLatest)}`,
     );
   } else {
     if (!semverLte(iosLatest, currentVersion)) {
@@ -293,7 +293,7 @@ function buildPayload(version, versionCode, policy, androidLatest, desktopLatest
       min_supported: policy.min_supported.android,
     },
     ios: {
-      // Manual TestFlight pipeline: advertise what the operator recorded as actually live,
+      // Manual App Store pipeline: advertise what the operator recorded as actually live,
       // never the source version (which may not be built for iOS yet).
       latest: policy.ios_latest,
       min_supported: policy.min_supported.ios,

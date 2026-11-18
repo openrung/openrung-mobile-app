@@ -89,7 +89,7 @@ export const my: Partial<Strings> = {
   licensesSourceTitle: 'အရင်းအမြစ်ကုဒ်',
   privacyPolicyTitle: 'ကိုယ်ရေးအချက်အလက် မူဝါဒ',
   privacyPolicySubtitle:
-    'OpenRung သည် beta စမ်းသပ်မှုဆိုင်ရာ အမှားရှာဖွေဒေတာနှင့် ကိုယ်ရေးအချက်အလက်များကို ကိုင်တွယ်ပုံ။',
+    'OpenRung သည် အမှားရှာဖွေဒေတာနှင့် ကိုယ်ရေးအချက်အလက်များကို ကိုင်တွယ်ပုံ။',
   licensesFullTextTitle: 'လိုင်စင် စာသားအပြည့်အစုံ',
   licensesFullTextSubtitle: 'GNU GPL-3.0 နှင့် ပြင်ပ အသိပေးချက်များ။',
   licensesComponentsHeader: 'အစိတ်အပိုင်းများ',
@@ -101,12 +101,14 @@ export const my: Partial<Strings> = {
     'APK ကို မျှဝေ၍မရပါ။ OpenRung ကို ဖွင့်ထားပြီး ထပ်မံကြိုးစားပါ။',
   shareApkSplitInstallError:
     'ဤမိတ္တူကို APK ဖိုင်များစွာဖြင့် ထည့်သွင်းထားသဖြင့် လုံခြုံစွာ မျှဝေ၍မရပါ။ အင်တာနက်မလိုဘဲ မျှဝေရန် OpenRung ၏ သီးခြား APK ကို ထည့်သွင်းပါ။',
-  shareTestFlightTitle: 'OpenRung ကို မျှဝေပါ',
-  shareTestFlightSubtitle:
-    'iOS beta ကို ထည့်သွင်းနိုင်ရန် TestFlight လင့်ခ်ကို ပေးပို့ပါ။',
-  shareTestFlightMessage: 'TestFlight တွင် OpenRung beta သို့ ပါဝင်ပါ –',
-  shareTestFlightErrorTitle: 'OpenRung ကို မျှဝေ၍မရပါ',
-  shareTestFlightErrorBody: 'TestFlight လင့်ခ်ကို မျှဝေ၍မရပါ။ ထပ်မံကြိုးစားပါ။',
+  shareAppStoreTitle: 'OpenRung ကို မျှဝေပါ',
+  shareAppStoreSubtitle:
+    'OpenRung ကို ထည့်သွင်းနိုင်ရန် App Store လင့်ခ်ကို ပေးပို့ပါ။',
+  shareAppStoreMessage:
+    'App Store တွင် OpenRung ကို ရယူပါ –',
+  shareAppStoreErrorTitle: 'OpenRung ကို မျှဝေ၍မရပါ',
+  shareAppStoreErrorBody:
+    'App Store လင့်ခ်ကို မျှဝေ၍မရပါ။ ထပ်မံကြိုးစားပါ။',
 
   // Home overlay and about screen.
   homeTagline: 'ရီလေး ကွန်ရက်',

@@ -58,13 +58,11 @@ export const AppConfig = {
   TELEGRAM_URL: 'https://t.me/openrung_bot',
 
   /**
-   * TestFlight public invite link for the iOS beta, shared from Settings → "Share OpenRung"
-   * (the iOS counterpart of Android's offline APK sharing). Regenerate it in App Store Connect →
-   * TestFlight → external group → Public Link if the group is ever recreated; the Settings row
-   * hides itself whenever this is empty. Note RELEASE.md §5: external TestFlight distribution of
-   * the GPL-linked binary has an unresolved licensing caveat.
+   * App Store page for the iOS app, shared from Settings → "Share OpenRung" (the iOS counterpart
+   * of Android's offline APK sharing) and opened by the "Update" buttons. The numeric ID is the
+   * app's Apple ID in App Store Connect; the Settings row hides itself whenever this is empty.
    */
-  TESTFLIGHT_URL: 'https://testflight.apple.com/join/RMTt4UfQ',
+  APP_STORE_URL: 'https://apps.apple.com/app/id6791778805',
 
   /**
    * Vector tiles + glyphs for the exit-node map. We build our own flat style around these MapLibre
@@ -97,7 +95,7 @@ export const AppConfig = {
   /**
    * Where the "Update" buttons send Android users. Deliberately a pinned constant — update
    * destinations NEVER come from the manifest, so even a validly-signed (let alone forged)
-   * manifest cannot redirect users to a hostile download. iOS uses TESTFLIGHT_URL.
+   * manifest cannot redirect users to a hostile download. iOS uses APP_STORE_URL.
    */
   UPDATE_URL_ANDROID:
     'https://github.com/openrung/openrung-mobile-app/releases/latest',
@@ -140,7 +138,7 @@ export const APP_VERSION = OpenRungDesktop?.appVersion ?? version;
 export const APP_UPDATE_URL = isDesktop
   ? AppConfig.UPDATE_URL_DESKTOP
   : Platform.OS === 'ios'
-    ? AppConfig.TESTFLIGHT_URL
+    ? AppConfig.APP_STORE_URL
     : AppConfig.UPDATE_URL_ANDROID;
 
 /** Corresponding-source location for the build that is running. */
