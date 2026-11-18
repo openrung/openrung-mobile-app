@@ -6,7 +6,7 @@
     "desktop": "0.0.0"
   },
   "ios_latest": "1.0.0",
-  "promote": "notify",
+  "promote": "silent",
   "notice": {
     "id": "2026-11-release-1.0.0",
     "level": "info",
