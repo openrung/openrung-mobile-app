@@ -1,6 +1,6 @@
 /**
  * exitNodeFeatures: the GeoJSON behind the home map's markers, including which feature the
- * map draws as the connected relay.
+ * map draws as the connected relay; connectedCameraStop: when the map recenters on it.
  */
 jest.mock('@maplibre/maplibre-react-native', () => ({}));
 
@@ -13,7 +13,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   },
 }));
 
-import { exitNodeFeatures } from '../../src/components/ExitNodeMap';
+import { connectedCameraStop, exitNodeFeatures } from '../../src/components/ExitNodeMap';
 import type { ExitNodeRegion } from '../../src/model/exitNode';
 
 const REGIONS: ExitNodeRegion[] = [
@@ -67,5 +67,23 @@ describe('exitNodeFeatures', () => {
     // No code: a tap on it connects nowhere. No count or label text.
     expect(features[2].properties).toEqual({ count: '', label: '', connected: true });
     expect(features[2].geometry.coordinates).toEqual([8.68, 50.11]);
+  });
+});
+
+describe('connectedCameraStop', () => {
+  it('recenters on the connected relay while the app is active', () => {
+    expect(connectedCameraStop([127.9, 36.5], true)).toEqual({
+      center: [127.9, 36.5],
+      duration: 1000,
+      easing: 'ease',
+    });
+  });
+
+  it('sends no stop while the app is not active, as after a background widget Connect', () => {
+    expect(connectedCameraStop([127.9, 36.5], false)).toEqual({});
+  });
+
+  it('sends no stop while not connected', () => {
+    expect(connectedCameraStop(null, true)).toEqual({});
   });
 });
