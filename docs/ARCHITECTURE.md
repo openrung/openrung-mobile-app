@@ -510,6 +510,10 @@ four safe-area insets, tab scenes take the tab bar from their own
 columns are capped at `tokens.contentMaxWidth` on regular-width windows such as
 iPad and the iPhone Duo inner display. About and Settings use two columns when
 the scene has enough usable width, and stack their sections in narrower windows.
+From 880 points wide (`useWideLayout`), the JS `TabBar` runs as a navigation
+rail on the left edge, and Home docks its header, connect card, recents and
+relay list in a side panel beside the map, without the MAP/LIST toggle. This is
+the desktop client's normal window; iOS keeps its system tab bar there.
 
 ## Known limitations (§8)
 

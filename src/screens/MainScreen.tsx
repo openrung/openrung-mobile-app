@@ -19,7 +19,16 @@
  * through everywhere except the actual controls.
  */
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
-import { Animated, Linking, StyleSheet, Text, View } from 'react-native';
+import {
+  Animated,
+  Linking,
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
+import { useSafeAreaFrame } from 'react-native-safe-area-context';
 
 import { ConnectCard } from '../components/ConnectCard';
 import { EdgeFade } from '../components/EdgeFade';
@@ -31,7 +40,7 @@ import { UpdateBanner } from '../components/UpdateBanner';
 import { ViewModeToggle } from '../components/ViewModeToggle';
 import { APP_UPDATE_URL } from '../config';
 import { nativeErrorText, resolveLanguage, useLanguage, useStrings } from '../i18n';
-import { layout, useTabSceneInsets } from '../layout';
+import { homeSidePanelWidth, layout, useTabSceneInsets, useWideLayout } from '../layout';
 import { connectedRelayLngLat, sessionRecent } from '../model/exitNode';
 import { pickLocalizedText } from '../model/updateStatus';
 import {
@@ -96,6 +105,8 @@ function selectMainScreenState(current: AppState) {
 
 export function MainScreen(): React.JSX.Element {
   const insets = useTabSceneInsets();
+  const wide = useWideLayout();
+  const frame = useSafeAreaFrame();
   const s = useStrings();
   const { languageTag } = useLanguage();
   const { disconnect, prepareAndConnect } = useVpnActions();
@@ -205,6 +216,126 @@ export function MainScreen(): React.JSX.Element {
     }
   }, [notice]);
 
+  const header = (
+    <>
+      <View style={styles.header} pointerEvents="box-none">
+        <Wordmark />
+        <MapStatusChip
+          directoryStatus={directoryStatus}
+          relayCount={relayCount}
+          onRetry={onRetryDirectory}
+          style={styles.headerChip}
+        />
+      </View>
+      <Text style={styles.slogan}>{s.homeSlogan}</Text>
+    </>
+  );
+
+  const banner = directoryClockSkew ? (
+    // Nothing works until the clock is fixed, so this outranks the update and notice cards.
+    <UpdateBanner
+      style={[styles.updateBanner, layout.column]}
+      level="warn"
+      title={s.clockWarningTitle}
+      body={s.clockWarningBody}
+      dismissLabel={s.clockWarningRetry}
+      onDismiss={onRetryDirectory}
+    />
+  ) : update.tier === 'notify' && update.latestVersion != null ? (
+    <UpdateBanner
+      style={[styles.updateBanner, layout.column]}
+      title={s.updateBannerTitle}
+      body={s.updateBannerBody(update.latestVersion)}
+      primaryLabel={s.updateActionNow}
+      onPrimary={onOpenUpdate}
+      dismissLabel={s.updateActionLater}
+      onDismiss={dismissUpdateBanner}
+    />
+  ) : notice != null ? (
+    // Broadcast notice (verified manifests only; one card at a time — the update banner
+    // outranks it, and the notice returns once the banner is dismissed or acted on).
+    <UpdateBanner
+      style={[styles.updateBanner, layout.column]}
+      level={notice.level}
+      title={pickLocalizedText(notice.title, locale)}
+      body={pickLocalizedText(notice.body, locale)}
+      primaryLabel={notice.url != null ? s.noticeLearnMore : undefined}
+      onPrimary={notice.url != null ? onOpenNoticeUrl : undefined}
+      dismissLabel={s.noticeDismiss}
+      onDismiss={() => dismissUpdateNotice(notice.id)}
+    />
+  ) : null;
+
+  const recentsSection = (
+    <RecentsSection recents={recents} liveRelayIds={liveRelayIds} onPress={onConnectRelay} />
+  );
+
+  const connectCard = (
+    <ConnectCard
+      status={status}
+      relayName={relayName}
+      relayCountryCode={relayCountryCode}
+      connectedAtMs={connectedAtMs}
+      errorText={errorText}
+      relayClass={relayClass}
+      isConnected={isConnected}
+      isWorking={isWorking}
+      onToggle={onToggle}
+    />
+  );
+
+  const relayList = (style: StyleProp<ViewStyle>) => (
+    <RelayList
+      regions={availableRegions}
+      directoryStatus={directoryStatus}
+      onRelayPress={onConnectRelay}
+      onRetry={onRetryDirectory}
+      refreshing={directoryStatus === 'loading'}
+      style={style}
+    />
+  );
+
+  const map = (
+    <ExitNodeMap
+      regions={availableRegions}
+      onRegionPress={onConnectRegion}
+      connectedLngLat={connectedLngLat}
+    />
+  );
+
+  if (wide) {
+    // Wide windows: the controls dock in a side panel and the map fills the rest, so the
+    // relay list and the map are both on screen and the MAP/LIST toggle has nothing to do.
+    const panelWidth = homeSidePanelWidth(frame.width);
+    return (
+      <View style={styles.root}>
+        <View style={[styles.mapArea, { left: insets.left + panelWidth }]}>
+          {map}
+          <EdgeFade />
+        </View>
+        <View
+          style={[
+            styles.sidePanel,
+            {
+              left: insets.left,
+              width: panelWidth,
+              paddingTop: insets.top + 24,
+              paddingBottom: insets.bottom + 20,
+            },
+          ]}
+        >
+          {header}
+          {banner}
+          <View style={styles.sidePanelControls}>
+            {connectCard}
+            {recentsSection}
+          </View>
+          {relayList(styles.sidePanelList)}
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.root}>
       <View
@@ -213,11 +344,7 @@ export function MainScreen(): React.JSX.Element {
         accessibilityElementsHidden={isListMode}
         importantForAccessibility={isListMode ? 'no-hide-descendants' : 'auto'}
       >
-        <ExitNodeMap
-          regions={availableRegions}
-          onRegionPress={onConnectRegion}
-          connectedLngLat={connectedLngLat}
-        />
+        {map}
       </View>
       <EdgeFade />
 
@@ -234,80 +361,20 @@ export function MainScreen(): React.JSX.Element {
         ]}
         pointerEvents="box-none"
       >
-        <View style={styles.header} pointerEvents="box-none">
-          <Wordmark />
-          <MapStatusChip
-            directoryStatus={directoryStatus}
-            relayCount={relayCount}
-            onRetry={onRetryDirectory}
-            style={styles.headerChip}
-          />
-        </View>
-        <Text style={styles.slogan}>{s.homeSlogan}</Text>
-
-        {directoryClockSkew ? (
-          // Nothing works until the clock is fixed, so this outranks the update and notice cards.
-          <UpdateBanner
-            style={[styles.updateBanner, layout.column]}
-            level="warn"
-            title={s.clockWarningTitle}
-            body={s.clockWarningBody}
-            dismissLabel={s.clockWarningRetry}
-            onDismiss={onRetryDirectory}
-          />
-        ) : update.tier === 'notify' && update.latestVersion != null ? (
-          <UpdateBanner
-            style={[styles.updateBanner, layout.column]}
-            title={s.updateBannerTitle}
-            body={s.updateBannerBody(update.latestVersion)}
-            primaryLabel={s.updateActionNow}
-            onPrimary={onOpenUpdate}
-            dismissLabel={s.updateActionLater}
-            onDismiss={dismissUpdateBanner}
-          />
-        ) : notice != null ? (
-          // Broadcast notice (verified manifests only; one card at a time — the update banner
-          // outranks it, and the notice returns once the banner is dismissed or acted on).
-          <UpdateBanner
-            style={[styles.updateBanner, layout.column]}
-            level={notice.level}
-            title={pickLocalizedText(notice.title, locale)}
-            body={pickLocalizedText(notice.body, locale)}
-            primaryLabel={notice.url != null ? s.noticeLearnMore : undefined}
-            onPrimary={notice.url != null ? onOpenNoticeUrl : undefined}
-            dismissLabel={s.noticeDismiss}
-            onDismiss={() => dismissUpdateNotice(notice.id)}
-          />
-        ) : null}
+        {header}
+        {banner}
 
         <ViewModeToggle mode={homeViewMode} onChange={setHomeViewMode} style={styles.viewToggle} />
 
         {isListMode ? (
-          <RelayList
-            regions={availableRegions}
-            directoryStatus={directoryStatus}
-            onRelayPress={onConnectRelay}
-            onRetry={onRetryDirectory}
-            refreshing={directoryStatus === 'loading'}
-            style={[styles.list, layout.column]}
-          />
+          relayList([styles.list, layout.column])
         ) : (
           <View style={styles.spacer} pointerEvents="none" />
         )}
 
         <View style={[styles.bottomStack, layout.column]} pointerEvents="box-none">
-          <RecentsSection recents={recents} liveRelayIds={liveRelayIds} onPress={onConnectRelay} />
-          <ConnectCard
-            status={status}
-            relayName={relayName}
-            relayCountryCode={relayCountryCode}
-            connectedAtMs={connectedAtMs}
-            errorText={errorText}
-            relayClass={relayClass}
-            isConnected={isConnected}
-            isWorking={isWorking}
-            onToggle={onToggle}
-          />
+          {recentsSection}
+          {connectCard}
         </View>
       </View>
     </View>
@@ -318,6 +385,31 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: palette.screen,
+  },
+  mapArea: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+  },
+  sidePanel: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    paddingHorizontal: 24,
+    backgroundColor: palette.screen,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderRightColor: tokens.glassBorder,
+  },
+  sidePanelControls: {
+    marginTop: 24,
+    gap: 16,
+  },
+  // Sized to its rows, scrolling once they outgrow the panel.
+  sidePanelList: {
+    flexGrow: 0,
+    flexShrink: 1,
+    marginTop: 20,
   },
   overlay: {
     position: 'absolute',
