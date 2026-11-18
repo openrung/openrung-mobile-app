@@ -61,7 +61,7 @@ export const en = {
   licensesSourceTitle: 'Source code',
   privacyPolicyTitle: 'Privacy policy',
   privacyPolicySubtitle:
-    'How OpenRung handles beta diagnostics and personal information.',
+    'How OpenRung handles diagnostics and personal information.',
   licensesFullTextTitle: 'Full license texts',
   licensesFullTextSubtitle: 'GNU GPL-3.0 and third-party notices.',
   licensesComponentsHeader: 'Components',
@@ -72,12 +72,14 @@ export const en = {
     'The APK could not be shared. Keep OpenRung open and try again.',
   shareApkSplitInstallError:
     'This copy was installed as multiple APK files and cannot be shared safely. Install the standalone OpenRung APK to use offline sharing.',
-  shareTestFlightTitle: 'Share OpenRung',
-  shareTestFlightSubtitle: 'Send a TestFlight link that installs the iOS beta.',
-  shareTestFlightMessage: 'Join the OpenRung beta on TestFlight:',
-  shareTestFlightErrorTitle: 'Unable to share OpenRung',
-  shareTestFlightErrorBody:
-    'The TestFlight link could not be shared. Try again.',
+  shareAppStoreTitle: 'Share OpenRung',
+  shareAppStoreSubtitle:
+    'Send the App Store link so others can install OpenRung.',
+  shareAppStoreMessage:
+    'Get OpenRung on the App Store:',
+  shareAppStoreErrorTitle: 'Unable to share OpenRung',
+  shareAppStoreErrorBody:
+    'The App Store link could not be shared. Try again.',
 
   // --- Redesigned shell (tabs, home overlay, about) ---
   tabHome: 'Home',

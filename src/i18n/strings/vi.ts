@@ -81,7 +81,7 @@ export const vi: Partial<Strings> = {
   licensesSourceTitle: 'Mã nguồn',
   privacyPolicyTitle: 'Chính sách quyền riêng tư',
   privacyPolicySubtitle:
-    'Cách OpenRung xử lý dữ liệu chẩn đoán bản beta và thông tin cá nhân.',
+    'Cách OpenRung xử lý dữ liệu chẩn đoán và thông tin cá nhân.',
   licensesFullTextTitle: 'Toàn văn giấy phép',
   licensesFullTextSubtitle: 'GNU GPL-3.0 và thông báo của bên thứ ba.',
   licensesComponentsHeader: 'Thành phần',
@@ -93,13 +93,14 @@ export const vi: Partial<Strings> = {
     'Không thể chia sẻ APK. Hãy giữ OpenRung đang mở và thử lại.',
   shareApkSplitInstallError:
     'Bản này được cài bằng nhiều tệp APK nên không thể chia sẻ an toàn. Hãy cài APK OpenRung độc lập để dùng tính năng chia sẻ ngoại tuyến.',
-  shareTestFlightTitle: 'Chia sẻ OpenRung',
-  shareTestFlightSubtitle:
-    'Gửi liên kết TestFlight để người khác cài bản beta iOS.',
-  shareTestFlightMessage: 'Tham gia bản beta OpenRung trên TestFlight:',
-  shareTestFlightErrorTitle: 'Không thể chia sẻ OpenRung',
-  shareTestFlightErrorBody:
-    'Không thể chia sẻ liên kết TestFlight. Hãy thử lại.',
+  shareAppStoreTitle: 'Chia sẻ OpenRung',
+  shareAppStoreSubtitle:
+    'Gửi liên kết App Store để người khác cài OpenRung.',
+  shareAppStoreMessage:
+    'Tải OpenRung trên App Store:',
+  shareAppStoreErrorTitle: 'Không thể chia sẻ OpenRung',
+  shareAppStoreErrorBody:
+    'Không thể chia sẻ liên kết App Store. Hãy thử lại.',
 
   // Home overlay and about screen.
   homeTagline: 'mạng lưới relay',

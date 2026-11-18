@@ -1,7 +1,7 @@
 /**
  * Settings tab. Large title (it's a root tab now — no back arrow), then
  * sectioned panels: GENERAL (language, split tunneling, plus per-platform
- * sharing — Android offline APK, iOS TestFlight invite link) and DIAGNOSTICS
+ * sharing — Android offline APK, iOS App Store link) and DIAGNOSTICS
  * (speed test link, debug console). The desktop client adds a TUN mode switch
  * where its host offers one, and a LOCAL PROXY section outside TUN mode.
  * Version and licenses live on the About tab. The language
@@ -44,11 +44,11 @@ export interface SettingsScreenProps {
 }
 
 /**
- * iOS counterpart of Android's offline APK sharing: nothing to link natively — the TestFlight
- * invite link just goes to the system share sheet. Hidden until TESTFLIGHT_URL is configured.
+ * iOS counterpart of Android's offline APK sharing: nothing to link natively — the App Store
+ * link just goes to the system share sheet. Hidden until APP_STORE_URL is configured.
  */
-const isTestFlightShareAvailable =
-  Platform.OS === 'ios' && AppConfig.TESTFLIGHT_URL.length > 0;
+const isAppStoreShareAvailable =
+  Platform.OS === 'ios' && AppConfig.APP_STORE_URL.length > 0;
 
 export function SettingsScreen({
   onOpenDebug,
@@ -83,12 +83,12 @@ export function SettingsScreen({
     });
   }, []);
 
-  const onShareTestFlight = useCallback(() => {
+  const onShareAppStore = useCallback(() => {
     Share.share(
-      { message: s.shareTestFlightMessage, url: AppConfig.TESTFLIGHT_URL },
-      { subject: s.shareTestFlightTitle },
+      { message: s.shareAppStoreMessage, url: AppConfig.APP_STORE_URL },
+      { subject: s.shareAppStoreTitle },
     ).catch(() => {
-      Alert.alert(s.shareTestFlightErrorTitle, s.shareTestFlightErrorBody);
+      Alert.alert(s.shareAppStoreErrorTitle, s.shareAppStoreErrorBody);
     });
   }, [s]);
 
@@ -136,11 +136,11 @@ export function SettingsScreen({
                 onPress={onShareApk}
               />
             ) : null}
-            {isTestFlightShareAvailable ? (
+            {isAppStoreShareAvailable ? (
               <SettingPanel
-                title={s.shareTestFlightTitle}
-                subtitle={s.shareTestFlightSubtitle}
-                onPress={onShareTestFlight}
+                title={s.shareAppStoreTitle}
+                subtitle={s.shareAppStoreSubtitle}
+                onPress={onShareAppStore}
               />
             ) : null}
             {OpenRungDesktop != null ? (

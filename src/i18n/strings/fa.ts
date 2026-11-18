@@ -84,7 +84,7 @@ export const fa: Partial<Strings> = {
   licensesSourceTitle: 'کد منبع',
   privacyPolicyTitle: 'سیاست حفظ حریم خصوصی',
   privacyPolicySubtitle:
-    'نحوهٔ مدیریت داده‌های تشخیصی نسخهٔ آزمایشی و اطلاعات شخصی توسط OpenRung.',
+    'نحوهٔ مدیریت داده‌های تشخیصی و اطلاعات شخصی توسط OpenRung.',
   licensesFullTextTitle: 'متن کامل مجوزها',
   licensesFullTextSubtitle: 'GNU GPL-3.0 و اعلان‌های اشخاص ثالث.',
   licensesComponentsHeader: 'مؤلفه‌ها',
@@ -96,13 +96,14 @@ export const fa: Partial<Strings> = {
     'فایل APK قابل اشتراک‌گذاری نبود. OpenRung را باز نگه دارید و دوباره تلاش کنید.',
   shareApkSplitInstallError:
     'این نسخه با چند فایل APK نصب شده است و نمی‌توان آن را به‌طور امن به اشتراک گذاشت. برای اشتراک‌گذاری آفلاین، فایل APK مستقل OpenRung را نصب کنید.',
-  shareTestFlightTitle: 'اشتراک‌گذاری OpenRung',
-  shareTestFlightSubtitle:
-    'پیوند TestFlight را بفرستید تا دیگران بتای iOS را نصب کنند.',
-  shareTestFlightMessage: 'در TestFlight به بتای OpenRung بپیوندید:',
-  shareTestFlightErrorTitle: 'اشتراک‌گذاری OpenRung ممکن نیست',
-  shareTestFlightErrorBody:
-    'پیوند TestFlight به اشتراک گذاشته نشد. دوباره تلاش کنید.',
+  shareAppStoreTitle: 'اشتراک‌گذاری OpenRung',
+  shareAppStoreSubtitle:
+    'پیوند App Store را بفرستید تا دیگران OpenRung را نصب کنند.',
+  shareAppStoreMessage:
+    'OpenRung را از App Store دریافت کنید:',
+  shareAppStoreErrorTitle: 'اشتراک‌گذاری OpenRung ممکن نیست',
+  shareAppStoreErrorBody:
+    'پیوند App Store به اشتراک گذاشته نشد. دوباره تلاش کنید.',
 
   // Home tagline + about screen.
   homeTagline: 'شبکهٔ رله‌ها',

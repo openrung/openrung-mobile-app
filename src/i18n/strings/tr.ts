@@ -86,7 +86,7 @@ export const tr: Partial<Strings> = {
   licensesSourceTitle: 'Kaynak kodu',
   privacyPolicyTitle: 'Gizlilik politikası',
   privacyPolicySubtitle:
-    "OpenRung'un beta tanılama verilerini ve kişisel bilgileri nasıl işlediği.",
+    "OpenRung'un tanılama verilerini ve kişisel bilgileri nasıl işlediği.",
   licensesFullTextTitle: 'Tam lisans metinleri',
   licensesFullTextSubtitle: 'GNU GPL-3.0 ve üçüncü taraf bildirimleri.',
   licensesComponentsHeader: 'Bileşenler',
@@ -97,13 +97,14 @@ export const tr: Partial<Strings> = {
   shareApkErrorBody: "APK paylaşılamadı. OpenRung'u açık tutup tekrar deneyin.",
   shareApkSplitInstallError:
     "Bu kopya birden fazla APK dosyasıyla yüklendiği için güvenle paylaşılamaz. Çevrimdışı paylaşım için bağımsız OpenRung APK'sını yükleyin.",
-  shareTestFlightTitle: "OpenRung'u paylaş",
-  shareTestFlightSubtitle:
-    'Başkalarının iOS betasını kurabilmesi için TestFlight bağlantısı gönderin.',
-  shareTestFlightMessage: "TestFlight'ta OpenRung betasına katılın:",
-  shareTestFlightErrorTitle: 'OpenRung paylaşılamıyor',
-  shareTestFlightErrorBody:
-    'TestFlight bağlantısı paylaşılamadı. Tekrar deneyin.',
+  shareAppStoreTitle: "OpenRung'u paylaş",
+  shareAppStoreSubtitle:
+    "Başkalarının OpenRung'u kurabilmesi için App Store bağlantısını gönderin.",
+  shareAppStoreMessage:
+    "OpenRung'u App Store'dan indirin:",
+  shareAppStoreErrorTitle: 'OpenRung paylaşılamıyor',
+  shareAppStoreErrorBody:
+    'App Store bağlantısı paylaşılamadı. Tekrar deneyin.',
 
   // Home overlay and about screen.
   homeTagline: 'röle ağı',

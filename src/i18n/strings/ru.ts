@@ -82,7 +82,7 @@ export const ru: Partial<Strings> = {
   licensesSourceTitle: 'Исходный код',
   privacyPolicyTitle: 'Политика конфиденциальности',
   privacyPolicySubtitle:
-    'Как OpenRung обрабатывает диагностические данные бета-версии и персональную информацию.',
+    'Как OpenRung обрабатывает диагностические данные и персональную информацию.',
   licensesFullTextTitle: 'Полные тексты лицензий',
   licensesFullTextSubtitle: 'GNU GPL-3.0 и уведомления третьих сторон.',
   licensesComponentsHeader: 'Компоненты',
@@ -94,13 +94,14 @@ export const ru: Partial<Strings> = {
     'Не удалось поделиться APK. Оставьте OpenRung открытым и повторите попытку.',
   shareApkSplitInstallError:
     'Эта копия установлена из нескольких APK и не может быть безопасно передана. Установите отдельный APK OpenRung, чтобы использовать офлайн-обмен.',
-  shareTestFlightTitle: 'Поделиться OpenRung',
-  shareTestFlightSubtitle:
-    'Отправьте ссылку TestFlight, чтобы другие могли установить iOS-бету.',
-  shareTestFlightMessage: 'Присоединяйтесь к бете OpenRung в TestFlight:',
-  shareTestFlightErrorTitle: 'Не удалось поделиться OpenRung',
-  shareTestFlightErrorBody:
-    'Не удалось поделиться ссылкой TestFlight. Попробуйте ещё раз.',
+  shareAppStoreTitle: 'Поделиться OpenRung',
+  shareAppStoreSubtitle:
+    'Отправьте ссылку на App Store, чтобы другие могли установить OpenRung.',
+  shareAppStoreMessage:
+    'Скачайте OpenRung в App Store:',
+  shareAppStoreErrorTitle: 'Не удалось поделиться OpenRung',
+  shareAppStoreErrorBody:
+    'Не удалось поделиться ссылкой на App Store. Попробуйте ещё раз.',
 
   // Home overlay / about screen.
   homeTagline: 'сеть ретрансляторов',
