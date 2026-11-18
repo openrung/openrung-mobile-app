@@ -7,6 +7,7 @@ import com.facebook.react.ReactHost
 import com.facebook.react.ReactNativeApplicationEntryPoint.loadReactNative
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.openrung.bridge.OpenRungVpnPackage
+import com.openrung.widget.OpenRungWidget
 
 class MainApplication : Application(), ReactApplication {
 
@@ -25,5 +26,7 @@ class MainApplication : Application(), ReactApplication {
   override fun onCreate() {
     super.onCreate()
     loadReactNative(this)
+    // The home-screen widget follows the tunnel's status for the life of the process.
+    OpenRungWidget.start(this)
   }
 }

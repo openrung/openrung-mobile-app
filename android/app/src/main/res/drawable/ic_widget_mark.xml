@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The OpenRung mark (ios/OpenRungWidget/Assets.xcassets/OpenRungMark.imageset/openrung-mark.svg). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="20dp"
+    android:viewportWidth="256"
+    android:viewportHeight="256">
+    <path android:fillColor="#1D8A4F" android:pathData="M58,0h140a58,58 0,0 1,58,58v140a58,58 0,0 1,-58,58h-140a58,58 0,0 1,-58,-58v-140a58,58 0,0 1,58,-58z" />
+    <group android:rotation="18" android:pivotX="128" android:pivotY="128">
+        <path android:fillColor="#FFFFFF" android:pathData="M104,52h7a3,3 0,0 1,3,3v32a3,3 0,0 1,-3,3h-7a3,3 0,0 1,-3,-3v-32a3,3 0,0 1,3,-3z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M104,94h7a3,3 0,0 1,3,3v41a3,3 0,0 1,-3,3h-7a3,3 0,0 1,-3,-3v-41a3,3 0,0 1,3,-3z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M104,145h7a3,3 0,0 1,3,3v53a3,3 0,0 1,-3,3h-7a3,3 0,0 1,-3,-3v-53a3,3 0,0 1,3,-3z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M145,52h7a3,3 0,0 1,3,3v32a3,3 0,0 1,-3,3h-7a3,3 0,0 1,-3,-3v-32a3,3 0,0 1,3,-3z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M145,94h7a3,3 0,0 1,3,3v41a3,3 0,0 1,-3,3h-7a3,3 0,0 1,-3,-3v-41a3,3 0,0 1,3,-3z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M145,145h7a3,3 0,0 1,3,3v53a3,3 0,0 1,-3,3h-7a3,3 0,0 1,-3,-3v-53a3,3 0,0 1,3,-3z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M104,60h48a3,3 0,0 1,3,3v7a3,3 0,0 1,-3,3h-48a3,3 0,0 1,-3,-3v-7a3,3 0,0 1,3,-3z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M104,111h48a3,3 0,0 1,3,3v7a3,3 0,0 1,-3,3h-48a3,3 0,0 1,-3,-3v-7a3,3 0,0 1,3,-3z" />
+        <path android:fillColor="#FFFFFF" android:pathData="M104,162h48a3,3 0,0 1,3,3v7a3,3 0,0 1,-3,3h-48a3,3 0,0 1,-3,-3v-7a3,3 0,0 1,3,-3z" />
+    </group>
+</vector>

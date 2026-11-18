@@ -2,4 +2,13 @@
 <resources>
     <!-- palette.screen (src/theme.ts): splash and window background. -->
     <color name="splash_background">#030604</color>
+    <!-- Home-screen widget: the app's terminal palette (contract §5), as on the iOS widget. -->
+    <color name="widget_screen">#030604</color>
+    <color name="widget_green">#65F58A</color>
+    <color name="widget_connected">#B6F579</color>
+    <color name="widget_dim">#7DA989</color>
+    <color name="widget_border">#294F35</color>
+    <color name="widget_on_green">#061008</color>
+    <color name="widget_red">#E5484D</color>
+    <color name="widget_on_red">#FFF4F4</color>
 </resources>

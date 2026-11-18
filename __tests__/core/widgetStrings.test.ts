@@ -1,7 +1,8 @@
 /**
- * The iOS widget's Swift string table is GENERATED from the locale tables (`npm run widget:strings`).
- * This re-renders it from the current tables and fails when the committed file drifted — a new
- * translation, a changed status label, or a hand edit on the Swift side.
+ * The widgets' native string tables (iOS Swift, Android `widget_strings.xml` per locale) are
+ * GENERATED from the locale tables (`npm run widget:strings`). This re-renders them from the current
+ * tables and fails when a committed file drifted — a new translation, a changed status label, or a
+ * hand edit on the native side.
  */
 import { en } from '../../src/i18n/strings/en';
 import { ar } from '../../src/i18n/strings/ar';
@@ -15,6 +16,7 @@ import { zhTW } from '../../src/i18n/strings/zh-TW';
 import {
   WIDGET_STRING_KEYS,
   WIDGET_TAGS,
+  renderWidgetStringsAndroid,
   renderWidgetStringsSwift,
 } from '../../src/i18n/widgetStrings';
 
@@ -27,10 +29,8 @@ const { readFileSync } = require('fs') as {
 };
 const { join } = require('path') as { join: (...parts: string[]) => string };
 
-const GENERATED = join(
-  __dirname,
-  '../../ios/OpenRungWidget/WidgetStrings.generated.swift',
-);
+const ROOT = join(__dirname, '../..');
+const GENERATED = join(ROOT, 'ios/OpenRungWidget/WidgetStrings.generated.swift');
 
 const tables = {
   en,
@@ -44,9 +44,31 @@ const tables = {
   my: { ...en, ...my },
 };
 
-describe('iOS widget strings', () => {
+describe('widget strings', () => {
   it('committed Swift table matches the locale tables (run npm run widget:strings)', () => {
     expect(readFileSync(GENERATED, 'utf8')).toBe(renderWidgetStringsSwift(tables));
+  });
+
+  it('committed Android widget_strings.xml files match the locale tables (run npm run widget:strings)', () => {
+    const files = renderWidgetStringsAndroid(tables);
+    expect(Object.keys(files)).toHaveLength(WIDGET_TAGS.length);
+    for (const [relative, content] of Object.entries(files)) {
+      expect(readFileSync(join(ROOT, relative), 'utf8')).toBe(content);
+    }
+  });
+
+  it('escapes Android string resource syntax', () => {
+    const tricky = {
+      ...tables,
+      en: { ...en, widgetName: `@It's "a" <b> & \\ x`, widgetStatusDisconnected: 'Not\nconnected' },
+    };
+    const english = renderWidgetStringsAndroid(tricky)[
+      'android/app/src/main/res/values/widget_strings.xml'
+    ];
+    expect(english).toContain(
+      `<string name="widget_name">\\@It\\'s \\"a\\" &lt;b&gt; &amp; \\\\ x</string>`,
+    );
+    expect(english).toContain('<string name="widget_status_disconnected">Not\\nconnected</string>');
   });
 
   it('covers the nine supported languages', () => {
@@ -75,5 +97,6 @@ describe('iOS widget strings', () => {
   it('refuses to render a locale missing a widget key', () => {
     const broken = { ...tables, fa: { ...tables.fa, widgetName: undefined } };
     expect(() => renderWidgetStringsSwift(broken)).toThrow(/"fa".*"widgetName"/);
+    expect(() => renderWidgetStringsAndroid(broken)).toThrow(/"fa".*"widgetName"/);
   });
 });

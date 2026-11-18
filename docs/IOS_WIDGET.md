@@ -208,7 +208,8 @@ keeps the same rule by loading the profile itself before it reads any status.
 
 `ios/OpenRungWidget/WidgetStrings.generated.swift` is rendered from
 `src/i18n/strings/*.ts` by `npm run widget:strings` (keys listed in
-`src/i18n/widgetStrings.ts`). `__tests__/core/widgetStrings.test.ts` fails when the
+`src/i18n/widgetStrings.ts`), together with the Android widget's
+`widget_strings.xml` files ([ANDROID_WIDGET.md](ANDROID_WIDGET.md)). `__tests__/core/widgetStrings.test.ts` fails when the
 committed Swift drifts from the TypeScript tables; `WidgetStringsTests` (XCTest)
 covers resolution (stored tag → device language → English, `zh-Hant`/TW/HK/MO →
 `zh-TW`) and the right-to-left layout for `fa` and `ar`.

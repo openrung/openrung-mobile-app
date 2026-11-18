@@ -30,6 +30,7 @@ The broker handles discovery; relays carry user traffic.
 | `android/app/` | Kotlin VPN host, React Native bridges and Android integration. |
 | `ios/PacketTunnel/`, `ios/Shared/` | Swift VPN extension and shared native code. |
 | `ios/OpenRungWidget/` | WidgetKit home-screen widget (status, Connect handoff, background Connect and Disconnect; see `docs/IOS_WIDGET.md`). |
+| `android/app/src/main/java/com/openrung/widget/` | Android home-screen widget, same behaviour as iOS (see `docs/ANDROID_WIDGET.md`). |
 | `android/punchbridge/` | Go bindings consumed by both platforms; pins shared OpenRung modules. |
 | `testdata/`, `__tests__/` | Contract fixtures and JavaScript tests. |
 | `scripts/`, `.github/workflows/` | Validation helpers and authoritative CI checks. |
