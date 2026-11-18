@@ -20,10 +20,10 @@
  *  - while connected, the session's relay is marked with a brighter core, a
  *    ring and a wider glow — the same layers, switched by the feature's
  *    `connected` property, so the count and city label stay on top — and the
- *    camera eases over to it (zoom unchanged).
+ *    camera eases over to it (zoom unchanged) once the app is in front.
  */
-import React, { useCallback, useMemo } from 'react';
-import { StyleSheet, type NativeSyntheticEvent } from 'react-native';
+import React, { useCallback, useMemo, useSyncExternalStore } from 'react';
+import { AppState, StyleSheet, type NativeSyntheticEvent } from 'react-native';
 import {
   Camera,
   GeoJSONSource,
@@ -164,6 +164,30 @@ export function exitNodeFeatures(
   return { type: 'FeatureCollection' as const, features };
 }
 
+/**
+ * The camera stop for the connected relay: recenter on it, keeping the zoom. None while not
+ * connected, and none while the app is not active: a widget Connect can launch the app in the
+ * background, where MapLibre's iOS map view has no usable geometry and fitting the camera
+ * aborts the process. The stop is sent once the app comes to the front.
+ */
+export function connectedCameraStop(
+  connectedCenter: [number, number] | null,
+  appActive: boolean,
+) {
+  return connectedCenter == null || !appActive
+    ? NO_CAMERA_STOP
+    : { center: connectedCenter, duration: CONNECTED_CAMERA_MS, easing: 'ease' as const };
+}
+
+function subscribeAppState(onChange: () => void): () => void {
+  const subscription = AppState.addEventListener('change', onChange);
+  return () => subscription.remove();
+}
+
+function isAppActive(): boolean {
+  return AppState.currentState === 'active';
+}
+
 export interface ExitNodeMapProps {
   regions: ExitNodeRegion[];
   onRegionPress: (countryCode: string) => void;
@@ -227,12 +251,10 @@ export function ExitNodeMap({
     [regions, connectedCenter],
   );
   // A camera stop without a zoom keeps the user's zoom level and only recenters.
+  const appActive = useSyncExternalStore(subscribeAppState, isAppActive);
   const cameraStop = useMemo(
-    () =>
-      connectedCenter == null
-        ? NO_CAMERA_STOP
-        : { center: connectedCenter, duration: CONNECTED_CAMERA_MS, easing: 'ease' as const },
-    [connectedCenter],
+    () => connectedCameraStop(connectedCenter, appActive),
+    [connectedCenter, appActive],
   );
 
   const handleNodePress = useCallback(
