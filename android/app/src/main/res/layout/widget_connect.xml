@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The home-screen widget (docs/ANDROID_WIDGET.md); WidgetViews fills it. As placed here it is
+     the disconnected face, which is also the picker preview and the first frame. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:orientation="vertical"
+    android:padding="14dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/widget_app_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:fontFamily="monospace"
+            android:gravity="start"
+            android:maxLines="1"
+            android:text="@string/widget_app_name"
+            android:textColor="@color/widget_dim"
+            android:textSize="12sp" />
+
+        <ImageView
+            android:id="@+id/widget_mark"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_marginStart="6dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_widget_mark" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp">
+
+        <TextView
+            android:id="@+id/widget_status"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:autoSizeMaxTextSize="17sp"
+            android:autoSizeMinTextSize="8sp"
+            android:autoSizeStepGranularity="1sp"
+            android:autoSizeTextType="uniform"
+            android:fontFamily="monospace"
+            android:gravity="center_vertical|start"
+            android:maxLines="2"
+            android:text="@string/widget_status_disconnected"
+            android:textColor="@color/widget_green"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widget_relay"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:fontFamily="monospace"
+            android:gravity="start"
+            android:maxLines="1"
+            android:textColor="@color/widget_green"
+            android:textSize="12sp"
+            android:visibility="gone" />
+
+        <Chronometer
+            android:id="@+id/widget_timer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:gravity="start"
+            android:maxLines="1"
+            android:textColor="@color/widget_dim"
+            android:textSize="12sp"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:id="@+id/widget_connect"
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:autoSizeMaxTextSize="15sp"
+            android:autoSizeMinTextSize="8sp"
+            android:autoSizeStepGranularity="1sp"
+            android:autoSizeTextType="uniform"
+            android:background="@drawable/widget_button_connect"
+            android:fontFamily="monospace"
+            android:gravity="center"
+            android:maxLines="1"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
+            android:text="@string/widget_action_connect"
+            android:textColor="@color/widget_on_green"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/widget_disconnect"
+            android:layout_width="match_parent"
+            android:layout_height="30dp"
+            android:autoSizeMaxTextSize="13sp"
+            android:autoSizeMinTextSize="7sp"
+            android:autoSizeStepGranularity="1sp"
+            android:autoSizeTextType="uniform"
+            android:background="@drawable/widget_button_disconnect"
+            android:fontFamily="monospace"
+            android:gravity="center"
+            android:maxLines="1"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
+            android:text="@string/widget_action_disconnect"
+            android:textColor="@color/widget_on_red"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/widget_inline_status"
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:autoSizeMaxTextSize="13sp"
+            android:autoSizeMinTextSize="7sp"
+            android:autoSizeStepGranularity="1sp"
+            android:autoSizeTextType="uniform"
+            android:background="@drawable/widget_inline_status"
+            android:fontFamily="monospace"
+            android:gravity="center"
+            android:maxLines="1"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
+            android:textColor="@color/widget_dim"
+            android:textSize="13sp"
+            android:visibility="gone" />
+    </FrameLayout>
+</LinearLayout>

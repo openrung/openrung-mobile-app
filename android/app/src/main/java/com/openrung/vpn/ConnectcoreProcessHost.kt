@@ -46,10 +46,35 @@ internal open class EngineProcessHost(
     private var country = ""
     private var relay = ""
 
+    /** True while a service owns the engine: from a connect taking effect until its teardown. */
+    val isActive: Boolean get() = owner != null
+
     fun post(work: () -> Unit) { queue.execute(work) }
 
-    fun connect(service: OpenRungVpnService, id: Int, url: String, targetCountry: String?, targetRelay: String?) = post {
-        connectOnQueue(service, id, url, targetCountry, targetRelay)
+    /**
+     * [onlyIfIdle] is the home-screen widget's Connect (docs/ANDROID_WIDGET.md): it starts only when
+     * no service owns the engine, so a widget tap never replaces a tunnel that is connecting,
+     * connected or pinned to a chosen country. Decided here, on the queue, so it also holds against
+     * a connect queued just before it.
+     */
+    fun connect(
+        service: OpenRungVpnService, id: Int, url: String, targetCountry: String?, targetRelay: String?,
+        onlyIfIdle: Boolean = false,
+    ) = post {
+        if (onlyIfIdle && owner != null) refuseBusy(service, id)
+        else connectOnQueue(service, id, url, targetCountry, targetRelay)
+    }
+
+    /**
+     * A refused widget connect still went through startForeground, which replaced the notification
+     * text and made this command the service's latest. Restore the text, and let the owner's
+     * eventual finish use this id, as reapply does, so the service can still stop.
+     */
+    private fun refuseBusy(service: OpenRungVpnService, id: Int) {
+        if (owner !== service) { service.finish(id); return }
+        startId = id
+        val current = OpenRungStatusStore.uiState.value
+        service.showStatus(current.status, current.relayLabel)
     }
 
     private fun connectOnQueue(service: OpenRungVpnService, id: Int, url: String, targetCountry: String?, targetRelay: String?) {

@@ -33,7 +33,8 @@ class OpenRungVpnService : VpnService() {
             ACTION_CONNECT -> {
                 startForeground(NOTIFICATION_ID, notification(getString(R.string.vpn_notification_preparing)))
                 ConnectcoreProcessHost.connect(this, startId, intent.getStringExtra(EXTRA_BROKER_URL).orEmpty().ifBlank { AppConfig.DEFAULT_BROKER_URL },
-                    intent.getStringExtra(EXTRA_TARGET_COUNTRY), intent.getStringExtra(EXTRA_TARGET_RELAY_ID))
+                    intent.getStringExtra(EXTRA_TARGET_COUNTRY), intent.getStringExtra(EXTRA_TARGET_RELAY_ID),
+                    onlyIfIdle = intent.getBooleanExtra(EXTRA_ONLY_IF_IDLE, false))
             }
             ACTION_REAPPLY -> ConnectcoreProcessHost.reapply(this, startId)
             ACTION_DISCONNECT -> ConnectcoreProcessHost.stop(this, startId)
@@ -189,6 +190,7 @@ class OpenRungVpnService : VpnService() {
         private const val EXTRA_BROKER_URL = "broker_url"
         private const val EXTRA_TARGET_COUNTRY = "target_country"
         private const val EXTRA_TARGET_RELAY_ID = "target_relay_id"
+        private const val EXTRA_ONLY_IF_IDLE = "only_if_idle"
         private const val NOTIFICATION_CHANNEL_ID = "openrung_vpn"
         private const val NOTIFICATION_ID = 2001
 
@@ -197,12 +199,15 @@ class OpenRungVpnService : VpnService() {
             brokerUrl: String,
             targetCountry: String? = null,
             targetRelayId: String? = null,
+            /** Start only when no tunnel is up or starting (the widget's Connect). */
+            onlyIfIdle: Boolean = false,
         ): Intent =
             Intent(context, OpenRungVpnService::class.java).apply {
                 action = ACTION_CONNECT
                 putExtra(EXTRA_BROKER_URL, brokerUrl)
                 targetCountry?.let { putExtra(EXTRA_TARGET_COUNTRY, it) }
                 targetRelayId?.let { putExtra(EXTRA_TARGET_RELAY_ID, it) }
+                if (onlyIfIdle) putExtra(EXTRA_ONLY_IF_IDLE, true)
             }
 
         fun disconnectIntent(context: Context): Intent =

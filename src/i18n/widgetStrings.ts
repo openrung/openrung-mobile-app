@@ -1,10 +1,11 @@
 /**
- * Renders the iOS home-screen widget's string table (`ios/OpenRungWidget/WidgetStrings.generated.swift`)
- * from the app's locale tables, so the widget's copy is never hand-duplicated in Swift.
+ * Renders the home-screen widgets' string tables from the app's locale tables, so the widget copy is
+ * never hand-duplicated natively: iOS gets `ios/OpenRungWidget/WidgetStrings.generated.swift`, and
+ * Android gets one `widget_strings.xml` per locale under `android/app/src/main/res/`.
  *
  * Deliberately import-free: `scripts/generate-widget-strings.mjs` loads this file straight into
  * Node (type stripping) next to the nine locale tables, and `__tests__/core/widgetStrings.test.ts`
- * re-renders through Jest and fails when the committed Swift file drifts.
+ * re-renders through Jest and fails when a committed file drifts.
  */
 
 /** The subset of `Strings` the widget shows; every value must be a plain string, not a formatter. */
@@ -100,4 +101,101 @@ export function renderWidgetStringsSwift(
   }
   lines.push('    ]', '}', '');
   return lines.join('\n');
+}
+
+/** Android resource name of each widget key; all carry the `widget_` prefix. */
+export const WIDGET_ANDROID_RESOURCE_NAMES: Record<WidgetStringKey, string> = {
+  appName: 'widget_app_name',
+  actionConnect: 'widget_action_connect',
+  actionDisconnect: 'widget_action_disconnect',
+  widgetStatusDisconnected: 'widget_status_disconnected',
+  statusConnecting: 'widget_status_connecting',
+  statusConnected: 'widget_status_connected',
+  statusDisconnecting: 'widget_status_disconnecting',
+  statusFailed: 'widget_status_failed',
+  widgetName: 'widget_name',
+  widgetDescription: 'widget_description',
+};
+
+/** The Android `values` directory of each tag; English is the default (unqualified) one. */
+export const WIDGET_ANDROID_VALUES_DIRS: Record<WidgetTag, string> = {
+  en: 'values',
+  'zh-CN': 'values-zh-rCN',
+  'zh-TW': 'values-zh-rTW',
+  fa: 'values-fa',
+  ru: 'values-ru',
+  ar: 'values-ar',
+  tr: 'values-tr',
+  vi: 'values-vi',
+  my: 'values-my',
+};
+
+export const WIDGET_ANDROID_RES_ROOT = 'android/app/src/main/res';
+export const WIDGET_ANDROID_FILE = 'widget_strings.xml';
+
+function androidLiteral(value: string): string {
+  let out = '';
+  for (const char of value) {
+    const code = char.codePointAt(0) ?? 0;
+    if (char === '\\') {
+      out += '\\\\';
+    } else if (char === '&') {
+      out += '&amp;';
+    } else if (char === '<') {
+      out += '&lt;';
+    } else if (char === '>') {
+      out += '&gt;';
+    } else if (char === "'") {
+      out += "\\'";
+    } else if (char === '"') {
+      out += '\\"';
+    } else if (char === '\n') {
+      out += '\\n';
+    } else if (char === '\t') {
+      out += '\\t';
+    } else if (code < 0x20 || code === 0x7f) {
+      throw new Error(`widget strings: control character U+${code.toString(16)} has no Android form`);
+    } else {
+      out += char;
+    }
+  }
+  // A leading @ or ? would be read as a resource reference.
+  return /^[@?]/.test(out) ? `\\${out}` : out;
+}
+
+/**
+ * Produces one `widget_strings.xml` per locale, keyed by its path from the repository root. Same
+ * refusal rules as the Swift renderer.
+ */
+export function renderWidgetStringsAndroid(
+  tables: Record<WidgetTag, WidgetStringSource>,
+): Record<string, string> {
+  const files: Record<string, string> = {};
+  for (const tag of WIDGET_TAGS) {
+    const table = tables[tag];
+    if (table == null) {
+      throw new Error(`widget strings: no table for "${tag}"`);
+    }
+    const lines = [
+      '<?xml version="1.0" encoding="utf-8"?>',
+      WIDGET_STRINGS_HEADER.trimEnd()
+        .split('\n')
+        .map((line) => `<!-- ${line.replace(/^\/\/ /, '').replace(/--/g, '-')} -->`)
+        .join('\n'),
+      '<resources>',
+    ];
+    for (const key of WIDGET_STRING_KEYS) {
+      const value = table[key];
+      if (typeof value !== 'string' || value.length === 0) {
+        throw new Error(`widget strings: "${tag}" has no string for "${key}"`);
+      }
+      lines.push(
+        `    <string name="${WIDGET_ANDROID_RESOURCE_NAMES[key]}">${androidLiteral(value)}</string>`,
+      );
+    }
+    lines.push('</resources>', '');
+    files[`${WIDGET_ANDROID_RES_ROOT}/${WIDGET_ANDROID_VALUES_DIRS[tag]}/${WIDGET_ANDROID_FILE}`] =
+      lines.join('\n');
+  }
+  return files;
 }

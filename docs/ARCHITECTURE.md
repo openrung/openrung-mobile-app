@@ -441,6 +441,11 @@ in the published connectcore module (ADR-003 B2). Kotlin owns OS mechanics:
   the shared brokerapi binding. It does not orchestrate VPN sessions.
 - `bridge/OpenRungApkShareModule.kt` and `share/InstalledApkProvider.kt` expose
   the installed monolithic APK through a temporary URI grant.
+- `widget/` is the home-screen widget, the counterpart of the iOS one. It runs in the
+  app's process, follows `OpenRungStatusStore` and redraws when what it shows changes.
+  Its Connect starts the service with no target and only while no service owns the
+  engine (checked on the engine queue). Its Disconnect sends the ordinary disconnect
+  intent. See [ANDROID_WIDGET.md](ANDROID_WIDGET.md).
 
 The AAR remains a git-ignored build artifact (`app/libs/libbox.aar`). Build it
 before compiling Android. Missing native linkage is reported as a startup

@@ -96,6 +96,32 @@ class EngineProcessHostTest {
         }
     }
 
+    @Test fun `widget connect starts only when no service owns the engine`() {
+        val queue = Queue(); val engine = Engine()
+        val service = Robolectric.buildService(OpenRungVpnService::class.java).create().get()
+        val host = EngineProcessHost(queue) { _, _, listener -> engine.apply { this.listener = listener } }
+        host.connect(service, 1, "https://example.org", null, null, onlyIfIdle = true); queue.drain()
+        assertTrue(host.isActive)
+        engine.state(1, "connected"); queue.drain()
+        host.connect(service, 2, "https://example.org", null, null, onlyIfIdle = true); queue.drain()
+        assertEquals(listOf("start:"), engine.calls.filter { it.startsWith("start:") })
+        assertEquals(0, engine.calls.count { it == "stop" })
+        assertEquals(ConnectionStatus.CONNECTED, OpenRungStatusStore.uiState.value.status)
+        host.stop(service, 3); queue.drain()
+        assertFalse(host.isActive)
+    }
+
+    @Test fun `widget connect queued behind a pinned connect never replaces it`() {
+        val queue = Queue(); val engine = Engine()
+        val service = Robolectric.buildService(OpenRungVpnService::class.java).create().get()
+        val host = EngineProcessHost(queue) { _, _, listener -> engine.apply { this.listener = listener } }
+        host.connect(service, 1, "https://example.org", "JP", "relay-a")
+        host.connect(service, 2, "https://example.org", null, null, onlyIfIdle = true)
+        queue.drain()
+        assertEquals(listOf("start:relay-a"), engine.calls.filter { it.startsWith("start:") })
+        host.stop(service, 3); queue.drain()
+    }
+
     @Test fun `disconnecting is visible during the blocking stop`() {
         val queue = Queue(); val engine = Engine()
         val service = Robolectric.buildService(OpenRungVpnService::class.java).create().get()
