@@ -6,7 +6,8 @@
  * floats on top:
  *
  *  - header: OpenRung wordmark (with a blinking terminal cursor) on the left,
- *    the relay-directory status chip on the right, and the localized slogan on
+ *    the relay-directory status chip on the right (wrapping beneath the
+ *    wordmark when large text leaves no room), and the localized slogan on
  *    its own line beneath them;
  *  - view toggle: a MAP/LIST segmented pill under the header switches the
  *    directory presentation (persisted, store.homeViewMode). In list mode a
@@ -418,8 +419,11 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
+  // At large text sizes the wordmark leaves too little room beside it: the chip then wraps
+  // below it and shrinks to the row's width instead of running off the right edge.
   header: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 12,
@@ -427,6 +431,7 @@ const styles = StyleSheet.create({
   headerChip: {
     marginTop: 4,
     maxWidth: 180,
+    flexShrink: 1,
   },
   wordmarkRow: {
     flexDirection: 'row',
